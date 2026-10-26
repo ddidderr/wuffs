@@ -1,0 +1,225 @@
+// Copyright 2026 The Wuffs Authors.
+//
+// Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
+// https://www.apache.org/licenses/LICENSE-2.0> or the MIT license
+// <LICENSE-MIT or https://opensource.org/licenses/MIT>, at your
+// option. This file may not be copied, modified, or distributed
+// except according to those terms.
+//
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+
+// -------- f32 (binary32) operations.
+//
+// The f32 add, sub, mul and div functions convert their (exactly
+// representable) operands to f64, perform the f64 operation and round the
+// result to f32. Double rounding is innocuous here: binary64 has more than
+// (2 * 24) + 2 bits of precision, which suffices for +, -, * and / (Figueroa,
+// "When is double rounding innocuous?", 1995). This is also exhaustively
+// cross-checked against hardware by the tests.
+
+pri const F32_SIGN : base.u32 = 0x8000_0000
+pri const F32_ABS  : base.u32 = 0x7FFF_FFFF
+pri const F32_INF  : base.u32 = 0x7F80_0000
+
+// f32_to_f64 returns the f64 equal to a (C's (double)a). It is exact.
+pub func arith.f32_to_f64(a: base.u32) base.u64 {
+    var sign : base.u64
+    var exp  : base.u32
+    var frac : base.u64
+    var top  : base.u32[..= 63]
+
+    sign = ((args.a as base.u64) >> 31) << 63
+    exp = (args.a >> 23) & 0xFF
+    frac = (args.a & 0x7F_FFFF) as base.u64
+
+    if exp == 0xFF {
+        if frac <> 0 {
+            return sign | 0x7FF8_0000_0000_0000 | (frac << 29)
+        }
+        return sign | 0x7FF0_0000_0000_0000
+    } else if exp == 0 {
+        if frac == 0 {
+            return sign
+        }
+        // Subnormal: the value is (frac * 2**-149) and frac's most
+        // significant bit is at bit position top (in 0 ..= 22).
+        top = 63 - this.clz64(a: frac)
+        if top > 22 {
+            return 0
+        }
+        return sign |
+                (((top + 874) as base.u64) << 52) |
+                ((frac ~mod<< (52 - top)) & 0x000F_FFFF_FFFF_FFFF)
+    }
+    return sign | (((exp + 896) as base.u64) << 52) | (frac << 29)
+}
+
+// f32_is_nan returns 1 if a is a NaN (quiet or signaling) and 0 otherwise.
+pub func arith.f32_is_nan(a: base.u32) base.u32 {
+    if (args.a & F32_ABS) > F32_INF {
+        return 1
+    }
+    return 0
+}
+
+// f32_neg returns -a (flipping the sign bit, even for NaNs and zeroes).
+pub func arith.f32_neg(a: base.u32) base.u32 {
+    return args.a ^ F32_SIGN
+}
+
+// f32_abs returns |a| (clearing the sign bit, even for NaNs).
+pub func arith.f32_abs(a: base.u32) base.u32 {
+    return args.a & F32_ABS
+}
+
+// f32_add returns (a + b).
+pub func arith.f32_add(a: base.u32, b: base.u32) base.u32 {
+    return this.f64_to_f32(a: this.f64_add(
+            a: this.f32_to_f64(a: args.a),
+            b: this.f32_to_f64(a: args.b)))
+}
+
+// f32_sub returns (a - b).
+pub func arith.f32_sub(a: base.u32, b: base.u32) base.u32 {
+    return this.f64_to_f32(a: this.f64_sub(
+            a: this.f32_to_f64(a: args.a),
+            b: this.f32_to_f64(a: args.b)))
+}
+
+// f32_mul returns (a * b).
+pub func arith.f32_mul(a: base.u32, b: base.u32) base.u32 {
+    return this.f64_to_f32(a: this.f64_mul(
+            a: this.f32_to_f64(a: args.a),
+            b: this.f32_to_f64(a: args.b)))
+}
+
+// f32_div returns (a / b).
+pub func arith.f32_div(a: base.u32, b: base.u32) base.u32 {
+    return this.f64_to_f32(a: this.f64_div(
+            a: this.f32_to_f64(a: args.a),
+            b: this.f32_to_f64(a: args.b)))
+}
+
+// f32_cmp compares a and b, returning 0 if (a < b), 1 if (a == b), 2 if (a
+// > b) and 3 if they are unordered (either is a NaN). -0 and +0 compare equal.
+pub func arith.f32_cmp(a: base.u32, b: base.u32) base.u32 {
+    var ka : base.u32
+    var kb : base.u32
+
+    if ((args.a & F32_ABS) > F32_INF) or ((args.b & F32_ABS) > F32_INF) {
+        return 3
+    } else if ((args.a | args.b) & F32_ABS) == 0 {
+        return 1
+    }
+    ka = args.a | F32_SIGN
+    if (args.a >> 31) <> 0 {
+        ka = 0xFFFF_FFFF ^ args.a
+    }
+    kb = args.b | F32_SIGN
+    if (args.b >> 31) <> 0 {
+        kb = 0xFFFF_FFFF ^ args.b
+    }
+    if ka < kb {
+        return 0
+    } else if ka == kb {
+        return 1
+    }
+    return 2
+}
+
+// The f32_eq, f32_ne, f32_lt, f32_le, f32_gt and f32_ge functions implement
+// C's ==, !=, <, <=, > and >= operators. They return 1 for true and 0 for
+// false. Any comparison involving a NaN is false (except for !=, which is
+// true), and -0 equals +0.
+
+pub func arith.f32_eq(a: base.u32, b: base.u32) base.u32 {
+    if this.f32_cmp(a: args.a, b: args.b) == 1 {
+        return 1
+    }
+    return 0
+}
+
+pub func arith.f32_ne(a: base.u32, b: base.u32) base.u32 {
+    if this.f32_cmp(a: args.a, b: args.b) == 1 {
+        return 0
+    }
+    return 1
+}
+
+pub func arith.f32_lt(a: base.u32, b: base.u32) base.u32 {
+    if this.f32_cmp(a: args.a, b: args.b) == 0 {
+        return 1
+    }
+    return 0
+}
+
+pub func arith.f32_le(a: base.u32, b: base.u32) base.u32 {
+    if this.f32_cmp(a: args.a, b: args.b) <= 1 {
+        return 1
+    }
+    return 0
+}
+
+pub func arith.f32_gt(a: base.u32, b: base.u32) base.u32 {
+    if this.f32_cmp(a: args.a, b: args.b) == 2 {
+        return 1
+    }
+    return 0
+}
+
+pub func arith.f32_ge(a: base.u32, b: base.u32) base.u32 {
+    var c : base.u32
+
+    c = this.f32_cmp(a: args.a, b: args.b)
+    if (c == 1) or (c == 2) {
+        return 1
+    }
+    return 0
+}
+
+// f32_min returns ((a < b) ? a : b), like brotli's BROTLI_MIN(float, a, b).
+// Note that this is not IEEE 754 minNum: f32_min(NaN, x) and f32_min(x, NaN)
+// both return the second argument, and f32_min(-0, +0) returns +0.
+pub func arith.f32_min(a: base.u32, b: base.u32) base.u32 {
+    if this.f32_cmp(a: args.a, b: args.b) == 0 {
+        return args.a
+    }
+    return args.b
+}
+
+// f32_max returns ((a > b) ? a : b), like brotli's BROTLI_MAX(float, a, b).
+pub func arith.f32_max(a: base.u32, b: base.u32) base.u32 {
+    if this.f32_cmp(a: args.a, b: args.b) == 2 {
+        return args.a
+    }
+    return args.b
+}
+
+// f32_from_u32 returns the f32 nearest to the integer a (C's (float)a).
+pub func arith.f32_from_u32(a: base.u32) base.u32 {
+    // The u32 to f64 conversion is exact, so there is only one rounding.
+    return this.f64_to_f32(a: this.f64_from_u32(a: args.a))
+}
+
+// f32_from_i32 returns the f32 nearest to the integer a (C's (float)a).
+pub func arith.f32_from_i32(a: base.i32) base.u32 {
+    return this.f64_to_f32(a: this.f64_from_i64(a: args.a as base.i64))
+}
+
+// f32_from_u64 returns the f32 nearest to the integer a (C's (float)a).
+pub func arith.f32_from_u64(a: base.u64) base.u32 {
+    var top : base.u32[..= 63]
+    var x   : base.u64
+
+    // Converting via f64 could double-round, so first reduce a to at most
+    // 53 significant bits, the last of which is a sticky bit. The f64
+    // conversion of that is exact.
+    x = args.a
+    if x >= 0x0020_0000_0000_0000 {
+        top = 63 - this.clz64(a: x)
+        if top >= 53 {
+            x = this.shift_right_jam64(a: x, dist: top - 52) ~mod<< (top - 52)
+        }
+    }
+    return this.f64_to_f32(a: this.f64_from_u64(a: x))
+}

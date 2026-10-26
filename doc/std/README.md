@@ -8,6 +8,9 @@ categories:
 - [Hashers](/doc/std/hashers.md).
 - [Image Decoders](/doc/std/image-decoders.md).
 
+Other packages include [std/softfloat](/std/softfloat/README.md), which
+implements bit-exact IEEE 754 floating point arithmetic using only integers.
+
 The general pattern is that a package `foo` (e.g. `jpeg`, `png`) contains a
 struct `bar` (e.g. `hasher`, `decoder`, etc) that implements a
 package-independent interface. For example, every compression decoder struct
@@ -66,6 +69,7 @@ to enable.
 - `PNG:       BASE, ADLER32, CRC32, DEFLATE, ZLIB`
 - `QOI:       BASE`
 - `SHA256:    BASE`
+- `SOFTFLOAT: BASE`
 - `TGA:       BASE`
 - `THUMBHASH: BASE`
 - `VP8:       BASE`

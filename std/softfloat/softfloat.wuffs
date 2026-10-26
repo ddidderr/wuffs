@@ -1,0 +1,950 @@
+// Copyright 2026 The Wuffs Authors.
+//
+// Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
+// https://www.apache.org/licenses/LICENSE-2.0> or the MIT license
+// <LICENSE-MIT or https://opensource.org/licenses/MIT>, at your
+// option. This file may not be copied, modified, or distributed
+// except according to those terms.
+//
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+
+// Package softfloat implements IEEE 754 binary64 ("f64", C's double) and
+// binary32 ("f32", C's float) arithmetic using only integer operations.
+//
+// Values are passed around as their bit patterns: an f64 is a base.u64 and an
+// f32 is a base.u32. Every operation rounds to nearest, ties to even, and
+// handles signed zeroes, subnormals, infinities and NaNs. The results are
+// bit-for-bit identical to x86-64 SSE2 hardware (and any other conforming
+// IEEE 754 implementation), except that NaN payloads (and NaN signs) are not
+// guaranteed to match: callers should only rely on a result being "some NaN".
+//
+// See README.md for more details.
+
+pub struct arith?(
+        util : base.utility,
+)
+
+pri const F64_SIGN   : base.u64 = 0x8000_0000_0000_0000
+pri const F64_ABS    : base.u64 = 0x7FFF_FFFF_FFFF_FFFF
+pri const F64_INF    : base.u64 = 0x7FF0_0000_0000_0000
+pri const F64_FRAC   : base.u64 = 0x000F_FFFF_FFFF_FFFF
+pri const F64_HIDDEN : base.u64 = 0x0010_0000_0000_0000
+pri const F64_QUIET  : base.u64 = 0x0008_0000_0000_0000
+
+// F64_DEFAULT_NAN is what x86 hardware produces for invalid operations such
+// as (0 / 0) or (inf - inf).
+pri const F64_DEFAULT_NAN : base.u64 = 0xFFF8_0000_0000_0000
+
+// -------- Bit twiddling helpers.
+
+// clz64 returns the number of leading zero bits of a, which must be non-zero.
+// If a is zero, it returns 63.
+pri func arith.clz64(a: base.u64) base.u32[..= 63] {
+    var x   : base.u64
+    var n32 : base.u32[..= 32]
+    var n16 : base.u32[..= 16]
+    var n8  : base.u32[..= 8]
+
+    x = args.a
+    if (x >> 32) == 0 {
+        x = x ~mod<< 32
+        n32 = 32
+    }
+    if (x >> 48) == 0 {
+        x = x ~mod<< 16
+        n16 = 16
+    }
+    if (x >> 56) == 0 {
+        x = x ~mod<< 8
+        n8 = 8
+    }
+    return (n32 + n16 + n8 + ((CLZ8[x >> 56] as base.u32) & 7)) & 63
+}
+
+// shift_right_jam64 returns (a >> dist), except that if any non-zero bits
+// were shifted out then the least significant bit of the result is set. This
+// "sticky bit" is needed to round correctly.
+pri func arith.shift_right_jam64(a: base.u64, dist: base.u32) base.u64 {
+    var d : base.u32
+
+    if args.dist == 0 {
+        return args.a
+    } else if args.dist < 64 {
+        d = args.dist
+        if (args.a ~mod<< (64 - d)) <> 0 {
+            return (args.a >> d) | 1
+        }
+        return args.a >> d
+    } else if args.a <> 0 {
+        return 1
+    }
+    return 0
+}
+
+// jam128_hi and jam128_lo return the high and low 64-bit halves of the
+// 128-bit value ((hi << 64) | lo) shifted right by dist, with a sticky bit
+// (see shift_right_jam64).
+pri func arith.jam128_hi(hi: base.u64, lo: base.u64, dist: base.u32) base.u64 {
+    if args.dist < 64 {
+        return args.hi >> args.dist
+    }
+    return 0
+}
+
+pri func arith.jam128_lo(hi: base.u64, lo: base.u64, dist: base.u32) base.u64 {
+    var d      : base.u32
+    var sticky : base.u64
+
+    if args.dist == 0 {
+        return args.lo
+    } else if args.dist < 64 {
+        d = args.dist
+        if (args.lo ~mod<< (64 - d)) <> 0 {
+            sticky = 1
+        }
+        return (args.hi ~mod<< (64 - d)) | (args.lo >> d) | sticky
+    } else if args.dist < 128 {
+        d = args.dist - 64
+        if d > 0 {
+            if ((args.hi ~mod<< (64 - d)) | args.lo) <> 0 {
+                sticky = 1
+            }
+        } else if args.lo <> 0 {
+            sticky = 1
+        }
+        return (args.hi >> d) | sticky
+    } else if (args.hi | args.lo) <> 0 {
+        return 1
+    }
+    return 0
+}
+
+// mul_hi64 returns the high 64 bits of the 128-bit product (a * b).
+pri func arith.mul_hi64(a: base.u64, b: base.u64) base.u64 {
+    var a0  : base.u64[..= 0xFFFF_FFFF]
+    var a1  : base.u64[..= 0xFFFF_FFFF]
+    var b0  : base.u64[..= 0xFFFF_FFFF]
+    var b1  : base.u64[..= 0xFFFF_FFFF]
+    var p00 : base.u64
+    var p01 : base.u64
+    var p10 : base.u64
+    var p11 : base.u64
+    var mid : base.u64
+
+    a0 = args.a & 0xFFFF_FFFF
+    a1 = args.a >> 32
+    b0 = args.b & 0xFFFF_FFFF
+    b1 = args.b >> 32
+    p00 = a0 * b0
+    p01 = a0 * b1
+    p10 = a1 * b0
+    p11 = a1 * b1
+    mid = (p00 >> 32) + (p01 & 0xFFFF_FFFF) + (p10 & 0xFFFF_FFFF)
+    return ((p11 ~mod+ (p01 >> 32)) ~mod+ (p10 >> 32)) ~mod+ (mid >> 32)
+}
+
+// -------- f64 rounding and packing.
+//
+// Exponents are passed as base.u32 values holding two's complement signed
+// integers (so that 0xFFFF_FFFF means -1), manipulated with ~mod arithmetic.
+//
+// The round_pack_f64 sig argument holds a significand with its implicit
+// (hidden) bit at bit 62 and 10 extra bits of precision at the bottom (the
+// least significant of which is typically sticky). The value represented is
+// (sig * 2**(exp - 1084)), so exp is one less than the biased exponent.
+
+pri func arith.round_pack_f64(sign: base.u64, exp: base.u32, sig: base.u64) base.u64 {
+    var e          : base.u32
+    var s          : base.u64
+    var round_bits : base.u64
+
+    e = args.exp
+    s = args.sig
+    round_bits = s & 0x3FF
+    if e >= 0x8000_0000 {
+        // Negative exponent: the result is subnormal (or zero).
+        s = this.shift_right_jam64(a: s, dist: 0 ~mod- e)
+        e = 0
+        round_bits = s & 0x3FF
+    } else if e >= 0x7FD {
+        if (e > 0x7FD) or (s >= 0x7FFF_FFFF_FFFF_FE00) {
+            return args.sign | F64_INF
+        }
+    }
+    s = (s ~mod+ 0x200) >> 10
+    if round_bits == 0x200 {
+        // Ties to even.
+        s = s & 0xFFFF_FFFF_FFFF_FFFE
+    }
+    if s == 0 {
+        e = 0
+    }
+    return args.sign | (((e as base.u64) ~mod<< 52) ~mod+ s)
+}
+
+// norm_round_pack_f64 is like round_pack_f64 but sig does not need to be
+// normalized (its most significant set bit can be anywhere).
+pri func arith.norm_round_pack_f64(sign: base.u64, exp: base.u32, sig: base.u64) base.u64 {
+    var c     : base.u32[..= 63]
+    var shift : base.u32[..= 62]
+    var e     : base.u32
+
+    if args.sig == 0 {
+        return args.sign
+    }
+    c = this.clz64(a: args.sig)
+    if c == 0 {
+        return this.round_pack_f64(sign: args.sign,
+                exp: args.exp ~mod+ 1,
+                sig: (args.sig >> 1) | (args.sig & 1))
+    }
+    shift = c - 1
+    e = args.exp ~mod- shift
+    if (shift >= 10) and (e < 0x7FD) {
+        return args.sign | (((e as base.u64) ~mod<< 52) ~mod+ (args.sig ~mod<< (shift - 10)))
+    }
+    return this.round_pack_f64(sign: args.sign, exp: e, sig: args.sig ~mod<< shift)
+}
+
+// norm_sub_exp and norm_sub_sig normalize a subnormal's (non-zero) fraction
+// bits, returning the (two's complement) exponent and the significand such
+// that the significand's hidden bit is at bit 52.
+pri func arith.norm_sub_exp(frac: base.u64) base.u32 {
+    return 12 ~mod- this.clz64(a: args.frac)
+}
+
+pri func arith.norm_sub_sig(frac: base.u64) base.u64 {
+    return args.frac ~mod<< ((this.clz64(a: args.frac) ~mod- 11) & 63)
+}
+
+pri func arith.f64_propagate_nan(a: base.u64, b: base.u64) base.u64 {
+    if (args.a & F64_ABS) > F64_INF {
+        return args.a | F64_QUIET
+    }
+    return args.b | F64_QUIET
+}
+
+// -------- f64 classification, sign and comparison.
+
+// f64_is_nan returns 1 if a is a NaN (quiet or signaling) and 0 otherwise.
+pub func arith.f64_is_nan(a: base.u64) base.u32 {
+    if (args.a & F64_ABS) > F64_INF {
+        return 1
+    }
+    return 0
+}
+
+// f64_neg returns -a (flipping the sign bit, even for NaNs and zeroes).
+pub func arith.f64_neg(a: base.u64) base.u64 {
+    return args.a ^ F64_SIGN
+}
+
+// f64_abs returns |a| (clearing the sign bit, even for NaNs).
+pub func arith.f64_abs(a: base.u64) base.u64 {
+    return args.a & F64_ABS
+}
+
+// f64_cmp compares a and b, returning 0 if (a < b), 1 if (a == b), 2 if (a
+// > b) and 3 if they are unordered (either is a NaN). -0 and +0 compare equal.
+pub func arith.f64_cmp(a: base.u64, b: base.u64) base.u32 {
+    var ka : base.u64
+    var kb : base.u64
+
+    if ((args.a & F64_ABS) > F64_INF) or ((args.b & F64_ABS) > F64_INF) {
+        return 3
+    } else if ((args.a | args.b) & F64_ABS) == 0 {
+        return 1
+    }
+    // Map the bit patterns to unsigned integers that sort in the same order
+    // as the f64 values they represent.
+    ka = args.a | F64_SIGN
+    if (args.a >> 63) <> 0 {
+        ka = 0xFFFF_FFFF_FFFF_FFFF ^ args.a
+    }
+    kb = args.b | F64_SIGN
+    if (args.b >> 63) <> 0 {
+        kb = 0xFFFF_FFFF_FFFF_FFFF ^ args.b
+    }
+    if ka < kb {
+        return 0
+    } else if ka == kb {
+        return 1
+    }
+    return 2
+}
+
+// The f64_eq, f64_ne, f64_lt, f64_le, f64_gt and f64_ge functions implement
+// C's ==, !=, <, <=, > and >= operators. They return 1 for true and 0 for
+// false. Any comparison involving a NaN is false (except for !=, which is
+// true), and -0 equals +0.
+
+pub func arith.f64_eq(a: base.u64, b: base.u64) base.u32 {
+    if this.f64_cmp(a: args.a, b: args.b) == 1 {
+        return 1
+    }
+    return 0
+}
+
+pub func arith.f64_ne(a: base.u64, b: base.u64) base.u32 {
+    if this.f64_cmp(a: args.a, b: args.b) == 1 {
+        return 0
+    }
+    return 1
+}
+
+pub func arith.f64_lt(a: base.u64, b: base.u64) base.u32 {
+    if this.f64_cmp(a: args.a, b: args.b) == 0 {
+        return 1
+    }
+    return 0
+}
+
+pub func arith.f64_le(a: base.u64, b: base.u64) base.u32 {
+    if this.f64_cmp(a: args.a, b: args.b) <= 1 {
+        return 1
+    }
+    return 0
+}
+
+pub func arith.f64_gt(a: base.u64, b: base.u64) base.u32 {
+    if this.f64_cmp(a: args.a, b: args.b) == 2 {
+        return 1
+    }
+    return 0
+}
+
+pub func arith.f64_ge(a: base.u64, b: base.u64) base.u32 {
+    var c : base.u32
+
+    c = this.f64_cmp(a: args.a, b: args.b)
+    if (c == 1) or (c == 2) {
+        return 1
+    }
+    return 0
+}
+
+// f64_min returns ((a < b) ? a : b), like brotli's BROTLI_MIN(double, a, b).
+// Note that this is not IEEE 754 minNum: f64_min(NaN, x) and f64_min(x, NaN)
+// both return the second argument, and f64_min(-0, +0) returns +0.
+pub func arith.f64_min(a: base.u64, b: base.u64) base.u64 {
+    if this.f64_cmp(a: args.a, b: args.b) == 0 {
+        return args.a
+    }
+    return args.b
+}
+
+// f64_max returns ((a > b) ? a : b), like brotli's BROTLI_MAX(double, a, b).
+pub func arith.f64_max(a: base.u64, b: base.u64) base.u64 {
+    if this.f64_cmp(a: args.a, b: args.b) == 2 {
+        return args.a
+    }
+    return args.b
+}
+
+// -------- f64 arithmetic.
+
+// f64_add returns (a + b).
+pub func arith.f64_add(a: base.u64, b: base.u64) base.u64 {
+    if ((args.a ^ args.b) >> 63) == 0 {
+        return this.f64_add_mags(a: args.a, b: args.b, sign: args.a & F64_SIGN)
+    }
+    return this.f64_sub_mags(a: args.a, b: args.b, sign: args.a & F64_SIGN)
+}
+
+// f64_sub returns (a - b).
+pub func arith.f64_sub(a: base.u64, b: base.u64) base.u64 {
+    if ((args.a ^ args.b) >> 63) == 0 {
+        return this.f64_sub_mags(a: args.a, b: args.b, sign: args.a & F64_SIGN)
+    }
+    return this.f64_add_mags(a: args.a, b: args.b, sign: args.a & F64_SIGN)
+}
+
+// f64_add_mags returns (sign * (|a| + |b|)).
+pri func arith.f64_add_mags(a: base.u64, b: base.u64, sign: base.u64) base.u64 {
+    var exp_a : base.u32
+    var exp_b : base.u32
+    var exp_z : base.u32
+    var sig_a : base.u64
+    var sig_b : base.u64
+    var sig_z : base.u64
+
+    exp_a = ((args.a >> 52) & 0x7FF) as base.u32
+    exp_b = ((args.b >> 52) & 0x7FF) as base.u32
+    sig_a = args.a & F64_FRAC
+    sig_b = args.b & F64_FRAC
+
+    if exp_a == exp_b {
+        if exp_a == 0 {
+            // Both subnormal (or zero). The sum of the fractions might carry
+            // into the exponent field, which is what we want.
+            return args.sign | ((args.a & F64_ABS) ~mod+ sig_b)
+        } else if exp_a == 0x7FF {
+            if (sig_a | sig_b) <> 0 {
+                return this.f64_propagate_nan(a: args.a, b: args.b)
+            }
+            return args.a
+        }
+        exp_z = exp_a
+        sig_z = ((0x0020_0000_0000_0000 ~mod+ sig_a) ~mod+ sig_b) ~mod<< 9
+        return this.round_pack_f64(sign: args.sign, exp: exp_z, sig: sig_z)
+    }
+
+    sig_a = sig_a ~mod<< 9
+    sig_b = sig_b ~mod<< 9
+    if exp_a < exp_b {
+        if exp_b == 0x7FF {
+            if sig_b <> 0 {
+                return this.f64_propagate_nan(a: args.a, b: args.b)
+            }
+            return args.sign | F64_INF
+        }
+        exp_z = exp_b
+        if exp_a <> 0 {
+            sig_a = sig_a ~mod+ 0x2000_0000_0000_0000
+        } else {
+            sig_a = sig_a ~mod<< 1
+        }
+        sig_a = this.shift_right_jam64(a: sig_a, dist: exp_b ~mod- exp_a)
+    } else {
+        if exp_a == 0x7FF {
+            if sig_a <> 0 {
+                return this.f64_propagate_nan(a: args.a, b: args.b)
+            }
+            return args.sign | F64_INF
+        }
+        exp_z = exp_a
+        if exp_b <> 0 {
+            sig_b = sig_b ~mod+ 0x2000_0000_0000_0000
+        } else {
+            sig_b = sig_b ~mod<< 1
+        }
+        sig_b = this.shift_right_jam64(a: sig_b, dist: exp_a ~mod- exp_b)
+    }
+    sig_z = (0x2000_0000_0000_0000 ~mod+ sig_a) ~mod+ sig_b
+    if sig_z < 0x4000_0000_0000_0000 {
+        exp_z = exp_z ~mod- 1
+        sig_z = sig_z ~mod<< 1
+    }
+    return this.round_pack_f64(sign: args.sign, exp: exp_z, sig: sig_z)
+}
+
+// f64_sub_mags returns (sign * (|a| - |b|)).
+pri func arith.f64_sub_mags(a: base.u64, b: base.u64, sign: base.u64) base.u64 {
+    var sign_z : base.u64
+    var exp_a  : base.u32
+    var exp_b  : base.u32
+    var exp_z  : base.u32
+    var sig_a  : base.u64
+    var sig_b  : base.u64
+    var sig_z  : base.u64
+    var shift  : base.u32
+
+    sign_z = args.sign
+    exp_a = ((args.a >> 52) & 0x7FF) as base.u32
+    exp_b = ((args.b >> 52) & 0x7FF) as base.u32
+    sig_a = args.a & F64_FRAC
+    sig_b = args.b & F64_FRAC
+
+    if exp_a == exp_b {
+        if exp_a == 0x7FF {
+            if (sig_a | sig_b) <> 0 {
+                return this.f64_propagate_nan(a: args.a, b: args.b)
+            }
+            return F64_DEFAULT_NAN
+        } else if sig_a == sig_b {
+            // Exact cancellation gives +0 when rounding to nearest.
+            return 0
+        }
+        if exp_a <> 0 {
+            exp_a = exp_a ~mod- 1
+        }
+        if sig_a < sig_b {
+            sign_z ^= F64_SIGN
+            sig_z = sig_b ~mod- sig_a
+        } else {
+            sig_z = sig_a ~mod- sig_b
+        }
+        // sig_z is non-zero and less than (1 << 52), so shift is at least 1.
+        shift = (this.clz64(a: sig_z) ~mod- 11) & 63
+        if shift > exp_a {
+            shift = exp_a & 63
+            exp_z = 0
+        } else {
+            exp_z = exp_a ~mod- shift
+        }
+        return sign_z | (((exp_z as base.u64) ~mod<< 52) ~mod+ (sig_z ~mod<< shift))
+    }
+
+    sig_a = sig_a ~mod<< 10
+    sig_b = sig_b ~mod<< 10
+    if exp_a < exp_b {
+        sign_z ^= F64_SIGN
+        if exp_b == 0x7FF {
+            if sig_b <> 0 {
+                return this.f64_propagate_nan(a: args.a, b: args.b)
+            }
+            return sign_z | F64_INF
+        }
+        if exp_a <> 0 {
+            sig_a = sig_a ~mod+ 0x4000_0000_0000_0000
+        } else {
+            sig_a = sig_a ~mod+ sig_a
+        }
+        sig_a = this.shift_right_jam64(a: sig_a, dist: exp_b ~mod- exp_a)
+        sig_b = sig_b | 0x4000_0000_0000_0000
+        exp_z = exp_b
+        sig_z = sig_b ~mod- sig_a
+    } else {
+        if exp_a == 0x7FF {
+            if sig_a <> 0 {
+                return this.f64_propagate_nan(a: args.a, b: args.b)
+            }
+            return sign_z | F64_INF
+        }
+        if exp_b <> 0 {
+            sig_b = sig_b ~mod+ 0x4000_0000_0000_0000
+        } else {
+            sig_b = sig_b ~mod+ sig_b
+        }
+        sig_b = this.shift_right_jam64(a: sig_b, dist: exp_a ~mod- exp_b)
+        sig_a = sig_a | 0x4000_0000_0000_0000
+        exp_z = exp_a
+        sig_z = sig_a ~mod- sig_b
+    }
+    return this.norm_round_pack_f64(sign: sign_z, exp: exp_z ~mod- 1, sig: sig_z)
+}
+
+// f64_mul returns (a * b).
+pub func arith.f64_mul(a: base.u64, b: base.u64) base.u64 {
+    var sign_z : base.u64
+    var exp_a  : base.u32
+    var exp_b  : base.u32
+    var exp_z  : base.u32
+    var sig_a  : base.u64
+    var sig_b  : base.u64
+    var sig_z  : base.u64
+
+    sign_z = (args.a ^ args.b) & F64_SIGN
+    exp_a = ((args.a >> 52) & 0x7FF) as base.u32
+    exp_b = ((args.b >> 52) & 0x7FF) as base.u32
+    sig_a = args.a & F64_FRAC
+    sig_b = args.b & F64_FRAC
+
+    if exp_a == 0x7FF {
+        if (sig_a <> 0) or ((exp_b == 0x7FF) and (sig_b <> 0)) {
+            return this.f64_propagate_nan(a: args.a, b: args.b)
+        } else if (args.b & F64_ABS) == 0 {
+            return F64_DEFAULT_NAN
+        }
+        return sign_z | F64_INF
+    } else if exp_b == 0x7FF {
+        if sig_b <> 0 {
+            return this.f64_propagate_nan(a: args.a, b: args.b)
+        } else if (args.a & F64_ABS) == 0 {
+            return F64_DEFAULT_NAN
+        }
+        return sign_z | F64_INF
+    }
+
+    if exp_a == 0 {
+        if sig_a == 0 {
+            return sign_z
+        }
+        exp_a = this.norm_sub_exp(frac: sig_a)
+        sig_a = this.norm_sub_sig(frac: sig_a)
+    }
+    if exp_b == 0 {
+        if sig_b == 0 {
+            return sign_z
+        }
+        exp_b = this.norm_sub_exp(frac: sig_b)
+        sig_b = this.norm_sub_sig(frac: sig_b)
+    }
+
+    exp_z = (exp_a ~mod+ exp_b) ~mod- 0x3FF
+    sig_a = (sig_a | F64_HIDDEN) ~mod<< 10
+    sig_b = (sig_b | F64_HIDDEN) ~mod<< 11
+    sig_z = this.mul_hi64(a: sig_a, b: sig_b)
+    if (sig_a ~mod* sig_b) <> 0 {
+        sig_z |= 1
+    }
+    if sig_z < 0x4000_0000_0000_0000 {
+        exp_z = exp_z ~mod- 1
+        sig_z = sig_z ~mod<< 1
+    }
+    return this.round_pack_f64(sign: sign_z, exp: exp_z, sig: sig_z)
+}
+
+// f64_div returns (a / b).
+pub func arith.f64_div(a: base.u64, b: base.u64) base.u64 {
+    var sign_z : base.u64
+    var exp_a  : base.u32
+    var exp_b  : base.u32
+    var exp_z  : base.u32
+    var sig_a  : base.u64
+    var sig_b  : base.u64
+    var q      : base.u64
+    var r      : base.u64
+    var i      : base.u32
+
+    sign_z = (args.a ^ args.b) & F64_SIGN
+    exp_a = ((args.a >> 52) & 0x7FF) as base.u32
+    exp_b = ((args.b >> 52) & 0x7FF) as base.u32
+    sig_a = args.a & F64_FRAC
+    sig_b = args.b & F64_FRAC
+
+    if exp_a == 0x7FF {
+        if sig_a <> 0 {
+            return this.f64_propagate_nan(a: args.a, b: args.b)
+        } else if exp_b == 0x7FF {
+            if sig_b <> 0 {
+                return this.f64_propagate_nan(a: args.a, b: args.b)
+            }
+            return F64_DEFAULT_NAN
+        }
+        return sign_z | F64_INF
+    } else if exp_b == 0x7FF {
+        if sig_b <> 0 {
+            return this.f64_propagate_nan(a: args.a, b: args.b)
+        }
+        return sign_z
+    }
+
+    if exp_b == 0 {
+        if sig_b == 0 {
+            if (args.a & F64_ABS) == 0 {
+                return F64_DEFAULT_NAN
+            }
+            return sign_z | F64_INF
+        }
+        exp_b = this.norm_sub_exp(frac: sig_b)
+        sig_b = this.norm_sub_sig(frac: sig_b)
+    }
+    if exp_a == 0 {
+        if sig_a == 0 {
+            return sign_z
+        }
+        exp_a = this.norm_sub_exp(frac: sig_a)
+        sig_a = this.norm_sub_sig(frac: sig_a)
+    }
+
+    exp_z = (exp_a ~mod- exp_b) ~mod+ 0x3FE
+    sig_a = (sig_a & F64_FRAC) | F64_HIDDEN
+    sig_b = (sig_b & F64_FRAC) | F64_HIDDEN
+    if sig_a < sig_b {
+        exp_z = exp_z ~mod- 1
+        sig_a = sig_a ~mod<< 1
+    }
+
+    // Long division, 11 quotient bits at a time. The remainder r is always
+    // less than sig_b (and so less than (1 << 53)), so (r << 11) never
+    // overflows. The final quotient q has 56 bits: 1 integer bit and 55
+    // fraction bits.
+    q = 1
+    r = sig_a ~mod- sig_b
+    i = 0
+    while i < 5 {
+        r = r ~mod<< 11
+        if sig_b > 0 {
+            q = (q ~mod<< 11) | (r / sig_b)
+            r = r % sig_b
+        }
+        i += 1
+    }
+    q = q ~mod<< 7
+    if r <> 0 {
+        q |= 1
+    }
+    return this.round_pack_f64(sign: sign_z, exp: exp_z, sig: q)
+}
+
+// f64_fma returns ((a * b) + c), computed with a single rounding (a fused
+// multiply-add), like C's fma function.
+pub func arith.f64_fma(a: base.u64, b: base.u64, c: base.u64) base.u64 {
+    var sign_p : base.u64
+    var sign_c : base.u64
+    var sign_z : base.u64
+    var exp_a  : base.u32
+    var exp_b  : base.u32
+    var exp_c  : base.u32
+    var exp_z  : base.u32
+    var sig_a  : base.u64
+    var sig_b  : base.u64
+    var sig_c  : base.u64
+    var p_hi   : base.u64
+    var p_lo   : base.u64
+    var c_hi   : base.u64
+    var c_lo   : base.u64
+    var z_hi   : base.u64
+    var z_lo   : base.u64
+    var tmp    : base.u64
+    var d      : base.u32
+    var top    : base.u32
+
+    if ((args.a & F64_ABS) > F64_INF) or ((args.b & F64_ABS) > F64_INF) {
+        return this.f64_propagate_nan(a: args.a, b: args.b)
+    } else if (args.c & F64_ABS) > F64_INF {
+        return args.c | F64_QUIET
+    }
+
+    sign_p = (args.a ^ args.b) & F64_SIGN
+    sign_c = args.c & F64_SIGN
+    exp_a = ((args.a >> 52) & 0x7FF) as base.u32
+    exp_b = ((args.b >> 52) & 0x7FF) as base.u32
+    exp_c = ((args.c >> 52) & 0x7FF) as base.u32
+    sig_a = args.a & F64_FRAC
+    sig_b = args.b & F64_FRAC
+    sig_c = args.c & F64_FRAC
+
+    if (exp_a == 0x7FF) or (exp_b == 0x7FF) {
+        if ((args.a & F64_ABS) == 0) or ((args.b & F64_ABS) == 0) {
+            // (inf * 0) is invalid.
+            return F64_DEFAULT_NAN
+        } else if (exp_c == 0x7FF) and (sign_c <> sign_p) {
+            // (inf - inf) is invalid.
+            return F64_DEFAULT_NAN
+        }
+        return sign_p | F64_INF
+    } else if exp_c == 0x7FF {
+        return args.c
+    }
+
+    if ((args.a & F64_ABS) == 0) or ((args.b & F64_ABS) == 0) {
+        // The product is an exact (signed) zero.
+        if (args.c & F64_ABS) == 0 {
+            if sign_p == sign_c {
+                return args.c
+            }
+            return 0
+        }
+        return args.c
+    }
+
+    // Normalize a and b and compute their exact product, as a 128-bit
+    // integer (p_hi, p_lo), whose value (in 106 bits) is shifted left by 20
+    // so that it is in [1 << 124, 1 << 126).
+    if exp_a == 0 {
+        exp_a = this.norm_sub_exp(frac: sig_a)
+        sig_a = this.norm_sub_sig(frac: sig_a)
+    }
+    if exp_b == 0 {
+        exp_b = this.norm_sub_exp(frac: sig_b)
+        sig_b = this.norm_sub_sig(frac: sig_b)
+    }
+    sig_a = (sig_a & F64_FRAC) | F64_HIDDEN
+    sig_b = (sig_b & F64_FRAC) | F64_HIDDEN
+    p_hi = this.mul_hi64(a: sig_a, b: sig_b)
+    p_lo = sig_a ~mod* sig_b
+    p_hi = (p_hi ~mod<< 20) | (p_lo >> 44)
+    p_lo = p_lo ~mod<< 20
+    // The product's value is ((p_hi, p_lo) * 2**(exp_a + exp_b - 2170)).
+
+    if (args.c & F64_ABS) == 0 {
+        // Find the top bit (in 0 ..= 127) and the round_pack_f64 exponent.
+        top = 127 - this.clz64(a: p_hi)
+        exp_z = ((exp_a ~mod+ exp_b) ~mod+ top) ~mod- 1148
+        return this.round_pack_f64(sign: sign_p, exp: exp_z,
+                sig: this.jam128_lo(hi: p_hi, lo: p_lo, dist: top ~mod- 62))
+    }
+
+    // Normalize c, as a 128-bit integer (c_hi, c_lo) in [1 << 125, 1 << 126)
+    // whose value is ((c_hi, c_lo) * 2**(exp_c - 1148)).
+    if exp_c == 0 {
+        exp_c = this.norm_sub_exp(frac: sig_c)
+        sig_c = this.norm_sub_sig(frac: sig_c)
+    }
+    sig_c = (sig_c & F64_FRAC) | F64_HIDDEN
+    c_hi = sig_c ~mod<< 9
+    c_lo = 0
+
+    // Align the two operands to the larger exponent. d is the (two's
+    // complement) difference in exponents.
+    d = ((exp_a ~mod+ exp_b) ~mod- exp_c) ~mod- 1022
+    if d < 0x8000_0000 {
+        tmp = this.jam128_hi(hi: c_hi, lo: c_lo, dist: d)
+        c_lo = this.jam128_lo(hi: c_hi, lo: c_lo, dist: d)
+        c_hi = tmp
+        // The common exponent is (exp_a + exp_b - 2170). We will add (top +
+        // 1022) to it, below. Set exp_z to their difference.
+        exp_z = (exp_a ~mod+ exp_b) ~mod- 1148
+    } else {
+        d = 0 ~mod- d
+        tmp = this.jam128_hi(hi: p_hi, lo: p_lo, dist: d)
+        p_lo = this.jam128_lo(hi: p_hi, lo: p_lo, dist: d)
+        p_hi = tmp
+        // The common exponent is (exp_c - 1148).
+        exp_z = exp_c ~mod- 126
+    }
+
+    // Add or subtract the 128-bit values.
+    if sign_p == sign_c {
+        sign_z = sign_p
+        z_lo = p_lo ~mod+ c_lo
+        z_hi = p_hi ~mod+ c_hi
+        if z_lo < p_lo {
+            z_hi = z_hi ~mod+ 1
+        }
+    } else {
+        if (p_hi > c_hi) or ((p_hi == c_hi) and (p_lo >= c_lo)) {
+            sign_z = sign_p
+            z_lo = p_lo ~mod- c_lo
+            z_hi = p_hi ~mod- c_hi
+            if p_lo < c_lo {
+                z_hi = z_hi ~mod- 1
+            }
+        } else {
+            sign_z = sign_c
+            z_lo = c_lo ~mod- p_lo
+            z_hi = c_hi ~mod- p_hi
+            if c_lo < p_lo {
+                z_hi = z_hi ~mod- 1
+            }
+        }
+        if (z_hi | z_lo) == 0 {
+            // Exact cancellation gives +0 when rounding to nearest.
+            return 0
+        }
+    }
+
+    // Normalize and round.
+    if z_hi <> 0 {
+        top = 127 - this.clz64(a: z_hi)
+    } else {
+        top = 63 - this.clz64(a: z_lo)
+    }
+    exp_z = exp_z ~mod+ top
+    if top >= 62 {
+        return this.round_pack_f64(sign: sign_z, exp: exp_z,
+                sig: this.jam128_lo(hi: z_hi, lo: z_lo, dist: top - 62))
+    }
+    return this.round_pack_f64(sign: sign_z, exp: exp_z,
+            sig: z_lo ~mod<< (62 - top))
+}
+
+// -------- f64 conversions.
+
+// f64_from_u64 returns the f64 nearest to the integer a (C's (double)a).
+pub func arith.f64_from_u64(a: base.u64) base.u64 {
+    return this.norm_round_pack_f64(sign: 0, exp: 0x43C, sig: args.a)
+}
+
+// f64_from_u32 returns the f64 equal to the integer a (C's (double)a).
+pub func arith.f64_from_u32(a: base.u32) base.u64 {
+    return this.norm_round_pack_f64(sign: 0, exp: 0x43C, sig: args.a as base.u64)
+}
+
+// f64_from_i64 returns the f64 nearest to the integer a (C's (double)a).
+pub func arith.f64_from_i64(a: base.i64) base.u64 {
+    var m : base.u64
+
+    if args.a >= 0 {
+        return this.norm_round_pack_f64(sign: 0, exp: 0x43C, sig: args.a as base.u64)
+    }
+    m = ((0 - (args.a + 1)) as base.u64) + 1
+    return this.norm_round_pack_f64(sign: F64_SIGN, exp: 0x43C, sig: m)
+}
+
+// f64_to_u64_trunc returns the integer part of a, truncating towards zero,
+// like C's (uint64_t)a. That C conversion is undefined behavior unless a is
+// in the range (-1, 1 << 64): this function returns 0 for NaNs and for
+// negative values and returns 0xFFFF_FFFF_FFFF_FFFF for values at or above
+// (1 << 64), but callers should not rely on that.
+pub func arith.f64_to_u64_trunc(a: base.u64) base.u64 {
+    var exp : base.u32
+    var sig : base.u64
+
+    if args.a >= F64_SIGN {
+        return 0
+    } else if args.a > F64_INF {
+        return 0
+    }
+    exp = ((args.a >> 52) & 0x7FF) as base.u32
+    sig = (args.a & F64_FRAC) | F64_HIDDEN
+    if exp < 0x3FF {
+        return 0
+    } else if exp >= (0x3FF + 64) {
+        return 0xFFFF_FFFF_FFFF_FFFF
+    } else if exp >= 0x433 {
+        return sig ~mod<< ((exp - 0x433) & 63)
+    }
+    return sig >> ((0x433 - exp) & 63)
+}
+
+// f64_to_f32 returns the f32 nearest to a (C's (float)a), rounding to
+// nearest, ties to even, overflowing to infinity and underflowing to
+// subnormals or zero.
+pub func arith.f64_to_f32(a: base.u64) base.u32 {
+    var sign : base.u32
+    var exp  : base.u32
+    var frac : base.u64
+    var sig  : base.u32
+
+    sign = ((args.a >> 32) as base.u32) & 0x8000_0000
+    exp = ((args.a >> 52) & 0x7FF) as base.u32
+    frac = args.a & F64_FRAC
+
+    if exp == 0x7FF {
+        if frac <> 0 {
+            return sign | 0x7FC0_0000 | ((frac >> 29) as base.u32)
+        }
+        return sign | 0x7F80_0000
+    }
+    // Keep the top 30 bits of the 52 fraction bits, plus a sticky bit.
+    sig = (this.shift_right_jam64(a: frac, dist: 22) & 0x3FFF_FFFF) as base.u32
+    if (exp == 0) and (sig == 0) {
+        return sign
+    }
+    return this.round_pack_f32(sign: sign, exp: exp ~mod- 0x381, sig: sig | 0x4000_0000)
+}
+
+// round_pack_f32 is the f32 equivalent of round_pack_f64. The sig argument
+// has its implicit bit at bit 30 and 7 extra bits of precision at the
+// bottom. The value represented is (sig * 2**(exp - 156)).
+pri func arith.round_pack_f32(sign: base.u32, exp: base.u32, sig: base.u32) base.u32 {
+    var e          : base.u32
+    var s          : base.u32
+    var round_bits : base.u32
+
+    e = args.exp
+    s = args.sig
+    round_bits = s & 0x7F
+    if e >= 0x8000_0000 {
+        s = (this.shift_right_jam64(a: s as base.u64, dist: 0 ~mod- e) & 0xFFFF_FFFF) as base.u32
+        e = 0
+        round_bits = s & 0x7F
+    } else if e >= 0xFD {
+        if (e > 0xFD) or (s >= 0x7FFF_FFC0) {
+            return args.sign | 0x7F80_0000
+        }
+    }
+    s = (s ~mod+ 0x40) >> 7
+    if round_bits == 0x40 {
+        s = s & 0xFFFF_FFFE
+    }
+    if s == 0 {
+        e = 0
+    }
+    return args.sign | ((e ~mod<< 23) ~mod+ s)
+}
+
+// -------- Tables.
+
+// CLZ8[i] is the number of leading zero bits in the 8-bit value i.
+pri const CLZ8 : roarray[256] base.u8 = [
+        0x08, 0x07, 0x06, 0x06, 0x05, 0x05, 0x05, 0x05, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04,
+        0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03,
+        0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02,
+        0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02,
+        0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+        0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+        0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+        0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+]
