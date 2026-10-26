@@ -8490,6 +8490,723 @@ struct wuffs_bmp__decoder__struct {
 
 #endif  // !defined(WUFFS_CONFIG__MODULES) || defined(WUFFS_CONFIG__MODULE__BMP) || defined(WUFFS_NONMONOLITHIC)
 
+#if !defined(WUFFS_CONFIG__MODULES) || defined(WUFFS_CONFIG__MODULE__SOFTFLOAT) || defined(WUFFS_NONMONOLITHIC)
+
+// ---------------- Status Codes
+
+// ---------------- Public Consts
+
+// ---------------- Struct Declarations
+
+typedef struct wuffs_softfloat__arith__struct wuffs_softfloat__arith;
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+// ---------------- Public Initializer Prototypes
+
+// For any given "wuffs_foo__bar* self", "wuffs_foo__bar__initialize(self,
+// etc)" should be called before any other "wuffs_foo__bar__xxx(self, etc)".
+//
+// Pass sizeof(*self) and WUFFS_VERSION for sizeof_star_self and wuffs_version.
+// Pass 0 (or some combination of WUFFS_INITIALIZE__XXX) for options.
+
+wuffs_base__status WUFFS_BASE__WARN_UNUSED_RESULT
+wuffs_softfloat__arith__initialize(
+    wuffs_softfloat__arith* self,
+    size_t sizeof_star_self,
+    uint64_t wuffs_version,
+    uint32_t options);
+
+size_t
+sizeof__wuffs_softfloat__arith(void);
+
+// ---------------- Allocs
+
+// These functions allocate and initialize Wuffs structs. They return NULL if
+// memory allocation fails. If they return non-NULL, there is no need to call
+// wuffs_foo__bar__initialize, but the caller is responsible for eventually
+// calling free on the returned pointer. That pointer is effectively a C++
+// std::unique_ptr<T, wuffs_unique_ptr_deleter>.
+
+wuffs_softfloat__arith*
+wuffs_softfloat__arith__alloc(void);
+
+// ---------------- Upcasts
+
+// ---------------- Public Function Prototypes
+
+WUFFS_BASE__GENERATED_C_CODE
+WUFFS_BASE__MAYBE_STATIC uint32_t
+wuffs_softfloat__arith__f64_is_nan(
+    const wuffs_softfloat__arith* self,
+    uint64_t a_a);
+
+WUFFS_BASE__GENERATED_C_CODE
+WUFFS_BASE__MAYBE_STATIC uint64_t
+wuffs_softfloat__arith__f64_neg(
+    const wuffs_softfloat__arith* self,
+    uint64_t a_a);
+
+WUFFS_BASE__GENERATED_C_CODE
+WUFFS_BASE__MAYBE_STATIC uint64_t
+wuffs_softfloat__arith__f64_abs(
+    const wuffs_softfloat__arith* self,
+    uint64_t a_a);
+
+WUFFS_BASE__GENERATED_C_CODE
+WUFFS_BASE__MAYBE_STATIC uint32_t
+wuffs_softfloat__arith__f64_cmp(
+    const wuffs_softfloat__arith* self,
+    uint64_t a_a,
+    uint64_t a_b);
+
+WUFFS_BASE__GENERATED_C_CODE
+WUFFS_BASE__MAYBE_STATIC uint32_t
+wuffs_softfloat__arith__f64_eq(
+    const wuffs_softfloat__arith* self,
+    uint64_t a_a,
+    uint64_t a_b);
+
+WUFFS_BASE__GENERATED_C_CODE
+WUFFS_BASE__MAYBE_STATIC uint32_t
+wuffs_softfloat__arith__f64_ne(
+    const wuffs_softfloat__arith* self,
+    uint64_t a_a,
+    uint64_t a_b);
+
+WUFFS_BASE__GENERATED_C_CODE
+WUFFS_BASE__MAYBE_STATIC uint32_t
+wuffs_softfloat__arith__f64_lt(
+    const wuffs_softfloat__arith* self,
+    uint64_t a_a,
+    uint64_t a_b);
+
+WUFFS_BASE__GENERATED_C_CODE
+WUFFS_BASE__MAYBE_STATIC uint32_t
+wuffs_softfloat__arith__f64_le(
+    const wuffs_softfloat__arith* self,
+    uint64_t a_a,
+    uint64_t a_b);
+
+WUFFS_BASE__GENERATED_C_CODE
+WUFFS_BASE__MAYBE_STATIC uint32_t
+wuffs_softfloat__arith__f64_gt(
+    const wuffs_softfloat__arith* self,
+    uint64_t a_a,
+    uint64_t a_b);
+
+WUFFS_BASE__GENERATED_C_CODE
+WUFFS_BASE__MAYBE_STATIC uint32_t
+wuffs_softfloat__arith__f64_ge(
+    const wuffs_softfloat__arith* self,
+    uint64_t a_a,
+    uint64_t a_b);
+
+WUFFS_BASE__GENERATED_C_CODE
+WUFFS_BASE__MAYBE_STATIC uint64_t
+wuffs_softfloat__arith__f64_min(
+    const wuffs_softfloat__arith* self,
+    uint64_t a_a,
+    uint64_t a_b);
+
+WUFFS_BASE__GENERATED_C_CODE
+WUFFS_BASE__MAYBE_STATIC uint64_t
+wuffs_softfloat__arith__f64_max(
+    const wuffs_softfloat__arith* self,
+    uint64_t a_a,
+    uint64_t a_b);
+
+WUFFS_BASE__GENERATED_C_CODE
+WUFFS_BASE__MAYBE_STATIC uint64_t
+wuffs_softfloat__arith__f64_add(
+    const wuffs_softfloat__arith* self,
+    uint64_t a_a,
+    uint64_t a_b);
+
+WUFFS_BASE__GENERATED_C_CODE
+WUFFS_BASE__MAYBE_STATIC uint64_t
+wuffs_softfloat__arith__f64_sub(
+    const wuffs_softfloat__arith* self,
+    uint64_t a_a,
+    uint64_t a_b);
+
+WUFFS_BASE__GENERATED_C_CODE
+WUFFS_BASE__MAYBE_STATIC uint64_t
+wuffs_softfloat__arith__f64_mul(
+    const wuffs_softfloat__arith* self,
+    uint64_t a_a,
+    uint64_t a_b);
+
+WUFFS_BASE__GENERATED_C_CODE
+WUFFS_BASE__MAYBE_STATIC uint64_t
+wuffs_softfloat__arith__f64_div(
+    const wuffs_softfloat__arith* self,
+    uint64_t a_a,
+    uint64_t a_b);
+
+WUFFS_BASE__GENERATED_C_CODE
+WUFFS_BASE__MAYBE_STATIC uint64_t
+wuffs_softfloat__arith__f64_fma(
+    const wuffs_softfloat__arith* self,
+    uint64_t a_a,
+    uint64_t a_b,
+    uint64_t a_c);
+
+WUFFS_BASE__GENERATED_C_CODE
+WUFFS_BASE__MAYBE_STATIC uint64_t
+wuffs_softfloat__arith__f64_from_u64(
+    const wuffs_softfloat__arith* self,
+    uint64_t a_a);
+
+WUFFS_BASE__GENERATED_C_CODE
+WUFFS_BASE__MAYBE_STATIC uint64_t
+wuffs_softfloat__arith__f64_from_u32(
+    const wuffs_softfloat__arith* self,
+    uint32_t a_a);
+
+WUFFS_BASE__GENERATED_C_CODE
+WUFFS_BASE__MAYBE_STATIC uint64_t
+wuffs_softfloat__arith__f64_from_i64(
+    const wuffs_softfloat__arith* self,
+    int64_t a_a);
+
+WUFFS_BASE__GENERATED_C_CODE
+WUFFS_BASE__MAYBE_STATIC uint64_t
+wuffs_softfloat__arith__f64_to_u64_trunc(
+    const wuffs_softfloat__arith* self,
+    uint64_t a_a);
+
+WUFFS_BASE__GENERATED_C_CODE
+WUFFS_BASE__MAYBE_STATIC uint32_t
+wuffs_softfloat__arith__f64_to_f32(
+    const wuffs_softfloat__arith* self,
+    uint64_t a_a);
+
+WUFFS_BASE__GENERATED_C_CODE
+WUFFS_BASE__MAYBE_STATIC uint64_t
+wuffs_softfloat__arith__f32_to_f64(
+    const wuffs_softfloat__arith* self,
+    uint32_t a_a);
+
+WUFFS_BASE__GENERATED_C_CODE
+WUFFS_BASE__MAYBE_STATIC uint32_t
+wuffs_softfloat__arith__f32_is_nan(
+    const wuffs_softfloat__arith* self,
+    uint32_t a_a);
+
+WUFFS_BASE__GENERATED_C_CODE
+WUFFS_BASE__MAYBE_STATIC uint32_t
+wuffs_softfloat__arith__f32_neg(
+    const wuffs_softfloat__arith* self,
+    uint32_t a_a);
+
+WUFFS_BASE__GENERATED_C_CODE
+WUFFS_BASE__MAYBE_STATIC uint32_t
+wuffs_softfloat__arith__f32_abs(
+    const wuffs_softfloat__arith* self,
+    uint32_t a_a);
+
+WUFFS_BASE__GENERATED_C_CODE
+WUFFS_BASE__MAYBE_STATIC uint32_t
+wuffs_softfloat__arith__f32_add(
+    const wuffs_softfloat__arith* self,
+    uint32_t a_a,
+    uint32_t a_b);
+
+WUFFS_BASE__GENERATED_C_CODE
+WUFFS_BASE__MAYBE_STATIC uint32_t
+wuffs_softfloat__arith__f32_sub(
+    const wuffs_softfloat__arith* self,
+    uint32_t a_a,
+    uint32_t a_b);
+
+WUFFS_BASE__GENERATED_C_CODE
+WUFFS_BASE__MAYBE_STATIC uint32_t
+wuffs_softfloat__arith__f32_mul(
+    const wuffs_softfloat__arith* self,
+    uint32_t a_a,
+    uint32_t a_b);
+
+WUFFS_BASE__GENERATED_C_CODE
+WUFFS_BASE__MAYBE_STATIC uint32_t
+wuffs_softfloat__arith__f32_div(
+    const wuffs_softfloat__arith* self,
+    uint32_t a_a,
+    uint32_t a_b);
+
+WUFFS_BASE__GENERATED_C_CODE
+WUFFS_BASE__MAYBE_STATIC uint32_t
+wuffs_softfloat__arith__f32_cmp(
+    const wuffs_softfloat__arith* self,
+    uint32_t a_a,
+    uint32_t a_b);
+
+WUFFS_BASE__GENERATED_C_CODE
+WUFFS_BASE__MAYBE_STATIC uint32_t
+wuffs_softfloat__arith__f32_eq(
+    const wuffs_softfloat__arith* self,
+    uint32_t a_a,
+    uint32_t a_b);
+
+WUFFS_BASE__GENERATED_C_CODE
+WUFFS_BASE__MAYBE_STATIC uint32_t
+wuffs_softfloat__arith__f32_ne(
+    const wuffs_softfloat__arith* self,
+    uint32_t a_a,
+    uint32_t a_b);
+
+WUFFS_BASE__GENERATED_C_CODE
+WUFFS_BASE__MAYBE_STATIC uint32_t
+wuffs_softfloat__arith__f32_lt(
+    const wuffs_softfloat__arith* self,
+    uint32_t a_a,
+    uint32_t a_b);
+
+WUFFS_BASE__GENERATED_C_CODE
+WUFFS_BASE__MAYBE_STATIC uint32_t
+wuffs_softfloat__arith__f32_le(
+    const wuffs_softfloat__arith* self,
+    uint32_t a_a,
+    uint32_t a_b);
+
+WUFFS_BASE__GENERATED_C_CODE
+WUFFS_BASE__MAYBE_STATIC uint32_t
+wuffs_softfloat__arith__f32_gt(
+    const wuffs_softfloat__arith* self,
+    uint32_t a_a,
+    uint32_t a_b);
+
+WUFFS_BASE__GENERATED_C_CODE
+WUFFS_BASE__MAYBE_STATIC uint32_t
+wuffs_softfloat__arith__f32_ge(
+    const wuffs_softfloat__arith* self,
+    uint32_t a_a,
+    uint32_t a_b);
+
+WUFFS_BASE__GENERATED_C_CODE
+WUFFS_BASE__MAYBE_STATIC uint32_t
+wuffs_softfloat__arith__f32_min(
+    const wuffs_softfloat__arith* self,
+    uint32_t a_a,
+    uint32_t a_b);
+
+WUFFS_BASE__GENERATED_C_CODE
+WUFFS_BASE__MAYBE_STATIC uint32_t
+wuffs_softfloat__arith__f32_max(
+    const wuffs_softfloat__arith* self,
+    uint32_t a_a,
+    uint32_t a_b);
+
+WUFFS_BASE__GENERATED_C_CODE
+WUFFS_BASE__MAYBE_STATIC uint32_t
+wuffs_softfloat__arith__f32_from_u32(
+    const wuffs_softfloat__arith* self,
+    uint32_t a_a);
+
+WUFFS_BASE__GENERATED_C_CODE
+WUFFS_BASE__MAYBE_STATIC uint32_t
+wuffs_softfloat__arith__f32_from_i32(
+    const wuffs_softfloat__arith* self,
+    int32_t a_a);
+
+WUFFS_BASE__GENERATED_C_CODE
+WUFFS_BASE__MAYBE_STATIC uint32_t
+wuffs_softfloat__arith__f32_from_u64(
+    const wuffs_softfloat__arith* self,
+    uint64_t a_a);
+
+WUFFS_BASE__GENERATED_C_CODE
+WUFFS_BASE__MAYBE_STATIC uint64_t
+wuffs_softfloat__arith__log2_u64(
+    const wuffs_softfloat__arith* self,
+    uint64_t a_v);
+
+WUFFS_BASE__GENERATED_C_CODE
+WUFFS_BASE__MAYBE_STATIC uint64_t
+wuffs_softfloat__arith__log2_f64(
+    const wuffs_softfloat__arith* self,
+    uint64_t a_x);
+
+#ifdef __cplusplus
+}  // extern "C"
+#endif
+
+// ---------------- Struct Definitions
+
+// These structs' fields, and the sizeof them, are private implementation
+// details that aren't guaranteed to be stable across Wuffs versions.
+//
+// See https://en.wikipedia.org/wiki/Opaque_pointer#C
+
+#if defined(__cplusplus) || defined(WUFFS_IMPLEMENTATION)
+
+struct wuffs_softfloat__arith__struct {
+  // Do not access the private_impl's or private_data's fields directly. There
+  // is no API/ABI compatibility or safety guarantee if you do so. Instead, use
+  // the wuffs_foo__bar__baz functions.
+  //
+  // It is a struct, not a struct*, so that the outermost wuffs_foo__bar struct
+  // can be stack allocated when WUFFS_IMPLEMENTATION is defined.
+
+  struct {
+    uint32_t magic;
+    uint32_t active_coroutine;
+    wuffs_base__vtable null_vtable;
+
+  } private_impl;
+
+#ifdef __cplusplus
+#if defined(WUFFS_BASE__HAVE_UNIQUE_PTR)
+  using unique_ptr = std::unique_ptr<wuffs_softfloat__arith, wuffs_unique_ptr_deleter>;
+
+  // On failure, the alloc_etc functions return nullptr. They don't throw.
+
+  static inline unique_ptr
+  alloc() {
+    return unique_ptr(wuffs_softfloat__arith__alloc());
+  }
+#endif  // defined(WUFFS_BASE__HAVE_UNIQUE_PTR)
+
+#if defined(WUFFS_BASE__HAVE_EQ_DELETE) && !defined(WUFFS_IMPLEMENTATION)
+  // Disallow constructing or copying an object via standard C++ mechanisms,
+  // e.g. the "new" operator, as this struct is intentionally opaque. Its total
+  // size and field layout is not part of the public, stable, memory-safe API.
+  // Use malloc or memcpy and the sizeof__wuffs_foo__bar function instead, and
+  // call wuffs_foo__bar__baz methods (which all take a "this"-like pointer as
+  // their first argument) rather than tweaking bar.private_impl.qux fields.
+  //
+  // In C, we can just leave wuffs_foo__bar as an incomplete type (unless
+  // WUFFS_IMPLEMENTATION is #define'd). In C++, we define a complete type in
+  // order to provide convenience methods. These forward on "this", so that you
+  // can write "bar->baz(etc)" instead of "wuffs_foo__bar__baz(bar, etc)".
+  wuffs_softfloat__arith__struct() = delete;
+  wuffs_softfloat__arith__struct(const wuffs_softfloat__arith__struct&) = delete;
+  wuffs_softfloat__arith__struct& operator=(
+      const wuffs_softfloat__arith__struct&) = delete;
+#endif  // defined(WUFFS_BASE__HAVE_EQ_DELETE) && !defined(WUFFS_IMPLEMENTATION)
+
+#if !defined(WUFFS_IMPLEMENTATION)
+  // As above, the size of the struct is not part of the public API, and unless
+  // WUFFS_IMPLEMENTATION is #define'd, this struct type T should be heap
+  // allocated, not stack allocated. Its size is not intended to be known at
+  // compile time, but it is unfortunately divulged as a side effect of
+  // defining C++ convenience methods. Use "sizeof__T()", calling the function,
+  // instead of "sizeof T", invoking the operator. To make the two values
+  // different, so that passing the latter will be rejected by the initialize
+  // function, we add an arbitrary amount of dead weight.
+  uint8_t dead_weight[123000000];  // 123 MB.
+#endif  // !defined(WUFFS_IMPLEMENTATION)
+
+  inline wuffs_base__status WUFFS_BASE__WARN_UNUSED_RESULT
+  initialize(
+      size_t sizeof_star_self,
+      uint64_t wuffs_version,
+      uint32_t options) {
+    return wuffs_softfloat__arith__initialize(
+        this, sizeof_star_self, wuffs_version, options);
+  }
+
+  inline uint32_t
+  f64_is_nan(
+      uint64_t a_a) const {
+    return wuffs_softfloat__arith__f64_is_nan(this, a_a);
+  }
+
+  inline uint64_t
+  f64_neg(
+      uint64_t a_a) const {
+    return wuffs_softfloat__arith__f64_neg(this, a_a);
+  }
+
+  inline uint64_t
+  f64_abs(
+      uint64_t a_a) const {
+    return wuffs_softfloat__arith__f64_abs(this, a_a);
+  }
+
+  inline uint32_t
+  f64_cmp(
+      uint64_t a_a,
+      uint64_t a_b) const {
+    return wuffs_softfloat__arith__f64_cmp(this, a_a, a_b);
+  }
+
+  inline uint32_t
+  f64_eq(
+      uint64_t a_a,
+      uint64_t a_b) const {
+    return wuffs_softfloat__arith__f64_eq(this, a_a, a_b);
+  }
+
+  inline uint32_t
+  f64_ne(
+      uint64_t a_a,
+      uint64_t a_b) const {
+    return wuffs_softfloat__arith__f64_ne(this, a_a, a_b);
+  }
+
+  inline uint32_t
+  f64_lt(
+      uint64_t a_a,
+      uint64_t a_b) const {
+    return wuffs_softfloat__arith__f64_lt(this, a_a, a_b);
+  }
+
+  inline uint32_t
+  f64_le(
+      uint64_t a_a,
+      uint64_t a_b) const {
+    return wuffs_softfloat__arith__f64_le(this, a_a, a_b);
+  }
+
+  inline uint32_t
+  f64_gt(
+      uint64_t a_a,
+      uint64_t a_b) const {
+    return wuffs_softfloat__arith__f64_gt(this, a_a, a_b);
+  }
+
+  inline uint32_t
+  f64_ge(
+      uint64_t a_a,
+      uint64_t a_b) const {
+    return wuffs_softfloat__arith__f64_ge(this, a_a, a_b);
+  }
+
+  inline uint64_t
+  f64_min(
+      uint64_t a_a,
+      uint64_t a_b) const {
+    return wuffs_softfloat__arith__f64_min(this, a_a, a_b);
+  }
+
+  inline uint64_t
+  f64_max(
+      uint64_t a_a,
+      uint64_t a_b) const {
+    return wuffs_softfloat__arith__f64_max(this, a_a, a_b);
+  }
+
+  inline uint64_t
+  f64_add(
+      uint64_t a_a,
+      uint64_t a_b) const {
+    return wuffs_softfloat__arith__f64_add(this, a_a, a_b);
+  }
+
+  inline uint64_t
+  f64_sub(
+      uint64_t a_a,
+      uint64_t a_b) const {
+    return wuffs_softfloat__arith__f64_sub(this, a_a, a_b);
+  }
+
+  inline uint64_t
+  f64_mul(
+      uint64_t a_a,
+      uint64_t a_b) const {
+    return wuffs_softfloat__arith__f64_mul(this, a_a, a_b);
+  }
+
+  inline uint64_t
+  f64_div(
+      uint64_t a_a,
+      uint64_t a_b) const {
+    return wuffs_softfloat__arith__f64_div(this, a_a, a_b);
+  }
+
+  inline uint64_t
+  f64_fma(
+      uint64_t a_a,
+      uint64_t a_b,
+      uint64_t a_c) const {
+    return wuffs_softfloat__arith__f64_fma(this, a_a, a_b, a_c);
+  }
+
+  inline uint64_t
+  f64_from_u64(
+      uint64_t a_a) const {
+    return wuffs_softfloat__arith__f64_from_u64(this, a_a);
+  }
+
+  inline uint64_t
+  f64_from_u32(
+      uint32_t a_a) const {
+    return wuffs_softfloat__arith__f64_from_u32(this, a_a);
+  }
+
+  inline uint64_t
+  f64_from_i64(
+      int64_t a_a) const {
+    return wuffs_softfloat__arith__f64_from_i64(this, a_a);
+  }
+
+  inline uint64_t
+  f64_to_u64_trunc(
+      uint64_t a_a) const {
+    return wuffs_softfloat__arith__f64_to_u64_trunc(this, a_a);
+  }
+
+  inline uint32_t
+  f64_to_f32(
+      uint64_t a_a) const {
+    return wuffs_softfloat__arith__f64_to_f32(this, a_a);
+  }
+
+  inline uint64_t
+  f32_to_f64(
+      uint32_t a_a) const {
+    return wuffs_softfloat__arith__f32_to_f64(this, a_a);
+  }
+
+  inline uint32_t
+  f32_is_nan(
+      uint32_t a_a) const {
+    return wuffs_softfloat__arith__f32_is_nan(this, a_a);
+  }
+
+  inline uint32_t
+  f32_neg(
+      uint32_t a_a) const {
+    return wuffs_softfloat__arith__f32_neg(this, a_a);
+  }
+
+  inline uint32_t
+  f32_abs(
+      uint32_t a_a) const {
+    return wuffs_softfloat__arith__f32_abs(this, a_a);
+  }
+
+  inline uint32_t
+  f32_add(
+      uint32_t a_a,
+      uint32_t a_b) const {
+    return wuffs_softfloat__arith__f32_add(this, a_a, a_b);
+  }
+
+  inline uint32_t
+  f32_sub(
+      uint32_t a_a,
+      uint32_t a_b) const {
+    return wuffs_softfloat__arith__f32_sub(this, a_a, a_b);
+  }
+
+  inline uint32_t
+  f32_mul(
+      uint32_t a_a,
+      uint32_t a_b) const {
+    return wuffs_softfloat__arith__f32_mul(this, a_a, a_b);
+  }
+
+  inline uint32_t
+  f32_div(
+      uint32_t a_a,
+      uint32_t a_b) const {
+    return wuffs_softfloat__arith__f32_div(this, a_a, a_b);
+  }
+
+  inline uint32_t
+  f32_cmp(
+      uint32_t a_a,
+      uint32_t a_b) const {
+    return wuffs_softfloat__arith__f32_cmp(this, a_a, a_b);
+  }
+
+  inline uint32_t
+  f32_eq(
+      uint32_t a_a,
+      uint32_t a_b) const {
+    return wuffs_softfloat__arith__f32_eq(this, a_a, a_b);
+  }
+
+  inline uint32_t
+  f32_ne(
+      uint32_t a_a,
+      uint32_t a_b) const {
+    return wuffs_softfloat__arith__f32_ne(this, a_a, a_b);
+  }
+
+  inline uint32_t
+  f32_lt(
+      uint32_t a_a,
+      uint32_t a_b) const {
+    return wuffs_softfloat__arith__f32_lt(this, a_a, a_b);
+  }
+
+  inline uint32_t
+  f32_le(
+      uint32_t a_a,
+      uint32_t a_b) const {
+    return wuffs_softfloat__arith__f32_le(this, a_a, a_b);
+  }
+
+  inline uint32_t
+  f32_gt(
+      uint32_t a_a,
+      uint32_t a_b) const {
+    return wuffs_softfloat__arith__f32_gt(this, a_a, a_b);
+  }
+
+  inline uint32_t
+  f32_ge(
+      uint32_t a_a,
+      uint32_t a_b) const {
+    return wuffs_softfloat__arith__f32_ge(this, a_a, a_b);
+  }
+
+  inline uint32_t
+  f32_min(
+      uint32_t a_a,
+      uint32_t a_b) const {
+    return wuffs_softfloat__arith__f32_min(this, a_a, a_b);
+  }
+
+  inline uint32_t
+  f32_max(
+      uint32_t a_a,
+      uint32_t a_b) const {
+    return wuffs_softfloat__arith__f32_max(this, a_a, a_b);
+  }
+
+  inline uint32_t
+  f32_from_u32(
+      uint32_t a_a) const {
+    return wuffs_softfloat__arith__f32_from_u32(this, a_a);
+  }
+
+  inline uint32_t
+  f32_from_i32(
+      int32_t a_a) const {
+    return wuffs_softfloat__arith__f32_from_i32(this, a_a);
+  }
+
+  inline uint32_t
+  f32_from_u64(
+      uint64_t a_a) const {
+    return wuffs_softfloat__arith__f32_from_u64(this, a_a);
+  }
+
+  inline uint64_t
+  log2_u64(
+      uint64_t a_v) const {
+    return wuffs_softfloat__arith__log2_u64(this, a_v);
+  }
+
+  inline uint64_t
+  log2_f64(
+      uint64_t a_x) const {
+    return wuffs_softfloat__arith__log2_f64(this, a_x);
+  }
+
+#endif  // __cplusplus
+};  // struct wuffs_softfloat__arith__struct
+
+#endif  // defined(__cplusplus) || defined(WUFFS_IMPLEMENTATION)
+
+#endif  // !defined(WUFFS_CONFIG__MODULES) || defined(WUFFS_CONFIG__MODULE__SOFTFLOAT) || defined(WUFFS_NONMONOLITHIC)
+
 #if !defined(WUFFS_CONFIG__MODULES) || defined(WUFFS_CONFIG__MODULE__BROTLI) || defined(WUFFS_NONMONOLITHIC)
 
 // ---------------- Status Codes
@@ -8513,6 +9230,7 @@ extern const char wuffs_brotli__error__bad_transform[];
 extern const char wuffs_brotli__error__bad_window_bits[];
 extern const char wuffs_brotli__error__truncated_input[];
 extern const char wuffs_brotli__error__unsupported_large_window[];
+extern const char wuffs_brotli__error__unsupported_encoder_quality[];
 
 // ---------------- Public Consts
 
@@ -8520,9 +9238,33 @@ extern const char wuffs_brotli__error__unsupported_large_window[];
 
 #define WUFFS_BROTLI__DECODER_WORKBUF_LEN_MAX_INCL_WORST_CASE 16777758u
 
+#define WUFFS_BROTLI__QUIRK_LARGE_WINDOW 716673024u
+
+#define WUFFS_BROTLI__ENCODER_DST_HISTORY_RETAIN_LENGTH_MAX_INCL_WORST_CASE 0u
+
+#define WUFFS_BROTLI__QUIRK_ENCODER_QUALITY 716673025u
+
+#define WUFFS_BROTLI__QUIRK_LGWIN 716673026u
+
+#define WUFFS_BROTLI__QUIRK_LGBLOCK 716673027u
+
+#define WUFFS_BROTLI__QUIRK_MODE 716673028u
+
+#define WUFFS_BROTLI__QUIRK_DISABLE_LITERAL_CONTEXT_MODELING 716673029u
+
+#define WUFFS_BROTLI__QUIRK_SIZE_HINT 716673030u
+
+#define WUFFS_BROTLI__QUIRK_NPOSTFIX 716673031u
+
+#define WUFFS_BROTLI__QUIRK_NDIRECT 716673032u
+
+#define WUFFS_BROTLI__QUIRK_STREAM_OFFSET 716673033u
+
 // ---------------- Struct Declarations
 
 typedef struct wuffs_brotli__decoder__struct wuffs_brotli__decoder;
+
+typedef struct wuffs_brotli__encoder__struct wuffs_brotli__encoder;
 
 #ifdef __cplusplus
 extern "C" {
@@ -8546,6 +9288,16 @@ wuffs_brotli__decoder__initialize(
 size_t
 sizeof__wuffs_brotli__decoder(void);
 
+wuffs_base__status WUFFS_BASE__WARN_UNUSED_RESULT
+wuffs_brotli__encoder__initialize(
+    wuffs_brotli__encoder* self,
+    size_t sizeof_star_self,
+    uint64_t wuffs_version,
+    uint32_t options);
+
+size_t
+sizeof__wuffs_brotli__encoder(void);
+
 // ---------------- Allocs
 
 // These functions allocate and initialize Wuffs structs. They return NULL if
@@ -8562,11 +9314,25 @@ wuffs_brotli__decoder__alloc_as__wuffs_base__io_transformer(void) {
   return (wuffs_base__io_transformer*)(wuffs_brotli__decoder__alloc());
 }
 
+wuffs_brotli__encoder*
+wuffs_brotli__encoder__alloc(void);
+
+static inline wuffs_base__io_transformer*
+wuffs_brotli__encoder__alloc_as__wuffs_base__io_transformer(void) {
+  return (wuffs_base__io_transformer*)(wuffs_brotli__encoder__alloc());
+}
+
 // ---------------- Upcasts
 
 static inline wuffs_base__io_transformer*
 wuffs_brotli__decoder__upcast_as__wuffs_base__io_transformer(
     wuffs_brotli__decoder* p) {
+  return (wuffs_base__io_transformer*)p;
+}
+
+static inline wuffs_base__io_transformer*
+wuffs_brotli__encoder__upcast_as__wuffs_base__io_transformer(
+    wuffs_brotli__encoder* p) {
   return (wuffs_base__io_transformer*)p;
 }
 
@@ -8599,6 +9365,54 @@ WUFFS_BASE__GENERATED_C_CODE
 WUFFS_BASE__MAYBE_STATIC wuffs_base__status
 wuffs_brotli__decoder__transform_io(
     wuffs_brotli__decoder* self,
+    wuffs_base__io_buffer* a_dst,
+    wuffs_base__io_buffer* a_src,
+    wuffs_base__slice_u8 a_workbuf);
+
+WUFFS_BASE__GENERATED_C_CODE
+WUFFS_BASE__MAYBE_STATIC uint64_t
+wuffs_brotli__encoder__get_quirk(
+    const wuffs_brotli__encoder* self,
+    uint32_t a_key);
+
+WUFFS_BASE__GENERATED_C_CODE
+WUFFS_BASE__MAYBE_STATIC wuffs_base__status
+wuffs_brotli__encoder__set_quirk(
+    wuffs_brotli__encoder* self,
+    uint32_t a_key,
+    uint64_t a_value);
+
+WUFFS_BASE__GENERATED_C_CODE
+WUFFS_BASE__MAYBE_STATIC wuffs_base__optional_u63
+wuffs_brotli__encoder__dst_history_retain_length(
+    const wuffs_brotli__encoder* self);
+
+WUFFS_BASE__GENERATED_C_CODE
+WUFFS_BASE__MAYBE_STATIC wuffs_base__range_ii_u64
+wuffs_brotli__encoder__workbuf_len(
+    const wuffs_brotli__encoder* self);
+
+WUFFS_BASE__GENERATED_C_CODE
+WUFFS_BASE__MAYBE_STATIC uint64_t
+wuffs_brotli__encoder__max_compressed_size(
+    const wuffs_brotli__encoder* self,
+    uint64_t a_input_size);
+
+WUFFS_BASE__GENERATED_C_CODE
+WUFFS_BASE__MAYBE_STATIC wuffs_base__status
+wuffs_brotli__encoder__request_flush(
+    wuffs_brotli__encoder* self);
+
+WUFFS_BASE__GENERATED_C_CODE
+WUFFS_BASE__MAYBE_STATIC wuffs_base__status
+wuffs_brotli__encoder__request_emit_metadata(
+    wuffs_brotli__encoder* self,
+    uint64_t a_length);
+
+WUFFS_BASE__GENERATED_C_CODE
+WUFFS_BASE__MAYBE_STATIC wuffs_base__status
+wuffs_brotli__encoder__transform_io(
+    wuffs_brotli__encoder* self,
     wuffs_base__io_buffer* a_dst,
     wuffs_base__io_buffer* a_src,
     wuffs_base__slice_u8 a_workbuf);
@@ -8887,6 +9701,211 @@ struct wuffs_brotli__decoder__struct {
 
 #endif  // __cplusplus
 };  // struct wuffs_brotli__decoder__struct
+
+struct wuffs_brotli__encoder__struct {
+  // Do not access the private_impl's or private_data's fields directly. There
+  // is no API/ABI compatibility or safety guarantee if you do so. Instead, use
+  // the wuffs_foo__bar__baz functions.
+  //
+  // It is a struct, not a struct*, so that the outermost wuffs_foo__bar struct
+  // can be stack allocated when WUFFS_IMPLEMENTATION is defined.
+
+  struct {
+    uint32_t magic;
+    uint32_t active_coroutine;
+    wuffs_base__vtable vtable_for__wuffs_base__io_transformer;
+    wuffs_base__vtable null_vtable;
+
+    uint32_t f_p_mode;
+    uint32_t f_p_quality;
+    bool f_p_quality_set;
+    uint32_t f_p_lgwin;
+    bool f_p_lgwin_set;
+    uint32_t f_p_lgblock;
+    uint32_t f_p_disable_lcm;
+    uint32_t f_p_size_hint;
+    uint32_t f_p_large_window;
+    uint32_t f_p_npostfix;
+    uint32_t f_p_ndirect;
+    uint32_t f_p_stream_offset;
+    bool f_is_initialized;
+    uint32_t f_quality;
+    uint32_t f_lgwin;
+    uint32_t f_lgblock;
+    bool f_large_window;
+    uint32_t f_size_hint;
+    uint32_t f_stream_offset;
+    uint32_t f_distance_postfix_bits;
+    uint32_t f_num_direct_distance_codes;
+    uint32_t f_dist_cache[4];
+    uint32_t f_saved_dist_cache[4];
+    uint32_t f_flint;
+    uint32_t f_last_bytes;
+    uint32_t f_last_bytes_bits;
+    uint32_t f_stream_state;
+    uint32_t f_remaining_metadata_bytes;
+    bool f_out_in_tiny_buf;
+    uint64_t f_out_pos;
+    uint64_t f_out_len;
+    bool f_flush_requested;
+    bool f_metadata_requested;
+    uint32_t f_metadata_length;
+    uint64_t f_bw_ix;
+    uint64_t f_cmd_code_numbits;
+    uint32_t f_huffman_tree_size;
+    uint32_t f_num_commands;
+    uint32_t f_num_literals;
+
+    uint32_t p_transform_io;
+  } private_impl;
+
+  struct {
+    wuffs_softfloat__arith f_sf;
+    uint8_t f_tiny_buf[32];
+    uint8_t f_lit_depth[256];
+    uint16_t f_lit_bits[256];
+    uint8_t f_cmd_depth[128];
+    uint16_t f_cmd_bits[128];
+    uint32_t f_cmd_histo[128];
+    uint8_t f_cmd_code[520];
+    uint32_t f_histogram[256];
+    uint8_t f_tmp_depth[704];
+    uint16_t f_tmp_bits[64];
+    uint32_t f_tree_count[1024];
+    uint16_t f_tree_left[1024];
+    uint16_t f_tree_right[1024];
+    uint8_t f_huffman_tree[1024];
+    uint8_t f_huffman_tree_extra_bits[1024];
+    uint32_t f_cl_histo[32];
+    uint8_t f_cl_depth[32];
+    uint16_t f_cl_bits[32];
+    uint32_t f_hash_table[131072];
+    uint32_t f_command_buf[131072];
+    uint8_t f_literal_buf[131072];
+
+    struct {
+      uint32_t v_op;
+      bool v_is_last;
+      bool v_force_flush;
+      uint64_t v_storage_len;
+      uint32_t v_table_bits;
+      uint64_t v_mark;
+      uint64_t scratch;
+    } s_transform_io;
+  } private_data;
+
+#ifdef __cplusplus
+#if defined(WUFFS_BASE__HAVE_UNIQUE_PTR)
+  using unique_ptr = std::unique_ptr<wuffs_brotli__encoder, wuffs_unique_ptr_deleter>;
+
+  // On failure, the alloc_etc functions return nullptr. They don't throw.
+
+  static inline unique_ptr
+  alloc() {
+    return unique_ptr(wuffs_brotli__encoder__alloc());
+  }
+
+  static inline wuffs_base__io_transformer::unique_ptr
+  alloc_as__wuffs_base__io_transformer() {
+    return wuffs_base__io_transformer::unique_ptr(
+        wuffs_brotli__encoder__alloc_as__wuffs_base__io_transformer());
+  }
+#endif  // defined(WUFFS_BASE__HAVE_UNIQUE_PTR)
+
+#if defined(WUFFS_BASE__HAVE_EQ_DELETE) && !defined(WUFFS_IMPLEMENTATION)
+  // Disallow constructing or copying an object via standard C++ mechanisms,
+  // e.g. the "new" operator, as this struct is intentionally opaque. Its total
+  // size and field layout is not part of the public, stable, memory-safe API.
+  // Use malloc or memcpy and the sizeof__wuffs_foo__bar function instead, and
+  // call wuffs_foo__bar__baz methods (which all take a "this"-like pointer as
+  // their first argument) rather than tweaking bar.private_impl.qux fields.
+  //
+  // In C, we can just leave wuffs_foo__bar as an incomplete type (unless
+  // WUFFS_IMPLEMENTATION is #define'd). In C++, we define a complete type in
+  // order to provide convenience methods. These forward on "this", so that you
+  // can write "bar->baz(etc)" instead of "wuffs_foo__bar__baz(bar, etc)".
+  wuffs_brotli__encoder__struct() = delete;
+  wuffs_brotli__encoder__struct(const wuffs_brotli__encoder__struct&) = delete;
+  wuffs_brotli__encoder__struct& operator=(
+      const wuffs_brotli__encoder__struct&) = delete;
+#endif  // defined(WUFFS_BASE__HAVE_EQ_DELETE) && !defined(WUFFS_IMPLEMENTATION)
+
+#if !defined(WUFFS_IMPLEMENTATION)
+  // As above, the size of the struct is not part of the public API, and unless
+  // WUFFS_IMPLEMENTATION is #define'd, this struct type T should be heap
+  // allocated, not stack allocated. Its size is not intended to be known at
+  // compile time, but it is unfortunately divulged as a side effect of
+  // defining C++ convenience methods. Use "sizeof__T()", calling the function,
+  // instead of "sizeof T", invoking the operator. To make the two values
+  // different, so that passing the latter will be rejected by the initialize
+  // function, we add an arbitrary amount of dead weight.
+  uint8_t dead_weight[123000000];  // 123 MB.
+#endif  // !defined(WUFFS_IMPLEMENTATION)
+
+  inline wuffs_base__status WUFFS_BASE__WARN_UNUSED_RESULT
+  initialize(
+      size_t sizeof_star_self,
+      uint64_t wuffs_version,
+      uint32_t options) {
+    return wuffs_brotli__encoder__initialize(
+        this, sizeof_star_self, wuffs_version, options);
+  }
+
+  inline wuffs_base__io_transformer*
+  upcast_as__wuffs_base__io_transformer() {
+    return (wuffs_base__io_transformer*)this;
+  }
+
+  inline uint64_t
+  get_quirk(
+      uint32_t a_key) const {
+    return wuffs_brotli__encoder__get_quirk(this, a_key);
+  }
+
+  inline wuffs_base__status
+  set_quirk(
+      uint32_t a_key,
+      uint64_t a_value) {
+    return wuffs_brotli__encoder__set_quirk(this, a_key, a_value);
+  }
+
+  inline wuffs_base__optional_u63
+  dst_history_retain_length() const {
+    return wuffs_brotli__encoder__dst_history_retain_length(this);
+  }
+
+  inline wuffs_base__range_ii_u64
+  workbuf_len() const {
+    return wuffs_brotli__encoder__workbuf_len(this);
+  }
+
+  inline uint64_t
+  max_compressed_size(
+      uint64_t a_input_size) const {
+    return wuffs_brotli__encoder__max_compressed_size(this, a_input_size);
+  }
+
+  inline wuffs_base__status
+  request_flush() {
+    return wuffs_brotli__encoder__request_flush(this);
+  }
+
+  inline wuffs_base__status
+  request_emit_metadata(
+      uint64_t a_length) {
+    return wuffs_brotli__encoder__request_emit_metadata(this, a_length);
+  }
+
+  inline wuffs_base__status
+  transform_io(
+      wuffs_base__io_buffer* a_dst,
+      wuffs_base__io_buffer* a_src,
+      wuffs_base__slice_u8 a_workbuf) {
+    return wuffs_brotli__encoder__transform_io(this, a_dst, a_src, a_workbuf);
+  }
+
+#endif  // __cplusplus
+};  // struct wuffs_brotli__encoder__struct
 
 #endif  // defined(__cplusplus) || defined(WUFFS_IMPLEMENTATION)
 
@@ -15334,723 +16353,6 @@ struct wuffs_sha256__hasher__struct {
 #endif  // defined(__cplusplus) || defined(WUFFS_IMPLEMENTATION)
 
 #endif  // !defined(WUFFS_CONFIG__MODULES) || defined(WUFFS_CONFIG__MODULE__SHA256) || defined(WUFFS_NONMONOLITHIC)
-
-#if !defined(WUFFS_CONFIG__MODULES) || defined(WUFFS_CONFIG__MODULE__SOFTFLOAT) || defined(WUFFS_NONMONOLITHIC)
-
-// ---------------- Status Codes
-
-// ---------------- Public Consts
-
-// ---------------- Struct Declarations
-
-typedef struct wuffs_softfloat__arith__struct wuffs_softfloat__arith;
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-// ---------------- Public Initializer Prototypes
-
-// For any given "wuffs_foo__bar* self", "wuffs_foo__bar__initialize(self,
-// etc)" should be called before any other "wuffs_foo__bar__xxx(self, etc)".
-//
-// Pass sizeof(*self) and WUFFS_VERSION for sizeof_star_self and wuffs_version.
-// Pass 0 (or some combination of WUFFS_INITIALIZE__XXX) for options.
-
-wuffs_base__status WUFFS_BASE__WARN_UNUSED_RESULT
-wuffs_softfloat__arith__initialize(
-    wuffs_softfloat__arith* self,
-    size_t sizeof_star_self,
-    uint64_t wuffs_version,
-    uint32_t options);
-
-size_t
-sizeof__wuffs_softfloat__arith(void);
-
-// ---------------- Allocs
-
-// These functions allocate and initialize Wuffs structs. They return NULL if
-// memory allocation fails. If they return non-NULL, there is no need to call
-// wuffs_foo__bar__initialize, but the caller is responsible for eventually
-// calling free on the returned pointer. That pointer is effectively a C++
-// std::unique_ptr<T, wuffs_unique_ptr_deleter>.
-
-wuffs_softfloat__arith*
-wuffs_softfloat__arith__alloc(void);
-
-// ---------------- Upcasts
-
-// ---------------- Public Function Prototypes
-
-WUFFS_BASE__GENERATED_C_CODE
-WUFFS_BASE__MAYBE_STATIC uint32_t
-wuffs_softfloat__arith__f64_is_nan(
-    const wuffs_softfloat__arith* self,
-    uint64_t a_a);
-
-WUFFS_BASE__GENERATED_C_CODE
-WUFFS_BASE__MAYBE_STATIC uint64_t
-wuffs_softfloat__arith__f64_neg(
-    const wuffs_softfloat__arith* self,
-    uint64_t a_a);
-
-WUFFS_BASE__GENERATED_C_CODE
-WUFFS_BASE__MAYBE_STATIC uint64_t
-wuffs_softfloat__arith__f64_abs(
-    const wuffs_softfloat__arith* self,
-    uint64_t a_a);
-
-WUFFS_BASE__GENERATED_C_CODE
-WUFFS_BASE__MAYBE_STATIC uint32_t
-wuffs_softfloat__arith__f64_cmp(
-    const wuffs_softfloat__arith* self,
-    uint64_t a_a,
-    uint64_t a_b);
-
-WUFFS_BASE__GENERATED_C_CODE
-WUFFS_BASE__MAYBE_STATIC uint32_t
-wuffs_softfloat__arith__f64_eq(
-    const wuffs_softfloat__arith* self,
-    uint64_t a_a,
-    uint64_t a_b);
-
-WUFFS_BASE__GENERATED_C_CODE
-WUFFS_BASE__MAYBE_STATIC uint32_t
-wuffs_softfloat__arith__f64_ne(
-    const wuffs_softfloat__arith* self,
-    uint64_t a_a,
-    uint64_t a_b);
-
-WUFFS_BASE__GENERATED_C_CODE
-WUFFS_BASE__MAYBE_STATIC uint32_t
-wuffs_softfloat__arith__f64_lt(
-    const wuffs_softfloat__arith* self,
-    uint64_t a_a,
-    uint64_t a_b);
-
-WUFFS_BASE__GENERATED_C_CODE
-WUFFS_BASE__MAYBE_STATIC uint32_t
-wuffs_softfloat__arith__f64_le(
-    const wuffs_softfloat__arith* self,
-    uint64_t a_a,
-    uint64_t a_b);
-
-WUFFS_BASE__GENERATED_C_CODE
-WUFFS_BASE__MAYBE_STATIC uint32_t
-wuffs_softfloat__arith__f64_gt(
-    const wuffs_softfloat__arith* self,
-    uint64_t a_a,
-    uint64_t a_b);
-
-WUFFS_BASE__GENERATED_C_CODE
-WUFFS_BASE__MAYBE_STATIC uint32_t
-wuffs_softfloat__arith__f64_ge(
-    const wuffs_softfloat__arith* self,
-    uint64_t a_a,
-    uint64_t a_b);
-
-WUFFS_BASE__GENERATED_C_CODE
-WUFFS_BASE__MAYBE_STATIC uint64_t
-wuffs_softfloat__arith__f64_min(
-    const wuffs_softfloat__arith* self,
-    uint64_t a_a,
-    uint64_t a_b);
-
-WUFFS_BASE__GENERATED_C_CODE
-WUFFS_BASE__MAYBE_STATIC uint64_t
-wuffs_softfloat__arith__f64_max(
-    const wuffs_softfloat__arith* self,
-    uint64_t a_a,
-    uint64_t a_b);
-
-WUFFS_BASE__GENERATED_C_CODE
-WUFFS_BASE__MAYBE_STATIC uint64_t
-wuffs_softfloat__arith__f64_add(
-    const wuffs_softfloat__arith* self,
-    uint64_t a_a,
-    uint64_t a_b);
-
-WUFFS_BASE__GENERATED_C_CODE
-WUFFS_BASE__MAYBE_STATIC uint64_t
-wuffs_softfloat__arith__f64_sub(
-    const wuffs_softfloat__arith* self,
-    uint64_t a_a,
-    uint64_t a_b);
-
-WUFFS_BASE__GENERATED_C_CODE
-WUFFS_BASE__MAYBE_STATIC uint64_t
-wuffs_softfloat__arith__f64_mul(
-    const wuffs_softfloat__arith* self,
-    uint64_t a_a,
-    uint64_t a_b);
-
-WUFFS_BASE__GENERATED_C_CODE
-WUFFS_BASE__MAYBE_STATIC uint64_t
-wuffs_softfloat__arith__f64_div(
-    const wuffs_softfloat__arith* self,
-    uint64_t a_a,
-    uint64_t a_b);
-
-WUFFS_BASE__GENERATED_C_CODE
-WUFFS_BASE__MAYBE_STATIC uint64_t
-wuffs_softfloat__arith__f64_fma(
-    const wuffs_softfloat__arith* self,
-    uint64_t a_a,
-    uint64_t a_b,
-    uint64_t a_c);
-
-WUFFS_BASE__GENERATED_C_CODE
-WUFFS_BASE__MAYBE_STATIC uint64_t
-wuffs_softfloat__arith__f64_from_u64(
-    const wuffs_softfloat__arith* self,
-    uint64_t a_a);
-
-WUFFS_BASE__GENERATED_C_CODE
-WUFFS_BASE__MAYBE_STATIC uint64_t
-wuffs_softfloat__arith__f64_from_u32(
-    const wuffs_softfloat__arith* self,
-    uint32_t a_a);
-
-WUFFS_BASE__GENERATED_C_CODE
-WUFFS_BASE__MAYBE_STATIC uint64_t
-wuffs_softfloat__arith__f64_from_i64(
-    const wuffs_softfloat__arith* self,
-    int64_t a_a);
-
-WUFFS_BASE__GENERATED_C_CODE
-WUFFS_BASE__MAYBE_STATIC uint64_t
-wuffs_softfloat__arith__f64_to_u64_trunc(
-    const wuffs_softfloat__arith* self,
-    uint64_t a_a);
-
-WUFFS_BASE__GENERATED_C_CODE
-WUFFS_BASE__MAYBE_STATIC uint32_t
-wuffs_softfloat__arith__f64_to_f32(
-    const wuffs_softfloat__arith* self,
-    uint64_t a_a);
-
-WUFFS_BASE__GENERATED_C_CODE
-WUFFS_BASE__MAYBE_STATIC uint64_t
-wuffs_softfloat__arith__f32_to_f64(
-    const wuffs_softfloat__arith* self,
-    uint32_t a_a);
-
-WUFFS_BASE__GENERATED_C_CODE
-WUFFS_BASE__MAYBE_STATIC uint32_t
-wuffs_softfloat__arith__f32_is_nan(
-    const wuffs_softfloat__arith* self,
-    uint32_t a_a);
-
-WUFFS_BASE__GENERATED_C_CODE
-WUFFS_BASE__MAYBE_STATIC uint32_t
-wuffs_softfloat__arith__f32_neg(
-    const wuffs_softfloat__arith* self,
-    uint32_t a_a);
-
-WUFFS_BASE__GENERATED_C_CODE
-WUFFS_BASE__MAYBE_STATIC uint32_t
-wuffs_softfloat__arith__f32_abs(
-    const wuffs_softfloat__arith* self,
-    uint32_t a_a);
-
-WUFFS_BASE__GENERATED_C_CODE
-WUFFS_BASE__MAYBE_STATIC uint32_t
-wuffs_softfloat__arith__f32_add(
-    const wuffs_softfloat__arith* self,
-    uint32_t a_a,
-    uint32_t a_b);
-
-WUFFS_BASE__GENERATED_C_CODE
-WUFFS_BASE__MAYBE_STATIC uint32_t
-wuffs_softfloat__arith__f32_sub(
-    const wuffs_softfloat__arith* self,
-    uint32_t a_a,
-    uint32_t a_b);
-
-WUFFS_BASE__GENERATED_C_CODE
-WUFFS_BASE__MAYBE_STATIC uint32_t
-wuffs_softfloat__arith__f32_mul(
-    const wuffs_softfloat__arith* self,
-    uint32_t a_a,
-    uint32_t a_b);
-
-WUFFS_BASE__GENERATED_C_CODE
-WUFFS_BASE__MAYBE_STATIC uint32_t
-wuffs_softfloat__arith__f32_div(
-    const wuffs_softfloat__arith* self,
-    uint32_t a_a,
-    uint32_t a_b);
-
-WUFFS_BASE__GENERATED_C_CODE
-WUFFS_BASE__MAYBE_STATIC uint32_t
-wuffs_softfloat__arith__f32_cmp(
-    const wuffs_softfloat__arith* self,
-    uint32_t a_a,
-    uint32_t a_b);
-
-WUFFS_BASE__GENERATED_C_CODE
-WUFFS_BASE__MAYBE_STATIC uint32_t
-wuffs_softfloat__arith__f32_eq(
-    const wuffs_softfloat__arith* self,
-    uint32_t a_a,
-    uint32_t a_b);
-
-WUFFS_BASE__GENERATED_C_CODE
-WUFFS_BASE__MAYBE_STATIC uint32_t
-wuffs_softfloat__arith__f32_ne(
-    const wuffs_softfloat__arith* self,
-    uint32_t a_a,
-    uint32_t a_b);
-
-WUFFS_BASE__GENERATED_C_CODE
-WUFFS_BASE__MAYBE_STATIC uint32_t
-wuffs_softfloat__arith__f32_lt(
-    const wuffs_softfloat__arith* self,
-    uint32_t a_a,
-    uint32_t a_b);
-
-WUFFS_BASE__GENERATED_C_CODE
-WUFFS_BASE__MAYBE_STATIC uint32_t
-wuffs_softfloat__arith__f32_le(
-    const wuffs_softfloat__arith* self,
-    uint32_t a_a,
-    uint32_t a_b);
-
-WUFFS_BASE__GENERATED_C_CODE
-WUFFS_BASE__MAYBE_STATIC uint32_t
-wuffs_softfloat__arith__f32_gt(
-    const wuffs_softfloat__arith* self,
-    uint32_t a_a,
-    uint32_t a_b);
-
-WUFFS_BASE__GENERATED_C_CODE
-WUFFS_BASE__MAYBE_STATIC uint32_t
-wuffs_softfloat__arith__f32_ge(
-    const wuffs_softfloat__arith* self,
-    uint32_t a_a,
-    uint32_t a_b);
-
-WUFFS_BASE__GENERATED_C_CODE
-WUFFS_BASE__MAYBE_STATIC uint32_t
-wuffs_softfloat__arith__f32_min(
-    const wuffs_softfloat__arith* self,
-    uint32_t a_a,
-    uint32_t a_b);
-
-WUFFS_BASE__GENERATED_C_CODE
-WUFFS_BASE__MAYBE_STATIC uint32_t
-wuffs_softfloat__arith__f32_max(
-    const wuffs_softfloat__arith* self,
-    uint32_t a_a,
-    uint32_t a_b);
-
-WUFFS_BASE__GENERATED_C_CODE
-WUFFS_BASE__MAYBE_STATIC uint32_t
-wuffs_softfloat__arith__f32_from_u32(
-    const wuffs_softfloat__arith* self,
-    uint32_t a_a);
-
-WUFFS_BASE__GENERATED_C_CODE
-WUFFS_BASE__MAYBE_STATIC uint32_t
-wuffs_softfloat__arith__f32_from_i32(
-    const wuffs_softfloat__arith* self,
-    int32_t a_a);
-
-WUFFS_BASE__GENERATED_C_CODE
-WUFFS_BASE__MAYBE_STATIC uint32_t
-wuffs_softfloat__arith__f32_from_u64(
-    const wuffs_softfloat__arith* self,
-    uint64_t a_a);
-
-WUFFS_BASE__GENERATED_C_CODE
-WUFFS_BASE__MAYBE_STATIC uint64_t
-wuffs_softfloat__arith__log2_u64(
-    const wuffs_softfloat__arith* self,
-    uint64_t a_v);
-
-WUFFS_BASE__GENERATED_C_CODE
-WUFFS_BASE__MAYBE_STATIC uint64_t
-wuffs_softfloat__arith__log2_f64(
-    const wuffs_softfloat__arith* self,
-    uint64_t a_x);
-
-#ifdef __cplusplus
-}  // extern "C"
-#endif
-
-// ---------------- Struct Definitions
-
-// These structs' fields, and the sizeof them, are private implementation
-// details that aren't guaranteed to be stable across Wuffs versions.
-//
-// See https://en.wikipedia.org/wiki/Opaque_pointer#C
-
-#if defined(__cplusplus) || defined(WUFFS_IMPLEMENTATION)
-
-struct wuffs_softfloat__arith__struct {
-  // Do not access the private_impl's or private_data's fields directly. There
-  // is no API/ABI compatibility or safety guarantee if you do so. Instead, use
-  // the wuffs_foo__bar__baz functions.
-  //
-  // It is a struct, not a struct*, so that the outermost wuffs_foo__bar struct
-  // can be stack allocated when WUFFS_IMPLEMENTATION is defined.
-
-  struct {
-    uint32_t magic;
-    uint32_t active_coroutine;
-    wuffs_base__vtable null_vtable;
-
-  } private_impl;
-
-#ifdef __cplusplus
-#if defined(WUFFS_BASE__HAVE_UNIQUE_PTR)
-  using unique_ptr = std::unique_ptr<wuffs_softfloat__arith, wuffs_unique_ptr_deleter>;
-
-  // On failure, the alloc_etc functions return nullptr. They don't throw.
-
-  static inline unique_ptr
-  alloc() {
-    return unique_ptr(wuffs_softfloat__arith__alloc());
-  }
-#endif  // defined(WUFFS_BASE__HAVE_UNIQUE_PTR)
-
-#if defined(WUFFS_BASE__HAVE_EQ_DELETE) && !defined(WUFFS_IMPLEMENTATION)
-  // Disallow constructing or copying an object via standard C++ mechanisms,
-  // e.g. the "new" operator, as this struct is intentionally opaque. Its total
-  // size and field layout is not part of the public, stable, memory-safe API.
-  // Use malloc or memcpy and the sizeof__wuffs_foo__bar function instead, and
-  // call wuffs_foo__bar__baz methods (which all take a "this"-like pointer as
-  // their first argument) rather than tweaking bar.private_impl.qux fields.
-  //
-  // In C, we can just leave wuffs_foo__bar as an incomplete type (unless
-  // WUFFS_IMPLEMENTATION is #define'd). In C++, we define a complete type in
-  // order to provide convenience methods. These forward on "this", so that you
-  // can write "bar->baz(etc)" instead of "wuffs_foo__bar__baz(bar, etc)".
-  wuffs_softfloat__arith__struct() = delete;
-  wuffs_softfloat__arith__struct(const wuffs_softfloat__arith__struct&) = delete;
-  wuffs_softfloat__arith__struct& operator=(
-      const wuffs_softfloat__arith__struct&) = delete;
-#endif  // defined(WUFFS_BASE__HAVE_EQ_DELETE) && !defined(WUFFS_IMPLEMENTATION)
-
-#if !defined(WUFFS_IMPLEMENTATION)
-  // As above, the size of the struct is not part of the public API, and unless
-  // WUFFS_IMPLEMENTATION is #define'd, this struct type T should be heap
-  // allocated, not stack allocated. Its size is not intended to be known at
-  // compile time, but it is unfortunately divulged as a side effect of
-  // defining C++ convenience methods. Use "sizeof__T()", calling the function,
-  // instead of "sizeof T", invoking the operator. To make the two values
-  // different, so that passing the latter will be rejected by the initialize
-  // function, we add an arbitrary amount of dead weight.
-  uint8_t dead_weight[123000000];  // 123 MB.
-#endif  // !defined(WUFFS_IMPLEMENTATION)
-
-  inline wuffs_base__status WUFFS_BASE__WARN_UNUSED_RESULT
-  initialize(
-      size_t sizeof_star_self,
-      uint64_t wuffs_version,
-      uint32_t options) {
-    return wuffs_softfloat__arith__initialize(
-        this, sizeof_star_self, wuffs_version, options);
-  }
-
-  inline uint32_t
-  f64_is_nan(
-      uint64_t a_a) const {
-    return wuffs_softfloat__arith__f64_is_nan(this, a_a);
-  }
-
-  inline uint64_t
-  f64_neg(
-      uint64_t a_a) const {
-    return wuffs_softfloat__arith__f64_neg(this, a_a);
-  }
-
-  inline uint64_t
-  f64_abs(
-      uint64_t a_a) const {
-    return wuffs_softfloat__arith__f64_abs(this, a_a);
-  }
-
-  inline uint32_t
-  f64_cmp(
-      uint64_t a_a,
-      uint64_t a_b) const {
-    return wuffs_softfloat__arith__f64_cmp(this, a_a, a_b);
-  }
-
-  inline uint32_t
-  f64_eq(
-      uint64_t a_a,
-      uint64_t a_b) const {
-    return wuffs_softfloat__arith__f64_eq(this, a_a, a_b);
-  }
-
-  inline uint32_t
-  f64_ne(
-      uint64_t a_a,
-      uint64_t a_b) const {
-    return wuffs_softfloat__arith__f64_ne(this, a_a, a_b);
-  }
-
-  inline uint32_t
-  f64_lt(
-      uint64_t a_a,
-      uint64_t a_b) const {
-    return wuffs_softfloat__arith__f64_lt(this, a_a, a_b);
-  }
-
-  inline uint32_t
-  f64_le(
-      uint64_t a_a,
-      uint64_t a_b) const {
-    return wuffs_softfloat__arith__f64_le(this, a_a, a_b);
-  }
-
-  inline uint32_t
-  f64_gt(
-      uint64_t a_a,
-      uint64_t a_b) const {
-    return wuffs_softfloat__arith__f64_gt(this, a_a, a_b);
-  }
-
-  inline uint32_t
-  f64_ge(
-      uint64_t a_a,
-      uint64_t a_b) const {
-    return wuffs_softfloat__arith__f64_ge(this, a_a, a_b);
-  }
-
-  inline uint64_t
-  f64_min(
-      uint64_t a_a,
-      uint64_t a_b) const {
-    return wuffs_softfloat__arith__f64_min(this, a_a, a_b);
-  }
-
-  inline uint64_t
-  f64_max(
-      uint64_t a_a,
-      uint64_t a_b) const {
-    return wuffs_softfloat__arith__f64_max(this, a_a, a_b);
-  }
-
-  inline uint64_t
-  f64_add(
-      uint64_t a_a,
-      uint64_t a_b) const {
-    return wuffs_softfloat__arith__f64_add(this, a_a, a_b);
-  }
-
-  inline uint64_t
-  f64_sub(
-      uint64_t a_a,
-      uint64_t a_b) const {
-    return wuffs_softfloat__arith__f64_sub(this, a_a, a_b);
-  }
-
-  inline uint64_t
-  f64_mul(
-      uint64_t a_a,
-      uint64_t a_b) const {
-    return wuffs_softfloat__arith__f64_mul(this, a_a, a_b);
-  }
-
-  inline uint64_t
-  f64_div(
-      uint64_t a_a,
-      uint64_t a_b) const {
-    return wuffs_softfloat__arith__f64_div(this, a_a, a_b);
-  }
-
-  inline uint64_t
-  f64_fma(
-      uint64_t a_a,
-      uint64_t a_b,
-      uint64_t a_c) const {
-    return wuffs_softfloat__arith__f64_fma(this, a_a, a_b, a_c);
-  }
-
-  inline uint64_t
-  f64_from_u64(
-      uint64_t a_a) const {
-    return wuffs_softfloat__arith__f64_from_u64(this, a_a);
-  }
-
-  inline uint64_t
-  f64_from_u32(
-      uint32_t a_a) const {
-    return wuffs_softfloat__arith__f64_from_u32(this, a_a);
-  }
-
-  inline uint64_t
-  f64_from_i64(
-      int64_t a_a) const {
-    return wuffs_softfloat__arith__f64_from_i64(this, a_a);
-  }
-
-  inline uint64_t
-  f64_to_u64_trunc(
-      uint64_t a_a) const {
-    return wuffs_softfloat__arith__f64_to_u64_trunc(this, a_a);
-  }
-
-  inline uint32_t
-  f64_to_f32(
-      uint64_t a_a) const {
-    return wuffs_softfloat__arith__f64_to_f32(this, a_a);
-  }
-
-  inline uint64_t
-  f32_to_f64(
-      uint32_t a_a) const {
-    return wuffs_softfloat__arith__f32_to_f64(this, a_a);
-  }
-
-  inline uint32_t
-  f32_is_nan(
-      uint32_t a_a) const {
-    return wuffs_softfloat__arith__f32_is_nan(this, a_a);
-  }
-
-  inline uint32_t
-  f32_neg(
-      uint32_t a_a) const {
-    return wuffs_softfloat__arith__f32_neg(this, a_a);
-  }
-
-  inline uint32_t
-  f32_abs(
-      uint32_t a_a) const {
-    return wuffs_softfloat__arith__f32_abs(this, a_a);
-  }
-
-  inline uint32_t
-  f32_add(
-      uint32_t a_a,
-      uint32_t a_b) const {
-    return wuffs_softfloat__arith__f32_add(this, a_a, a_b);
-  }
-
-  inline uint32_t
-  f32_sub(
-      uint32_t a_a,
-      uint32_t a_b) const {
-    return wuffs_softfloat__arith__f32_sub(this, a_a, a_b);
-  }
-
-  inline uint32_t
-  f32_mul(
-      uint32_t a_a,
-      uint32_t a_b) const {
-    return wuffs_softfloat__arith__f32_mul(this, a_a, a_b);
-  }
-
-  inline uint32_t
-  f32_div(
-      uint32_t a_a,
-      uint32_t a_b) const {
-    return wuffs_softfloat__arith__f32_div(this, a_a, a_b);
-  }
-
-  inline uint32_t
-  f32_cmp(
-      uint32_t a_a,
-      uint32_t a_b) const {
-    return wuffs_softfloat__arith__f32_cmp(this, a_a, a_b);
-  }
-
-  inline uint32_t
-  f32_eq(
-      uint32_t a_a,
-      uint32_t a_b) const {
-    return wuffs_softfloat__arith__f32_eq(this, a_a, a_b);
-  }
-
-  inline uint32_t
-  f32_ne(
-      uint32_t a_a,
-      uint32_t a_b) const {
-    return wuffs_softfloat__arith__f32_ne(this, a_a, a_b);
-  }
-
-  inline uint32_t
-  f32_lt(
-      uint32_t a_a,
-      uint32_t a_b) const {
-    return wuffs_softfloat__arith__f32_lt(this, a_a, a_b);
-  }
-
-  inline uint32_t
-  f32_le(
-      uint32_t a_a,
-      uint32_t a_b) const {
-    return wuffs_softfloat__arith__f32_le(this, a_a, a_b);
-  }
-
-  inline uint32_t
-  f32_gt(
-      uint32_t a_a,
-      uint32_t a_b) const {
-    return wuffs_softfloat__arith__f32_gt(this, a_a, a_b);
-  }
-
-  inline uint32_t
-  f32_ge(
-      uint32_t a_a,
-      uint32_t a_b) const {
-    return wuffs_softfloat__arith__f32_ge(this, a_a, a_b);
-  }
-
-  inline uint32_t
-  f32_min(
-      uint32_t a_a,
-      uint32_t a_b) const {
-    return wuffs_softfloat__arith__f32_min(this, a_a, a_b);
-  }
-
-  inline uint32_t
-  f32_max(
-      uint32_t a_a,
-      uint32_t a_b) const {
-    return wuffs_softfloat__arith__f32_max(this, a_a, a_b);
-  }
-
-  inline uint32_t
-  f32_from_u32(
-      uint32_t a_a) const {
-    return wuffs_softfloat__arith__f32_from_u32(this, a_a);
-  }
-
-  inline uint32_t
-  f32_from_i32(
-      int32_t a_a) const {
-    return wuffs_softfloat__arith__f32_from_i32(this, a_a);
-  }
-
-  inline uint32_t
-  f32_from_u64(
-      uint64_t a_a) const {
-    return wuffs_softfloat__arith__f32_from_u64(this, a_a);
-  }
-
-  inline uint64_t
-  log2_u64(
-      uint64_t a_v) const {
-    return wuffs_softfloat__arith__log2_u64(this, a_v);
-  }
-
-  inline uint64_t
-  log2_f64(
-      uint64_t a_x) const {
-    return wuffs_softfloat__arith__log2_f64(this, a_x);
-  }
-
-#endif  // __cplusplus
-};  // struct wuffs_softfloat__arith__struct
-
-#endif  // defined(__cplusplus) || defined(WUFFS_IMPLEMENTATION)
-
-#endif  // !defined(WUFFS_CONFIG__MODULES) || defined(WUFFS_CONFIG__MODULE__SOFTFLOAT) || defined(WUFFS_NONMONOLITHIC)
 
 #if !defined(WUFFS_CONFIG__MODULES) || defined(WUFFS_CONFIG__MODULE__TARGA) || defined(WUFFS_NONMONOLITHIC)
 
@@ -40126,6 +40428,2058 @@ wuffs_bmp__decoder__process_masks(
 
 #endif  // !defined(WUFFS_CONFIG__MODULES) || defined(WUFFS_CONFIG__MODULE__BMP)
 
+#if !defined(WUFFS_CONFIG__MODULES) || defined(WUFFS_CONFIG__MODULE__SOFTFLOAT)
+
+// ---------------- Status Codes Implementations
+
+// ---------------- Private Consts
+
+#define WUFFS_SOFTFLOAT__F64_SIGN 9223372036854775808u
+
+#define WUFFS_SOFTFLOAT__F64_ABS 9223372036854775807u
+
+#define WUFFS_SOFTFLOAT__F64_INF 9218868437227405312u
+
+#define WUFFS_SOFTFLOAT__F64_FRAC 4503599627370495u
+
+#define WUFFS_SOFTFLOAT__F64_HIDDEN 4503599627370496u
+
+#define WUFFS_SOFTFLOAT__F64_QUIET 2251799813685248u
+
+#define WUFFS_SOFTFLOAT__F64_DEFAULT_NAN 18444492273895866368u
+
+static const uint8_t
+WUFFS_SOFTFLOAT__CLZ8[256] WUFFS_BASE__POTENTIALLY_UNUSED = {
+  8u, 7u, 6u, 6u, 5u, 5u, 5u, 5u,
+  4u, 4u, 4u, 4u, 4u, 4u, 4u, 4u,
+  3u, 3u, 3u, 3u, 3u, 3u, 3u, 3u,
+  3u, 3u, 3u, 3u, 3u, 3u, 3u, 3u,
+  2u, 2u, 2u, 2u, 2u, 2u, 2u, 2u,
+  2u, 2u, 2u, 2u, 2u, 2u, 2u, 2u,
+  2u, 2u, 2u, 2u, 2u, 2u, 2u, 2u,
+  2u, 2u, 2u, 2u, 2u, 2u, 2u, 2u,
+  1u, 1u, 1u, 1u, 1u, 1u, 1u, 1u,
+  1u, 1u, 1u, 1u, 1u, 1u, 1u, 1u,
+  1u, 1u, 1u, 1u, 1u, 1u, 1u, 1u,
+  1u, 1u, 1u, 1u, 1u, 1u, 1u, 1u,
+  1u, 1u, 1u, 1u, 1u, 1u, 1u, 1u,
+  1u, 1u, 1u, 1u, 1u, 1u, 1u, 1u,
+  1u, 1u, 1u, 1u, 1u, 1u, 1u, 1u,
+  1u, 1u, 1u, 1u, 1u, 1u, 1u, 1u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+};
+
+#define WUFFS_SOFTFLOAT__F32_SIGN 2147483648u
+
+#define WUFFS_SOFTFLOAT__F32_ABS 2147483647u
+
+#define WUFFS_SOFTFLOAT__F32_INF 2139095040u
+
+#define WUFFS_SOFTFLOAT__LOG2_INVLN2_HI 4609176140020449280u
+
+#define WUFFS_SOFTFLOAT__LOG2_INVLN2_LO 4460540536611119616u
+
+#define WUFFS_SOFTFLOAT__LOG2_A0 13828044577248609081u
+
+#define WUFFS_SOFTFLOAT__LOG2_A1 4602334714382648510u
+
+#define WUFFS_SOFTFLOAT__LOG2_A2 13823540977608962043u
+
+#define WUFFS_SOFTFLOAT__LOG2_A3 4598869476581264456u
+
+#define WUFFS_SOFTFLOAT__LOG2_A4 13821203878746165948u
+
+#define WUFFS_SOFTFLOAT__LOG2_A5 4596594284514769198u
+
+#define WUFFS_SOFTFLOAT__LOG2_B0 13828044577248609022u
+
+#define WUFFS_SOFTFLOAT__LOG2_B1 4602334714382648311u
+
+#define WUFFS_SOFTFLOAT__LOG2_B2 13823540977621236799u
+
+#define WUFFS_SOFTFLOAT__LOG2_B3 4598869476596800484u
+
+#define WUFFS_SOFTFLOAT__LOG2_B4 13821203151630798821u
+
+#define WUFFS_SOFTFLOAT__LOG2_B5 4596593529635268406u
+
+#define WUFFS_SOFTFLOAT__LOG2_B6 13819037345097492379u
+
+#define WUFFS_SOFTFLOAT__LOG2_B7 4594943554432801610u
+
+#define WUFFS_SOFTFLOAT__LOG2_B8 13817758221876344892u
+
+#define WUFFS_SOFTFLOAT__LOG2_B9 4593868635039788646u
+
+#define WUFFS_SOFTFLOAT__F64_ONE 4607182418800017408u
+
+#define WUFFS_SOFTFLOAT__F64_NEG_ONE 13830554455654793216u
+
+static const uint64_t
+WUFFS_SOFTFLOAT__LOG2_TAB_INVC[64] WUFFS_BASE__POTENTIALLY_UNUSED = {
+  4609192499661090040u, 4609119721358544033u, 4609048552263439498u, 4608978935752977541u, 4608910827810035960u, 4608844174476640876u, 4608778932670517176u, 4608715056657886750u,
+  4608652505995016245u, 4608591236480216541u, 4608531212716768208u, 4608472393775796206u, 4608414747454330217u, 4608358236140386643u, 4608302825730857126u, 4608248488588498998u,
+  4608195190521789770u, 4608142902552467893u, 4608091596839446450u, 4608041245183688113u, 4607991821672542679u, 4607943301500489090u, 4607895658995436368u, 4607848870546001381u,
+  4607802913757468081u, 4607757767841591096u, 4607713409864934365u, 4607669821755832624u, 4607626980202848768u, 4607584869060826940u, 4607543467839055042u, 4607502757543314897u,
+  4607462725802730023u, 4607423351295589007u, 4607384620866568409u, 4607346516590018701u, 4607309024952925059u, 4607272131607993180u, 4607235821368544930u, 4607200080338058785u,
+  4607112595412526955u, 4606976147961868676u, 4606843801959665791u, 4606715378043149032u, 4606590705194581478u, 4606469619618625715u, 4606351967316207939u, 4606237606996243811u,
+  4606126401917471569u, 4606018221995330636u, 4605912946732701130u, 4605810462065308559u, 4605710654407004217u, 4605613423158833629u, 4605518667591971211u, 4605426298098548397u,
+  4605336222619703554u, 4605248357336792306u, 4605162622515894769u, 4605078941046797933u, 4604997241283328404u, 4604917450612805666u, 4604839505954084298u, 4604763342788034444u,
+};
+
+static const uint64_t
+WUFFS_SOFTFLOAT__LOG2_TAB_LOGC[64] WUFFS_BASE__POTENTIALLY_UNUSED = {
+  13826342638637133824u, 13826196630396129280u, 13826052246236362752u, 13825768029042720768u, 13825485539995279360u, 13825206079124377600u, 13824929594987094016u, 13824656018996125696u,
+  13824385299287748608u, 13824117362061238272u, 13823852166444584960u, 13823589642092011520u, 13823329752470622208u, 13823072432079704064u, 13822817626379755520u, 13822565306322034688u,
+  13822315408407748608u, 13822067889127702528u, 13821822706514976768u, 13821579813106167808u, 13821131081098354688u, 13820654214105104384u, 13820181677119676416u, 13819713392057769984u,
+  13819249286753288192u, 13818789299422093312u, 13818333340582215680u, 13817881364992663552u, 13817433267667582976u, 13816934369010221056u, 13816053372001304576u, 13815179735723180032u,
+  13814313441755004928u, 13813454269690494976u, 13812602167107960832u, 13810973880287035392u, 13809297139126697984u, 13807231240355184640u, 13803931045004312576u, 13796532236635865088u,
+  4577625706679238656u, 4584977561914671104u, 4588127867468742656u, 4590199577454788608u, 4591728374053568512u, 4593235018675142656u, 4594195890746384384u, 4594927996701155328u,
+  4595649931110391808u, 4596361981185310720u, 4597064405355782144u, 4597757451025965056u, 4598308306428592128u, 4598645833741746176u, 4598979039133097984u, 4599308018491162624u,
+  4599632888650723328u, 4599953748864847872u, 4600270694594048000u, 4600583822264602624u, 4600893218024939520u, 4601198981460250624u, 4601501185019535360u, 4601799915281006592u,
+};
+
+// ---------------- Private Initializer Prototypes
+
+// ---------------- Private Function Prototypes
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint32_t
+wuffs_softfloat__arith__clz64(
+    const wuffs_softfloat__arith* self,
+    uint64_t a_a);
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint64_t
+wuffs_softfloat__arith__shift_right_jam64(
+    const wuffs_softfloat__arith* self,
+    uint64_t a_a,
+    uint32_t a_dist);
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint64_t
+wuffs_softfloat__arith__jam128_hi(
+    const wuffs_softfloat__arith* self,
+    uint64_t a_hi,
+    uint64_t a_lo,
+    uint32_t a_dist);
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint64_t
+wuffs_softfloat__arith__jam128_lo(
+    const wuffs_softfloat__arith* self,
+    uint64_t a_hi,
+    uint64_t a_lo,
+    uint32_t a_dist);
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint64_t
+wuffs_softfloat__arith__mul_hi64(
+    const wuffs_softfloat__arith* self,
+    uint64_t a_a,
+    uint64_t a_b);
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint64_t
+wuffs_softfloat__arith__round_pack_f64(
+    const wuffs_softfloat__arith* self,
+    uint64_t a_sign,
+    uint32_t a_exp,
+    uint64_t a_sig);
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint64_t
+wuffs_softfloat__arith__norm_round_pack_f64(
+    const wuffs_softfloat__arith* self,
+    uint64_t a_sign,
+    uint32_t a_exp,
+    uint64_t a_sig);
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint32_t
+wuffs_softfloat__arith__norm_sub_exp(
+    const wuffs_softfloat__arith* self,
+    uint64_t a_frac);
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint64_t
+wuffs_softfloat__arith__norm_sub_sig(
+    const wuffs_softfloat__arith* self,
+    uint64_t a_frac);
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint64_t
+wuffs_softfloat__arith__f64_propagate_nan(
+    const wuffs_softfloat__arith* self,
+    uint64_t a_a,
+    uint64_t a_b);
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint64_t
+wuffs_softfloat__arith__f64_add_mags(
+    const wuffs_softfloat__arith* self,
+    uint64_t a_a,
+    uint64_t a_b,
+    uint64_t a_sign);
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint64_t
+wuffs_softfloat__arith__f64_sub_mags(
+    const wuffs_softfloat__arith* self,
+    uint64_t a_a,
+    uint64_t a_b,
+    uint64_t a_sign);
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint32_t
+wuffs_softfloat__arith__round_pack_f32(
+    const wuffs_softfloat__arith* self,
+    uint32_t a_sign,
+    uint32_t a_exp,
+    uint32_t a_sig);
+
+// ---------------- VTables
+
+// ---------------- Initializer Implementations
+
+wuffs_base__status WUFFS_BASE__WARN_UNUSED_RESULT
+wuffs_softfloat__arith__initialize(
+    wuffs_softfloat__arith* self,
+    size_t sizeof_star_self,
+    uint64_t wuffs_version,
+    uint32_t options){
+  if (!self) {
+    return wuffs_base__make_status(wuffs_base__error__bad_receiver);
+  }
+  if (sizeof(*self) != sizeof_star_self) {
+    return wuffs_base__make_status(wuffs_base__error__bad_sizeof_receiver);
+  }
+  if (((wuffs_version >> 32) != WUFFS_VERSION_MAJOR) ||
+      (((wuffs_version >> 16) & 0xFFFF) > WUFFS_VERSION_MINOR)) {
+    return wuffs_base__make_status(wuffs_base__error__bad_wuffs_version);
+  }
+
+  if ((options & WUFFS_INITIALIZE__ALREADY_ZEROED) != 0) {
+    // The whole point of this if-check is to detect an uninitialized *self.
+    // We disable the warning on GCC. Clang-5.0 does not have this warning.
+#if !defined(__clang__) && defined(__GNUC__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
+#endif
+    if (self->private_impl.magic != 0) {
+      return wuffs_base__make_status(wuffs_base__error__initialize_falsely_claimed_already_zeroed);
+    }
+#if !defined(__clang__) && defined(__GNUC__)
+#pragma GCC diagnostic pop
+#endif
+  } else {
+    if ((options & WUFFS_INITIALIZE__LEAVE_INTERNAL_BUFFERS_UNINITIALIZED) == 0) {
+      memset(self, 0, sizeof(*self));
+      options |= WUFFS_INITIALIZE__ALREADY_ZEROED;
+    } else {
+      memset(&(self->private_impl), 0, sizeof(self->private_impl));
+    }
+  }
+
+  self->private_impl.magic = WUFFS_BASE__MAGIC;
+  return wuffs_base__make_status(NULL);
+}
+
+wuffs_softfloat__arith*
+wuffs_softfloat__arith__alloc(void) {
+  wuffs_softfloat__arith* x =
+      (wuffs_softfloat__arith*)(calloc(1, sizeof(wuffs_softfloat__arith)));
+  if (!x) {
+    return NULL;
+  }
+  if (wuffs_softfloat__arith__initialize(
+      x, sizeof(wuffs_softfloat__arith), WUFFS_VERSION, WUFFS_INITIALIZE__ALREADY_ZEROED).repr) {
+    free(x);
+    return NULL;
+  }
+  return x;
+}
+
+size_t
+sizeof__wuffs_softfloat__arith(void) {
+  return sizeof(wuffs_softfloat__arith);
+}
+
+// ---------------- Function Implementations
+
+// -------- func softfloat.arith.clz64
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint32_t
+wuffs_softfloat__arith__clz64(
+    const wuffs_softfloat__arith* self,
+    uint64_t a_a) {
+  uint64_t v_x = 0;
+  uint32_t v_n32 = 0;
+  uint32_t v_n16 = 0;
+  uint32_t v_n8 = 0;
+
+  v_x = a_a;
+  if ((v_x >> 32u) == 0u) {
+    v_x = ((uint64_t)(v_x << 32u));
+    v_n32 = 32u;
+  }
+  if ((v_x >> 48u) == 0u) {
+    v_x = ((uint64_t)(v_x << 16u));
+    v_n16 = 16u;
+  }
+  if ((v_x >> 56u) == 0u) {
+    v_x = ((uint64_t)(v_x << 8u));
+    v_n8 = 8u;
+  }
+  return ((v_n32 +
+      v_n16 +
+      v_n8 +
+      (((uint32_t)(WUFFS_SOFTFLOAT__CLZ8[(v_x >> 56u)])) & 7u)) & 63u);
+}
+
+// -------- func softfloat.arith.shift_right_jam64
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint64_t
+wuffs_softfloat__arith__shift_right_jam64(
+    const wuffs_softfloat__arith* self,
+    uint64_t a_a,
+    uint32_t a_dist) {
+  uint32_t v_d = 0;
+
+  if (a_dist == 0u) {
+    return a_a;
+  } else if (a_dist < 64u) {
+    v_d = a_dist;
+    if (((uint64_t)(a_a << (64u - v_d))) != 0u) {
+      return ((a_a >> v_d) | 1u);
+    }
+    return (a_a >> v_d);
+  } else if (a_a != 0u) {
+    return 1u;
+  }
+  return 0u;
+}
+
+// -------- func softfloat.arith.jam128_hi
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint64_t
+wuffs_softfloat__arith__jam128_hi(
+    const wuffs_softfloat__arith* self,
+    uint64_t a_hi,
+    uint64_t a_lo,
+    uint32_t a_dist) {
+  if (a_dist < 64u) {
+    return (a_hi >> a_dist);
+  }
+  return 0u;
+}
+
+// -------- func softfloat.arith.jam128_lo
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint64_t
+wuffs_softfloat__arith__jam128_lo(
+    const wuffs_softfloat__arith* self,
+    uint64_t a_hi,
+    uint64_t a_lo,
+    uint32_t a_dist) {
+  uint32_t v_d = 0;
+  uint64_t v_sticky = 0;
+
+  if (a_dist == 0u) {
+    return a_lo;
+  } else if (a_dist < 64u) {
+    v_d = a_dist;
+    if (((uint64_t)(a_lo << (64u - v_d))) != 0u) {
+      v_sticky = 1u;
+    }
+    return (((uint64_t)(a_hi << (64u - v_d))) | (a_lo >> v_d) | v_sticky);
+  } else if (a_dist < 128u) {
+    v_d = (a_dist - 64u);
+    if (v_d > 0u) {
+      if ((((uint64_t)(a_hi << (64u - v_d))) | a_lo) != 0u) {
+        v_sticky = 1u;
+      }
+    } else if (a_lo != 0u) {
+      v_sticky = 1u;
+    }
+    return ((a_hi >> v_d) | v_sticky);
+  } else if ((a_hi | a_lo) != 0u) {
+    return 1u;
+  }
+  return 0u;
+}
+
+// -------- func softfloat.arith.mul_hi64
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint64_t
+wuffs_softfloat__arith__mul_hi64(
+    const wuffs_softfloat__arith* self,
+    uint64_t a_a,
+    uint64_t a_b) {
+  uint64_t v_a0 = 0;
+  uint64_t v_a1 = 0;
+  uint64_t v_b0 = 0;
+  uint64_t v_b1 = 0;
+  uint64_t v_p00 = 0;
+  uint64_t v_p01 = 0;
+  uint64_t v_p10 = 0;
+  uint64_t v_p11 = 0;
+  uint64_t v_mid = 0;
+
+  v_a0 = (a_a & 4294967295u);
+  v_a1 = (a_a >> 32u);
+  v_b0 = (a_b & 4294967295u);
+  v_b1 = (a_b >> 32u);
+  v_p00 = (v_a0 * v_b0);
+  v_p01 = (v_a0 * v_b1);
+  v_p10 = (v_a1 * v_b0);
+  v_p11 = (v_a1 * v_b1);
+  v_mid = ((v_p00 >> 32u) + (v_p01 & 4294967295u) + (v_p10 & 4294967295u));
+  return ((uint64_t)(((uint64_t)(((uint64_t)(v_p11 + (v_p01 >> 32u))) + (v_p10 >> 32u))) + (v_mid >> 32u)));
+}
+
+// -------- func softfloat.arith.round_pack_f64
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint64_t
+wuffs_softfloat__arith__round_pack_f64(
+    const wuffs_softfloat__arith* self,
+    uint64_t a_sign,
+    uint32_t a_exp,
+    uint64_t a_sig) {
+  uint32_t v_e = 0;
+  uint64_t v_s = 0;
+  uint64_t v_round_bits = 0;
+
+  v_e = a_exp;
+  v_s = a_sig;
+  v_round_bits = (v_s & 1023u);
+  if (v_e >= 2147483648u) {
+    v_s = wuffs_softfloat__arith__shift_right_jam64(self, v_s, ((uint32_t)(0u - v_e)));
+    v_e = 0u;
+    v_round_bits = (v_s & 1023u);
+  } else if (v_e >= 2045u) {
+    if ((v_e > 2045u) || (v_s >= 9223372036854775296u)) {
+      return (a_sign | 9218868437227405312u);
+    }
+  }
+  v_s = (((uint64_t)(v_s + 512u)) >> 10u);
+  if (v_round_bits == 512u) {
+    v_s = (v_s & 18446744073709551614u);
+  }
+  if (v_s == 0u) {
+    v_e = 0u;
+  }
+  return (a_sign | ((uint64_t)(((uint64_t)(((uint64_t)(v_e)) << 52u)) + v_s)));
+}
+
+// -------- func softfloat.arith.norm_round_pack_f64
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint64_t
+wuffs_softfloat__arith__norm_round_pack_f64(
+    const wuffs_softfloat__arith* self,
+    uint64_t a_sign,
+    uint32_t a_exp,
+    uint64_t a_sig) {
+  uint32_t v_c = 0;
+  uint32_t v_shift = 0;
+  uint32_t v_e = 0;
+
+  if (a_sig == 0u) {
+    return a_sign;
+  }
+  v_c = wuffs_softfloat__arith__clz64(self, a_sig);
+  if (v_c == 0u) {
+    return wuffs_softfloat__arith__round_pack_f64(self, a_sign, ((uint32_t)(a_exp + 1u)), ((a_sig >> 1u) | (a_sig & 1u)));
+  }
+  v_shift = (v_c - 1u);
+  v_e = ((uint32_t)(a_exp - v_shift));
+  if ((v_shift >= 10u) && (v_e < 2045u)) {
+    return (a_sign | ((uint64_t)(((uint64_t)(((uint64_t)(v_e)) << 52u)) + ((uint64_t)(a_sig << (v_shift - 10u))))));
+  }
+  return wuffs_softfloat__arith__round_pack_f64(self, a_sign, v_e, ((uint64_t)(a_sig << v_shift)));
+}
+
+// -------- func softfloat.arith.norm_sub_exp
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint32_t
+wuffs_softfloat__arith__norm_sub_exp(
+    const wuffs_softfloat__arith* self,
+    uint64_t a_frac) {
+  return ((uint32_t)(12u - wuffs_softfloat__arith__clz64(self, a_frac)));
+}
+
+// -------- func softfloat.arith.norm_sub_sig
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint64_t
+wuffs_softfloat__arith__norm_sub_sig(
+    const wuffs_softfloat__arith* self,
+    uint64_t a_frac) {
+  return ((uint64_t)(a_frac << (((uint32_t)(wuffs_softfloat__arith__clz64(self, a_frac) - 11u)) & 63u)));
+}
+
+// -------- func softfloat.arith.f64_propagate_nan
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint64_t
+wuffs_softfloat__arith__f64_propagate_nan(
+    const wuffs_softfloat__arith* self,
+    uint64_t a_a,
+    uint64_t a_b) {
+  if ((a_a & 9223372036854775807u) > 9218868437227405312u) {
+    return (a_a | 2251799813685248u);
+  }
+  return (a_b | 2251799813685248u);
+}
+
+// -------- func softfloat.arith.f64_is_nan
+
+WUFFS_BASE__GENERATED_C_CODE
+WUFFS_BASE__MAYBE_STATIC uint32_t
+wuffs_softfloat__arith__f64_is_nan(
+    const wuffs_softfloat__arith* self,
+    uint64_t a_a) {
+  if (!self) {
+    return 0;
+  }
+  if ((self->private_impl.magic != WUFFS_BASE__MAGIC) &&
+      (self->private_impl.magic != WUFFS_BASE__DISABLED)) {
+    return 0;
+  }
+
+  if ((a_a & 9223372036854775807u) > 9218868437227405312u) {
+    return 1u;
+  }
+  return 0u;
+}
+
+// -------- func softfloat.arith.f64_neg
+
+WUFFS_BASE__GENERATED_C_CODE
+WUFFS_BASE__MAYBE_STATIC uint64_t
+wuffs_softfloat__arith__f64_neg(
+    const wuffs_softfloat__arith* self,
+    uint64_t a_a) {
+  if (!self) {
+    return 0;
+  }
+  if ((self->private_impl.magic != WUFFS_BASE__MAGIC) &&
+      (self->private_impl.magic != WUFFS_BASE__DISABLED)) {
+    return 0;
+  }
+
+  return (a_a ^ 9223372036854775808u);
+}
+
+// -------- func softfloat.arith.f64_abs
+
+WUFFS_BASE__GENERATED_C_CODE
+WUFFS_BASE__MAYBE_STATIC uint64_t
+wuffs_softfloat__arith__f64_abs(
+    const wuffs_softfloat__arith* self,
+    uint64_t a_a) {
+  if (!self) {
+    return 0;
+  }
+  if ((self->private_impl.magic != WUFFS_BASE__MAGIC) &&
+      (self->private_impl.magic != WUFFS_BASE__DISABLED)) {
+    return 0;
+  }
+
+  return (a_a & 9223372036854775807u);
+}
+
+// -------- func softfloat.arith.f64_cmp
+
+WUFFS_BASE__GENERATED_C_CODE
+WUFFS_BASE__MAYBE_STATIC uint32_t
+wuffs_softfloat__arith__f64_cmp(
+    const wuffs_softfloat__arith* self,
+    uint64_t a_a,
+    uint64_t a_b) {
+  if (!self) {
+    return 0;
+  }
+  if ((self->private_impl.magic != WUFFS_BASE__MAGIC) &&
+      (self->private_impl.magic != WUFFS_BASE__DISABLED)) {
+    return 0;
+  }
+
+  uint64_t v_ka = 0;
+  uint64_t v_kb = 0;
+
+  if (((a_a & 9223372036854775807u) > 9218868437227405312u) || ((a_b & 9223372036854775807u) > 9218868437227405312u)) {
+    return 3u;
+  } else if (((a_a | a_b) & 9223372036854775807u) == 0u) {
+    return 1u;
+  }
+  v_ka = (a_a | 9223372036854775808u);
+  if ((a_a >> 63u) != 0u) {
+    v_ka = (18446744073709551615u ^ a_a);
+  }
+  v_kb = (a_b | 9223372036854775808u);
+  if ((a_b >> 63u) != 0u) {
+    v_kb = (18446744073709551615u ^ a_b);
+  }
+  if (v_ka < v_kb) {
+    return 0u;
+  } else if (v_ka == v_kb) {
+    return 1u;
+  }
+  return 2u;
+}
+
+// -------- func softfloat.arith.f64_eq
+
+WUFFS_BASE__GENERATED_C_CODE
+WUFFS_BASE__MAYBE_STATIC uint32_t
+wuffs_softfloat__arith__f64_eq(
+    const wuffs_softfloat__arith* self,
+    uint64_t a_a,
+    uint64_t a_b) {
+  if (!self) {
+    return 0;
+  }
+  if ((self->private_impl.magic != WUFFS_BASE__MAGIC) &&
+      (self->private_impl.magic != WUFFS_BASE__DISABLED)) {
+    return 0;
+  }
+
+  if (wuffs_softfloat__arith__f64_cmp(self, a_a, a_b) == 1u) {
+    return 1u;
+  }
+  return 0u;
+}
+
+// -------- func softfloat.arith.f64_ne
+
+WUFFS_BASE__GENERATED_C_CODE
+WUFFS_BASE__MAYBE_STATIC uint32_t
+wuffs_softfloat__arith__f64_ne(
+    const wuffs_softfloat__arith* self,
+    uint64_t a_a,
+    uint64_t a_b) {
+  if (!self) {
+    return 0;
+  }
+  if ((self->private_impl.magic != WUFFS_BASE__MAGIC) &&
+      (self->private_impl.magic != WUFFS_BASE__DISABLED)) {
+    return 0;
+  }
+
+  if (wuffs_softfloat__arith__f64_cmp(self, a_a, a_b) == 1u) {
+    return 0u;
+  }
+  return 1u;
+}
+
+// -------- func softfloat.arith.f64_lt
+
+WUFFS_BASE__GENERATED_C_CODE
+WUFFS_BASE__MAYBE_STATIC uint32_t
+wuffs_softfloat__arith__f64_lt(
+    const wuffs_softfloat__arith* self,
+    uint64_t a_a,
+    uint64_t a_b) {
+  if (!self) {
+    return 0;
+  }
+  if ((self->private_impl.magic != WUFFS_BASE__MAGIC) &&
+      (self->private_impl.magic != WUFFS_BASE__DISABLED)) {
+    return 0;
+  }
+
+  if (wuffs_softfloat__arith__f64_cmp(self, a_a, a_b) == 0u) {
+    return 1u;
+  }
+  return 0u;
+}
+
+// -------- func softfloat.arith.f64_le
+
+WUFFS_BASE__GENERATED_C_CODE
+WUFFS_BASE__MAYBE_STATIC uint32_t
+wuffs_softfloat__arith__f64_le(
+    const wuffs_softfloat__arith* self,
+    uint64_t a_a,
+    uint64_t a_b) {
+  if (!self) {
+    return 0;
+  }
+  if ((self->private_impl.magic != WUFFS_BASE__MAGIC) &&
+      (self->private_impl.magic != WUFFS_BASE__DISABLED)) {
+    return 0;
+  }
+
+  if (wuffs_softfloat__arith__f64_cmp(self, a_a, a_b) <= 1u) {
+    return 1u;
+  }
+  return 0u;
+}
+
+// -------- func softfloat.arith.f64_gt
+
+WUFFS_BASE__GENERATED_C_CODE
+WUFFS_BASE__MAYBE_STATIC uint32_t
+wuffs_softfloat__arith__f64_gt(
+    const wuffs_softfloat__arith* self,
+    uint64_t a_a,
+    uint64_t a_b) {
+  if (!self) {
+    return 0;
+  }
+  if ((self->private_impl.magic != WUFFS_BASE__MAGIC) &&
+      (self->private_impl.magic != WUFFS_BASE__DISABLED)) {
+    return 0;
+  }
+
+  if (wuffs_softfloat__arith__f64_cmp(self, a_a, a_b) == 2u) {
+    return 1u;
+  }
+  return 0u;
+}
+
+// -------- func softfloat.arith.f64_ge
+
+WUFFS_BASE__GENERATED_C_CODE
+WUFFS_BASE__MAYBE_STATIC uint32_t
+wuffs_softfloat__arith__f64_ge(
+    const wuffs_softfloat__arith* self,
+    uint64_t a_a,
+    uint64_t a_b) {
+  if (!self) {
+    return 0;
+  }
+  if ((self->private_impl.magic != WUFFS_BASE__MAGIC) &&
+      (self->private_impl.magic != WUFFS_BASE__DISABLED)) {
+    return 0;
+  }
+
+  uint32_t v_c = 0;
+
+  v_c = wuffs_softfloat__arith__f64_cmp(self, a_a, a_b);
+  if ((v_c == 1u) || (v_c == 2u)) {
+    return 1u;
+  }
+  return 0u;
+}
+
+// -------- func softfloat.arith.f64_min
+
+WUFFS_BASE__GENERATED_C_CODE
+WUFFS_BASE__MAYBE_STATIC uint64_t
+wuffs_softfloat__arith__f64_min(
+    const wuffs_softfloat__arith* self,
+    uint64_t a_a,
+    uint64_t a_b) {
+  if (!self) {
+    return 0;
+  }
+  if ((self->private_impl.magic != WUFFS_BASE__MAGIC) &&
+      (self->private_impl.magic != WUFFS_BASE__DISABLED)) {
+    return 0;
+  }
+
+  if (wuffs_softfloat__arith__f64_cmp(self, a_a, a_b) == 0u) {
+    return a_a;
+  }
+  return a_b;
+}
+
+// -------- func softfloat.arith.f64_max
+
+WUFFS_BASE__GENERATED_C_CODE
+WUFFS_BASE__MAYBE_STATIC uint64_t
+wuffs_softfloat__arith__f64_max(
+    const wuffs_softfloat__arith* self,
+    uint64_t a_a,
+    uint64_t a_b) {
+  if (!self) {
+    return 0;
+  }
+  if ((self->private_impl.magic != WUFFS_BASE__MAGIC) &&
+      (self->private_impl.magic != WUFFS_BASE__DISABLED)) {
+    return 0;
+  }
+
+  if (wuffs_softfloat__arith__f64_cmp(self, a_a, a_b) == 2u) {
+    return a_a;
+  }
+  return a_b;
+}
+
+// -------- func softfloat.arith.f64_add
+
+WUFFS_BASE__GENERATED_C_CODE
+WUFFS_BASE__MAYBE_STATIC uint64_t
+wuffs_softfloat__arith__f64_add(
+    const wuffs_softfloat__arith* self,
+    uint64_t a_a,
+    uint64_t a_b) {
+  if (!self) {
+    return 0;
+  }
+  if ((self->private_impl.magic != WUFFS_BASE__MAGIC) &&
+      (self->private_impl.magic != WUFFS_BASE__DISABLED)) {
+    return 0;
+  }
+
+  if (((a_a ^ a_b) >> 63u) == 0u) {
+    return wuffs_softfloat__arith__f64_add_mags(self, a_a, a_b, (a_a & 9223372036854775808u));
+  }
+  return wuffs_softfloat__arith__f64_sub_mags(self, a_a, a_b, (a_a & 9223372036854775808u));
+}
+
+// -------- func softfloat.arith.f64_sub
+
+WUFFS_BASE__GENERATED_C_CODE
+WUFFS_BASE__MAYBE_STATIC uint64_t
+wuffs_softfloat__arith__f64_sub(
+    const wuffs_softfloat__arith* self,
+    uint64_t a_a,
+    uint64_t a_b) {
+  if (!self) {
+    return 0;
+  }
+  if ((self->private_impl.magic != WUFFS_BASE__MAGIC) &&
+      (self->private_impl.magic != WUFFS_BASE__DISABLED)) {
+    return 0;
+  }
+
+  if (((a_a ^ a_b) >> 63u) == 0u) {
+    return wuffs_softfloat__arith__f64_sub_mags(self, a_a, a_b, (a_a & 9223372036854775808u));
+  }
+  return wuffs_softfloat__arith__f64_add_mags(self, a_a, a_b, (a_a & 9223372036854775808u));
+}
+
+// -------- func softfloat.arith.f64_add_mags
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint64_t
+wuffs_softfloat__arith__f64_add_mags(
+    const wuffs_softfloat__arith* self,
+    uint64_t a_a,
+    uint64_t a_b,
+    uint64_t a_sign) {
+  uint32_t v_exp_a = 0;
+  uint32_t v_exp_b = 0;
+  uint32_t v_exp_z = 0;
+  uint64_t v_sig_a = 0;
+  uint64_t v_sig_b = 0;
+  uint64_t v_sig_z = 0;
+
+  v_exp_a = ((uint32_t)(((a_a >> 52u) & 2047u)));
+  v_exp_b = ((uint32_t)(((a_b >> 52u) & 2047u)));
+  v_sig_a = (a_a & 4503599627370495u);
+  v_sig_b = (a_b & 4503599627370495u);
+  if (v_exp_a == v_exp_b) {
+    if (v_exp_a == 0u) {
+      return (a_sign | ((uint64_t)((a_a & 9223372036854775807u) + v_sig_b)));
+    } else if (v_exp_a == 2047u) {
+      if ((v_sig_a | v_sig_b) != 0u) {
+        return wuffs_softfloat__arith__f64_propagate_nan(self, a_a, a_b);
+      }
+      return a_a;
+    }
+    v_exp_z = v_exp_a;
+    v_sig_z = ((uint64_t)(((uint64_t)(((uint64_t)(9007199254740992u + v_sig_a)) + v_sig_b)) << 9u));
+    return wuffs_softfloat__arith__round_pack_f64(self, a_sign, v_exp_z, v_sig_z);
+  }
+  v_sig_a = ((uint64_t)(v_sig_a << 9u));
+  v_sig_b = ((uint64_t)(v_sig_b << 9u));
+  if (v_exp_a < v_exp_b) {
+    if (v_exp_b == 2047u) {
+      if (v_sig_b != 0u) {
+        return wuffs_softfloat__arith__f64_propagate_nan(self, a_a, a_b);
+      }
+      return (a_sign | 9218868437227405312u);
+    }
+    v_exp_z = v_exp_b;
+    if (v_exp_a != 0u) {
+      v_sig_a = ((uint64_t)(v_sig_a + 2305843009213693952u));
+    } else {
+      v_sig_a = ((uint64_t)(v_sig_a << 1u));
+    }
+    v_sig_a = wuffs_softfloat__arith__shift_right_jam64(self, v_sig_a, ((uint32_t)(v_exp_b - v_exp_a)));
+  } else {
+    if (v_exp_a == 2047u) {
+      if (v_sig_a != 0u) {
+        return wuffs_softfloat__arith__f64_propagate_nan(self, a_a, a_b);
+      }
+      return (a_sign | 9218868437227405312u);
+    }
+    v_exp_z = v_exp_a;
+    if (v_exp_b != 0u) {
+      v_sig_b = ((uint64_t)(v_sig_b + 2305843009213693952u));
+    } else {
+      v_sig_b = ((uint64_t)(v_sig_b << 1u));
+    }
+    v_sig_b = wuffs_softfloat__arith__shift_right_jam64(self, v_sig_b, ((uint32_t)(v_exp_a - v_exp_b)));
+  }
+  v_sig_z = ((uint64_t)(((uint64_t)(2305843009213693952u + v_sig_a)) + v_sig_b));
+  if (v_sig_z < 4611686018427387904u) {
+    v_exp_z = ((uint32_t)(v_exp_z - 1u));
+    v_sig_z = ((uint64_t)(v_sig_z << 1u));
+  }
+  return wuffs_softfloat__arith__round_pack_f64(self, a_sign, v_exp_z, v_sig_z);
+}
+
+// -------- func softfloat.arith.f64_sub_mags
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint64_t
+wuffs_softfloat__arith__f64_sub_mags(
+    const wuffs_softfloat__arith* self,
+    uint64_t a_a,
+    uint64_t a_b,
+    uint64_t a_sign) {
+  uint64_t v_sign_z = 0;
+  uint32_t v_exp_a = 0;
+  uint32_t v_exp_b = 0;
+  uint32_t v_exp_z = 0;
+  uint64_t v_sig_a = 0;
+  uint64_t v_sig_b = 0;
+  uint64_t v_sig_z = 0;
+  uint32_t v_shift = 0;
+
+  v_sign_z = a_sign;
+  v_exp_a = ((uint32_t)(((a_a >> 52u) & 2047u)));
+  v_exp_b = ((uint32_t)(((a_b >> 52u) & 2047u)));
+  v_sig_a = (a_a & 4503599627370495u);
+  v_sig_b = (a_b & 4503599627370495u);
+  if (v_exp_a == v_exp_b) {
+    if (v_exp_a == 2047u) {
+      if ((v_sig_a | v_sig_b) != 0u) {
+        return wuffs_softfloat__arith__f64_propagate_nan(self, a_a, a_b);
+      }
+      return 18444492273895866368u;
+    } else if (v_sig_a == v_sig_b) {
+      return 0u;
+    }
+    if (v_exp_a != 0u) {
+      v_exp_a = ((uint32_t)(v_exp_a - 1u));
+    }
+    if (v_sig_a < v_sig_b) {
+      v_sign_z ^= 9223372036854775808u;
+      v_sig_z = ((uint64_t)(v_sig_b - v_sig_a));
+    } else {
+      v_sig_z = ((uint64_t)(v_sig_a - v_sig_b));
+    }
+    v_shift = (((uint32_t)(wuffs_softfloat__arith__clz64(self, v_sig_z) - 11u)) & 63u);
+    if (v_shift > v_exp_a) {
+      v_shift = (v_exp_a & 63u);
+      v_exp_z = 0u;
+    } else {
+      v_exp_z = ((uint32_t)(v_exp_a - v_shift));
+    }
+    return (v_sign_z | ((uint64_t)(((uint64_t)(((uint64_t)(v_exp_z)) << 52u)) + ((uint64_t)(v_sig_z << v_shift)))));
+  }
+  v_sig_a = ((uint64_t)(v_sig_a << 10u));
+  v_sig_b = ((uint64_t)(v_sig_b << 10u));
+  if (v_exp_a < v_exp_b) {
+    v_sign_z ^= 9223372036854775808u;
+    if (v_exp_b == 2047u) {
+      if (v_sig_b != 0u) {
+        return wuffs_softfloat__arith__f64_propagate_nan(self, a_a, a_b);
+      }
+      return (v_sign_z | 9218868437227405312u);
+    }
+    if (v_exp_a != 0u) {
+      v_sig_a = ((uint64_t)(v_sig_a + 4611686018427387904u));
+    } else {
+      v_sig_a = ((uint64_t)(v_sig_a + v_sig_a));
+    }
+    v_sig_a = wuffs_softfloat__arith__shift_right_jam64(self, v_sig_a, ((uint32_t)(v_exp_b - v_exp_a)));
+    v_sig_b = (v_sig_b | 4611686018427387904u);
+    v_exp_z = v_exp_b;
+    v_sig_z = ((uint64_t)(v_sig_b - v_sig_a));
+  } else {
+    if (v_exp_a == 2047u) {
+      if (v_sig_a != 0u) {
+        return wuffs_softfloat__arith__f64_propagate_nan(self, a_a, a_b);
+      }
+      return (v_sign_z | 9218868437227405312u);
+    }
+    if (v_exp_b != 0u) {
+      v_sig_b = ((uint64_t)(v_sig_b + 4611686018427387904u));
+    } else {
+      v_sig_b = ((uint64_t)(v_sig_b + v_sig_b));
+    }
+    v_sig_b = wuffs_softfloat__arith__shift_right_jam64(self, v_sig_b, ((uint32_t)(v_exp_a - v_exp_b)));
+    v_sig_a = (v_sig_a | 4611686018427387904u);
+    v_exp_z = v_exp_a;
+    v_sig_z = ((uint64_t)(v_sig_a - v_sig_b));
+  }
+  return wuffs_softfloat__arith__norm_round_pack_f64(self, v_sign_z, ((uint32_t)(v_exp_z - 1u)), v_sig_z);
+}
+
+// -------- func softfloat.arith.f64_mul
+
+WUFFS_BASE__GENERATED_C_CODE
+WUFFS_BASE__MAYBE_STATIC uint64_t
+wuffs_softfloat__arith__f64_mul(
+    const wuffs_softfloat__arith* self,
+    uint64_t a_a,
+    uint64_t a_b) {
+  if (!self) {
+    return 0;
+  }
+  if ((self->private_impl.magic != WUFFS_BASE__MAGIC) &&
+      (self->private_impl.magic != WUFFS_BASE__DISABLED)) {
+    return 0;
+  }
+
+  uint64_t v_sign_z = 0;
+  uint32_t v_exp_a = 0;
+  uint32_t v_exp_b = 0;
+  uint32_t v_exp_z = 0;
+  uint64_t v_sig_a = 0;
+  uint64_t v_sig_b = 0;
+  uint64_t v_sig_z = 0;
+
+  v_sign_z = ((a_a ^ a_b) & 9223372036854775808u);
+  v_exp_a = ((uint32_t)(((a_a >> 52u) & 2047u)));
+  v_exp_b = ((uint32_t)(((a_b >> 52u) & 2047u)));
+  v_sig_a = (a_a & 4503599627370495u);
+  v_sig_b = (a_b & 4503599627370495u);
+  if (v_exp_a == 2047u) {
+    if ((v_sig_a != 0u) || ((v_exp_b == 2047u) && (v_sig_b != 0u))) {
+      return wuffs_softfloat__arith__f64_propagate_nan(self, a_a, a_b);
+    } else if ((a_b & 9223372036854775807u) == 0u) {
+      return 18444492273895866368u;
+    }
+    return (v_sign_z | 9218868437227405312u);
+  } else if (v_exp_b == 2047u) {
+    if (v_sig_b != 0u) {
+      return wuffs_softfloat__arith__f64_propagate_nan(self, a_a, a_b);
+    } else if ((a_a & 9223372036854775807u) == 0u) {
+      return 18444492273895866368u;
+    }
+    return (v_sign_z | 9218868437227405312u);
+  }
+  if (v_exp_a == 0u) {
+    if (v_sig_a == 0u) {
+      return v_sign_z;
+    }
+    v_exp_a = wuffs_softfloat__arith__norm_sub_exp(self, v_sig_a);
+    v_sig_a = wuffs_softfloat__arith__norm_sub_sig(self, v_sig_a);
+  }
+  if (v_exp_b == 0u) {
+    if (v_sig_b == 0u) {
+      return v_sign_z;
+    }
+    v_exp_b = wuffs_softfloat__arith__norm_sub_exp(self, v_sig_b);
+    v_sig_b = wuffs_softfloat__arith__norm_sub_sig(self, v_sig_b);
+  }
+  v_exp_z = ((uint32_t)(((uint32_t)(v_exp_a + v_exp_b)) - 1023u));
+  v_sig_a = ((uint64_t)((v_sig_a | 4503599627370496u) << 10u));
+  v_sig_b = ((uint64_t)((v_sig_b | 4503599627370496u) << 11u));
+  v_sig_z = wuffs_softfloat__arith__mul_hi64(self, v_sig_a, v_sig_b);
+  if (((uint64_t)(v_sig_a * v_sig_b)) != 0u) {
+    v_sig_z |= 1u;
+  }
+  if (v_sig_z < 4611686018427387904u) {
+    v_exp_z = ((uint32_t)(v_exp_z - 1u));
+    v_sig_z = ((uint64_t)(v_sig_z << 1u));
+  }
+  return wuffs_softfloat__arith__round_pack_f64(self, v_sign_z, v_exp_z, v_sig_z);
+}
+
+// -------- func softfloat.arith.f64_div
+
+WUFFS_BASE__GENERATED_C_CODE
+WUFFS_BASE__MAYBE_STATIC uint64_t
+wuffs_softfloat__arith__f64_div(
+    const wuffs_softfloat__arith* self,
+    uint64_t a_a,
+    uint64_t a_b) {
+  if (!self) {
+    return 0;
+  }
+  if ((self->private_impl.magic != WUFFS_BASE__MAGIC) &&
+      (self->private_impl.magic != WUFFS_BASE__DISABLED)) {
+    return 0;
+  }
+
+  uint64_t v_sign_z = 0;
+  uint32_t v_exp_a = 0;
+  uint32_t v_exp_b = 0;
+  uint32_t v_exp_z = 0;
+  uint64_t v_sig_a = 0;
+  uint64_t v_sig_b = 0;
+  uint64_t v_q = 0;
+  uint64_t v_r = 0;
+  uint32_t v_i = 0;
+
+  v_sign_z = ((a_a ^ a_b) & 9223372036854775808u);
+  v_exp_a = ((uint32_t)(((a_a >> 52u) & 2047u)));
+  v_exp_b = ((uint32_t)(((a_b >> 52u) & 2047u)));
+  v_sig_a = (a_a & 4503599627370495u);
+  v_sig_b = (a_b & 4503599627370495u);
+  if (v_exp_a == 2047u) {
+    if (v_sig_a != 0u) {
+      return wuffs_softfloat__arith__f64_propagate_nan(self, a_a, a_b);
+    } else if (v_exp_b == 2047u) {
+      if (v_sig_b != 0u) {
+        return wuffs_softfloat__arith__f64_propagate_nan(self, a_a, a_b);
+      }
+      return 18444492273895866368u;
+    }
+    return (v_sign_z | 9218868437227405312u);
+  } else if (v_exp_b == 2047u) {
+    if (v_sig_b != 0u) {
+      return wuffs_softfloat__arith__f64_propagate_nan(self, a_a, a_b);
+    }
+    return v_sign_z;
+  }
+  if (v_exp_b == 0u) {
+    if (v_sig_b == 0u) {
+      if ((a_a & 9223372036854775807u) == 0u) {
+        return 18444492273895866368u;
+      }
+      return (v_sign_z | 9218868437227405312u);
+    }
+    v_exp_b = wuffs_softfloat__arith__norm_sub_exp(self, v_sig_b);
+    v_sig_b = wuffs_softfloat__arith__norm_sub_sig(self, v_sig_b);
+  }
+  if (v_exp_a == 0u) {
+    if (v_sig_a == 0u) {
+      return v_sign_z;
+    }
+    v_exp_a = wuffs_softfloat__arith__norm_sub_exp(self, v_sig_a);
+    v_sig_a = wuffs_softfloat__arith__norm_sub_sig(self, v_sig_a);
+  }
+  v_exp_z = ((uint32_t)(((uint32_t)(v_exp_a - v_exp_b)) + 1022u));
+  v_sig_a = ((v_sig_a & 4503599627370495u) | 4503599627370496u);
+  v_sig_b = ((v_sig_b & 4503599627370495u) | 4503599627370496u);
+  if (v_sig_a < v_sig_b) {
+    v_exp_z = ((uint32_t)(v_exp_z - 1u));
+    v_sig_a = ((uint64_t)(v_sig_a << 1u));
+  }
+  v_q = 1u;
+  v_r = ((uint64_t)(v_sig_a - v_sig_b));
+  v_i = 0u;
+  while (v_i < 5u) {
+    v_r = ((uint64_t)(v_r << 11u));
+    if (v_sig_b > 0u) {
+      v_q = (((uint64_t)(v_q << 11u)) | (v_r / v_sig_b));
+      v_r = (v_r % v_sig_b);
+    }
+    v_i += 1u;
+  }
+  v_q = ((uint64_t)(v_q << 7u));
+  if (v_r != 0u) {
+    v_q |= 1u;
+  }
+  return wuffs_softfloat__arith__round_pack_f64(self, v_sign_z, v_exp_z, v_q);
+}
+
+// -------- func softfloat.arith.f64_fma
+
+WUFFS_BASE__GENERATED_C_CODE
+WUFFS_BASE__MAYBE_STATIC uint64_t
+wuffs_softfloat__arith__f64_fma(
+    const wuffs_softfloat__arith* self,
+    uint64_t a_a,
+    uint64_t a_b,
+    uint64_t a_c) {
+  if (!self) {
+    return 0;
+  }
+  if ((self->private_impl.magic != WUFFS_BASE__MAGIC) &&
+      (self->private_impl.magic != WUFFS_BASE__DISABLED)) {
+    return 0;
+  }
+
+  uint64_t v_sign_p = 0;
+  uint64_t v_sign_c = 0;
+  uint64_t v_sign_z = 0;
+  uint32_t v_exp_a = 0;
+  uint32_t v_exp_b = 0;
+  uint32_t v_exp_c = 0;
+  uint32_t v_exp_z = 0;
+  uint64_t v_sig_a = 0;
+  uint64_t v_sig_b = 0;
+  uint64_t v_sig_c = 0;
+  uint64_t v_p_hi = 0;
+  uint64_t v_p_lo = 0;
+  uint64_t v_c_hi = 0;
+  uint64_t v_c_lo = 0;
+  uint64_t v_z_hi = 0;
+  uint64_t v_z_lo = 0;
+  uint64_t v_tmp = 0;
+  uint32_t v_d = 0;
+  uint32_t v_top = 0;
+
+  if (((a_a & 9223372036854775807u) > 9218868437227405312u) || ((a_b & 9223372036854775807u) > 9218868437227405312u)) {
+    return wuffs_softfloat__arith__f64_propagate_nan(self, a_a, a_b);
+  } else if ((a_c & 9223372036854775807u) > 9218868437227405312u) {
+    return (a_c | 2251799813685248u);
+  }
+  v_sign_p = ((a_a ^ a_b) & 9223372036854775808u);
+  v_sign_c = (a_c & 9223372036854775808u);
+  v_exp_a = ((uint32_t)(((a_a >> 52u) & 2047u)));
+  v_exp_b = ((uint32_t)(((a_b >> 52u) & 2047u)));
+  v_exp_c = ((uint32_t)(((a_c >> 52u) & 2047u)));
+  v_sig_a = (a_a & 4503599627370495u);
+  v_sig_b = (a_b & 4503599627370495u);
+  v_sig_c = (a_c & 4503599627370495u);
+  if ((v_exp_a == 2047u) || (v_exp_b == 2047u)) {
+    if (((a_a & 9223372036854775807u) == 0u) || ((a_b & 9223372036854775807u) == 0u)) {
+      return 18444492273895866368u;
+    } else if ((v_exp_c == 2047u) && (v_sign_c != v_sign_p)) {
+      return 18444492273895866368u;
+    }
+    return (v_sign_p | 9218868437227405312u);
+  } else if (v_exp_c == 2047u) {
+    return a_c;
+  }
+  if (((a_a & 9223372036854775807u) == 0u) || ((a_b & 9223372036854775807u) == 0u)) {
+    if ((a_c & 9223372036854775807u) == 0u) {
+      if (v_sign_p == v_sign_c) {
+        return a_c;
+      }
+      return 0u;
+    }
+    return a_c;
+  }
+  if (v_exp_a == 0u) {
+    v_exp_a = wuffs_softfloat__arith__norm_sub_exp(self, v_sig_a);
+    v_sig_a = wuffs_softfloat__arith__norm_sub_sig(self, v_sig_a);
+  }
+  if (v_exp_b == 0u) {
+    v_exp_b = wuffs_softfloat__arith__norm_sub_exp(self, v_sig_b);
+    v_sig_b = wuffs_softfloat__arith__norm_sub_sig(self, v_sig_b);
+  }
+  v_sig_a = ((v_sig_a & 4503599627370495u) | 4503599627370496u);
+  v_sig_b = ((v_sig_b & 4503599627370495u) | 4503599627370496u);
+  v_p_hi = wuffs_softfloat__arith__mul_hi64(self, v_sig_a, v_sig_b);
+  v_p_lo = ((uint64_t)(v_sig_a * v_sig_b));
+  v_p_hi = (((uint64_t)(v_p_hi << 20u)) | (v_p_lo >> 44u));
+  v_p_lo = ((uint64_t)(v_p_lo << 20u));
+  if ((a_c & 9223372036854775807u) == 0u) {
+    v_top = (127u - wuffs_softfloat__arith__clz64(self, v_p_hi));
+    v_exp_z = ((uint32_t)(((uint32_t)(((uint32_t)(v_exp_a + v_exp_b)) + v_top)) - 1148u));
+    return wuffs_softfloat__arith__round_pack_f64(self, v_sign_p, v_exp_z, wuffs_softfloat__arith__jam128_lo(self, v_p_hi, v_p_lo, ((uint32_t)(v_top - 62u))));
+  }
+  if (v_exp_c == 0u) {
+    v_exp_c = wuffs_softfloat__arith__norm_sub_exp(self, v_sig_c);
+    v_sig_c = wuffs_softfloat__arith__norm_sub_sig(self, v_sig_c);
+  }
+  v_sig_c = ((v_sig_c & 4503599627370495u) | 4503599627370496u);
+  v_c_hi = ((uint64_t)(v_sig_c << 9u));
+  v_c_lo = 0u;
+  v_d = ((uint32_t)(((uint32_t)(((uint32_t)(v_exp_a + v_exp_b)) - v_exp_c)) - 1022u));
+  if (v_d < 2147483648u) {
+    v_tmp = wuffs_softfloat__arith__jam128_hi(self, v_c_hi, v_c_lo, v_d);
+    v_c_lo = wuffs_softfloat__arith__jam128_lo(self, v_c_hi, v_c_lo, v_d);
+    v_c_hi = v_tmp;
+    v_exp_z = ((uint32_t)(((uint32_t)(v_exp_a + v_exp_b)) - 1148u));
+  } else {
+    v_d = ((uint32_t)(0u - v_d));
+    v_tmp = wuffs_softfloat__arith__jam128_hi(self, v_p_hi, v_p_lo, v_d);
+    v_p_lo = wuffs_softfloat__arith__jam128_lo(self, v_p_hi, v_p_lo, v_d);
+    v_p_hi = v_tmp;
+    v_exp_z = ((uint32_t)(v_exp_c - 126u));
+  }
+  if (v_sign_p == v_sign_c) {
+    v_sign_z = v_sign_p;
+    v_z_lo = ((uint64_t)(v_p_lo + v_c_lo));
+    v_z_hi = ((uint64_t)(v_p_hi + v_c_hi));
+    if (v_z_lo < v_p_lo) {
+      v_z_hi = ((uint64_t)(v_z_hi + 1u));
+    }
+  } else {
+    if ((v_p_hi > v_c_hi) || ((v_p_hi == v_c_hi) && (v_p_lo >= v_c_lo))) {
+      v_sign_z = v_sign_p;
+      v_z_lo = ((uint64_t)(v_p_lo - v_c_lo));
+      v_z_hi = ((uint64_t)(v_p_hi - v_c_hi));
+      if (v_p_lo < v_c_lo) {
+        v_z_hi = ((uint64_t)(v_z_hi - 1u));
+      }
+    } else {
+      v_sign_z = v_sign_c;
+      v_z_lo = ((uint64_t)(v_c_lo - v_p_lo));
+      v_z_hi = ((uint64_t)(v_c_hi - v_p_hi));
+      if (v_c_lo < v_p_lo) {
+        v_z_hi = ((uint64_t)(v_z_hi - 1u));
+      }
+    }
+    if ((v_z_hi | v_z_lo) == 0u) {
+      return 0u;
+    }
+  }
+  if (v_z_hi != 0u) {
+    v_top = (127u - wuffs_softfloat__arith__clz64(self, v_z_hi));
+  } else {
+    v_top = (63u - wuffs_softfloat__arith__clz64(self, v_z_lo));
+  }
+  v_exp_z = ((uint32_t)(v_exp_z + v_top));
+  if (v_top >= 62u) {
+    return wuffs_softfloat__arith__round_pack_f64(self, v_sign_z, v_exp_z, wuffs_softfloat__arith__jam128_lo(self, v_z_hi, v_z_lo, (v_top - 62u)));
+  }
+  return wuffs_softfloat__arith__round_pack_f64(self, v_sign_z, v_exp_z, ((uint64_t)(v_z_lo << (62u - v_top))));
+}
+
+// -------- func softfloat.arith.f64_from_u64
+
+WUFFS_BASE__GENERATED_C_CODE
+WUFFS_BASE__MAYBE_STATIC uint64_t
+wuffs_softfloat__arith__f64_from_u64(
+    const wuffs_softfloat__arith* self,
+    uint64_t a_a) {
+  if (!self) {
+    return 0;
+  }
+  if ((self->private_impl.magic != WUFFS_BASE__MAGIC) &&
+      (self->private_impl.magic != WUFFS_BASE__DISABLED)) {
+    return 0;
+  }
+
+  return wuffs_softfloat__arith__norm_round_pack_f64(self, 0u, 1084u, a_a);
+}
+
+// -------- func softfloat.arith.f64_from_u32
+
+WUFFS_BASE__GENERATED_C_CODE
+WUFFS_BASE__MAYBE_STATIC uint64_t
+wuffs_softfloat__arith__f64_from_u32(
+    const wuffs_softfloat__arith* self,
+    uint32_t a_a) {
+  if (!self) {
+    return 0;
+  }
+  if ((self->private_impl.magic != WUFFS_BASE__MAGIC) &&
+      (self->private_impl.magic != WUFFS_BASE__DISABLED)) {
+    return 0;
+  }
+
+  return wuffs_softfloat__arith__norm_round_pack_f64(self, 0u, 1084u, ((uint64_t)(a_a)));
+}
+
+// -------- func softfloat.arith.f64_from_i64
+
+WUFFS_BASE__GENERATED_C_CODE
+WUFFS_BASE__MAYBE_STATIC uint64_t
+wuffs_softfloat__arith__f64_from_i64(
+    const wuffs_softfloat__arith* self,
+    int64_t a_a) {
+  if (!self) {
+    return 0;
+  }
+  if ((self->private_impl.magic != WUFFS_BASE__MAGIC) &&
+      (self->private_impl.magic != WUFFS_BASE__DISABLED)) {
+    return 0;
+  }
+
+  uint64_t v_m = 0;
+
+  if (a_a >= 0u) {
+    return wuffs_softfloat__arith__norm_round_pack_f64(self, 0u, 1084u, ((uint64_t)(a_a)));
+  }
+  v_m = (((uint64_t)((0u - (a_a + 1u)))) + 1u);
+  return wuffs_softfloat__arith__norm_round_pack_f64(self, 9223372036854775808u, 1084u, v_m);
+}
+
+// -------- func softfloat.arith.f64_to_u64_trunc
+
+WUFFS_BASE__GENERATED_C_CODE
+WUFFS_BASE__MAYBE_STATIC uint64_t
+wuffs_softfloat__arith__f64_to_u64_trunc(
+    const wuffs_softfloat__arith* self,
+    uint64_t a_a) {
+  if (!self) {
+    return 0;
+  }
+  if ((self->private_impl.magic != WUFFS_BASE__MAGIC) &&
+      (self->private_impl.magic != WUFFS_BASE__DISABLED)) {
+    return 0;
+  }
+
+  uint32_t v_exp = 0;
+  uint64_t v_sig = 0;
+
+  if (a_a >= 9223372036854775808u) {
+    return 0u;
+  } else if (a_a > 9218868437227405312u) {
+    return 0u;
+  }
+  v_exp = ((uint32_t)(((a_a >> 52u) & 2047u)));
+  v_sig = ((a_a & 4503599627370495u) | 4503599627370496u);
+  if (v_exp < 1023u) {
+    return 0u;
+  } else if (v_exp >= 1087u) {
+    return 18446744073709551615u;
+  } else if (v_exp >= 1075u) {
+    return ((uint64_t)(v_sig << ((v_exp - 1075u) & 63u)));
+  }
+  return (v_sig >> ((1075u - v_exp) & 63u));
+}
+
+// -------- func softfloat.arith.f64_to_f32
+
+WUFFS_BASE__GENERATED_C_CODE
+WUFFS_BASE__MAYBE_STATIC uint32_t
+wuffs_softfloat__arith__f64_to_f32(
+    const wuffs_softfloat__arith* self,
+    uint64_t a_a) {
+  if (!self) {
+    return 0;
+  }
+  if ((self->private_impl.magic != WUFFS_BASE__MAGIC) &&
+      (self->private_impl.magic != WUFFS_BASE__DISABLED)) {
+    return 0;
+  }
+
+  uint32_t v_sign = 0;
+  uint32_t v_exp = 0;
+  uint64_t v_frac = 0;
+  uint32_t v_sig = 0;
+
+  v_sign = (((uint32_t)((a_a >> 32u))) & 2147483648u);
+  v_exp = ((uint32_t)(((a_a >> 52u) & 2047u)));
+  v_frac = (a_a & 4503599627370495u);
+  if (v_exp == 2047u) {
+    if (v_frac != 0u) {
+      return (v_sign | 2143289344u | ((uint32_t)((v_frac >> 29u))));
+    }
+    return (v_sign | 2139095040u);
+  }
+  v_sig = ((uint32_t)((wuffs_softfloat__arith__shift_right_jam64(self, v_frac, 22u) & 1073741823u)));
+  if ((v_exp == 0u) && (v_sig == 0u)) {
+    return v_sign;
+  }
+  return wuffs_softfloat__arith__round_pack_f32(self, v_sign, ((uint32_t)(v_exp - 897u)), (v_sig | 1073741824u));
+}
+
+// -------- func softfloat.arith.round_pack_f32
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint32_t
+wuffs_softfloat__arith__round_pack_f32(
+    const wuffs_softfloat__arith* self,
+    uint32_t a_sign,
+    uint32_t a_exp,
+    uint32_t a_sig) {
+  uint32_t v_e = 0;
+  uint32_t v_s = 0;
+  uint32_t v_round_bits = 0;
+
+  v_e = a_exp;
+  v_s = a_sig;
+  v_round_bits = (v_s & 127u);
+  if (v_e >= 2147483648u) {
+    v_s = ((uint32_t)(wuffs_softfloat__arith__shift_right_jam64(self, ((uint64_t)(v_s)), ((uint32_t)(0u - v_e)))));
+    v_e = 0u;
+    v_round_bits = (v_s & 127u);
+  } else if (v_e >= 253u) {
+    if ((v_e > 253u) || (v_s >= 2147483584u)) {
+      return (a_sign | 2139095040u);
+    }
+  }
+  v_s = (((uint32_t)(v_s + 64u)) >> 7u);
+  if (v_round_bits == 64u) {
+    v_s = (v_s & 4294967294u);
+  }
+  if (v_s == 0u) {
+    v_e = 0u;
+  }
+  return (a_sign | ((uint32_t)(((uint32_t)(v_e << 23u)) + v_s)));
+}
+
+// -------- func softfloat.arith.f32_to_f64
+
+WUFFS_BASE__GENERATED_C_CODE
+WUFFS_BASE__MAYBE_STATIC uint64_t
+wuffs_softfloat__arith__f32_to_f64(
+    const wuffs_softfloat__arith* self,
+    uint32_t a_a) {
+  if (!self) {
+    return 0;
+  }
+  if ((self->private_impl.magic != WUFFS_BASE__MAGIC) &&
+      (self->private_impl.magic != WUFFS_BASE__DISABLED)) {
+    return 0;
+  }
+
+  uint64_t v_sign = 0;
+  uint32_t v_exp = 0;
+  uint64_t v_frac = 0;
+  uint32_t v_top = 0;
+
+  v_sign = ((((uint64_t)(a_a)) >> 31u) << 63u);
+  v_exp = ((a_a >> 23u) & 255u);
+  v_frac = ((uint64_t)((a_a & 8388607u)));
+  if (v_exp == 255u) {
+    if (v_frac != 0u) {
+      return (v_sign | 9221120237041090560u | (v_frac << 29u));
+    }
+    return (v_sign | 9218868437227405312u);
+  } else if (v_exp == 0u) {
+    if (v_frac == 0u) {
+      return v_sign;
+    }
+    v_top = (63u - wuffs_softfloat__arith__clz64(self, v_frac));
+    if (v_top > 22u) {
+      return 0u;
+    }
+    return (v_sign | (((uint64_t)((v_top + 874u))) << 52u) | (((uint64_t)(v_frac << (52u - v_top))) & 4503599627370495u));
+  }
+  return (v_sign | (((uint64_t)((v_exp + 896u))) << 52u) | (v_frac << 29u));
+}
+
+// -------- func softfloat.arith.f32_is_nan
+
+WUFFS_BASE__GENERATED_C_CODE
+WUFFS_BASE__MAYBE_STATIC uint32_t
+wuffs_softfloat__arith__f32_is_nan(
+    const wuffs_softfloat__arith* self,
+    uint32_t a_a) {
+  if (!self) {
+    return 0;
+  }
+  if ((self->private_impl.magic != WUFFS_BASE__MAGIC) &&
+      (self->private_impl.magic != WUFFS_BASE__DISABLED)) {
+    return 0;
+  }
+
+  if ((a_a & 2147483647u) > 2139095040u) {
+    return 1u;
+  }
+  return 0u;
+}
+
+// -------- func softfloat.arith.f32_neg
+
+WUFFS_BASE__GENERATED_C_CODE
+WUFFS_BASE__MAYBE_STATIC uint32_t
+wuffs_softfloat__arith__f32_neg(
+    const wuffs_softfloat__arith* self,
+    uint32_t a_a) {
+  if (!self) {
+    return 0;
+  }
+  if ((self->private_impl.magic != WUFFS_BASE__MAGIC) &&
+      (self->private_impl.magic != WUFFS_BASE__DISABLED)) {
+    return 0;
+  }
+
+  return (a_a ^ 2147483648u);
+}
+
+// -------- func softfloat.arith.f32_abs
+
+WUFFS_BASE__GENERATED_C_CODE
+WUFFS_BASE__MAYBE_STATIC uint32_t
+wuffs_softfloat__arith__f32_abs(
+    const wuffs_softfloat__arith* self,
+    uint32_t a_a) {
+  if (!self) {
+    return 0;
+  }
+  if ((self->private_impl.magic != WUFFS_BASE__MAGIC) &&
+      (self->private_impl.magic != WUFFS_BASE__DISABLED)) {
+    return 0;
+  }
+
+  return (a_a & 2147483647u);
+}
+
+// -------- func softfloat.arith.f32_add
+
+WUFFS_BASE__GENERATED_C_CODE
+WUFFS_BASE__MAYBE_STATIC uint32_t
+wuffs_softfloat__arith__f32_add(
+    const wuffs_softfloat__arith* self,
+    uint32_t a_a,
+    uint32_t a_b) {
+  if (!self) {
+    return 0;
+  }
+  if ((self->private_impl.magic != WUFFS_BASE__MAGIC) &&
+      (self->private_impl.magic != WUFFS_BASE__DISABLED)) {
+    return 0;
+  }
+
+  return wuffs_softfloat__arith__f64_to_f32(self, wuffs_softfloat__arith__f64_add(self, wuffs_softfloat__arith__f32_to_f64(self, a_a), wuffs_softfloat__arith__f32_to_f64(self, a_b)));
+}
+
+// -------- func softfloat.arith.f32_sub
+
+WUFFS_BASE__GENERATED_C_CODE
+WUFFS_BASE__MAYBE_STATIC uint32_t
+wuffs_softfloat__arith__f32_sub(
+    const wuffs_softfloat__arith* self,
+    uint32_t a_a,
+    uint32_t a_b) {
+  if (!self) {
+    return 0;
+  }
+  if ((self->private_impl.magic != WUFFS_BASE__MAGIC) &&
+      (self->private_impl.magic != WUFFS_BASE__DISABLED)) {
+    return 0;
+  }
+
+  return wuffs_softfloat__arith__f64_to_f32(self, wuffs_softfloat__arith__f64_sub(self, wuffs_softfloat__arith__f32_to_f64(self, a_a), wuffs_softfloat__arith__f32_to_f64(self, a_b)));
+}
+
+// -------- func softfloat.arith.f32_mul
+
+WUFFS_BASE__GENERATED_C_CODE
+WUFFS_BASE__MAYBE_STATIC uint32_t
+wuffs_softfloat__arith__f32_mul(
+    const wuffs_softfloat__arith* self,
+    uint32_t a_a,
+    uint32_t a_b) {
+  if (!self) {
+    return 0;
+  }
+  if ((self->private_impl.magic != WUFFS_BASE__MAGIC) &&
+      (self->private_impl.magic != WUFFS_BASE__DISABLED)) {
+    return 0;
+  }
+
+  return wuffs_softfloat__arith__f64_to_f32(self, wuffs_softfloat__arith__f64_mul(self, wuffs_softfloat__arith__f32_to_f64(self, a_a), wuffs_softfloat__arith__f32_to_f64(self, a_b)));
+}
+
+// -------- func softfloat.arith.f32_div
+
+WUFFS_BASE__GENERATED_C_CODE
+WUFFS_BASE__MAYBE_STATIC uint32_t
+wuffs_softfloat__arith__f32_div(
+    const wuffs_softfloat__arith* self,
+    uint32_t a_a,
+    uint32_t a_b) {
+  if (!self) {
+    return 0;
+  }
+  if ((self->private_impl.magic != WUFFS_BASE__MAGIC) &&
+      (self->private_impl.magic != WUFFS_BASE__DISABLED)) {
+    return 0;
+  }
+
+  return wuffs_softfloat__arith__f64_to_f32(self, wuffs_softfloat__arith__f64_div(self, wuffs_softfloat__arith__f32_to_f64(self, a_a), wuffs_softfloat__arith__f32_to_f64(self, a_b)));
+}
+
+// -------- func softfloat.arith.f32_cmp
+
+WUFFS_BASE__GENERATED_C_CODE
+WUFFS_BASE__MAYBE_STATIC uint32_t
+wuffs_softfloat__arith__f32_cmp(
+    const wuffs_softfloat__arith* self,
+    uint32_t a_a,
+    uint32_t a_b) {
+  if (!self) {
+    return 0;
+  }
+  if ((self->private_impl.magic != WUFFS_BASE__MAGIC) &&
+      (self->private_impl.magic != WUFFS_BASE__DISABLED)) {
+    return 0;
+  }
+
+  uint32_t v_ka = 0;
+  uint32_t v_kb = 0;
+
+  if (((a_a & 2147483647u) > 2139095040u) || ((a_b & 2147483647u) > 2139095040u)) {
+    return 3u;
+  } else if (((a_a | a_b) & 2147483647u) == 0u) {
+    return 1u;
+  }
+  v_ka = (a_a | 2147483648u);
+  if ((a_a >> 31u) != 0u) {
+    v_ka = (4294967295u ^ a_a);
+  }
+  v_kb = (a_b | 2147483648u);
+  if ((a_b >> 31u) != 0u) {
+    v_kb = (4294967295u ^ a_b);
+  }
+  if (v_ka < v_kb) {
+    return 0u;
+  } else if (v_ka == v_kb) {
+    return 1u;
+  }
+  return 2u;
+}
+
+// -------- func softfloat.arith.f32_eq
+
+WUFFS_BASE__GENERATED_C_CODE
+WUFFS_BASE__MAYBE_STATIC uint32_t
+wuffs_softfloat__arith__f32_eq(
+    const wuffs_softfloat__arith* self,
+    uint32_t a_a,
+    uint32_t a_b) {
+  if (!self) {
+    return 0;
+  }
+  if ((self->private_impl.magic != WUFFS_BASE__MAGIC) &&
+      (self->private_impl.magic != WUFFS_BASE__DISABLED)) {
+    return 0;
+  }
+
+  if (wuffs_softfloat__arith__f32_cmp(self, a_a, a_b) == 1u) {
+    return 1u;
+  }
+  return 0u;
+}
+
+// -------- func softfloat.arith.f32_ne
+
+WUFFS_BASE__GENERATED_C_CODE
+WUFFS_BASE__MAYBE_STATIC uint32_t
+wuffs_softfloat__arith__f32_ne(
+    const wuffs_softfloat__arith* self,
+    uint32_t a_a,
+    uint32_t a_b) {
+  if (!self) {
+    return 0;
+  }
+  if ((self->private_impl.magic != WUFFS_BASE__MAGIC) &&
+      (self->private_impl.magic != WUFFS_BASE__DISABLED)) {
+    return 0;
+  }
+
+  if (wuffs_softfloat__arith__f32_cmp(self, a_a, a_b) == 1u) {
+    return 0u;
+  }
+  return 1u;
+}
+
+// -------- func softfloat.arith.f32_lt
+
+WUFFS_BASE__GENERATED_C_CODE
+WUFFS_BASE__MAYBE_STATIC uint32_t
+wuffs_softfloat__arith__f32_lt(
+    const wuffs_softfloat__arith* self,
+    uint32_t a_a,
+    uint32_t a_b) {
+  if (!self) {
+    return 0;
+  }
+  if ((self->private_impl.magic != WUFFS_BASE__MAGIC) &&
+      (self->private_impl.magic != WUFFS_BASE__DISABLED)) {
+    return 0;
+  }
+
+  if (wuffs_softfloat__arith__f32_cmp(self, a_a, a_b) == 0u) {
+    return 1u;
+  }
+  return 0u;
+}
+
+// -------- func softfloat.arith.f32_le
+
+WUFFS_BASE__GENERATED_C_CODE
+WUFFS_BASE__MAYBE_STATIC uint32_t
+wuffs_softfloat__arith__f32_le(
+    const wuffs_softfloat__arith* self,
+    uint32_t a_a,
+    uint32_t a_b) {
+  if (!self) {
+    return 0;
+  }
+  if ((self->private_impl.magic != WUFFS_BASE__MAGIC) &&
+      (self->private_impl.magic != WUFFS_BASE__DISABLED)) {
+    return 0;
+  }
+
+  if (wuffs_softfloat__arith__f32_cmp(self, a_a, a_b) <= 1u) {
+    return 1u;
+  }
+  return 0u;
+}
+
+// -------- func softfloat.arith.f32_gt
+
+WUFFS_BASE__GENERATED_C_CODE
+WUFFS_BASE__MAYBE_STATIC uint32_t
+wuffs_softfloat__arith__f32_gt(
+    const wuffs_softfloat__arith* self,
+    uint32_t a_a,
+    uint32_t a_b) {
+  if (!self) {
+    return 0;
+  }
+  if ((self->private_impl.magic != WUFFS_BASE__MAGIC) &&
+      (self->private_impl.magic != WUFFS_BASE__DISABLED)) {
+    return 0;
+  }
+
+  if (wuffs_softfloat__arith__f32_cmp(self, a_a, a_b) == 2u) {
+    return 1u;
+  }
+  return 0u;
+}
+
+// -------- func softfloat.arith.f32_ge
+
+WUFFS_BASE__GENERATED_C_CODE
+WUFFS_BASE__MAYBE_STATIC uint32_t
+wuffs_softfloat__arith__f32_ge(
+    const wuffs_softfloat__arith* self,
+    uint32_t a_a,
+    uint32_t a_b) {
+  if (!self) {
+    return 0;
+  }
+  if ((self->private_impl.magic != WUFFS_BASE__MAGIC) &&
+      (self->private_impl.magic != WUFFS_BASE__DISABLED)) {
+    return 0;
+  }
+
+  uint32_t v_c = 0;
+
+  v_c = wuffs_softfloat__arith__f32_cmp(self, a_a, a_b);
+  if ((v_c == 1u) || (v_c == 2u)) {
+    return 1u;
+  }
+  return 0u;
+}
+
+// -------- func softfloat.arith.f32_min
+
+WUFFS_BASE__GENERATED_C_CODE
+WUFFS_BASE__MAYBE_STATIC uint32_t
+wuffs_softfloat__arith__f32_min(
+    const wuffs_softfloat__arith* self,
+    uint32_t a_a,
+    uint32_t a_b) {
+  if (!self) {
+    return 0;
+  }
+  if ((self->private_impl.magic != WUFFS_BASE__MAGIC) &&
+      (self->private_impl.magic != WUFFS_BASE__DISABLED)) {
+    return 0;
+  }
+
+  if (wuffs_softfloat__arith__f32_cmp(self, a_a, a_b) == 0u) {
+    return a_a;
+  }
+  return a_b;
+}
+
+// -------- func softfloat.arith.f32_max
+
+WUFFS_BASE__GENERATED_C_CODE
+WUFFS_BASE__MAYBE_STATIC uint32_t
+wuffs_softfloat__arith__f32_max(
+    const wuffs_softfloat__arith* self,
+    uint32_t a_a,
+    uint32_t a_b) {
+  if (!self) {
+    return 0;
+  }
+  if ((self->private_impl.magic != WUFFS_BASE__MAGIC) &&
+      (self->private_impl.magic != WUFFS_BASE__DISABLED)) {
+    return 0;
+  }
+
+  if (wuffs_softfloat__arith__f32_cmp(self, a_a, a_b) == 2u) {
+    return a_a;
+  }
+  return a_b;
+}
+
+// -------- func softfloat.arith.f32_from_u32
+
+WUFFS_BASE__GENERATED_C_CODE
+WUFFS_BASE__MAYBE_STATIC uint32_t
+wuffs_softfloat__arith__f32_from_u32(
+    const wuffs_softfloat__arith* self,
+    uint32_t a_a) {
+  if (!self) {
+    return 0;
+  }
+  if ((self->private_impl.magic != WUFFS_BASE__MAGIC) &&
+      (self->private_impl.magic != WUFFS_BASE__DISABLED)) {
+    return 0;
+  }
+
+  return wuffs_softfloat__arith__f64_to_f32(self, wuffs_softfloat__arith__f64_from_u32(self, a_a));
+}
+
+// -------- func softfloat.arith.f32_from_i32
+
+WUFFS_BASE__GENERATED_C_CODE
+WUFFS_BASE__MAYBE_STATIC uint32_t
+wuffs_softfloat__arith__f32_from_i32(
+    const wuffs_softfloat__arith* self,
+    int32_t a_a) {
+  if (!self) {
+    return 0;
+  }
+  if ((self->private_impl.magic != WUFFS_BASE__MAGIC) &&
+      (self->private_impl.magic != WUFFS_BASE__DISABLED)) {
+    return 0;
+  }
+
+  return wuffs_softfloat__arith__f64_to_f32(self, wuffs_softfloat__arith__f64_from_i64(self, ((int64_t)(a_a))));
+}
+
+// -------- func softfloat.arith.f32_from_u64
+
+WUFFS_BASE__GENERATED_C_CODE
+WUFFS_BASE__MAYBE_STATIC uint32_t
+wuffs_softfloat__arith__f32_from_u64(
+    const wuffs_softfloat__arith* self,
+    uint64_t a_a) {
+  if (!self) {
+    return 0;
+  }
+  if ((self->private_impl.magic != WUFFS_BASE__MAGIC) &&
+      (self->private_impl.magic != WUFFS_BASE__DISABLED)) {
+    return 0;
+  }
+
+  uint32_t v_top = 0;
+  uint64_t v_x = 0;
+
+  v_x = a_a;
+  if (v_x >= 9007199254740992u) {
+    v_top = (63u - wuffs_softfloat__arith__clz64(self, v_x));
+    if (v_top >= 53u) {
+      v_x = ((uint64_t)(wuffs_softfloat__arith__shift_right_jam64(self, v_x, (v_top - 52u)) << (v_top - 52u)));
+    }
+  }
+  return wuffs_softfloat__arith__f64_to_f32(self, wuffs_softfloat__arith__f64_from_u64(self, v_x));
+}
+
+// -------- func softfloat.arith.log2_u64
+
+WUFFS_BASE__GENERATED_C_CODE
+WUFFS_BASE__MAYBE_STATIC uint64_t
+wuffs_softfloat__arith__log2_u64(
+    const wuffs_softfloat__arith* self,
+    uint64_t a_v) {
+  if (!self) {
+    return 0;
+  }
+  if ((self->private_impl.magic != WUFFS_BASE__MAGIC) &&
+      (self->private_impl.magic != WUFFS_BASE__DISABLED)) {
+    return 0;
+  }
+
+  return wuffs_softfloat__arith__log2_f64(self, wuffs_softfloat__arith__f64_from_u64(self, a_v));
+}
+
+// -------- func softfloat.arith.log2_f64
+
+WUFFS_BASE__GENERATED_C_CODE
+WUFFS_BASE__MAYBE_STATIC uint64_t
+wuffs_softfloat__arith__log2_f64(
+    const wuffs_softfloat__arith* self,
+    uint64_t a_x) {
+  if (!self) {
+    return 0;
+  }
+  if ((self->private_impl.magic != WUFFS_BASE__MAGIC) &&
+      (self->private_impl.magic != WUFFS_BASE__DISABLED)) {
+    return 0;
+  }
+
+  uint64_t v_ix = 0;
+  uint64_t v_top = 0;
+  uint64_t v_tmp = 0;
+  uint64_t v_i = 0;
+  uint64_t v_k = 0;
+  uint64_t v_kd = 0;
+  uint64_t v_invc = 0;
+  uint64_t v_logc = 0;
+  uint64_t v_z = 0;
+  uint64_t v_r = 0;
+  uint64_t v_r2 = 0;
+  uint64_t v_r4 = 0;
+  uint64_t v_t1 = 0;
+  uint64_t v_t2 = 0;
+  uint64_t v_t3 = 0;
+  uint64_t v_hi = 0;
+  uint64_t v_lo = 0;
+  uint64_t v_p = 0;
+  uint64_t v_y = 0;
+
+  v_ix = a_x;
+  if (((uint64_t)(v_ix - 4606800540372828160u)) < 581272283906048u) {
+    if (v_ix == 4607182418800017408u) {
+      return 0u;
+    }
+    v_r = wuffs_softfloat__arith__f64_sub(self, v_ix, 4607182418800017408u);
+    v_hi = wuffs_softfloat__arith__f64_mul(self, 4609176140020449280u, v_r);
+    v_r2 = wuffs_softfloat__arith__f64_mul(self, v_r, v_r);
+    v_lo = wuffs_softfloat__arith__f64_fma(self, 4609176140020449280u, v_r, wuffs_softfloat__arith__f64_neg(self, v_hi));
+    v_r4 = wuffs_softfloat__arith__f64_mul(self, v_r2, v_r2);
+    v_p = wuffs_softfloat__arith__f64_fma(self, v_r, 4602334714382648311u, 13828044577248609022u);
+    v_lo = wuffs_softfloat__arith__f64_fma(self, v_r, 4460540536611119616u, v_lo);
+    v_y = wuffs_softfloat__arith__f64_fma(self, v_p, v_r2, v_hi);
+    v_lo = wuffs_softfloat__arith__f64_add(self, v_lo, wuffs_softfloat__arith__f64_fma(self, v_p, v_r2, wuffs_softfloat__arith__f64_sub(self, v_hi, v_y)));
+    v_t1 = wuffs_softfloat__arith__f64_fma(self, wuffs_softfloat__arith__f64_fma(self, v_r, 4596593529635268406u, 13821203151630798821u), v_r2, wuffs_softfloat__arith__f64_fma(self, v_r, 4598869476596800484u, 13823540977621236799u));
+    v_t2 = wuffs_softfloat__arith__f64_fma(self, wuffs_softfloat__arith__f64_fma(self, v_r, 4593868635039788646u, 13817758221876344892u), v_r2, wuffs_softfloat__arith__f64_fma(self, v_r, 4594943554432801610u, 13819037345097492379u));
+    v_t3 = wuffs_softfloat__arith__f64_fma(self, wuffs_softfloat__arith__f64_fma(self, v_t2, v_r4, v_t1), v_r4, v_lo);
+    return wuffs_softfloat__arith__f64_add(self, v_y, v_t3);
+  }
+  v_top = (v_ix >> 48u);
+  if (((uint64_t)(v_top - 16u)) >= 32736u) {
+    if ((v_ix & 9223372036854775807u) == 0u) {
+      return 18442240474082181120u;
+    } else if (v_ix == 9218868437227405312u) {
+      return v_ix;
+    } else if (((v_top & 32768u) != 0u) || ((v_top & 32752u) == 32752u)) {
+      if ((v_ix & 9223372036854775807u) > 9218868437227405312u) {
+        return (v_ix | 2251799813685248u);
+      }
+      return 18444492273895866368u;
+    }
+    v_ix = ((uint64_t)(wuffs_softfloat__arith__f64_mul(self, v_ix, 4841369599423283200u) - 234187180623265792u));
+  }
+  v_tmp = ((uint64_t)(v_ix - 4604367669032910848u));
+  v_i = ((v_tmp >> 46u) & 63u);
+  v_k = (v_tmp >> 52u);
+  if (v_k >= 2048u) {
+    v_kd = wuffs_softfloat__arith__f64_neg(self, wuffs_softfloat__arith__f64_from_u64(self, (4096u - v_k)));
+  } else {
+    v_kd = wuffs_softfloat__arith__f64_from_u64(self, v_k);
+  }
+  v_z = ((uint64_t)(v_ix - (v_tmp & 18442240474082181120u)));
+  v_invc = WUFFS_SOFTFLOAT__LOG2_TAB_INVC[v_i];
+  v_logc = WUFFS_SOFTFLOAT__LOG2_TAB_LOGC[v_i];
+  v_t3 = wuffs_softfloat__arith__f64_add(self, v_kd, v_logc);
+  v_r = wuffs_softfloat__arith__f64_fma(self, v_z, v_invc, 13830554455654793216u);
+  v_t1 = wuffs_softfloat__arith__f64_mul(self, 4609176140020449280u, v_r);
+  v_t2 = wuffs_softfloat__arith__f64_fma(self, v_r, 4460540536611119616u, wuffs_softfloat__arith__f64_fma(self, 4609176140020449280u, v_r, wuffs_softfloat__arith__f64_neg(self, v_t1)));
+  v_hi = wuffs_softfloat__arith__f64_add(self, v_t1, v_t3);
+  v_lo = wuffs_softfloat__arith__f64_add(self, wuffs_softfloat__arith__f64_add(self, wuffs_softfloat__arith__f64_sub(self, v_t3, v_hi), v_t1), v_t2);
+  v_r2 = wuffs_softfloat__arith__f64_mul(self, v_r, v_r);
+  v_r4 = wuffs_softfloat__arith__f64_mul(self, v_r2, v_r2);
+  v_p = wuffs_softfloat__arith__f64_fma(self, wuffs_softfloat__arith__f64_fma(self, v_r, 4598869476581264456u, 13823540977608962043u), v_r2, wuffs_softfloat__arith__f64_fma(self, v_r, 4602334714382648510u, 13828044577248609081u));
+  v_p = wuffs_softfloat__arith__f64_fma(self, wuffs_softfloat__arith__f64_fma(self, v_r, 4596594284514769198u, 13821203878746165948u), v_r4, v_p);
+  v_y = wuffs_softfloat__arith__f64_fma(self, v_r2, v_p, v_lo);
+  return wuffs_softfloat__arith__f64_add(self, v_y, v_hi);
+}
+
+#endif  // !defined(WUFFS_CONFIG__MODULES) || defined(WUFFS_CONFIG__MODULE__SOFTFLOAT)
+
 #if !defined(WUFFS_CONFIG__MODULES) || defined(WUFFS_CONFIG__MODULE__BROTLI)
 
 // ---------------- Status Codes Implementations
@@ -40152,8 +42506,559 @@ const char wuffs_brotli__error__unsupported_large_window[] = "#brotli: unsupport
 const char wuffs_brotli__error__internal_error_inconsistent_bit_reader[] = "#brotli: internal error: inconsistent bit reader";
 const char wuffs_brotli__error__internal_error_inconsistent_huffman_table[] = "#brotli: internal error: inconsistent Huffman table";
 const char wuffs_brotli__error__internal_error_inconsistent_ring_buffer[] = "#brotli: internal error: inconsistent ring buffer";
+const char wuffs_brotli__error__unsupported_encoder_quality[] = "#brotli: unsupported encoder quality";
+const char wuffs_brotli__error__internal_error_inconsistent_encoder_state[] = "#brotli: internal error: inconsistent encoder state";
 
 // ---------------- Private Consts
+
+static const uint64_t
+WUFFS_BROTLI__LOG2_TABLE[256] WUFFS_BASE__POTENTIALLY_UNUSED = {
+  0u, 0u, 4607182418800017408u, 4609816855639490560u, 4611686018427387904u, 4612410935892508672u, 4613003237115559936u, 4613504020101726208u,
+  4613937818241073152u, 4614320455266861056u, 4614662735706193920u, 4614972366341013504u, 4615255036929245184u, 4615515068207988736u, 4615755819915411456u, 4615979954394365952u,
+  4616189618054758400u, 4616288092528050176u, 4616380936836087808u, 4616468759790485504u, 4616552076787318784u, 4616631328060735488u, 4616706892104728576u, 4616779096410554368u,
+  4616848227130408960u, 4616914535519879168u, 4616978243306651648u, 4617039545911738368u, 4617098618891927552u, 4617155619013525504u, 4617210685862969344u, 4617263947752407040u,
+  4617315517961601024u, 4617365501180379136u, 4617413992434892800u, 4617461077624487936u, 4617506836742930432u, 4617551341730922496u, 4617594659697328128u, 4617636852382302208u,
+  4617677976694161408u, 4617718085783126016u, 4617757227967578112u, 4617795449418416128u, 4617832792011571200u, 4617869295475490816u, 4617904996317396992u, 4617939929433899008u,
+  4617974127037251584u, 4618007619729096704u, 4618040435426721792u, 4618072601510543360u, 4618104143213494272u, 4618135083621023744u, 4618165445818580992u, 4618195250744131584u,
+  4618224518798770176u, 4618253268772978688u, 4618281518920368128u, 4618309285883936768u, 4618336585769811968u, 4618363435220992000u, 4618389847659249664u, 4618415837580099584u,
+  4618441417868443648u, 4618466601946054656u, 4618491401087221760u, 4618515827639975936u, 4618539892341735424u, 4618563605393047552u, 4618586977531330560u, 4618610017883389952u,
+  4618632736649773056u, 4618655141346672640u, 4618677241637765120u, 4618699045039243264u, 4618720559604170752u, 4618741792848740352u, 4618762752289144832u, 4618783444367835136u,
+  4618803876601004032u, 4618824054894231552u, 4618843985689968640u, 4618863674893795328u, 4618883127874420736u, 4618902351074295808u, 4618921349325258752u, 4618940127996018688u,
+  4618958691918413824u, 4618977045924282368u, 4618995195382333440u, 4619013144050663424u, 4619030896224239616u, 4619048456734900224u, 4619065829340741632u, 4619083018336731136u,
+  4619100026944094208u, 4619116859457798144u, 4619133519635939328u, 4619150010162872320u, 4619166335333564416u, 4619182498369241088u, 4619198501417385984u, 4619214348772966400u,
+  4619230043120336896u, 4619245586606981120u, 4619260983527866368u, 4619276235493605376u, 4619291345725423616u, 4619306316370804736u, 4619321150650974208u, 4619335850713415680u,
+  4619350418705612800u, 4619364857311920128u, 4619379168679821312u, 4619393354956800000u, 4619407418827210752u, 4619421361364795392u, 4619435185790779392u, 4619448893178904576u,
+  4619462485676654592u, 4619475965968384000u, 4619489335127834624u, 4619502594765619200u, 4619515747566092288u, 4619528794066124800u, 4619541737486942208u, 4619554577828544512u,
+  4619567317775286272u, 4619579958400909312u, 4619592501852897280u, 4619604948668121088u, 4619617300994064384u, 4619629560441339904u, 4619641727546818560u, 4619653804457984000u,
+  4619665792248578048u, 4619677691992342528u, 4619689505299890176u, 4619701233781833728u, 4619712877438173184u, 4619724438416392192u, 4619735917790232576u, 4619747316633436160u,
+  4619758636556615680u, 4619769877559771136u, 4619781041253515264u, 4619792128711589888u, 4619803141544607744u, 4619814079752568832u, 4619824944946085888u, 4619835737662029824u,
+  4619846459511013376u, 4619857110493036544u, 4619867692755582976u, 4619878206298652672u, 4619888652195987456u, 4619899030984458240u, 4619909344274677760u, 4619919592603516928u,
+  4619929776507846656u, 4619939897061408768u, 4619949954801074176u, 4619959950800584704u, 4619969885596811264u, 4619979759726624768u, 4619989574800637952u, 4619999330281979904u,
+  4620009027781263360u, 4620018667835359232u, 4620028250981138432u, 4620037777755471872u, 4620047249232101376u, 4620056665411026944u, 4620066027902861312u, 4620075336170733568u,
+  4620084591825256448u, 4620093794866429952u, 4620102945831124992u, 4620112045793083392u, 4620121095289176064u, 4620130094319403008u, 4620139043957506048u, 4620147944203485184u,
+  4620156796131082240u, 4620165600277168128u, 4620174356641742848u, 4620183066298548224u, 4620191729247584256u, 4620200346562592768u, 4620208918243573760u, 4620217444827398144u,
+  4620225926850936832u, 4620234364851060736u, 4620242759364640768u, 4620251110928547840u, 4620259419542781952u, 4620267685744214016u, 4620275910069714944u, 4620284093593026560u,
+  4620292235240407040u, 4620300336622469120u, 4620308398276083712u, 4620316419664379904u, 4620324401324228608u, 4620332344329371648u, 4620340248679809024u, 4620348114912411648u,
+  4620355943027179520u, 4620363733560983552u, 4620371486513823744u, 4620379203496312832u, 4620386883434708992u, 4620394527402754048u, 4620402135400448000u, 4620409707964661760u,
+  4620417245632266240u, 4620424748403261440u, 4620432216277647360u, 4620439650329165824u, 4620447050557816832u, 4620454416963600384u, 4620461750620258304u, 4620469050990919680u,
+  4620476318612455424u, 4620483554021736448u, 4620490757218762752u, 4620497928740405248u, 4620505068586663936u, 4620512177294409728u, 4620519254863642624u, 4620526301831233536u,
+  4620533318734053376u, 4620540305035231232u, 4620547261271638016u, 4620554187980144640u, 4620561085697622016u, 4620567953887199232u, 4620574793085747200u, 4620581603830136832u,
+  4620588385583497216u, 4620595139956441088u, 4620601865875226624u, 4620608563876724736u, 4620615235034677248u, 4620621878275342336u, 4620628494672461824u, 4620635084226035712u,
+  4620641647472934912u, 4620648183876288512u, 4620654693972967424u, 4620661178836713472u, 4620667637393784832u, 4620674070181052416u, 4620680477735387136u, 4620686860056788992u,
+};
+
+#define WUFFS_BROTLI__DEFAULT_COMMAND_CODE_NUM_BITS 448u
+
+static const uint8_t
+WUFFS_BROTLI__DEFAULT_COMMAND_DEPTHS[128] WUFFS_BASE__POTENTIALLY_UNUSED = {
+  0u, 4u, 4u, 5u, 6u, 6u, 7u, 7u,
+  7u, 7u, 7u, 8u, 8u, 8u, 8u, 8u,
+  0u, 0u, 0u, 4u, 4u, 4u, 4u, 4u,
+  5u, 5u, 6u, 6u, 6u, 6u, 7u, 7u,
+  7u, 7u, 10u, 10u, 10u, 10u, 10u, 10u,
+  0u, 4u, 4u, 5u, 5u, 5u, 6u, 6u,
+  7u, 8u, 8u, 9u, 10u, 10u, 10u, 10u,
+  10u, 10u, 10u, 10u, 10u, 10u, 10u, 10u,
+  5u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  6u, 6u, 6u, 6u, 6u, 6u, 5u, 5u,
+  5u, 5u, 5u, 5u, 4u, 4u, 4u, 4u,
+  4u, 4u, 4u, 5u, 5u, 5u, 5u, 5u,
+  5u, 6u, 6u, 7u, 7u, 7u, 8u, 10u,
+  12u, 12u, 12u, 12u, 12u, 12u, 12u, 12u,
+  12u, 12u, 12u, 12u, 0u, 0u, 0u, 0u,
+};
+
+static const uint16_t
+WUFFS_BROTLI__DEFAULT_COMMAND_BITS[128] WUFFS_BASE__POTENTIALLY_UNUSED = {
+  0u, 0u, 8u, 9u, 3u, 35u, 7u, 71u,
+  39u, 103u, 23u, 47u, 175u, 111u, 239u, 31u,
+  0u, 0u, 0u, 4u, 12u, 2u, 10u, 6u,
+  13u, 29u, 11u, 43u, 27u, 59u, 87u, 55u,
+  15u, 79u, 319u, 831u, 191u, 703u, 447u, 959u,
+  0u, 14u, 1u, 25u, 5u, 21u, 19u, 51u,
+  119u, 159u, 95u, 223u, 479u, 991u, 63u, 575u,
+  127u, 639u, 383u, 895u, 255u, 767u, 511u, 1023u,
+  14u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  27u, 59u, 7u, 39u, 23u, 55u, 30u, 1u,
+  17u, 9u, 25u, 5u, 0u, 8u, 4u, 12u,
+  2u, 10u, 6u, 21u, 13u, 29u, 3u, 19u,
+  11u, 15u, 47u, 31u, 95u, 63u, 127u, 255u,
+  767u, 2815u, 1791u, 3839u, 511u, 2559u, 1535u, 3583u,
+  1023u, 3071u, 2047u, 4095u, 0u, 0u, 0u, 0u,
+};
+
+static const uint8_t
+WUFFS_BROTLI__DEFAULT_COMMAND_CODE[57] WUFFS_BASE__POTENTIALLY_UNUSED = {
+  255u, 119u, 213u, 191u, 231u, 222u, 234u, 158u,
+  81u, 93u, 222u, 198u, 112u, 87u, 188u, 88u,
+  88u, 88u, 216u, 216u, 88u, 213u, 203u, 140u,
+  234u, 224u, 195u, 135u, 31u, 131u, 193u, 96u,
+  28u, 103u, 178u, 170u, 6u, 131u, 193u, 96u,
+  48u, 24u, 204u, 161u, 206u, 136u, 84u, 148u,
+  70u, 225u, 176u, 208u, 78u, 178u, 247u, 4u,
+  0u,
+};
+
+static const uint32_t
+WUFFS_BROTLI__CMD_HISTO_SEED[128] WUFFS_BASE__POTENTIALLY_UNUSED = {
+  0u, 1u, 1u, 1u, 1u, 1u, 1u, 1u,
+  1u, 1u, 1u, 1u, 1u, 1u, 1u, 1u,
+  0u, 0u, 0u, 1u, 1u, 1u, 1u, 1u,
+  1u, 1u, 1u, 1u, 1u, 1u, 1u, 1u,
+  1u, 1u, 1u, 1u, 1u, 1u, 1u, 1u,
+  0u, 1u, 1u, 1u, 1u, 1u, 1u, 1u,
+  1u, 1u, 1u, 1u, 1u, 1u, 1u, 1u,
+  1u, 1u, 1u, 1u, 1u, 1u, 1u, 1u,
+  1u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  1u, 1u, 1u, 1u, 1u, 1u, 1u, 1u,
+  1u, 1u, 1u, 1u, 1u, 1u, 1u, 1u,
+  1u, 1u, 1u, 1u, 1u, 1u, 1u, 1u,
+  1u, 1u, 1u, 1u, 1u, 1u, 1u, 1u,
+  1u, 1u, 1u, 1u, 1u, 1u, 1u, 1u,
+  1u, 1u, 1u, 1u, 0u, 0u, 0u, 0u,
+};
+
+static const uint32_t
+WUFFS_BROTLI__TWO_PASS_NUM_EXTRA_BITS[128] WUFFS_BASE__POTENTIALLY_UNUSED = {
+  0u, 0u, 0u, 0u, 0u, 0u, 1u, 1u,
+  2u, 2u, 3u, 3u, 4u, 4u, 5u, 5u,
+  6u, 7u, 8u, 9u, 10u, 12u, 14u, 24u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  1u, 1u, 2u, 2u, 3u, 3u, 4u, 4u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  1u, 1u, 2u, 2u, 3u, 3u, 4u, 4u,
+  5u, 5u, 6u, 7u, 8u, 9u, 10u, 24u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  1u, 1u, 2u, 2u, 3u, 3u, 4u, 4u,
+  5u, 5u, 6u, 6u, 7u, 7u, 8u, 8u,
+  9u, 9u, 10u, 10u, 11u, 11u, 12u, 12u,
+  13u, 13u, 14u, 14u, 15u, 15u, 16u, 16u,
+  17u, 17u, 18u, 18u, 19u, 19u, 20u, 20u,
+  21u, 21u, 22u, 22u, 23u, 23u, 24u, 24u,
+};
+
+static const uint32_t
+WUFFS_BROTLI__TWO_PASS_INSERT_OFFSET[24] WUFFS_BASE__POTENTIALLY_UNUSED = {
+  0u, 1u, 2u, 3u, 4u, 5u, 6u, 8u,
+  10u, 14u, 18u, 26u, 34u, 50u, 66u, 98u,
+  130u, 194u, 322u, 578u, 1090u, 2114u, 6210u, 22594u,
+};
+
+static const uint32_t
+WUFFS_BROTLI__SHELL_GAPS[6] WUFFS_BASE__POTENTIALLY_UNUSED = {
+  132u, 57u, 23u, 10u, 4u, 1u,
+};
+
+static const uint32_t
+WUFFS_BROTLI__REVERSE_BITS_LUT[16] WUFFS_BASE__POTENTIALLY_UNUSED = {
+  0u, 8u, 4u, 12u, 2u, 10u, 6u, 14u,
+  1u, 9u, 5u, 13u, 3u, 11u, 7u, 15u,
+};
+
+#define WUFFS_BROTLI__STATIC_CODE_LENGTH_CODE 1096648316244u
+
+static const uint32_t
+WUFFS_BROTLI__CODE_LENGTH_DEPTH[18] WUFFS_BASE__POTENTIALLY_UNUSED = {
+  4u, 4u, 4u, 4u, 4u, 4u, 4u, 4u,
+  4u, 4u, 4u, 4u, 4u, 5u, 5u, 0u,
+  4u, 4u,
+};
+
+static const uint64_t
+WUFFS_BROTLI__CODE_LENGTH_BITS[18] WUFFS_BASE__POTENTIALLY_UNUSED = {
+  0u, 8u, 4u, 12u, 2u, 10u, 6u, 14u,
+  1u, 9u, 5u, 13u, 3u, 15u, 31u, 0u,
+  11u, 7u,
+};
+
+static const uint64_t
+WUFFS_BROTLI__ZERO_REPS_BITS[704] WUFFS_BASE__POTENTIALLY_UNUSED = {
+  0u, 0u, 0u, 7u, 23u, 39u, 55u, 71u,
+  87u, 103u, 119u, 1904u, 2951u, 4999u, 7047u, 9095u,
+  11143u, 13191u, 15239u, 919u, 2967u, 5015u, 7063u, 9111u,
+  11159u, 13207u, 15255u, 935u, 2983u, 5031u, 7079u, 9127u,
+  11175u, 13223u, 15271u, 951u, 2999u, 5047u, 7095u, 9143u,
+  11191u, 13239u, 15287u, 967u, 3015u, 5063u, 7111u, 9159u,
+  11207u, 13255u, 15303u, 983u, 3031u, 5079u, 7127u, 9175u,
+  11223u, 13271u, 15319u, 999u, 3047u, 5095u, 7143u, 9191u,
+  11239u, 13287u, 15335u, 1015u, 3063u, 5111u, 7159u, 9207u,
+  11255u, 13303u, 15351u, 115591u, 377735u, 639879u, 902023u, 1164167u,
+  1426311u, 1688455u, 1950599u, 117639u, 379783u, 641927u, 904071u, 1166215u,
+  1428359u, 1690503u, 1952647u, 119687u, 381831u, 643975u, 906119u, 1168263u,
+  1430407u, 1692551u, 1954695u, 121735u, 383879u, 646023u, 908167u, 1170311u,
+  1432455u, 1694599u, 1956743u, 123783u, 385927u, 648071u, 910215u, 1172359u,
+  1434503u, 1696647u, 1958791u, 125831u, 387975u, 650119u, 912263u, 1174407u,
+  1436551u, 1698695u, 1960839u, 127879u, 390023u, 652167u, 914311u, 1176455u,
+  1438599u, 1700743u, 1962887u, 129927u, 392071u, 654215u, 916359u, 1178503u,
+  1440647u, 1702791u, 1964935u, 115607u, 377751u, 639895u, 902039u, 1164183u,
+  1426327u, 1688471u, 1950615u, 117655u, 379799u, 641943u, 904087u, 1166231u,
+  1428375u, 1690519u, 1952663u, 119703u, 381847u, 643991u, 906135u, 1168279u,
+  1430423u, 1692567u, 1954711u, 121751u, 383895u, 646039u, 908183u, 1170327u,
+  1432471u, 1694615u, 1956759u, 123799u, 385943u, 648087u, 910231u, 1172375u,
+  1434519u, 1696663u, 1958807u, 125847u, 387991u, 650135u, 912279u, 1174423u,
+  1436567u, 1698711u, 1960855u, 127895u, 390039u, 652183u, 914327u, 1176471u,
+  1438615u, 1700759u, 1962903u, 129943u, 392087u, 654231u, 916375u, 1178519u,
+  1440663u, 1702807u, 1964951u, 115623u, 377767u, 639911u, 902055u, 1164199u,
+  1426343u, 1688487u, 1950631u, 117671u, 379815u, 641959u, 904103u, 1166247u,
+  1428391u, 1690535u, 1952679u, 119719u, 381863u, 644007u, 906151u, 1168295u,
+  1430439u, 1692583u, 1954727u, 121767u, 383911u, 646055u, 908199u, 1170343u,
+  1432487u, 1694631u, 1956775u, 123815u, 385959u, 648103u, 910247u, 1172391u,
+  1434535u, 1696679u, 1958823u, 125863u, 388007u, 650151u, 912295u, 1174439u,
+  1436583u, 1698727u, 1960871u, 127911u, 390055u, 652199u, 914343u, 1176487u,
+  1438631u, 1700775u, 1962919u, 129959u, 392103u, 654247u, 916391u, 1178535u,
+  1440679u, 1702823u, 1964967u, 115639u, 377783u, 639927u, 902071u, 1164215u,
+  1426359u, 1688503u, 1950647u, 117687u, 379831u, 641975u, 904119u, 1166263u,
+  1428407u, 1690551u, 1952695u, 119735u, 381879u, 644023u, 906167u, 1168311u,
+  1430455u, 1692599u, 1954743u, 121783u, 383927u, 646071u, 908215u, 1170359u,
+  1432503u, 1694647u, 1956791u, 123831u, 385975u, 648119u, 910263u, 1172407u,
+  1434551u, 1696695u, 1958839u, 125879u, 388023u, 650167u, 912311u, 1174455u,
+  1436599u, 1698743u, 1960887u, 127927u, 390071u, 652215u, 914359u, 1176503u,
+  1438647u, 1700791u, 1962935u, 129975u, 392119u, 654263u, 916407u, 1178551u,
+  1440695u, 1702839u, 1964983u, 115655u, 377799u, 639943u, 902087u, 1164231u,
+  1426375u, 1688519u, 1950663u, 117703u, 379847u, 641991u, 904135u, 1166279u,
+  1428423u, 1690567u, 1952711u, 119751u, 381895u, 644039u, 906183u, 1168327u,
+  1430471u, 1692615u, 1954759u, 121799u, 383943u, 646087u, 908231u, 1170375u,
+  1432519u, 1694663u, 1956807u, 123847u, 385991u, 648135u, 910279u, 1172423u,
+  1434567u, 1696711u, 1958855u, 125895u, 388039u, 650183u, 912327u, 1174471u,
+  1436615u, 1698759u, 1960903u, 127943u, 390087u, 652231u, 914375u, 1176519u,
+  1438663u, 1700807u, 1962951u, 129991u, 392135u, 654279u, 916423u, 1178567u,
+  1440711u, 1702855u, 1964999u, 115671u, 377815u, 639959u, 902103u, 1164247u,
+  1426391u, 1688535u, 1950679u, 117719u, 379863u, 642007u, 904151u, 1166295u,
+  1428439u, 1690583u, 1952727u, 119767u, 381911u, 644055u, 906199u, 1168343u,
+  1430487u, 1692631u, 1954775u, 121815u, 383959u, 646103u, 908247u, 1170391u,
+  1432535u, 1694679u, 1956823u, 123863u, 386007u, 648151u, 910295u, 1172439u,
+  1434583u, 1696727u, 1958871u, 125911u, 388055u, 650199u, 912343u, 1174487u,
+  1436631u, 1698775u, 1960919u, 127959u, 390103u, 652247u, 914391u, 1176535u,
+  1438679u, 1700823u, 1962967u, 130007u, 392151u, 654295u, 916439u, 1178583u,
+  1440727u, 1702871u, 1965015u, 115687u, 377831u, 639975u, 902119u, 1164263u,
+  1426407u, 1688551u, 1950695u, 117735u, 379879u, 642023u, 904167u, 1166311u,
+  1428455u, 1690599u, 1952743u, 119783u, 381927u, 644071u, 906215u, 1168359u,
+  1430503u, 1692647u, 1954791u, 121831u, 383975u, 646119u, 908263u, 1170407u,
+  1432551u, 1694695u, 1956839u, 123879u, 386023u, 648167u, 910311u, 1172455u,
+  1434599u, 1696743u, 1958887u, 125927u, 388071u, 650215u, 912359u, 1174503u,
+  1436647u, 1698791u, 1960935u, 127975u, 390119u, 652263u, 914407u, 1176551u,
+  1438695u, 1700839u, 1962983u, 130023u, 392167u, 654311u, 916455u, 1178599u,
+  1440743u, 1702887u, 1965031u, 115703u, 377847u, 639991u, 902135u, 1164279u,
+  1426423u, 1688567u, 1950711u, 117751u, 379895u, 642039u, 904183u, 1166327u,
+  1428471u, 1690615u, 1952759u, 119799u, 381943u, 644087u, 906231u, 1168375u,
+  1430519u, 1692663u, 1954807u, 121847u, 383991u, 646135u, 908279u, 1170423u,
+  1432567u, 1694711u, 1956855u, 123895u, 386039u, 648183u, 910327u, 1172471u,
+  1434615u, 1696759u, 1958903u, 125943u, 388087u, 650231u, 912375u, 1174519u,
+  1436663u, 1698807u, 1960951u, 127991u, 390135u, 652279u, 914423u, 1176567u,
+  1438711u, 1700855u, 1962999u, 130039u, 392183u, 654327u, 916471u, 1178615u,
+  1440759u, 1702903u, 1965047u, 14795655u, 48350087u, 81904519u, 115458951u, 149013383u,
+  182567815u, 216122247u, 249676679u, 15057799u, 48612231u, 82166663u, 115721095u, 149275527u,
+  182829959u, 216384391u, 249938823u, 15319943u, 48874375u, 82428807u, 115983239u, 149537671u,
+  183092103u, 216646535u, 250200967u, 15582087u, 49136519u, 82690951u, 116245383u, 149799815u,
+  183354247u, 216908679u, 250463111u, 15844231u, 49398663u, 82953095u, 116507527u, 150061959u,
+  183616391u, 217170823u, 250725255u, 16106375u, 49660807u, 83215239u, 116769671u, 150324103u,
+  183878535u, 217432967u, 250987399u, 16368519u, 49922951u, 83477383u, 117031815u, 150586247u,
+  184140679u, 217695111u, 251249543u, 16630663u, 50185095u, 83739527u, 117293959u, 150848391u,
+  184402823u, 217957255u, 251511687u, 14797703u, 48352135u, 81906567u, 115460999u, 149015431u,
+  182569863u, 216124295u, 249678727u, 15059847u, 48614279u, 82168711u, 115723143u, 149277575u,
+  182832007u, 216386439u, 249940871u, 15321991u, 48876423u, 82430855u, 115985287u, 149539719u,
+  183094151u, 216648583u, 250203015u, 15584135u, 49138567u, 82692999u, 116247431u, 149801863u,
+  183356295u, 216910727u, 250465159u, 15846279u, 49400711u, 82955143u, 116509575u, 150064007u,
+  183618439u, 217172871u, 250727303u, 16108423u, 49662855u, 83217287u, 116771719u, 150326151u,
+  183880583u, 217435015u, 250989447u, 16370567u, 49924999u, 83479431u, 117033863u, 150588295u,
+};
+
+static const uint32_t
+WUFFS_BROTLI__ZERO_REPS_DEPTH[704] WUFFS_BASE__POTENTIALLY_UNUSED = {
+  0u, 4u, 8u, 7u, 7u, 7u, 7u, 7u,
+  7u, 7u, 7u, 11u, 14u, 14u, 14u, 14u,
+  14u, 14u, 14u, 14u, 14u, 14u, 14u, 14u,
+  14u, 14u, 14u, 14u, 14u, 14u, 14u, 14u,
+  14u, 14u, 14u, 14u, 14u, 14u, 14u, 14u,
+  14u, 14u, 14u, 14u, 14u, 14u, 14u, 14u,
+  14u, 14u, 14u, 14u, 14u, 14u, 14u, 14u,
+  14u, 14u, 14u, 14u, 14u, 14u, 14u, 14u,
+  14u, 14u, 14u, 14u, 14u, 14u, 14u, 14u,
+  14u, 14u, 14u, 21u, 21u, 21u, 21u, 21u,
+  21u, 21u, 21u, 21u, 21u, 21u, 21u, 21u,
+  21u, 21u, 21u, 21u, 21u, 21u, 21u, 21u,
+  21u, 21u, 21u, 21u, 21u, 21u, 21u, 21u,
+  21u, 21u, 21u, 21u, 21u, 21u, 21u, 21u,
+  21u, 21u, 21u, 21u, 21u, 21u, 21u, 21u,
+  21u, 21u, 21u, 21u, 21u, 21u, 21u, 21u,
+  21u, 21u, 21u, 21u, 21u, 21u, 21u, 21u,
+  21u, 21u, 21u, 21u, 21u, 21u, 21u, 21u,
+  21u, 21u, 21u, 21u, 21u, 21u, 21u, 21u,
+  21u, 21u, 21u, 21u, 21u, 21u, 21u, 21u,
+  21u, 21u, 21u, 21u, 21u, 21u, 21u, 21u,
+  21u, 21u, 21u, 21u, 21u, 21u, 21u, 21u,
+  21u, 21u, 21u, 21u, 21u, 21u, 21u, 21u,
+  21u, 21u, 21u, 21u, 21u, 21u, 21u, 21u,
+  21u, 21u, 21u, 21u, 21u, 21u, 21u, 21u,
+  21u, 21u, 21u, 21u, 21u, 21u, 21u, 21u,
+  21u, 21u, 21u, 21u, 21u, 21u, 21u, 21u,
+  21u, 21u, 21u, 21u, 21u, 21u, 21u, 21u,
+  21u, 21u, 21u, 21u, 21u, 21u, 21u, 21u,
+  21u, 21u, 21u, 21u, 21u, 21u, 21u, 21u,
+  21u, 21u, 21u, 21u, 21u, 21u, 21u, 21u,
+  21u, 21u, 21u, 21u, 21u, 21u, 21u, 21u,
+  21u, 21u, 21u, 21u, 21u, 21u, 21u, 21u,
+  21u, 21u, 21u, 21u, 21u, 21u, 21u, 21u,
+  21u, 21u, 21u, 21u, 21u, 21u, 21u, 21u,
+  21u, 21u, 21u, 21u, 21u, 21u, 21u, 21u,
+  21u, 21u, 21u, 21u, 21u, 21u, 21u, 21u,
+  21u, 21u, 21u, 21u, 21u, 21u, 21u, 21u,
+  21u, 21u, 21u, 21u, 21u, 21u, 21u, 21u,
+  21u, 21u, 21u, 21u, 21u, 21u, 21u, 21u,
+  21u, 21u, 21u, 21u, 21u, 21u, 21u, 21u,
+  21u, 21u, 21u, 21u, 21u, 21u, 21u, 21u,
+  21u, 21u, 21u, 21u, 21u, 21u, 21u, 21u,
+  21u, 21u, 21u, 21u, 21u, 21u, 21u, 21u,
+  21u, 21u, 21u, 21u, 21u, 21u, 21u, 21u,
+  21u, 21u, 21u, 21u, 21u, 21u, 21u, 21u,
+  21u, 21u, 21u, 21u, 21u, 21u, 21u, 21u,
+  21u, 21u, 21u, 21u, 21u, 21u, 21u, 21u,
+  21u, 21u, 21u, 21u, 21u, 21u, 21u, 21u,
+  21u, 21u, 21u, 21u, 21u, 21u, 21u, 21u,
+  21u, 21u, 21u, 21u, 21u, 21u, 21u, 21u,
+  21u, 21u, 21u, 21u, 21u, 21u, 21u, 21u,
+  21u, 21u, 21u, 21u, 21u, 21u, 21u, 21u,
+  21u, 21u, 21u, 21u, 21u, 21u, 21u, 21u,
+  21u, 21u, 21u, 21u, 21u, 21u, 21u, 21u,
+  21u, 21u, 21u, 21u, 21u, 21u, 21u, 21u,
+  21u, 21u, 21u, 21u, 21u, 21u, 21u, 21u,
+  21u, 21u, 21u, 21u, 21u, 21u, 21u, 21u,
+  21u, 21u, 21u, 21u, 21u, 21u, 21u, 21u,
+  21u, 21u, 21u, 21u, 21u, 21u, 21u, 21u,
+  21u, 21u, 21u, 21u, 21u, 21u, 21u, 21u,
+  21u, 21u, 21u, 21u, 21u, 21u, 21u, 21u,
+  21u, 21u, 21u, 21u, 21u, 21u, 21u, 21u,
+  21u, 21u, 21u, 21u, 21u, 21u, 21u, 21u,
+  21u, 21u, 21u, 21u, 21u, 21u, 21u, 21u,
+  21u, 21u, 21u, 21u, 21u, 21u, 21u, 21u,
+  21u, 21u, 21u, 21u, 21u, 21u, 21u, 21u,
+  21u, 21u, 21u, 21u, 21u, 21u, 21u, 21u,
+  21u, 21u, 21u, 21u, 21u, 21u, 21u, 21u,
+  21u, 21u, 21u, 21u, 21u, 21u, 21u, 21u,
+  21u, 21u, 21u, 21u, 21u, 21u, 21u, 21u,
+  21u, 21u, 21u, 21u, 21u, 21u, 21u, 21u,
+  21u, 21u, 21u, 21u, 21u, 21u, 21u, 21u,
+  21u, 21u, 21u, 28u, 28u, 28u, 28u, 28u,
+  28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u,
+  28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u,
+  28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u,
+  28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u,
+  28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u,
+  28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u,
+  28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u,
+  28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u,
+  28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u,
+  28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u,
+  28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u,
+  28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u,
+  28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u,
+  28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u,
+};
+
+static const uint64_t
+WUFFS_BROTLI__NON_ZERO_REPS_BITS[704] WUFFS_BASE__POTENTIALLY_UNUSED = {
+  11u, 27u, 43u, 59u, 715u, 1739u, 2763u, 3787u,
+  731u, 1755u, 2779u, 3803u, 747u, 1771u, 2795u, 3819u,
+  763u, 1787u, 2811u, 3835u, 45771u, 111307u, 176843u, 242379u,
+  46795u, 112331u, 177867u, 243403u, 47819u, 113355u, 178891u, 244427u,
+  48843u, 114379u, 179915u, 245451u, 45787u, 111323u, 176859u, 242395u,
+  46811u, 112347u, 177883u, 243419u, 47835u, 113371u, 178907u, 244443u,
+  48859u, 114395u, 179931u, 245467u, 45803u, 111339u, 176875u, 242411u,
+  46827u, 112363u, 177899u, 243435u, 47851u, 113387u, 178923u, 244459u,
+  48875u, 114411u, 179947u, 245483u, 45819u, 111355u, 176891u, 242427u,
+  46843u, 112379u, 177915u, 243451u, 47867u, 113403u, 178939u, 244475u,
+  48891u, 114427u, 179963u, 245499u, 2929355u, 7123659u, 11317963u, 15512267u,
+  2994891u, 7189195u, 11383499u, 15577803u, 3060427u, 7254731u, 11449035u, 15643339u,
+  3125963u, 7320267u, 11514571u, 15708875u, 2930379u, 7124683u, 11318987u, 15513291u,
+  2995915u, 7190219u, 11384523u, 15578827u, 3061451u, 7255755u, 11450059u, 15644363u,
+  3126987u, 7321291u, 11515595u, 15709899u, 2931403u, 7125707u, 11320011u, 15514315u,
+  2996939u, 7191243u, 11385547u, 15579851u, 3062475u, 7256779u, 11451083u, 15645387u,
+  3128011u, 7322315u, 11516619u, 15710923u, 2932427u, 7126731u, 11321035u, 15515339u,
+  2997963u, 7192267u, 11386571u, 15580875u, 3063499u, 7257803u, 11452107u, 15646411u,
+  3129035u, 7323339u, 11517643u, 15711947u, 2929371u, 7123675u, 11317979u, 15512283u,
+  2994907u, 7189211u, 11383515u, 15577819u, 3060443u, 7254747u, 11449051u, 15643355u,
+  3125979u, 7320283u, 11514587u, 15708891u, 2930395u, 7124699u, 11319003u, 15513307u,
+  2995931u, 7190235u, 11384539u, 15578843u, 3061467u, 7255771u, 11450075u, 15644379u,
+  3127003u, 7321307u, 11515611u, 15709915u, 2931419u, 7125723u, 11320027u, 15514331u,
+  2996955u, 7191259u, 11385563u, 15579867u, 3062491u, 7256795u, 11451099u, 15645403u,
+  3128027u, 7322331u, 11516635u, 15710939u, 2932443u, 7126747u, 11321051u, 15515355u,
+  2997979u, 7192283u, 11386587u, 15580891u, 3063515u, 7257819u, 11452123u, 15646427u,
+  3129051u, 7323355u, 11517659u, 15711963u, 2929387u, 7123691u, 11317995u, 15512299u,
+  2994923u, 7189227u, 11383531u, 15577835u, 3060459u, 7254763u, 11449067u, 15643371u,
+  3125995u, 7320299u, 11514603u, 15708907u, 2930411u, 7124715u, 11319019u, 15513323u,
+  2995947u, 7190251u, 11384555u, 15578859u, 3061483u, 7255787u, 11450091u, 15644395u,
+  3127019u, 7321323u, 11515627u, 15709931u, 2931435u, 7125739u, 11320043u, 15514347u,
+  2996971u, 7191275u, 11385579u, 15579883u, 3062507u, 7256811u, 11451115u, 15645419u,
+  3128043u, 7322347u, 11516651u, 15710955u, 2932459u, 7126763u, 11321067u, 15515371u,
+  2997995u, 7192299u, 11386603u, 15580907u, 3063531u, 7257835u, 11452139u, 15646443u,
+  3129067u, 7323371u, 11517675u, 15711979u, 2929403u, 7123707u, 11318011u, 15512315u,
+  2994939u, 7189243u, 11383547u, 15577851u, 3060475u, 7254779u, 11449083u, 15643387u,
+  3126011u, 7320315u, 11514619u, 15708923u, 2930427u, 7124731u, 11319035u, 15513339u,
+  2995963u, 7190267u, 11384571u, 15578875u, 3061499u, 7255803u, 11450107u, 15644411u,
+  3127035u, 7321339u, 11515643u, 15709947u, 2931451u, 7125755u, 11320059u, 15514363u,
+  2996987u, 7191291u, 11385595u, 15579899u, 3062523u, 7256827u, 11451131u, 15645435u,
+  3128059u, 7322363u, 11516667u, 15710971u, 2932475u, 7126779u, 11321083u, 15515387u,
+  2998011u, 7192315u, 11386619u, 15580923u, 3063547u, 7257851u, 11452155u, 15646459u,
+  3129083u, 7323387u, 11517691u, 15711995u, 187478731u, 455914187u, 724349643u, 992785099u,
+  191673035u, 460108491u, 728543947u, 996979403u, 195867339u, 464302795u, 732738251u, 1001173707u,
+  200061643u, 468497099u, 736932555u, 1005368011u, 187544267u, 455979723u, 724415179u, 992850635u,
+  191738571u, 460174027u, 728609483u, 997044939u, 195932875u, 464368331u, 732803787u, 1001239243u,
+  200127179u, 468562635u, 736998091u, 1005433547u, 187609803u, 456045259u, 724480715u, 992916171u,
+  191804107u, 460239563u, 728675019u, 997110475u, 195998411u, 464433867u, 732869323u, 1001304779u,
+  200192715u, 468628171u, 737063627u, 1005499083u, 187675339u, 456110795u, 724546251u, 992981707u,
+  191869643u, 460305099u, 728740555u, 997176011u, 196063947u, 464499403u, 732934859u, 1001370315u,
+  200258251u, 468693707u, 737129163u, 1005564619u, 187479755u, 455915211u, 724350667u, 992786123u,
+  191674059u, 460109515u, 728544971u, 996980427u, 195868363u, 464303819u, 732739275u, 1001174731u,
+  200062667u, 468498123u, 736933579u, 1005369035u, 187545291u, 455980747u, 724416203u, 992851659u,
+  191739595u, 460175051u, 728610507u, 997045963u, 195933899u, 464369355u, 732804811u, 1001240267u,
+  200128203u, 468563659u, 736999115u, 1005434571u, 187610827u, 456046283u, 724481739u, 992917195u,
+  191805131u, 460240587u, 728676043u, 997111499u, 195999435u, 464434891u, 732870347u, 1001305803u,
+  200193739u, 468629195u, 737064651u, 1005500107u, 187676363u, 456111819u, 724547275u, 992982731u,
+  191870667u, 460306123u, 728741579u, 997177035u, 196064971u, 464500427u, 732935883u, 1001371339u,
+  200259275u, 468694731u, 737130187u, 1005565643u, 187480779u, 455916235u, 724351691u, 992787147u,
+  191675083u, 460110539u, 728545995u, 996981451u, 195869387u, 464304843u, 732740299u, 1001175755u,
+  200063691u, 468499147u, 736934603u, 1005370059u, 187546315u, 455981771u, 724417227u, 992852683u,
+  191740619u, 460176075u, 728611531u, 997046987u, 195934923u, 464370379u, 732805835u, 1001241291u,
+  200129227u, 468564683u, 737000139u, 1005435595u, 187611851u, 456047307u, 724482763u, 992918219u,
+  191806155u, 460241611u, 728677067u, 997112523u, 196000459u, 464435915u, 732871371u, 1001306827u,
+  200194763u, 468630219u, 737065675u, 1005501131u, 187677387u, 456112843u, 724548299u, 992983755u,
+  191871691u, 460307147u, 728742603u, 997178059u, 196065995u, 464501451u, 732936907u, 1001372363u,
+  200260299u, 468695755u, 737131211u, 1005566667u, 187481803u, 455917259u, 724352715u, 992788171u,
+  191676107u, 460111563u, 728547019u, 996982475u, 195870411u, 464305867u, 732741323u, 1001176779u,
+  200064715u, 468500171u, 736935627u, 1005371083u, 187547339u, 455982795u, 724418251u, 992853707u,
+  191741643u, 460177099u, 728612555u, 997048011u, 195935947u, 464371403u, 732806859u, 1001242315u,
+  200130251u, 468565707u, 737001163u, 1005436619u, 187612875u, 456048331u, 724483787u, 992919243u,
+  191807179u, 460242635u, 728678091u, 997113547u, 196001483u, 464436939u, 732872395u, 1001307851u,
+  200195787u, 468631243u, 737066699u, 1005502155u, 187678411u, 456113867u, 724549323u, 992984779u,
+  191872715u, 460308171u, 728743627u, 997179083u, 196067019u, 464502475u, 732937931u, 1001373387u,
+  200261323u, 468696779u, 737132235u, 1005567691u, 187478747u, 455914203u, 724349659u, 992785115u,
+  191673051u, 460108507u, 728543963u, 996979419u, 195867355u, 464302811u, 732738267u, 1001173723u,
+  200061659u, 468497115u, 736932571u, 1005368027u, 187544283u, 455979739u, 724415195u, 992850651u,
+  191738587u, 460174043u, 728609499u, 997044955u, 195932891u, 464368347u, 732803803u, 1001239259u,
+  200127195u, 468562651u, 736998107u, 1005433563u, 187609819u, 456045275u, 724480731u, 992916187u,
+  191804123u, 460239579u, 728675035u, 997110491u, 195998427u, 464433883u, 732869339u, 1001304795u,
+  200192731u, 468628187u, 737063643u, 1005499099u, 187675355u, 456110811u, 724546267u, 992981723u,
+  191869659u, 460305115u, 728740571u, 997176027u, 196063963u, 464499419u, 732934875u, 1001370331u,
+  200258267u, 468693723u, 737129179u, 1005564635u, 187479771u, 455915227u, 724350683u, 992786139u,
+  191674075u, 460109531u, 728544987u, 996980443u, 195868379u, 464303835u, 732739291u, 1001174747u,
+  200062683u, 468498139u, 736933595u, 1005369051u, 187545307u, 455980763u, 724416219u, 992851675u,
+  191739611u, 460175067u, 728610523u, 997045979u, 195933915u, 464369371u, 732804827u, 1001240283u,
+  200128219u, 468563675u, 736999131u, 1005434587u, 187610843u, 456046299u, 724481755u, 992917211u,
+  191805147u, 460240603u, 728676059u, 997111515u, 195999451u, 464434907u, 732870363u, 1001305819u,
+};
+
+static const uint32_t
+WUFFS_BROTLI__NON_ZERO_REPS_DEPTH[704] WUFFS_BASE__POTENTIALLY_UNUSED = {
+  6u, 6u, 6u, 6u, 12u, 12u, 12u, 12u,
+  12u, 12u, 12u, 12u, 12u, 12u, 12u, 12u,
+  12u, 12u, 12u, 12u, 18u, 18u, 18u, 18u,
+  18u, 18u, 18u, 18u, 18u, 18u, 18u, 18u,
+  18u, 18u, 18u, 18u, 18u, 18u, 18u, 18u,
+  18u, 18u, 18u, 18u, 18u, 18u, 18u, 18u,
+  18u, 18u, 18u, 18u, 18u, 18u, 18u, 18u,
+  18u, 18u, 18u, 18u, 18u, 18u, 18u, 18u,
+  18u, 18u, 18u, 18u, 18u, 18u, 18u, 18u,
+  18u, 18u, 18u, 18u, 18u, 18u, 18u, 18u,
+  18u, 18u, 18u, 18u, 24u, 24u, 24u, 24u,
+  24u, 24u, 24u, 24u, 24u, 24u, 24u, 24u,
+  24u, 24u, 24u, 24u, 24u, 24u, 24u, 24u,
+  24u, 24u, 24u, 24u, 24u, 24u, 24u, 24u,
+  24u, 24u, 24u, 24u, 24u, 24u, 24u, 24u,
+  24u, 24u, 24u, 24u, 24u, 24u, 24u, 24u,
+  24u, 24u, 24u, 24u, 24u, 24u, 24u, 24u,
+  24u, 24u, 24u, 24u, 24u, 24u, 24u, 24u,
+  24u, 24u, 24u, 24u, 24u, 24u, 24u, 24u,
+  24u, 24u, 24u, 24u, 24u, 24u, 24u, 24u,
+  24u, 24u, 24u, 24u, 24u, 24u, 24u, 24u,
+  24u, 24u, 24u, 24u, 24u, 24u, 24u, 24u,
+  24u, 24u, 24u, 24u, 24u, 24u, 24u, 24u,
+  24u, 24u, 24u, 24u, 24u, 24u, 24u, 24u,
+  24u, 24u, 24u, 24u, 24u, 24u, 24u, 24u,
+  24u, 24u, 24u, 24u, 24u, 24u, 24u, 24u,
+  24u, 24u, 24u, 24u, 24u, 24u, 24u, 24u,
+  24u, 24u, 24u, 24u, 24u, 24u, 24u, 24u,
+  24u, 24u, 24u, 24u, 24u, 24u, 24u, 24u,
+  24u, 24u, 24u, 24u, 24u, 24u, 24u, 24u,
+  24u, 24u, 24u, 24u, 24u, 24u, 24u, 24u,
+  24u, 24u, 24u, 24u, 24u, 24u, 24u, 24u,
+  24u, 24u, 24u, 24u, 24u, 24u, 24u, 24u,
+  24u, 24u, 24u, 24u, 24u, 24u, 24u, 24u,
+  24u, 24u, 24u, 24u, 24u, 24u, 24u, 24u,
+  24u, 24u, 24u, 24u, 24u, 24u, 24u, 24u,
+  24u, 24u, 24u, 24u, 24u, 24u, 24u, 24u,
+  24u, 24u, 24u, 24u, 24u, 24u, 24u, 24u,
+  24u, 24u, 24u, 24u, 24u, 24u, 24u, 24u,
+  24u, 24u, 24u, 24u, 24u, 24u, 24u, 24u,
+  24u, 24u, 24u, 24u, 24u, 24u, 24u, 24u,
+  24u, 24u, 24u, 24u, 24u, 24u, 24u, 24u,
+  24u, 24u, 24u, 24u, 30u, 30u, 30u, 30u,
+  30u, 30u, 30u, 30u, 30u, 30u, 30u, 30u,
+  30u, 30u, 30u, 30u, 30u, 30u, 30u, 30u,
+  30u, 30u, 30u, 30u, 30u, 30u, 30u, 30u,
+  30u, 30u, 30u, 30u, 30u, 30u, 30u, 30u,
+  30u, 30u, 30u, 30u, 30u, 30u, 30u, 30u,
+  30u, 30u, 30u, 30u, 30u, 30u, 30u, 30u,
+  30u, 30u, 30u, 30u, 30u, 30u, 30u, 30u,
+  30u, 30u, 30u, 30u, 30u, 30u, 30u, 30u,
+  30u, 30u, 30u, 30u, 30u, 30u, 30u, 30u,
+  30u, 30u, 30u, 30u, 30u, 30u, 30u, 30u,
+  30u, 30u, 30u, 30u, 30u, 30u, 30u, 30u,
+  30u, 30u, 30u, 30u, 30u, 30u, 30u, 30u,
+  30u, 30u, 30u, 30u, 30u, 30u, 30u, 30u,
+  30u, 30u, 30u, 30u, 30u, 30u, 30u, 30u,
+  30u, 30u, 30u, 30u, 30u, 30u, 30u, 30u,
+  30u, 30u, 30u, 30u, 30u, 30u, 30u, 30u,
+  30u, 30u, 30u, 30u, 30u, 30u, 30u, 30u,
+  30u, 30u, 30u, 30u, 30u, 30u, 30u, 30u,
+  30u, 30u, 30u, 30u, 30u, 30u, 30u, 30u,
+  30u, 30u, 30u, 30u, 30u, 30u, 30u, 30u,
+  30u, 30u, 30u, 30u, 30u, 30u, 30u, 30u,
+  30u, 30u, 30u, 30u, 30u, 30u, 30u, 30u,
+  30u, 30u, 30u, 30u, 30u, 30u, 30u, 30u,
+  30u, 30u, 30u, 30u, 30u, 30u, 30u, 30u,
+  30u, 30u, 30u, 30u, 30u, 30u, 30u, 30u,
+  30u, 30u, 30u, 30u, 30u, 30u, 30u, 30u,
+  30u, 30u, 30u, 30u, 30u, 30u, 30u, 30u,
+  30u, 30u, 30u, 30u, 30u, 30u, 30u, 30u,
+  30u, 30u, 30u, 30u, 30u, 30u, 30u, 30u,
+  30u, 30u, 30u, 30u, 30u, 30u, 30u, 30u,
+  30u, 30u, 30u, 30u, 30u, 30u, 30u, 30u,
+  30u, 30u, 30u, 30u, 30u, 30u, 30u, 30u,
+  30u, 30u, 30u, 30u, 30u, 30u, 30u, 30u,
+  30u, 30u, 30u, 30u, 30u, 30u, 30u, 30u,
+  30u, 30u, 30u, 30u, 30u, 30u, 30u, 30u,
+  30u, 30u, 30u, 30u, 30u, 30u, 30u, 30u,
+  30u, 30u, 30u, 30u, 30u, 30u, 30u, 30u,
+  30u, 30u, 30u, 30u, 30u, 30u, 30u, 30u,
+  30u, 30u, 30u, 30u, 30u, 30u, 30u, 30u,
+  30u, 30u, 30u, 30u, 30u, 30u, 30u, 30u,
+  30u, 30u, 30u, 30u, 30u, 30u, 30u, 30u,
+  30u, 30u, 30u, 30u, 30u, 30u, 30u, 30u,
+  30u, 30u, 30u, 30u, 30u, 30u, 30u, 30u,
+  30u, 30u, 30u, 30u, 30u, 30u, 30u, 30u,
+  30u, 30u, 30u, 30u, 30u, 30u, 30u, 30u,
+};
+
+static const uint8_t
+WUFFS_BROTLI__STORAGE_ORDER[18] WUFFS_BASE__POTENTIALLY_UNUSED = {
+  1u, 2u, 3u, 4u, 0u, 5u, 17u, 6u,
+  16u, 7u, 8u, 9u, 10u, 11u, 12u, 13u,
+  14u, 15u,
+};
+
+static const uint64_t
+WUFFS_BROTLI__HUFFMAN_BIT_LENGTH_HUFFMAN_CODE_SYMBOLS[6] WUFFS_BASE__POTENTIALLY_UNUSED = {
+  0u, 7u, 3u, 2u, 1u, 15u,
+};
+
+static const uint32_t
+WUFFS_BROTLI__HUFFMAN_BIT_LENGTH_HUFFMAN_CODE_BIT_LENGTHS[6] WUFFS_BASE__POTENTIALLY_UNUSED = {
+  2u, 4u, 3u, 2u, 2u, 4u,
+};
 
 #define WUFFS_BROTLI__NUM_TRANSFORMS 121u
 
@@ -56545,6 +59450,40 @@ WUFFS_BROTLI__DICTIONARY[122784] WUFFS_BASE__POTENTIALLY_UNUSED = {
 
 #define WUFFS_BROTLI__DIST_CONTEXT_MAP_BASE 16384u
 
+#define WUFFS_BROTLI__QUIRKS_BASE 716673024u
+
+#define WUFFS_BROTLI__STREAM_PROCESSING 0u
+
+#define WUFFS_BROTLI__STREAM_FLUSH_REQUESTED 1u
+
+#define WUFFS_BROTLI__STREAM_FINISHED 2u
+
+#define WUFFS_BROTLI__STREAM_METADATA_HEAD 3u
+
+#define WUFFS_BROTLI__STREAM_METADATA_BODY 4u
+
+#define WUFFS_BROTLI__OP_PROCESS 0u
+
+#define WUFFS_BROTLI__OP_FLUSH 1u
+
+#define WUFFS_BROTLI__OP_FINISH 2u
+
+#define WUFFS_BROTLI__OP_EMIT_METADATA 3u
+
+#define WUFFS_BROTLI__FLINT_NEEDS_2_BYTES 2u
+
+#define WUFFS_BROTLI__FLINT_DONE 4294967295u
+
+#define WUFFS_BROTLI__STORAGE_SLACK 16u
+
+#define WUFFS_BROTLI__TWO_PASS_BLOCK_SIZE 131072u
+
+#define WUFFS_BROTLI__TREE_NONE 65535u
+
+#define WUFFS_BROTLI__FRAGMENT_MAX_DISTANCE 262128u
+
+#define WUFFS_BROTLI__HASH_MUL32 506832829u
+
 // ---------------- Private Initializer Prototypes
 
 // ---------------- Private Function Prototypes
@@ -56783,6 +59722,558 @@ wuffs_brotli__decoder__to_upper_case(
     uint32_t a_p,
     uint32_t a_end);
 
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__write_bits(
+    wuffs_brotli__encoder* self,
+    uint32_t a_n_bits,
+    uint64_t a_bits,
+    wuffs_base__slice_u8 a_s);
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__align_to_byte(
+    wuffs_brotli__encoder* self);
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__rewind_bit_position(
+    wuffs_brotli__encoder* self,
+    uint64_t a_new_ix,
+    wuffs_base__slice_u8 a_s);
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__update_bits(
+    wuffs_brotli__encoder* self,
+    uint32_t a_n_bits,
+    uint32_t a_bits,
+    uint64_t a_pos,
+    wuffs_base__slice_u8 a_s);
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__store_meta_block_header(
+    wuffs_brotli__encoder* self,
+    uint64_t a_len,
+    bool a_is_uncompressed,
+    wuffs_base__slice_u8 a_s);
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint32_t
+wuffs_brotli__encoder__log2_floor_non_zero(
+    const wuffs_brotli__encoder* self,
+    uint64_t a_n);
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint64_t
+wuffs_brotli__encoder__fast_log2(
+    const wuffs_brotli__encoder* self,
+    uint64_t a_v);
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint64_t
+wuffs_brotli__encoder__bits_entropy_of_histogram(
+    const wuffs_brotli__encoder* self);
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint64_t
+wuffs_brotli__encoder__load64le(
+    const wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_s,
+    uint64_t a_i);
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint32_t
+wuffs_brotli__encoder__load32le(
+    const wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_s,
+    uint64_t a_i);
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint64_t
+wuffs_brotli__encoder__find_match_length_with_limit(
+    const wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_s,
+    uint64_t a_i1,
+    uint64_t a_i2,
+    uint64_t a_limit);
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint32_t
+wuffs_brotli__encoder__sanitized_quality(
+    const wuffs_brotli__encoder* self);
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint32_t
+wuffs_brotli__encoder__sanitized_lgwin(
+    const wuffs_brotli__encoder* self,
+    uint32_t a_quality);
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__ensure_initialized(
+    wuffs_brotli__encoder* self);
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__encode_window_bits(
+    wuffs_brotli__encoder* self,
+    uint32_t a_lgwin);
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__init_command_prefix_codes(
+    wuffs_brotli__encoder* self);
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint32_t
+wuffs_brotli__encoder__get_hash_table(
+    wuffs_brotli__encoder* self,
+    uint64_t a_input_size);
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__inject_byte_padding_block(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_workbuf);
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__push_output(
+    wuffs_brotli__encoder* self,
+    wuffs_base__io_buffer* a_dst,
+    wuffs_base__slice_u8 a_workbuf);
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__check_flush_complete(
+    wuffs_brotli__encoder* self);
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint64_t
+wuffs_brotli__encoder__write_metadata_header(
+    wuffs_brotli__encoder* self,
+    uint32_t a_block_size);
+
+WUFFS_BASE__GENERATED_C_CODE
+static bool
+wuffs_brotli__encoder__set_depth(
+    wuffs_brotli__encoder* self,
+    uint32_t a_p0,
+    wuffs_base__slice_u8 a_depth,
+    uint32_t a_max_depth);
+
+WUFFS_BASE__GENERATED_C_CODE
+static bool
+wuffs_brotli__encoder__huffman_tree_less(
+    const wuffs_brotli__encoder* self,
+    uint32_t a_c0,
+    uint16_t a_r0,
+    uint32_t a_c1,
+    uint16_t a_r1,
+    bool a_tie_break);
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__sort_huffman_tree_items(
+    wuffs_brotli__encoder* self,
+    uint32_t a_n,
+    bool a_tie_break);
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__set_sentinel(
+    wuffs_brotli__encoder* self,
+    uint32_t a_i);
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__merge_huffman_nodes(
+    wuffs_brotli__encoder* self,
+    uint32_t a_n);
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__create_huffman_tree(
+    wuffs_brotli__encoder* self,
+    uint32_t a_src,
+    uint32_t a_off,
+    uint32_t a_length,
+    uint32_t a_tree_limit,
+    wuffs_base__slice_u8 a_depth);
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint16_t
+wuffs_brotli__encoder__reverse_bits(
+    const wuffs_brotli__encoder* self,
+    uint32_t a_num_bits,
+    uint16_t a_bits);
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__convert_bit_depths_to_symbols(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_depth,
+    uint32_t a_len,
+    uint32_t a_dst);
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__reverse_huffman_tree(
+    wuffs_brotli__encoder* self,
+    uint32_t a_start,
+    uint32_t a_end);
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__push_huffman_tree(
+    wuffs_brotli__encoder* self,
+    uint8_t a_value,
+    uint8_t a_extra_bits);
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__write_huffman_tree_repetitions(
+    wuffs_brotli__encoder* self,
+    uint8_t a_previous_value,
+    uint8_t a_value,
+    uint32_t a_repetitions);
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__write_huffman_tree_repetitions_zeros(
+    wuffs_brotli__encoder* self,
+    uint32_t a_repetitions);
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint32_t
+wuffs_brotli__encoder__decide_over_rle_use(
+    const wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_depth,
+    uint32_t a_length);
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__write_huffman_tree(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_depth,
+    uint32_t a_length);
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__store_huffman_tree_of_huffman_tree_to_bit_mask(
+    wuffs_brotli__encoder* self,
+    uint32_t a_num_codes,
+    wuffs_base__slice_u8 a_s);
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__store_huffman_tree_to_bit_mask(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_s);
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__store_huffman_tree(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_depths,
+    uint32_t a_num,
+    wuffs_base__slice_u8 a_s);
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__build_and_store_huffman_tree_fast(
+    wuffs_brotli__encoder* self,
+    uint64_t a_histogram_total,
+    uint32_t a_max_bits,
+    wuffs_base__slice_u8 a_s);
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__copy_tmp_bits_to_cmd_bits(
+    wuffs_brotli__encoder* self,
+    uint32_t a_dst,
+    uint32_t a_src,
+    uint32_t a_n);
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint32_t
+wuffs_brotli__encoder__hash_fast(
+    const wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_input,
+    uint64_t a_i,
+    uint32_t a_shift);
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint32_t
+wuffs_brotli__encoder__hash_bytes_at_offset_fast(
+    const wuffs_brotli__encoder* self,
+    uint64_t a_v,
+    uint32_t a_offset,
+    uint32_t a_shift);
+
+WUFFS_BASE__GENERATED_C_CODE
+static bool
+wuffs_brotli__encoder__is_match_fast(
+    const wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_input,
+    uint64_t a_i1,
+    uint64_t a_i2);
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint64_t
+wuffs_brotli__encoder__build_and_store_literal_prefix_code(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_input,
+    uint64_t a_from,
+    uint64_t a_input_size,
+    wuffs_base__slice_u8 a_s);
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__build_and_store_command_prefix_code_fast(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_s);
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__emit_cmd_fast(
+    wuffs_brotli__encoder* self,
+    uint64_t a_code,
+    wuffs_base__slice_u8 a_s);
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__emit_insert_len_fast(
+    wuffs_brotli__encoder* self,
+    uint64_t a_insertlen,
+    wuffs_base__slice_u8 a_s);
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__emit_long_insert_len_fast(
+    wuffs_brotli__encoder* self,
+    uint64_t a_insertlen,
+    wuffs_base__slice_u8 a_s);
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__emit_copy_len_fast(
+    wuffs_brotli__encoder* self,
+    uint64_t a_copylen,
+    wuffs_base__slice_u8 a_s);
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__emit_copy_len_last_distance_fast(
+    wuffs_brotli__encoder* self,
+    uint64_t a_copylen,
+    wuffs_base__slice_u8 a_s);
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__emit_distance_fast(
+    wuffs_brotli__encoder* self,
+    uint64_t a_distance,
+    wuffs_base__slice_u8 a_s);
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__emit_literals(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_input,
+    uint64_t a_from,
+    uint64_t a_len,
+    wuffs_base__slice_u8 a_s);
+
+WUFFS_BASE__GENERATED_C_CODE
+static bool
+wuffs_brotli__encoder__should_merge_block(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_input,
+    uint64_t a_from,
+    uint64_t a_len);
+
+WUFFS_BASE__GENERATED_C_CODE
+static bool
+wuffs_brotli__encoder__should_use_uncompressed_mode(
+    const wuffs_brotli__encoder* self,
+    uint64_t a_metablock_start,
+    uint64_t a_next_emit,
+    uint64_t a_insertlen,
+    uint64_t a_literal_ratio);
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__emit_uncompressed_meta_block_fast(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_input,
+    uint64_t a_begin,
+    uint64_t a_end,
+    uint64_t a_storage_ix_start,
+    wuffs_base__slice_u8 a_s);
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__copy_bytes(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_input,
+    uint64_t a_begin,
+    uint64_t a_end,
+    wuffs_base__slice_u8 a_s);
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint64_t
+wuffs_brotli__encoder__update_table_fast(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_input,
+    uint64_t a_ip,
+    uint32_t a_shift);
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__compress_fragment_fast(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_input,
+    bool a_is_last,
+    uint32_t a_table_bits,
+    wuffs_base__slice_u8 a_s);
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__compress_fragment_fast_impl(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_input,
+    bool a_is_last,
+    uint32_t a_table_bits,
+    wuffs_base__slice_u8 a_s);
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint32_t
+wuffs_brotli__encoder__hash_two_pass(
+    const wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_input,
+    uint64_t a_i,
+    uint32_t a_shift,
+    uint32_t a_length);
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint32_t
+wuffs_brotli__encoder__hash_bytes_at_offset_two_pass(
+    const wuffs_brotli__encoder* self,
+    uint64_t a_v,
+    uint32_t a_offset,
+    uint32_t a_shift,
+    uint32_t a_length);
+
+WUFFS_BASE__GENERATED_C_CODE
+static bool
+wuffs_brotli__encoder__is_match_two_pass(
+    const wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_input,
+    uint64_t a_i1,
+    uint64_t a_i2,
+    uint32_t a_length);
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__build_and_store_command_prefix_code_two_pass(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_s);
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__push_command(
+    wuffs_brotli__encoder* self,
+    uint32_t a_c);
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__emit_insert_len_two_pass(
+    wuffs_brotli__encoder* self,
+    uint32_t a_insertlen);
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__emit_copy_len_two_pass(
+    wuffs_brotli__encoder* self,
+    uint64_t a_copylen);
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__emit_copy_len_last_distance_two_pass(
+    wuffs_brotli__encoder* self,
+    uint64_t a_copylen);
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__emit_distance_two_pass(
+    wuffs_brotli__encoder* self,
+    uint32_t a_distance);
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__push_literals(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_input,
+    uint64_t a_from,
+    uint64_t a_n);
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint64_t
+wuffs_brotli__encoder__update_table_two_pass(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_input,
+    uint64_t a_ip,
+    uint32_t a_shift,
+    uint32_t a_min_match,
+    uint32_t a_third_offset);
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__create_commands(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_input,
+    uint64_t a_from,
+    uint64_t a_block_size,
+    uint64_t a_input_size,
+    uint32_t a_table_bits,
+    uint32_t a_min_match);
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__store_commands(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_s);
+
+WUFFS_BASE__GENERATED_C_CODE
+static bool
+wuffs_brotli__encoder__should_compress_two_pass(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_input,
+    uint64_t a_from,
+    uint64_t a_input_size,
+    uint64_t a_num_literals);
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__emit_uncompressed_meta_block_two_pass(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_input,
+    uint64_t a_from,
+    uint64_t a_input_size,
+    wuffs_base__slice_u8 a_s);
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__compress_fragment_two_pass(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_input,
+    bool a_is_last,
+    uint32_t a_table_bits,
+    wuffs_base__slice_u8 a_s);
+
 // ---------------- VTables
 
 const wuffs_base__io_transformer__func_ptrs
@@ -56798,6 +60289,21 @@ wuffs_brotli__decoder__func_ptrs_for__wuffs_base__io_transformer = {
       wuffs_base__io_buffer*,
       wuffs_base__slice_u8))(&wuffs_brotli__decoder__transform_io),
   (wuffs_base__range_ii_u64(*)(const void*))(&wuffs_brotli__decoder__workbuf_len),
+};
+
+const wuffs_base__io_transformer__func_ptrs
+wuffs_brotli__encoder__func_ptrs_for__wuffs_base__io_transformer = {
+  (wuffs_base__optional_u63(*)(const void*))(&wuffs_brotli__encoder__dst_history_retain_length),
+  (uint64_t(*)(const void*,
+      uint32_t))(&wuffs_brotli__encoder__get_quirk),
+  (wuffs_base__status(*)(void*,
+      uint32_t,
+      uint64_t))(&wuffs_brotli__encoder__set_quirk),
+  (wuffs_base__status(*)(void*,
+      wuffs_base__io_buffer*,
+      wuffs_base__io_buffer*,
+      wuffs_base__slice_u8))(&wuffs_brotli__encoder__transform_io),
+  (wuffs_base__range_ii_u64(*)(const void*))(&wuffs_brotli__encoder__workbuf_len),
 };
 
 // ---------------- Initializer Implementations
@@ -56867,6 +60373,80 @@ wuffs_brotli__decoder__alloc(void) {
 size_t
 sizeof__wuffs_brotli__decoder(void) {
   return sizeof(wuffs_brotli__decoder);
+}
+
+wuffs_base__status WUFFS_BASE__WARN_UNUSED_RESULT
+wuffs_brotli__encoder__initialize(
+    wuffs_brotli__encoder* self,
+    size_t sizeof_star_self,
+    uint64_t wuffs_version,
+    uint32_t options){
+  if (!self) {
+    return wuffs_base__make_status(wuffs_base__error__bad_receiver);
+  }
+  if (sizeof(*self) != sizeof_star_self) {
+    return wuffs_base__make_status(wuffs_base__error__bad_sizeof_receiver);
+  }
+  if (((wuffs_version >> 32) != WUFFS_VERSION_MAJOR) ||
+      (((wuffs_version >> 16) & 0xFFFF) > WUFFS_VERSION_MINOR)) {
+    return wuffs_base__make_status(wuffs_base__error__bad_wuffs_version);
+  }
+
+  if ((options & WUFFS_INITIALIZE__ALREADY_ZEROED) != 0) {
+    // The whole point of this if-check is to detect an uninitialized *self.
+    // We disable the warning on GCC. Clang-5.0 does not have this warning.
+#if !defined(__clang__) && defined(__GNUC__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
+#endif
+    if (self->private_impl.magic != 0) {
+      return wuffs_base__make_status(wuffs_base__error__initialize_falsely_claimed_already_zeroed);
+    }
+#if !defined(__clang__) && defined(__GNUC__)
+#pragma GCC diagnostic pop
+#endif
+  } else {
+    if ((options & WUFFS_INITIALIZE__LEAVE_INTERNAL_BUFFERS_UNINITIALIZED) == 0) {
+      memset(self, 0, sizeof(*self));
+      options |= WUFFS_INITIALIZE__ALREADY_ZEROED;
+    } else {
+      memset(&(self->private_impl), 0, sizeof(self->private_impl));
+    }
+  }
+
+  {
+    wuffs_base__status z = wuffs_softfloat__arith__initialize(
+        &self->private_data.f_sf, sizeof(self->private_data.f_sf), WUFFS_VERSION, options);
+    if (z.repr) {
+      return z;
+    }
+  }
+  self->private_impl.magic = WUFFS_BASE__MAGIC;
+  self->private_impl.vtable_for__wuffs_base__io_transformer.vtable_name =
+      wuffs_base__io_transformer__vtable_name;
+  self->private_impl.vtable_for__wuffs_base__io_transformer.function_pointers =
+      (const void*)(&wuffs_brotli__encoder__func_ptrs_for__wuffs_base__io_transformer);
+  return wuffs_base__make_status(NULL);
+}
+
+wuffs_brotli__encoder*
+wuffs_brotli__encoder__alloc(void) {
+  wuffs_brotli__encoder* x =
+      (wuffs_brotli__encoder*)(calloc(1, sizeof(wuffs_brotli__encoder)));
+  if (!x) {
+    return NULL;
+  }
+  if (wuffs_brotli__encoder__initialize(
+      x, sizeof(wuffs_brotli__encoder), WUFFS_VERSION, WUFFS_INITIALIZE__ALREADY_ZEROED).repr) {
+    free(x);
+    return NULL;
+  }
+  return x;
+}
+
+size_t
+sizeof__wuffs_brotli__encoder(void) {
+  return sizeof(wuffs_brotli__encoder);
 }
 
 // ---------------- Function Implementations
@@ -59702,6 +63282,3538 @@ wuffs_brotli__decoder__to_upper_case(
     self->private_data.f_transformed_word[(a_p + 2u)] ^= 5u;
   }
   return 3u;
+}
+
+// -------- func brotli.encoder.write_bits
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__write_bits(
+    wuffs_brotli__encoder* self,
+    uint32_t a_n_bits,
+    uint64_t a_bits,
+    wuffs_base__slice_u8 a_s) {
+  uint64_t v_p = 0;
+  uint64_t v_v = 0;
+  wuffs_base__slice_u8 v_q = {0};
+
+  v_p = (self->private_impl.f_bw_ix >> 3u);
+  if (v_p < ((uint64_t)(a_s.len))) {
+    v_q = wuffs_base__slice_u8__subslice_i(a_s, v_p);
+    v_v = (((uint64_t)(a_s.ptr[v_p])) | ((uint64_t)(a_bits << (self->private_impl.f_bw_ix & 7u))));
+    if (((uint64_t)(v_q.len)) >= 8u) {
+      wuffs_base__poke_u64le__no_bounds_check(v_q.ptr, v_v);
+    } else {
+      while (((uint64_t)(v_q.len)) > 0u) {
+        v_q.ptr[0u] = ((uint8_t)(v_v));
+        v_v >>= 8u;
+        v_q = wuffs_base__slice_u8__subslice_i(v_q, 1u);
+      }
+    }
+  }
+  self->private_impl.f_bw_ix += ((uint64_t)(a_n_bits));
+  return wuffs_base__make_empty_struct();
+}
+
+// -------- func brotli.encoder.align_to_byte
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__align_to_byte(
+    wuffs_brotli__encoder* self) {
+  self->private_impl.f_bw_ix = (((uint64_t)(self->private_impl.f_bw_ix + 7u)) & 18446744073709551608u);
+  return wuffs_base__make_empty_struct();
+}
+
+// -------- func brotli.encoder.rewind_bit_position
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__rewind_bit_position(
+    wuffs_brotli__encoder* self,
+    uint64_t a_new_ix,
+    wuffs_base__slice_u8 a_s) {
+  uint64_t v_p = 0;
+  uint8_t v_mask = 0;
+
+  v_p = (a_new_ix >> 3u);
+  v_mask = ((uint8_t)(((((uint32_t)(1u)) << (a_new_ix & 7u)) - 1u)));
+  if (v_p < ((uint64_t)(a_s.len))) {
+    a_s.ptr[v_p] &= v_mask;
+  }
+  self->private_impl.f_bw_ix = a_new_ix;
+  return wuffs_base__make_empty_struct();
+}
+
+// -------- func brotli.encoder.update_bits
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__update_bits(
+    wuffs_brotli__encoder* self,
+    uint32_t a_n_bits,
+    uint32_t a_bits,
+    uint64_t a_pos,
+    wuffs_base__slice_u8 a_s) {
+  uint32_t v_n_bits = 0;
+  uint32_t v_bits = 0;
+  uint64_t v_pos = 0;
+  uint64_t v_byte_pos = 0;
+  uint32_t v_n_unchanged_bits = 0;
+  uint32_t v_n_changed_bits = 0;
+  uint32_t v_total_bits = 0;
+  uint32_t v_mask = 0;
+  uint32_t v_unchanged_bits = 0;
+  uint32_t v_changed_bits = 0;
+
+  v_n_bits = a_n_bits;
+  v_bits = a_bits;
+  v_pos = a_pos;
+  while (v_n_bits > 0u) {
+    v_byte_pos = (v_pos >> 3u);
+    v_n_unchanged_bits = ((uint32_t)((v_pos & 7u)));
+    v_n_changed_bits = wuffs_base__u32__min(v_n_bits, (8u - v_n_unchanged_bits));
+    v_total_bits = (v_n_unchanged_bits + v_n_changed_bits);
+    v_mask = ((4294967295u ^ ((((uint32_t)(1u)) << v_total_bits) - 1u)) | ((((uint32_t)(1u)) << v_n_unchanged_bits) - 1u));
+    if (v_byte_pos >= ((uint64_t)(a_s.len))) {
+      return wuffs_base__make_empty_struct();
+    }
+    v_unchanged_bits = (((uint32_t)(a_s.ptr[v_byte_pos])) & v_mask);
+    v_changed_bits = (v_bits & ((((uint32_t)(1u)) << v_n_changed_bits) - 1u));
+    a_s.ptr[v_byte_pos] = ((uint8_t)(((v_changed_bits << v_n_unchanged_bits) | v_unchanged_bits)));
+    v_n_bits -= v_n_changed_bits;
+    v_bits = (v_bits >> v_n_changed_bits);
+    v_pos += ((uint64_t)(v_n_changed_bits));
+  }
+  return wuffs_base__make_empty_struct();
+}
+
+// -------- func brotli.encoder.store_meta_block_header
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__store_meta_block_header(
+    wuffs_brotli__encoder* self,
+    uint64_t a_len,
+    bool a_is_uncompressed,
+    wuffs_base__slice_u8 a_s) {
+  uint32_t v_nibbles_minus_4 = 0;
+
+  v_nibbles_minus_4 = 2u;
+  wuffs_brotli__encoder__write_bits(self, 1u, 0u, a_s);
+  if (a_len <= 65536u) {
+    v_nibbles_minus_4 = 0u;
+  } else if (a_len <= 1048576u) {
+    v_nibbles_minus_4 = 1u;
+  }
+  wuffs_brotli__encoder__write_bits(self, 2u, ((uint64_t)(v_nibbles_minus_4)), a_s);
+  wuffs_brotli__encoder__write_bits(self, ((v_nibbles_minus_4 + 4u) * 4u), ((uint64_t)(a_len - 1u)), a_s);
+  if (a_is_uncompressed) {
+    wuffs_brotli__encoder__write_bits(self, 1u, 1u, a_s);
+  } else {
+    wuffs_brotli__encoder__write_bits(self, 1u, 0u, a_s);
+  }
+  return wuffs_base__make_empty_struct();
+}
+
+// -------- func brotli.encoder.log2_floor_non_zero
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint32_t
+wuffs_brotli__encoder__log2_floor_non_zero(
+    const wuffs_brotli__encoder* self,
+    uint64_t a_n) {
+  uint32_t v_x = 0;
+  uint32_t v_r = 0;
+
+  v_x = ((uint32_t)(a_n));
+  if (v_x >= 65536u) {
+    v_x >>= 16u;
+    v_r = 16u;
+  }
+  if (v_x >= 256u) {
+    v_x >>= 8u;
+    v_r += 8u;
+  }
+  if (v_x >= 16u) {
+    v_x >>= 4u;
+    v_r += 4u;
+  }
+  if (v_x >= 4u) {
+    v_x >>= 2u;
+    v_r += 2u;
+  }
+  if (v_x >= 2u) {
+    v_r += 1u;
+  }
+  return (v_r & 31u);
+}
+
+// -------- func brotli.encoder.fast_log2
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint64_t
+wuffs_brotli__encoder__fast_log2(
+    const wuffs_brotli__encoder* self,
+    uint64_t a_v) {
+  if (a_v < 256u) {
+    return WUFFS_BROTLI__LOG2_TABLE[a_v];
+  }
+  return wuffs_softfloat__arith__log2_u64(&self->private_data.f_sf, a_v);
+}
+
+// -------- func brotli.encoder.bits_entropy_of_histogram
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint64_t
+wuffs_brotli__encoder__bits_entropy_of_histogram(
+    const wuffs_brotli__encoder* self) {
+  uint64_t v_sum = 0;
+  uint64_t v_retval = 0;
+  uint32_t v_i = 0;
+  uint64_t v_p = 0;
+
+  v_i = 0u;
+  while (v_i < 256u) {
+    v_p = ((uint64_t)(self->private_data.f_histogram[v_i]));
+    v_sum += v_p;
+    v_retval = wuffs_softfloat__arith__f64_sub(&self->private_data.f_sf, v_retval, wuffs_softfloat__arith__f64_mul(&self->private_data.f_sf, wuffs_softfloat__arith__f64_from_u64(&self->private_data.f_sf, v_p), wuffs_brotli__encoder__fast_log2(self, v_p)));
+    v_i += 1u;
+  }
+  if (v_sum != 0u) {
+    v_retval = wuffs_softfloat__arith__f64_add(&self->private_data.f_sf, v_retval, wuffs_softfloat__arith__f64_mul(&self->private_data.f_sf, wuffs_softfloat__arith__f64_from_u64(&self->private_data.f_sf, v_sum), wuffs_brotli__encoder__fast_log2(self, v_sum)));
+  }
+  if (wuffs_softfloat__arith__f64_lt(&self->private_data.f_sf, v_retval, wuffs_softfloat__arith__f64_from_u64(&self->private_data.f_sf, v_sum)) != 0u) {
+    v_retval = wuffs_softfloat__arith__f64_from_u64(&self->private_data.f_sf, v_sum);
+  }
+  return v_retval;
+}
+
+// -------- func brotli.encoder.load64le
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint64_t
+wuffs_brotli__encoder__load64le(
+    const wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_s,
+    uint64_t a_i) {
+  wuffs_base__slice_u8 v_q = {0};
+
+  if (a_i < ((uint64_t)(a_s.len))) {
+    v_q = wuffs_base__slice_u8__subslice_i(a_s, a_i);
+    if (((uint64_t)(v_q.len)) >= 8u) {
+      return wuffs_base__peek_u64le__no_bounds_check(v_q.ptr);
+    }
+  }
+  return 0u;
+}
+
+// -------- func brotli.encoder.load32le
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint32_t
+wuffs_brotli__encoder__load32le(
+    const wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_s,
+    uint64_t a_i) {
+  wuffs_base__slice_u8 v_q = {0};
+
+  if (a_i < ((uint64_t)(a_s.len))) {
+    v_q = wuffs_base__slice_u8__subslice_i(a_s, a_i);
+    if (((uint64_t)(v_q.len)) >= 4u) {
+      return wuffs_base__peek_u32le__no_bounds_check(v_q.ptr);
+    }
+  }
+  return 0u;
+}
+
+// -------- func brotli.encoder.find_match_length_with_limit
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint64_t
+wuffs_brotli__encoder__find_match_length_with_limit(
+    const wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_s,
+    uint64_t a_i1,
+    uint64_t a_i2,
+    uint64_t a_limit) {
+  uint64_t v_matched = 0;
+  uint64_t v_n = 0;
+  wuffs_base__slice_u8 v_a = {0};
+  wuffs_base__slice_u8 v_b = {0};
+  uint64_t v_x = 0;
+
+  if ((a_i1 > ((uint64_t)(a_s.len))) || (a_i2 > ((uint64_t)(a_s.len)))) {
+    return 0u;
+  }
+  v_a = wuffs_base__slice_u8__subslice_i(a_s, a_i1);
+  v_b = wuffs_base__slice_u8__subslice_i(a_s, a_i2);
+  v_n = a_limit;
+  while ((v_n >= 8u) && (((uint64_t)(v_a.len)) >= 8u) && (((uint64_t)(v_b.len)) >= 8u)) {
+    v_x = (wuffs_base__peek_u64le__no_bounds_check(v_a.ptr) ^ wuffs_base__peek_u64le__no_bounds_check(v_b.ptr));
+    if (v_x != 0u) {
+      while ((v_x & 255u) == 0u) {
+        v_matched += 1u;
+        v_x >>= 8u;
+      }
+      return v_matched;
+    }
+    v_matched += 8u;
+    v_n -= 8u;
+    v_a = wuffs_base__slice_u8__subslice_i(v_a, 8u);
+    v_b = wuffs_base__slice_u8__subslice_i(v_b, 8u);
+  }
+  while ((v_n > 0u) && (((uint64_t)(v_a.len)) > 0u) && (((uint64_t)(v_b.len)) > 0u)) {
+    if (v_a.ptr[0u] != v_b.ptr[0u]) {
+      break;
+    }
+    v_matched += 1u;
+    v_n -= 1u;
+    v_a = wuffs_base__slice_u8__subslice_i(v_a, 1u);
+    v_b = wuffs_base__slice_u8__subslice_i(v_b, 1u);
+  }
+  return v_matched;
+}
+
+// -------- func brotli.encoder.get_quirk
+
+WUFFS_BASE__GENERATED_C_CODE
+WUFFS_BASE__MAYBE_STATIC uint64_t
+wuffs_brotli__encoder__get_quirk(
+    const wuffs_brotli__encoder* self,
+    uint32_t a_key) {
+  if (!self) {
+    return 0;
+  }
+  if ((self->private_impl.magic != WUFFS_BASE__MAGIC) &&
+      (self->private_impl.magic != WUFFS_BASE__DISABLED)) {
+    return 0;
+  }
+
+  if (a_key == 716673028u) {
+    return ((uint64_t)(self->private_impl.f_p_mode));
+  } else if (a_key == 716673025u) {
+    if ( ! self->private_impl.f_p_quality_set) {
+      return 11u;
+    }
+    return ((uint64_t)(self->private_impl.f_p_quality));
+  } else if (a_key == 716673026u) {
+    if ( ! self->private_impl.f_p_lgwin_set) {
+      return 22u;
+    }
+    return ((uint64_t)(self->private_impl.f_p_lgwin));
+  } else if (a_key == 716673027u) {
+    return ((uint64_t)(self->private_impl.f_p_lgblock));
+  } else if (a_key == 716673029u) {
+    return ((uint64_t)(self->private_impl.f_p_disable_lcm));
+  } else if (a_key == 716673030u) {
+    return ((uint64_t)(self->private_impl.f_p_size_hint));
+  } else if (a_key == 716673024u) {
+    return ((uint64_t)(self->private_impl.f_p_large_window));
+  } else if (a_key == 716673031u) {
+    return ((uint64_t)(self->private_impl.f_p_npostfix));
+  } else if (a_key == 716673032u) {
+    return ((uint64_t)(self->private_impl.f_p_ndirect));
+  } else if (a_key == 716673033u) {
+    return ((uint64_t)(self->private_impl.f_p_stream_offset));
+  }
+  return 0u;
+}
+
+// -------- func brotli.encoder.set_quirk
+
+WUFFS_BASE__GENERATED_C_CODE
+WUFFS_BASE__MAYBE_STATIC wuffs_base__status
+wuffs_brotli__encoder__set_quirk(
+    wuffs_brotli__encoder* self,
+    uint32_t a_key,
+    uint64_t a_value) {
+  if (!self) {
+    return wuffs_base__make_status(wuffs_base__error__bad_receiver);
+  }
+  if (self->private_impl.magic != WUFFS_BASE__MAGIC) {
+    return wuffs_base__make_status(
+        (self->private_impl.magic == WUFFS_BASE__DISABLED)
+        ? wuffs_base__error__disabled_by_previous_error
+        : wuffs_base__error__initialize_not_called);
+  }
+
+  uint32_t v_v = 0;
+
+  if (self->private_impl.f_is_initialized) {
+    return wuffs_base__make_status(wuffs_base__error__bad_call_sequence);
+  } else if (a_value > 4294967295u) {
+    return wuffs_base__make_status(wuffs_base__error__bad_argument);
+  }
+  v_v = ((uint32_t)(a_value));
+  if (a_key == 716673028u) {
+    self->private_impl.f_p_mode = v_v;
+  } else if (a_key == 716673025u) {
+    self->private_impl.f_p_quality = v_v;
+    self->private_impl.f_p_quality_set = true;
+  } else if (a_key == 716673026u) {
+    self->private_impl.f_p_lgwin = v_v;
+    self->private_impl.f_p_lgwin_set = true;
+  } else if (a_key == 716673027u) {
+    self->private_impl.f_p_lgblock = v_v;
+  } else if (a_key == 716673029u) {
+    if (v_v > 1u) {
+      return wuffs_base__make_status(wuffs_base__error__bad_argument);
+    }
+    self->private_impl.f_p_disable_lcm = v_v;
+  } else if (a_key == 716673030u) {
+    self->private_impl.f_p_size_hint = v_v;
+  } else if (a_key == 716673024u) {
+    if (v_v != 0u) {
+      self->private_impl.f_p_large_window = 1u;
+    } else {
+      self->private_impl.f_p_large_window = 0u;
+    }
+  } else if (a_key == 716673031u) {
+    self->private_impl.f_p_npostfix = v_v;
+  } else if (a_key == 716673032u) {
+    self->private_impl.f_p_ndirect = v_v;
+  } else if (a_key == 716673033u) {
+    if (v_v > 1073741824u) {
+      return wuffs_base__make_status(wuffs_base__error__bad_argument);
+    }
+    self->private_impl.f_p_stream_offset = v_v;
+  } else {
+    return wuffs_base__make_status(wuffs_base__error__unsupported_option);
+  }
+  return wuffs_base__make_status(NULL);
+}
+
+// -------- func brotli.encoder.dst_history_retain_length
+
+WUFFS_BASE__GENERATED_C_CODE
+WUFFS_BASE__MAYBE_STATIC wuffs_base__optional_u63
+wuffs_brotli__encoder__dst_history_retain_length(
+    const wuffs_brotli__encoder* self) {
+  if (!self) {
+    return wuffs_base__utility__make_optional_u63(false, 0u);
+  }
+  if ((self->private_impl.magic != WUFFS_BASE__MAGIC) &&
+      (self->private_impl.magic != WUFFS_BASE__DISABLED)) {
+    return wuffs_base__utility__make_optional_u63(false, 0u);
+  }
+
+  return wuffs_base__utility__make_optional_u63(true, 0u);
+}
+
+// -------- func brotli.encoder.workbuf_len
+
+WUFFS_BASE__GENERATED_C_CODE
+WUFFS_BASE__MAYBE_STATIC wuffs_base__range_ii_u64
+wuffs_brotli__encoder__workbuf_len(
+    const wuffs_brotli__encoder* self) {
+  if (!self) {
+    return wuffs_base__utility__empty_range_ii_u64();
+  }
+  if ((self->private_impl.magic != WUFFS_BASE__MAGIC) &&
+      (self->private_impl.magic != WUFFS_BASE__DISABLED)) {
+    return wuffs_base__utility__empty_range_ii_u64();
+  }
+
+  uint32_t v_q = 0;
+  uint64_t v_n = 0;
+
+  v_q = wuffs_brotli__encoder__sanitized_quality(self);
+  if (v_q <= 1u) {
+    v_n = ((((uint64_t)(2u)) << wuffs_brotli__encoder__sanitized_lgwin(self, v_q)) + 503u + 16u);
+  }
+  return wuffs_base__utility__make_range_ii_u64(v_n, v_n);
+}
+
+// -------- func brotli.encoder.max_compressed_size
+
+WUFFS_BASE__GENERATED_C_CODE
+WUFFS_BASE__MAYBE_STATIC uint64_t
+wuffs_brotli__encoder__max_compressed_size(
+    const wuffs_brotli__encoder* self,
+    uint64_t a_input_size) {
+  if (!self) {
+    return 0;
+  }
+  if ((self->private_impl.magic != WUFFS_BASE__MAGIC) &&
+      (self->private_impl.magic != WUFFS_BASE__DISABLED)) {
+    return 0;
+  }
+
+  uint64_t v_num_large_blocks = 0;
+  uint64_t v_overhead = 0;
+  uint64_t v_result = 0;
+
+  v_num_large_blocks = (a_input_size >> 14u);
+  v_overhead = (2u +
+      (4u * v_num_large_blocks) +
+      3u +
+      1u);
+  v_result = ((uint64_t)(a_input_size + v_overhead));
+  if (a_input_size == 0u) {
+    return 2u;
+  } else if (v_result < a_input_size) {
+    return 0u;
+  }
+  return v_result;
+}
+
+// -------- func brotli.encoder.request_flush
+
+WUFFS_BASE__GENERATED_C_CODE
+WUFFS_BASE__MAYBE_STATIC wuffs_base__status
+wuffs_brotli__encoder__request_flush(
+    wuffs_brotli__encoder* self) {
+  if (!self) {
+    return wuffs_base__make_status(wuffs_base__error__bad_receiver);
+  }
+  if (self->private_impl.magic != WUFFS_BASE__MAGIC) {
+    return wuffs_base__make_status(
+        (self->private_impl.magic == WUFFS_BASE__DISABLED)
+        ? wuffs_base__error__disabled_by_previous_error
+        : wuffs_base__error__initialize_not_called);
+  }
+
+  if (self->private_impl.f_metadata_requested) {
+    return wuffs_base__make_status(wuffs_base__error__bad_call_sequence);
+  }
+  self->private_impl.f_flush_requested = true;
+  return wuffs_base__make_status(NULL);
+}
+
+// -------- func brotli.encoder.request_emit_metadata
+
+WUFFS_BASE__GENERATED_C_CODE
+WUFFS_BASE__MAYBE_STATIC wuffs_base__status
+wuffs_brotli__encoder__request_emit_metadata(
+    wuffs_brotli__encoder* self,
+    uint64_t a_length) {
+  if (!self) {
+    return wuffs_base__make_status(wuffs_base__error__bad_receiver);
+  }
+  if (self->private_impl.magic != WUFFS_BASE__MAGIC) {
+    return wuffs_base__make_status(
+        (self->private_impl.magic == WUFFS_BASE__DISABLED)
+        ? wuffs_base__error__disabled_by_previous_error
+        : wuffs_base__error__initialize_not_called);
+  }
+
+  if (a_length > 16777216u) {
+    return wuffs_base__make_status(wuffs_base__error__bad_argument);
+  } else if (self->private_impl.f_flush_requested || self->private_impl.f_metadata_requested) {
+    return wuffs_base__make_status(wuffs_base__error__bad_call_sequence);
+  }
+  self->private_impl.f_metadata_requested = true;
+  self->private_impl.f_metadata_length = ((uint32_t)(a_length));
+  return wuffs_base__make_status(NULL);
+}
+
+// -------- func brotli.encoder.sanitized_quality
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint32_t
+wuffs_brotli__encoder__sanitized_quality(
+    const wuffs_brotli__encoder* self) {
+  if ( ! self->private_impl.f_p_quality_set) {
+    return 11u;
+  } else if (self->private_impl.f_p_quality >= 2147483648u) {
+    return 0u;
+  }
+  return wuffs_base__u32__min(self->private_impl.f_p_quality, 11u);
+}
+
+// -------- func brotli.encoder.sanitized_lgwin
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint32_t
+wuffs_brotli__encoder__sanitized_lgwin(
+    const wuffs_brotli__encoder* self,
+    uint32_t a_quality) {
+  uint32_t v_lgwin = 0;
+
+  v_lgwin = 22u;
+  if (self->private_impl.f_p_lgwin_set) {
+    v_lgwin = self->private_impl.f_p_lgwin;
+  }
+  if ((v_lgwin >= 2147483648u) || (v_lgwin < 10u)) {
+    return 10u;
+  } else if ((self->private_impl.f_p_large_window != 0u) && (a_quality > 2u)) {
+    return wuffs_base__u32__min(v_lgwin, 30u);
+  }
+  return wuffs_base__u32__min(v_lgwin, 24u);
+}
+
+// -------- func brotli.encoder.ensure_initialized
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__ensure_initialized(
+    wuffs_brotli__encoder* self) {
+  uint32_t v_lgblock = 0;
+  uint32_t v_lgwin = 0;
+  uint32_t v_limit = 0;
+  uint32_t v_npostfix = 0;
+  uint32_t v_ndirect = 0;
+  uint32_t v_ndirect_msb = 0;
+  uint32_t v_i = 0;
+
+  if (self->private_impl.f_is_initialized) {
+    return wuffs_base__make_empty_struct();
+  }
+  self->private_impl.f_dist_cache[0u] = 4u;
+  self->private_impl.f_dist_cache[1u] = 11u;
+  self->private_impl.f_dist_cache[2u] = 15u;
+  self->private_impl.f_dist_cache[3u] = 16u;
+  self->private_impl.f_saved_dist_cache[0u] = 4u;
+  self->private_impl.f_saved_dist_cache[1u] = 11u;
+  self->private_impl.f_saved_dist_cache[2u] = 15u;
+  self->private_impl.f_saved_dist_cache[3u] = 16u;
+  self->private_impl.f_stream_state = 0u;
+  self->private_impl.f_last_bytes_bits = 0u;
+  self->private_impl.f_last_bytes = 0u;
+  self->private_impl.f_flint = 4294967295u;
+  self->private_impl.f_remaining_metadata_bytes = 4294967295u;
+  self->private_impl.f_quality = wuffs_brotli__encoder__sanitized_quality(self);
+  self->private_impl.f_large_window = ((self->private_impl.f_p_large_window != 0u) && (self->private_impl.f_quality > 2u));
+  self->private_impl.f_lgwin = wuffs_brotli__encoder__sanitized_lgwin(self, self->private_impl.f_quality);
+  self->private_impl.f_size_hint = self->private_impl.f_p_size_hint;
+  self->private_impl.f_stream_offset = self->private_impl.f_p_stream_offset;
+  if (self->private_impl.f_quality <= 1u) {
+    self->private_impl.f_lgblock = self->private_impl.f_lgwin;
+  } else if (self->private_impl.f_quality < 4u) {
+    self->private_impl.f_lgblock = 14u;
+  } else if (self->private_impl.f_p_lgblock == 0u) {
+    self->private_impl.f_lgblock = 16u;
+    if ((self->private_impl.f_quality >= 9u) && (self->private_impl.f_lgwin > 16u)) {
+      self->private_impl.f_lgblock = wuffs_base__u32__min(self->private_impl.f_lgwin, 18u);
+    }
+  } else {
+    v_lgblock = self->private_impl.f_p_lgblock;
+    if (v_lgblock >= 2147483648u) {
+      v_lgblock = 16u;
+    }
+    self->private_impl.f_lgblock = wuffs_base__u32__min(wuffs_base__u32__max(v_lgblock, 16u), 24u);
+  }
+  if (self->private_impl.f_quality >= 4u) {
+    if (self->private_impl.f_p_mode == 2u) {
+      v_npostfix = 1u;
+      v_ndirect = 12u;
+    } else {
+      v_npostfix = self->private_impl.f_p_npostfix;
+      v_ndirect = self->private_impl.f_p_ndirect;
+    }
+    if (v_npostfix > 3u) {
+      v_npostfix = 0u;
+      v_ndirect = 0u;
+    } else {
+      v_ndirect_msb = ((v_ndirect >> v_npostfix) & 15u);
+      if ((v_ndirect > 120u) || ((v_ndirect_msb << v_npostfix) != v_ndirect)) {
+        v_npostfix = 0u;
+        v_ndirect = 0u;
+      }
+    }
+  }
+  self->private_impl.f_distance_postfix_bits = v_npostfix;
+  self->private_impl.f_num_direct_distance_codes = v_ndirect;
+  if (self->private_impl.f_stream_offset != 0u) {
+    self->private_impl.f_flint = 2u;
+    v_i = 0u;
+    while (v_i < 4u) {
+      self->private_impl.f_dist_cache[v_i] = 4294967280u;
+      self->private_impl.f_saved_dist_cache[v_i] = 4294967280u;
+      v_i += 1u;
+    }
+  }
+  v_lgwin = self->private_impl.f_lgwin;
+  if (self->private_impl.f_quality <= 1u) {
+    v_lgwin = wuffs_base__u32__max(v_lgwin, 18u);
+  }
+  if (self->private_impl.f_stream_offset == 0u) {
+    wuffs_brotli__encoder__encode_window_bits(self, v_lgwin);
+  } else {
+    v_limit = ((uint32_t)((((uint32_t)(1u)) << v_lgwin) - 16u));
+    self->private_impl.f_stream_offset = wuffs_base__u32__min(self->private_impl.f_stream_offset, v_limit);
+  }
+  if (self->private_impl.f_quality == 0u) {
+    wuffs_brotli__encoder__init_command_prefix_codes(self);
+  }
+  self->private_impl.f_is_initialized = true;
+  return wuffs_base__make_empty_struct();
+}
+
+// -------- func brotli.encoder.encode_window_bits
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__encode_window_bits(
+    wuffs_brotli__encoder* self,
+    uint32_t a_lgwin) {
+  if (self->private_impl.f_large_window) {
+    self->private_impl.f_last_bytes = (((a_lgwin & 63u) << 8u) | 17u);
+    self->private_impl.f_last_bytes_bits = 14u;
+  } else if (a_lgwin == 16u) {
+    self->private_impl.f_last_bytes = 0u;
+    self->private_impl.f_last_bytes_bits = 1u;
+  } else if (a_lgwin == 17u) {
+    self->private_impl.f_last_bytes = 1u;
+    self->private_impl.f_last_bytes_bits = 7u;
+  } else if (a_lgwin > 17u) {
+    self->private_impl.f_last_bytes = (((a_lgwin - 17u) << 1u) | 1u);
+    self->private_impl.f_last_bytes_bits = 4u;
+  } else if (a_lgwin >= 8u) {
+    self->private_impl.f_last_bytes = (((a_lgwin - 8u) << 4u) | 1u);
+    self->private_impl.f_last_bytes_bits = 7u;
+  }
+  return wuffs_base__make_empty_struct();
+}
+
+// -------- func brotli.encoder.init_command_prefix_codes
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__init_command_prefix_codes(
+    wuffs_brotli__encoder* self) {
+  uint32_t v_i = 0;
+
+  v_i = 0u;
+  while (v_i < 128u) {
+    self->private_data.f_cmd_depth[v_i] = WUFFS_BROTLI__DEFAULT_COMMAND_DEPTHS[v_i];
+    self->private_data.f_cmd_bits[v_i] = WUFFS_BROTLI__DEFAULT_COMMAND_BITS[v_i];
+    v_i += 1u;
+  }
+  v_i = 0u;
+  while (v_i < 57u) {
+    self->private_data.f_cmd_code[v_i] = WUFFS_BROTLI__DEFAULT_COMMAND_CODE[v_i];
+    v_i += 1u;
+  }
+  self->private_impl.f_cmd_code_numbits = ((uint64_t)(448u));
+  return wuffs_base__make_empty_struct();
+}
+
+// -------- func brotli.encoder.get_hash_table
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint32_t
+wuffs_brotli__encoder__get_hash_table(
+    wuffs_brotli__encoder* self,
+    uint64_t a_input_size) {
+  uint64_t v_max_table_size = 0;
+  uint64_t v_htsize = 0;
+  uint32_t v_table_bits = 0;
+
+  v_max_table_size = 131072u;
+  if (self->private_impl.f_quality == 0u) {
+    v_max_table_size = 32768u;
+  }
+  v_htsize = 256u;
+  v_table_bits = 8u;
+  while ((v_htsize < v_max_table_size) && (v_htsize < a_input_size)) {
+    v_htsize <<= 1u;
+    v_table_bits += 1u;
+  }
+  if (self->private_impl.f_quality == 0u) {
+    if ((v_htsize & 699050u) == 0u) {
+      v_htsize <<= 1u;
+      v_table_bits += 1u;
+    }
+  }
+  if (v_htsize <= 131072u) {
+    wuffs_private_impl__bulk_memset(&self->private_data.f_hash_table[0], v_htsize * (size_t)4u, 0u);
+  }
+  return v_table_bits;
+}
+
+// -------- func brotli.encoder.inject_byte_padding_block
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__inject_byte_padding_block(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_workbuf) {
+  uint32_t v_seal = 0;
+  uint32_t v_seal_bits = 0;
+  uint64_t v_p = 0;
+  uint32_t v_n = 0;
+
+  v_seal = self->private_impl.f_last_bytes;
+  v_seal_bits = self->private_impl.f_last_bytes_bits;
+  self->private_impl.f_last_bytes = 0u;
+  self->private_impl.f_last_bytes_bits = 0u;
+  v_seal |= (((uint32_t)(6u)) << v_seal_bits);
+  v_seal_bits += 6u;
+  v_n = ((v_seal_bits + 7u) >> 3u);
+  if (self->private_impl.f_out_len == 0u) {
+    self->private_impl.f_out_in_tiny_buf = true;
+    self->private_impl.f_out_pos = 0u;
+  }
+  v_p = ((uint64_t)(self->private_impl.f_out_pos + self->private_impl.f_out_len));
+  if (self->private_impl.f_out_in_tiny_buf) {
+    if (v_p <= 24u) {
+      self->private_data.f_tiny_buf[v_p] = ((uint8_t)(v_seal));
+      self->private_data.f_tiny_buf[(v_p + 1u)] = ((uint8_t)((v_seal >> 8u)));
+      self->private_data.f_tiny_buf[(v_p + 2u)] = ((uint8_t)((v_seal >> 16u)));
+    }
+  } else if (v_p < ((uint64_t)(a_workbuf.len))) {
+    a_workbuf.ptr[v_p] = ((uint8_t)(v_seal));
+    if (v_seal_bits > 8u) {
+      v_p += 1u;
+      if (v_p < ((uint64_t)(a_workbuf.len))) {
+        a_workbuf.ptr[v_p] = ((uint8_t)((v_seal >> 8u)));
+      }
+    }
+    if (v_seal_bits > 16u) {
+      v_p += 1u;
+      if (v_p < ((uint64_t)(a_workbuf.len))) {
+        a_workbuf.ptr[v_p] = ((uint8_t)((v_seal >> 16u)));
+      }
+    }
+  }
+  self->private_impl.f_out_len += ((uint64_t)(v_n));
+  return wuffs_base__make_empty_struct();
+}
+
+// -------- func brotli.encoder.push_output
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__push_output(
+    wuffs_brotli__encoder* self,
+    wuffs_base__io_buffer* a_dst,
+    wuffs_base__slice_u8 a_workbuf) {
+  uint64_t v_n = 0;
+  uint64_t v_end = 0;
+
+  uint8_t* iop_a_dst = NULL;
+  uint8_t* io0_a_dst WUFFS_BASE__POTENTIALLY_UNUSED = NULL;
+  uint8_t* io1_a_dst WUFFS_BASE__POTENTIALLY_UNUSED = NULL;
+  uint8_t* io2_a_dst WUFFS_BASE__POTENTIALLY_UNUSED = NULL;
+  if (a_dst && a_dst->data.ptr) {
+    io0_a_dst = a_dst->data.ptr;
+    io1_a_dst = io0_a_dst + a_dst->meta.wi;
+    iop_a_dst = io1_a_dst;
+    io2_a_dst = io0_a_dst + a_dst->data.len;
+    if (a_dst->meta.closed) {
+      io2_a_dst = iop_a_dst;
+    }
+  }
+
+  v_end = ((uint64_t)(self->private_impl.f_out_pos + self->private_impl.f_out_len));
+  if (self->private_impl.f_out_in_tiny_buf) {
+    if ((self->private_impl.f_out_pos <= v_end) && (v_end <= 32u)) {
+      v_n = wuffs_private_impl__io_writer__copy_from_slice(&iop_a_dst, io2_a_dst,wuffs_base__make_slice_u8_ij(self->private_data.f_tiny_buf, self->private_impl.f_out_pos, v_end));
+    }
+  } else if ((self->private_impl.f_out_pos <= v_end) && (v_end <= ((uint64_t)(a_workbuf.len)))) {
+    v_n = wuffs_private_impl__io_writer__copy_from_slice(&iop_a_dst, io2_a_dst,wuffs_base__slice_u8__subslice_ij(a_workbuf, self->private_impl.f_out_pos, v_end));
+  }
+  if (v_n == 0u) {
+    self->private_impl.f_out_len = 0u;
+    if (a_dst && a_dst->data.ptr) {
+      a_dst->meta.wi = ((size_t)(iop_a_dst - a_dst->data.ptr));
+    }
+    return wuffs_base__make_empty_struct();
+  }
+  v_n = wuffs_base__u64__min(v_n, self->private_impl.f_out_len);
+  self->private_impl.f_out_pos += v_n;
+  self->private_impl.f_out_len -= v_n;
+  if (a_dst && a_dst->data.ptr) {
+    a_dst->meta.wi = ((size_t)(iop_a_dst - a_dst->data.ptr));
+  }
+
+  return wuffs_base__make_empty_struct();
+}
+
+// -------- func brotli.encoder.check_flush_complete
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__check_flush_complete(
+    wuffs_brotli__encoder* self) {
+  if ((self->private_impl.f_stream_state == 1u) && (self->private_impl.f_out_len == 0u)) {
+    self->private_impl.f_stream_state = 0u;
+    self->private_impl.f_out_in_tiny_buf = false;
+    self->private_impl.f_out_pos = 0u;
+  }
+  return wuffs_base__make_empty_struct();
+}
+
+// -------- func brotli.encoder.write_metadata_header
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint64_t
+wuffs_brotli__encoder__write_metadata_header(
+    wuffs_brotli__encoder* self,
+    uint32_t a_block_size) {
+  uint32_t v_nbits = 0;
+  uint32_t v_nbytes = 0;
+
+  self->private_impl.f_bw_ix = ((uint64_t)(self->private_impl.f_last_bytes_bits));
+  self->private_data.f_tiny_buf[0u] = ((uint8_t)(self->private_impl.f_last_bytes));
+  self->private_data.f_tiny_buf[1u] = ((uint8_t)((self->private_impl.f_last_bytes >> 8u)));
+  self->private_impl.f_last_bytes = 0u;
+  self->private_impl.f_last_bytes_bits = 0u;
+  wuffs_brotli__encoder__write_bits(self, 1u, 0u, wuffs_base__make_slice_u8(self->private_data.f_tiny_buf, 32));
+  wuffs_brotli__encoder__write_bits(self, 2u, 3u, wuffs_base__make_slice_u8(self->private_data.f_tiny_buf, 32));
+  wuffs_brotli__encoder__write_bits(self, 1u, 0u, wuffs_base__make_slice_u8(self->private_data.f_tiny_buf, 32));
+  if (a_block_size == 0u) {
+    wuffs_brotli__encoder__write_bits(self, 2u, 0u, wuffs_base__make_slice_u8(self->private_data.f_tiny_buf, 32));
+  } else {
+    v_nbits = 1u;
+    if (a_block_size > 1u) {
+      v_nbits = (wuffs_brotli__encoder__log2_floor_non_zero(self, ((uint64_t)((a_block_size - 1u)))) + 1u);
+    }
+    v_nbytes = ((v_nbits + 7u) / 8u);
+    wuffs_brotli__encoder__write_bits(self, 2u, ((uint64_t)(v_nbytes)), wuffs_base__make_slice_u8(self->private_data.f_tiny_buf, 32));
+    wuffs_brotli__encoder__write_bits(self, (8u * v_nbytes), ((uint64_t)((a_block_size - 1u))), wuffs_base__make_slice_u8(self->private_data.f_tiny_buf, 32));
+  }
+  return (((uint64_t)(self->private_impl.f_bw_ix + 7u)) >> 3u);
+}
+
+// -------- func brotli.encoder.transform_io
+
+WUFFS_BASE__GENERATED_C_CODE
+WUFFS_BASE__MAYBE_STATIC wuffs_base__status
+wuffs_brotli__encoder__transform_io(
+    wuffs_brotli__encoder* self,
+    wuffs_base__io_buffer* a_dst,
+    wuffs_base__io_buffer* a_src,
+    wuffs_base__slice_u8 a_workbuf) {
+  if (!self) {
+    return wuffs_base__make_status(wuffs_base__error__bad_receiver);
+  }
+  if (self->private_impl.magic != WUFFS_BASE__MAGIC) {
+    return wuffs_base__make_status(
+        (self->private_impl.magic == WUFFS_BASE__DISABLED)
+        ? wuffs_base__error__disabled_by_previous_error
+        : wuffs_base__error__initialize_not_called);
+  }
+  if (!a_dst || !a_src) {
+    self->private_impl.magic = WUFFS_BASE__DISABLED;
+    return wuffs_base__make_status(wuffs_base__error__bad_argument);
+  }
+  if ((self->private_impl.active_coroutine != 0) &&
+      (self->private_impl.active_coroutine != 1)) {
+    self->private_impl.magic = WUFFS_BASE__DISABLED;
+    return wuffs_base__make_status(wuffs_base__error__interleaved_coroutine_calls);
+  }
+  self->private_impl.active_coroutine = 0;
+  wuffs_base__status status = wuffs_base__make_status(NULL);
+
+  uint32_t v_op = 0;
+  uint64_t v_avail = 0;
+  uint64_t v_block_size = 0;
+  bool v_is_last = false;
+  bool v_force_flush = false;
+  uint64_t v_storage_len = 0;
+  uint32_t v_table_bits = 0;
+  uint64_t v_mark = 0;
+  uint32_t v_n32 = 0;
+  uint64_t v_ix = 0;
+
+  uint8_t* iop_a_dst = NULL;
+  uint8_t* io0_a_dst WUFFS_BASE__POTENTIALLY_UNUSED = NULL;
+  uint8_t* io1_a_dst WUFFS_BASE__POTENTIALLY_UNUSED = NULL;
+  uint8_t* io2_a_dst WUFFS_BASE__POTENTIALLY_UNUSED = NULL;
+  if (a_dst && a_dst->data.ptr) {
+    io0_a_dst = a_dst->data.ptr;
+    io1_a_dst = io0_a_dst + a_dst->meta.wi;
+    iop_a_dst = io1_a_dst;
+    io2_a_dst = io0_a_dst + a_dst->data.len;
+    if (a_dst->meta.closed) {
+      io2_a_dst = iop_a_dst;
+    }
+  }
+  const uint8_t* iop_a_src = NULL;
+  const uint8_t* io0_a_src WUFFS_BASE__POTENTIALLY_UNUSED = NULL;
+  const uint8_t* io1_a_src WUFFS_BASE__POTENTIALLY_UNUSED = NULL;
+  const uint8_t* io2_a_src WUFFS_BASE__POTENTIALLY_UNUSED = NULL;
+  if (a_src && a_src->data.ptr) {
+    io0_a_src = a_src->data.ptr;
+    io1_a_src = io0_a_src + a_src->meta.ri;
+    iop_a_src = io1_a_src;
+    io2_a_src = io0_a_src + a_src->meta.wi;
+  }
+
+  uint32_t coro_susp_point = self->private_impl.p_transform_io;
+  if (coro_susp_point) {
+    v_op = self->private_data.s_transform_io.v_op;
+    v_is_last = self->private_data.s_transform_io.v_is_last;
+    v_force_flush = self->private_data.s_transform_io.v_force_flush;
+    v_storage_len = self->private_data.s_transform_io.v_storage_len;
+    v_table_bits = self->private_data.s_transform_io.v_table_bits;
+    v_mark = self->private_data.s_transform_io.v_mark;
+  }
+  switch (coro_susp_point) {
+    WUFFS_BASE__COROUTINE_SUSPENSION_POINT_0;
+
+    wuffs_brotli__encoder__ensure_initialized(self);
+    if (self->private_impl.f_quality > 1u) {
+      status = wuffs_base__make_status(wuffs_brotli__error__unsupported_encoder_quality);
+      goto exit;
+    }
+    while (true) {
+      if (self->private_impl.f_metadata_requested) {
+        if (self->private_impl.f_stream_state == 0u) {
+          self->private_impl.f_remaining_metadata_bytes = self->private_impl.f_metadata_length;
+          self->private_impl.f_stream_state = 3u;
+        }
+        if ((self->private_impl.f_stream_state != 3u) && (self->private_impl.f_stream_state != 4u)) {
+          status = wuffs_base__make_status(wuffs_base__error__bad_call_sequence);
+          goto exit;
+        }
+        while (true) {
+          if (self->private_impl.f_out_len != 0u) {
+            if (((uint64_t)(io2_a_dst - iop_a_dst)) <= 0u) {
+              status = wuffs_base__make_status(wuffs_base__suspension__short_write);
+              WUFFS_BASE__COROUTINE_SUSPENSION_POINT_MAYBE_SUSPEND(1);
+              continue;
+            }
+            if (a_dst) {
+              a_dst->meta.wi = ((size_t)(iop_a_dst - a_dst->data.ptr));
+            }
+            wuffs_brotli__encoder__push_output(self, a_dst, a_workbuf);
+            if (a_dst) {
+              iop_a_dst = a_dst->data.ptr + a_dst->meta.wi;
+            }
+            continue;
+          }
+          if (self->private_impl.f_stream_state == 3u) {
+            self->private_impl.f_out_len = wuffs_brotli__encoder__write_metadata_header(self, self->private_impl.f_remaining_metadata_bytes);
+            self->private_impl.f_out_in_tiny_buf = true;
+            self->private_impl.f_out_pos = 0u;
+            self->private_impl.f_stream_state = 4u;
+            continue;
+          }
+          if (self->private_impl.f_remaining_metadata_bytes == 0u) {
+            self->private_impl.f_remaining_metadata_bytes = 4294967295u;
+            self->private_impl.f_stream_state = 0u;
+            self->private_impl.f_metadata_requested = false;
+            break;
+          }
+          if (((uint64_t)(io2_a_dst - iop_a_dst)) <= 0u) {
+            status = wuffs_base__make_status(wuffs_base__suspension__short_write);
+            WUFFS_BASE__COROUTINE_SUSPENSION_POINT_MAYBE_SUSPEND(2);
+            continue;
+          } else if (((uint64_t)(io2_a_src - iop_a_src)) <= 0u) {
+            if (a_src && a_src->meta.closed) {
+              status = wuffs_base__make_status(wuffs_brotli__error__truncated_input);
+              goto exit;
+            }
+            status = wuffs_base__make_status(wuffs_base__suspension__short_read);
+            WUFFS_BASE__COROUTINE_SUSPENSION_POINT_MAYBE_SUSPEND(3);
+            continue;
+          }
+          v_n32 = wuffs_private_impl__io_writer__limited_copy_u32_from_reader(
+              &iop_a_dst, io2_a_dst,self->private_impl.f_remaining_metadata_bytes, &iop_a_src, io2_a_src);
+          self->private_impl.f_remaining_metadata_bytes -= v_n32;
+        }
+        continue;
+      }
+      if (self->private_impl.f_flush_requested) {
+        v_op = 1u;
+      } else if (a_src && a_src->meta.closed) {
+        v_op = 2u;
+      } else {
+        v_op = 0u;
+      }
+      if ((self->private_impl.f_stream_state == 3u) || (self->private_impl.f_stream_state == 4u)) {
+        status = wuffs_base__make_status(wuffs_base__error__bad_call_sequence);
+        goto exit;
+      } else if ((self->private_impl.f_stream_state != 0u) && (((uint64_t)(io2_a_src - iop_a_src)) > 0u)) {
+        status = wuffs_base__make_status(wuffs_base__error__bad_call_sequence);
+        goto exit;
+      }
+      while (true) {
+        if ((self->private_impl.f_stream_state == 1u) && (self->private_impl.f_last_bytes_bits != 0u)) {
+          wuffs_brotli__encoder__inject_byte_padding_block(self, a_workbuf);
+          continue;
+        }
+        if ((self->private_impl.f_out_len != 0u) && (((uint64_t)(io2_a_dst - iop_a_dst)) > 0u)) {
+          if (a_dst) {
+            a_dst->meta.wi = ((size_t)(iop_a_dst - a_dst->data.ptr));
+          }
+          wuffs_brotli__encoder__push_output(self, a_dst, a_workbuf);
+          if (a_dst) {
+            iop_a_dst = a_dst->data.ptr + a_dst->meta.wi;
+          }
+          continue;
+        }
+        if ((self->private_impl.f_out_len == 0u) && (self->private_impl.f_stream_state == 0u) && ((((uint64_t)(io2_a_src - iop_a_src)) > 0u) || (v_op != 0u))) {
+          v_avail = ((uint64_t)(io2_a_src - iop_a_src));
+          v_block_size = wuffs_base__u64__min(v_avail, (((uint64_t)(1u)) << self->private_impl.f_lgwin));
+          v_is_last = ((v_avail == v_block_size) && (v_op == 2u));
+          v_force_flush = ((v_avail == v_block_size) && (v_op == 1u));
+          if (v_force_flush && (v_block_size == 0u)) {
+            self->private_impl.f_stream_state = 1u;
+            continue;
+          }
+          v_storage_len = ((v_block_size * 2u) + 503u + 16u);
+          if ((v_storage_len > ((uint64_t)(a_workbuf.len))) || (((uint64_t)(a_workbuf.len)) < 2u)) {
+            status = wuffs_base__make_status(wuffs_base__error__bad_workbuf_length);
+            goto exit;
+          }
+          a_workbuf.ptr[0u] = ((uint8_t)(self->private_impl.f_last_bytes));
+          a_workbuf.ptr[1u] = ((uint8_t)((self->private_impl.f_last_bytes >> 8u)));
+          self->private_impl.f_bw_ix = ((uint64_t)(self->private_impl.f_last_bytes_bits));
+          v_table_bits = wuffs_brotli__encoder__get_hash_table(self, v_block_size);
+          v_mark = ((uint64_t)(iop_a_src - io0_a_src));
+          self->private_data.s_transform_io.scratch = v_block_size;
+          WUFFS_BASE__COROUTINE_SUSPENSION_POINT(4);
+          if (self->private_data.s_transform_io.scratch > ((uint64_t)(io2_a_src - iop_a_src))) {
+            self->private_data.s_transform_io.scratch -= ((uint64_t)(io2_a_src - iop_a_src));
+            iop_a_src = io2_a_src;
+            status = wuffs_base__make_status(wuffs_base__suspension__short_read);
+            goto suspend;
+          }
+          iop_a_src += self->private_data.s_transform_io.scratch;
+          if (v_storage_len > ((uint64_t)(a_workbuf.len))) {
+            status = wuffs_base__make_status(wuffs_brotli__error__internal_error_inconsistent_encoder_state);
+            goto exit;
+          }
+          if (self->private_impl.f_quality == 0u) {
+            wuffs_brotli__encoder__compress_fragment_fast(self,
+                wuffs_private_impl__io__since(v_mark, ((uint64_t)(iop_a_src - io0_a_src)), io0_a_src),
+                v_is_last,
+                v_table_bits,
+                wuffs_base__slice_u8__subslice_j(a_workbuf, v_storage_len));
+          } else {
+            wuffs_brotli__encoder__compress_fragment_two_pass(self,
+                wuffs_private_impl__io__since(v_mark, ((uint64_t)(iop_a_src - io0_a_src)), io0_a_src),
+                v_is_last,
+                v_table_bits,
+                wuffs_base__slice_u8__subslice_j(a_workbuf, v_storage_len));
+          }
+          self->private_impl.f_out_in_tiny_buf = false;
+          self->private_impl.f_out_pos = 0u;
+          self->private_impl.f_out_len = (self->private_impl.f_bw_ix >> 3u);
+          v_ix = (self->private_impl.f_bw_ix >> 3u);
+          if (v_ix < ((uint64_t)(a_workbuf.len))) {
+            self->private_impl.f_last_bytes = ((uint32_t)(a_workbuf.ptr[v_ix]));
+          } else {
+            self->private_impl.f_last_bytes = 0u;
+          }
+          self->private_impl.f_last_bytes_bits = ((uint32_t)((self->private_impl.f_bw_ix & 7u)));
+          if (v_force_flush) {
+            self->private_impl.f_stream_state = 1u;
+          }
+          if (v_is_last) {
+            self->private_impl.f_stream_state = 2u;
+          }
+          continue;
+        }
+        break;
+      }
+      wuffs_brotli__encoder__check_flush_complete(self);
+      if (self->private_impl.f_out_len != 0u) {
+        status = wuffs_base__make_status(wuffs_base__suspension__short_write);
+        WUFFS_BASE__COROUTINE_SUSPENSION_POINT_MAYBE_SUSPEND(5);
+      } else if (v_op == 1u) {
+        self->private_impl.f_flush_requested = false;
+      } else if (self->private_impl.f_stream_state == 2u) {
+        status = wuffs_base__make_status(NULL);
+        goto ok;
+      } else if (v_op == 0u) {
+        status = wuffs_base__make_status(wuffs_base__suspension__short_read);
+        WUFFS_BASE__COROUTINE_SUSPENSION_POINT_MAYBE_SUSPEND(6);
+      } else {
+        status = wuffs_base__make_status(wuffs_brotli__error__internal_error_inconsistent_encoder_state);
+        goto exit;
+      }
+    }
+
+    ok:
+    self->private_impl.p_transform_io = 0;
+    goto exit;
+  }
+
+  goto suspend;
+  suspend:
+  self->private_impl.p_transform_io = wuffs_base__status__is_suspension(&status) ? coro_susp_point : 0;
+  self->private_impl.active_coroutine = wuffs_base__status__is_suspension(&status) ? 1 : 0;
+  self->private_data.s_transform_io.v_op = v_op;
+  self->private_data.s_transform_io.v_is_last = v_is_last;
+  self->private_data.s_transform_io.v_force_flush = v_force_flush;
+  self->private_data.s_transform_io.v_storage_len = v_storage_len;
+  self->private_data.s_transform_io.v_table_bits = v_table_bits;
+  self->private_data.s_transform_io.v_mark = v_mark;
+
+  goto exit;
+  exit:
+  if (a_dst && a_dst->data.ptr) {
+    a_dst->meta.wi = ((size_t)(iop_a_dst - a_dst->data.ptr));
+  }
+  if (a_src && a_src->data.ptr) {
+    a_src->meta.ri = ((size_t)(iop_a_src - a_src->data.ptr));
+  }
+
+  if (wuffs_base__status__is_error(&status)) {
+    self->private_impl.magic = WUFFS_BASE__DISABLED;
+  }
+  return status;
+}
+
+// -------- func brotli.encoder.set_depth
+
+WUFFS_BASE__GENERATED_C_CODE
+static bool
+wuffs_brotli__encoder__set_depth(
+    wuffs_brotli__encoder* self,
+    uint32_t a_p0,
+    wuffs_base__slice_u8 a_depth,
+    uint32_t a_max_depth) {
+  uint32_t v_stack[16] = {0};
+  uint32_t v_level = 0;
+  uint32_t v_p = 0;
+  uint64_t v_v = 0;
+
+  v_stack[0u] = 4294967295u;
+  v_p = a_p0;
+  while (true) {
+    if (self->private_data.f_tree_left[(v_p & 1023u)] != 65535u) {
+      if ((v_level >= a_max_depth) || (v_level >= 15u)) {
+        return false;
+      }
+      v_level += 1u;
+      v_stack[v_level] = ((uint32_t)(self->private_data.f_tree_right[(v_p & 1023u)]));
+      v_p = ((uint32_t)(self->private_data.f_tree_left[(v_p & 1023u)]));
+      continue;
+    }
+    v_v = ((uint64_t)(self->private_data.f_tree_right[(v_p & 1023u)]));
+    if (v_v < ((uint64_t)(a_depth.len))) {
+      a_depth.ptr[v_v] = ((uint8_t)(v_level));
+    }
+    while (v_stack[v_level] == 4294967295u) {
+      if (v_level == 0u) {
+        return true;
+      }
+      v_level -= 1u;
+    }
+    v_p = v_stack[v_level];
+    v_stack[v_level] = 4294967295u;
+  }
+}
+
+// -------- func brotli.encoder.huffman_tree_less
+
+WUFFS_BASE__GENERATED_C_CODE
+static bool
+wuffs_brotli__encoder__huffman_tree_less(
+    const wuffs_brotli__encoder* self,
+    uint32_t a_c0,
+    uint16_t a_r0,
+    uint32_t a_c1,
+    uint16_t a_r1,
+    bool a_tie_break) {
+  if (a_c0 != a_c1) {
+    return (a_c0 < a_c1);
+  }
+  return (a_tie_break && (a_r0 > a_r1));
+}
+
+// -------- func brotli.encoder.sort_huffman_tree_items
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__sort_huffman_tree_items(
+    wuffs_brotli__encoder* self,
+    uint32_t a_n,
+    bool a_tie_break) {
+  uint32_t v_i = 0;
+  uint32_t v_j = 0;
+  uint32_t v_k = 0;
+  uint32_t v_g = 0;
+  uint32_t v_gap = 0;
+  uint32_t v_tc = 0;
+  uint16_t v_tl = 0;
+  uint16_t v_tr = 0;
+
+  if (a_n < 13u) {
+    v_i = 1u;
+    while (v_i < a_n) {
+      v_tc = self->private_data.f_tree_count[(v_i & 1023u)];
+      v_tl = self->private_data.f_tree_left[(v_i & 1023u)];
+      v_tr = self->private_data.f_tree_right[(v_i & 1023u)];
+      v_k = v_i;
+      v_j = ((uint32_t)(v_i - 1u));
+      while (wuffs_brotli__encoder__huffman_tree_less(self,
+          v_tc,
+          v_tr,
+          self->private_data.f_tree_count[(v_j & 1023u)],
+          self->private_data.f_tree_right[(v_j & 1023u)],
+          a_tie_break)) {
+        self->private_data.f_tree_count[(v_k & 1023u)] = self->private_data.f_tree_count[(v_j & 1023u)];
+        self->private_data.f_tree_left[(v_k & 1023u)] = self->private_data.f_tree_left[(v_j & 1023u)];
+        self->private_data.f_tree_right[(v_k & 1023u)] = self->private_data.f_tree_right[(v_j & 1023u)];
+        v_k = v_j;
+        if (v_j == 0u) {
+          break;
+        }
+        v_j -= 1u;
+      }
+      self->private_data.f_tree_count[(v_k & 1023u)] = v_tc;
+      self->private_data.f_tree_left[(v_k & 1023u)] = v_tl;
+      self->private_data.f_tree_right[(v_k & 1023u)] = v_tr;
+      v_i += 1u;
+    }
+    return wuffs_base__make_empty_struct();
+  }
+  v_g = 0u;
+  if (a_n < 57u) {
+    v_g = 2u;
+  }
+  while (v_g < 6u) {
+    v_gap = WUFFS_BROTLI__SHELL_GAPS[v_g];
+    v_i = v_gap;
+    while (v_i < a_n) {
+      v_j = v_i;
+      v_tc = self->private_data.f_tree_count[(v_i & 1023u)];
+      v_tl = self->private_data.f_tree_left[(v_i & 1023u)];
+      v_tr = self->private_data.f_tree_right[(v_i & 1023u)];
+      while (v_j >= v_gap) {
+        if ( ! wuffs_brotli__encoder__huffman_tree_less(self,
+            v_tc,
+            v_tr,
+            self->private_data.f_tree_count[(((uint32_t)(v_j - v_gap)) & 1023u)],
+            self->private_data.f_tree_right[(((uint32_t)(v_j - v_gap)) & 1023u)],
+            a_tie_break)) {
+          break;
+        }
+        self->private_data.f_tree_count[(v_j & 1023u)] = self->private_data.f_tree_count[(((uint32_t)(v_j - v_gap)) & 1023u)];
+        self->private_data.f_tree_left[(v_j & 1023u)] = self->private_data.f_tree_left[(((uint32_t)(v_j - v_gap)) & 1023u)];
+        self->private_data.f_tree_right[(v_j & 1023u)] = self->private_data.f_tree_right[(((uint32_t)(v_j - v_gap)) & 1023u)];
+        v_j -= v_gap;
+      }
+      self->private_data.f_tree_count[(v_j & 1023u)] = v_tc;
+      self->private_data.f_tree_left[(v_j & 1023u)] = v_tl;
+      self->private_data.f_tree_right[(v_j & 1023u)] = v_tr;
+      v_i += 1u;
+    }
+    v_g += 1u;
+  }
+  return wuffs_base__make_empty_struct();
+}
+
+// -------- func brotli.encoder.set_sentinel
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__set_sentinel(
+    wuffs_brotli__encoder* self,
+    uint32_t a_i) {
+  self->private_data.f_tree_count[(a_i & 1023u)] = 4294967295u;
+  self->private_data.f_tree_left[(a_i & 1023u)] = 65535u;
+  self->private_data.f_tree_right[(a_i & 1023u)] = 65535u;
+  return wuffs_base__make_empty_struct();
+}
+
+// -------- func brotli.encoder.merge_huffman_nodes
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__merge_huffman_nodes(
+    wuffs_brotli__encoder* self,
+    uint32_t a_n) {
+  uint32_t v_i = 0;
+  uint32_t v_j = 0;
+  uint32_t v_k = 0;
+  uint32_t v_left = 0;
+  uint32_t v_right = 0;
+  uint32_t v_j_end = 0;
+
+  wuffs_brotli__encoder__set_sentinel(self, a_n);
+  wuffs_brotli__encoder__set_sentinel(self, ((uint32_t)(a_n + 1u)));
+  v_i = 0u;
+  v_j = ((uint32_t)(a_n + 1u));
+  v_k = ((uint32_t)(a_n - 1u));
+  while (v_k != 0u) {
+    if (self->private_data.f_tree_count[(v_i & 1023u)] <= self->private_data.f_tree_count[(v_j & 1023u)]) {
+      v_left = v_i;
+      v_i += 1u;
+    } else {
+      v_left = v_j;
+      v_j += 1u;
+    }
+    if (self->private_data.f_tree_count[(v_i & 1023u)] <= self->private_data.f_tree_count[(v_j & 1023u)]) {
+      v_right = v_i;
+      v_i += 1u;
+    } else {
+      v_right = v_j;
+      v_j += 1u;
+    }
+    v_j_end = ((uint32_t)(((uint32_t)(a_n * 2u)) - v_k));
+    self->private_data.f_tree_count[(v_j_end & 1023u)] = ((uint32_t)(self->private_data.f_tree_count[(v_left & 1023u)] + self->private_data.f_tree_count[(v_right & 1023u)]));
+    self->private_data.f_tree_left[(v_j_end & 1023u)] = ((uint16_t)(v_left));
+    self->private_data.f_tree_right[(v_j_end & 1023u)] = ((uint16_t)(v_right));
+    wuffs_brotli__encoder__set_sentinel(self, ((uint32_t)(v_j_end + 1u)));
+    v_k -= 1u;
+  }
+  return wuffs_base__make_empty_struct();
+}
+
+// -------- func brotli.encoder.create_huffman_tree
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__create_huffman_tree(
+    wuffs_brotli__encoder* self,
+    uint32_t a_src,
+    uint32_t a_off,
+    uint32_t a_length,
+    uint32_t a_tree_limit,
+    wuffs_base__slice_u8 a_depth) {
+  uint32_t v_count_limit = 0;
+  uint32_t v_n = 0;
+  uint64_t v_i = 0;
+  uint32_t v_count = 0;
+  uint64_t v_v = 0;
+  bool v_depth_ok = false;
+
+  v_count_limit = 1u;
+  while (true) {
+    v_n = 0u;
+    v_i = ((uint64_t)(a_length));
+    while (v_i > 0u) {
+      v_i -= 1u;
+      if (a_src == 0u) {
+        v_count = self->private_data.f_cmd_histo[(((uint64_t)(((uint64_t)(a_off)) + v_i)) & 127u)];
+      } else {
+        v_count = self->private_data.f_cl_histo[(((uint64_t)(((uint64_t)(a_off)) + v_i)) & 31u)];
+      }
+      if (v_count != 0u) {
+        self->private_data.f_tree_count[(v_n & 1023u)] = wuffs_base__u32__max(v_count, v_count_limit);
+        self->private_data.f_tree_left[(v_n & 1023u)] = 65535u;
+        self->private_data.f_tree_right[(v_n & 1023u)] = ((uint16_t)(v_i));
+        v_n += 1u;
+      }
+    }
+    if (v_n == 1u) {
+      v_v = ((uint64_t)(self->private_data.f_tree_right[0u]));
+      if (v_v < ((uint64_t)(a_depth.len))) {
+        a_depth.ptr[v_v] = 1u;
+      }
+      break;
+    } else if (v_n == 0u) {
+      break;
+    }
+    wuffs_brotli__encoder__sort_huffman_tree_items(self, v_n, true);
+    wuffs_brotli__encoder__merge_huffman_nodes(self, v_n);
+    v_depth_ok = wuffs_brotli__encoder__set_depth(self, ((uint32_t)(((uint32_t)(v_n * 2u)) - 1u)), a_depth, a_tree_limit);
+    if (v_depth_ok) {
+      break;
+    }
+    v_count_limit *= 2u;
+  }
+  return wuffs_base__make_empty_struct();
+}
+
+// -------- func brotli.encoder.reverse_bits
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint16_t
+wuffs_brotli__encoder__reverse_bits(
+    const wuffs_brotli__encoder* self,
+    uint32_t a_num_bits,
+    uint16_t a_bits) {
+  uint32_t v_retval = 0;
+  uint32_t v_bits = 0;
+  uint32_t v_i = 0;
+
+  v_bits = ((uint32_t)(a_bits));
+  v_retval = WUFFS_BROTLI__REVERSE_BITS_LUT[(v_bits & 15u)];
+  v_i = 4u;
+  while (v_i < a_num_bits) {
+    v_retval = (((uint32_t)(v_retval << 4u)) | WUFFS_BROTLI__REVERSE_BITS_LUT[((v_bits >> 4u) & 15u)]);
+    v_bits >>= 4u;
+    v_i += 4u;
+  }
+  v_retval >>= (((uint32_t)(0u - a_num_bits)) & 3u);
+  return ((uint16_t)(v_retval));
+}
+
+// -------- func brotli.encoder.convert_bit_depths_to_symbols
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__convert_bit_depths_to_symbols(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_depth,
+    uint32_t a_len,
+    uint32_t a_dst) {
+  uint16_t v_bl_count[16] = {0};
+  uint16_t v_next_code[16] = {0};
+  uint64_t v_i = 0;
+  uint32_t v_code = 0;
+  uint32_t v_d = 0;
+  uint16_t v_r = 0;
+
+  v_i = 0u;
+  while (v_i < ((uint64_t)(a_len))) {
+    if (v_i < ((uint64_t)(a_depth.len))) {
+      v_d = ((uint32_t)(((uint8_t)(a_depth.ptr[v_i] & 15u))));
+#if defined(__GNUC__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+#endif
+      v_bl_count[v_d] += 1u;
+#if defined(__GNUC__)
+#pragma GCC diagnostic pop
+#endif
+    }
+    v_i += 1u;
+  }
+  v_bl_count[0u] = 0u;
+  v_next_code[0u] = 0u;
+  v_i = 1u;
+  while (v_i < 16u) {
+    v_code = ((uint32_t)(((uint32_t)(v_code + ((uint32_t)(v_bl_count[(((uint64_t)(v_i - 1u)) & 15u)])))) << 1u));
+    v_next_code[v_i] = ((uint16_t)(v_code));
+    v_i += 1u;
+  }
+  v_i = 0u;
+  while (v_i < ((uint64_t)(a_len))) {
+    if (v_i < ((uint64_t)(a_depth.len))) {
+      v_d = ((uint32_t)(((uint8_t)(a_depth.ptr[v_i] & 15u))));
+      if (v_d != 0u) {
+        v_r = wuffs_brotli__encoder__reverse_bits(self, v_d, v_next_code[v_d]);
+        if (a_dst == 0u) {
+          self->private_data.f_tmp_bits[(v_i & 63u)] = v_r;
+        } else if (a_dst == 1u) {
+          self->private_data.f_cmd_bits[(((uint64_t)(v_i + 64u)) & 127u)] = v_r;
+        } else if (a_dst == 2u) {
+          self->private_data.f_cl_bits[(v_i & 31u)] = v_r;
+        } else {
+          self->private_data.f_lit_bits[(v_i & 255u)] = v_r;
+        }
+#if defined(__GNUC__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+#endif
+        v_next_code[v_d] += 1u;
+#if defined(__GNUC__)
+#pragma GCC diagnostic pop
+#endif
+      }
+    }
+    v_i += 1u;
+  }
+  return wuffs_base__make_empty_struct();
+}
+
+// -------- func brotli.encoder.reverse_huffman_tree
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__reverse_huffman_tree(
+    wuffs_brotli__encoder* self,
+    uint32_t a_start,
+    uint32_t a_end) {
+  uint32_t v_start = 0;
+  uint32_t v_end = 0;
+  uint8_t v_tmp = 0;
+
+  v_start = a_start;
+  v_end = ((uint32_t)(a_end - 1u));
+  while (v_start < v_end) {
+    v_tmp = self->private_data.f_huffman_tree[(v_start & 1023u)];
+    self->private_data.f_huffman_tree[(v_start & 1023u)] = self->private_data.f_huffman_tree[(v_end & 1023u)];
+    self->private_data.f_huffman_tree[(v_end & 1023u)] = v_tmp;
+    v_tmp = self->private_data.f_huffman_tree_extra_bits[(v_start & 1023u)];
+    self->private_data.f_huffman_tree_extra_bits[(v_start & 1023u)] = self->private_data.f_huffman_tree_extra_bits[(v_end & 1023u)];
+    self->private_data.f_huffman_tree_extra_bits[(v_end & 1023u)] = v_tmp;
+    v_start += 1u;
+    v_end -= 1u;
+  }
+  return wuffs_base__make_empty_struct();
+}
+
+// -------- func brotli.encoder.push_huffman_tree
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__push_huffman_tree(
+    wuffs_brotli__encoder* self,
+    uint8_t a_value,
+    uint8_t a_extra_bits) {
+  self->private_data.f_huffman_tree[(self->private_impl.f_huffman_tree_size & 1023u)] = a_value;
+  self->private_data.f_huffman_tree_extra_bits[(self->private_impl.f_huffman_tree_size & 1023u)] = a_extra_bits;
+  self->private_impl.f_huffman_tree_size += 1u;
+  return wuffs_base__make_empty_struct();
+}
+
+// -------- func brotli.encoder.write_huffman_tree_repetitions
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__write_huffman_tree_repetitions(
+    wuffs_brotli__encoder* self,
+    uint8_t a_previous_value,
+    uint8_t a_value,
+    uint32_t a_repetitions) {
+  uint32_t v_repetitions = 0;
+  uint32_t v_start = 0;
+
+  v_repetitions = a_repetitions;
+  if (a_previous_value != a_value) {
+    wuffs_brotli__encoder__push_huffman_tree(self, a_value, 0u);
+    v_repetitions -= 1u;
+  }
+  if (v_repetitions == 7u) {
+    wuffs_brotli__encoder__push_huffman_tree(self, a_value, 0u);
+    v_repetitions -= 1u;
+  }
+  if (v_repetitions < 3u) {
+    while (v_repetitions > 0u) {
+      wuffs_brotli__encoder__push_huffman_tree(self, a_value, 0u);
+      v_repetitions -= 1u;
+    }
+  } else {
+    v_start = self->private_impl.f_huffman_tree_size;
+    v_repetitions -= 3u;
+    while (true) {
+      wuffs_brotli__encoder__push_huffman_tree(self, 16u, ((uint8_t)((v_repetitions & 3u))));
+      v_repetitions >>= 2u;
+      if (v_repetitions == 0u) {
+        break;
+      }
+      v_repetitions -= 1u;
+    }
+    wuffs_brotli__encoder__reverse_huffman_tree(self, v_start, self->private_impl.f_huffman_tree_size);
+  }
+  return wuffs_base__make_empty_struct();
+}
+
+// -------- func brotli.encoder.write_huffman_tree_repetitions_zeros
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__write_huffman_tree_repetitions_zeros(
+    wuffs_brotli__encoder* self,
+    uint32_t a_repetitions) {
+  uint32_t v_repetitions = 0;
+  uint32_t v_start = 0;
+
+  v_repetitions = a_repetitions;
+  if (v_repetitions == 11u) {
+    wuffs_brotli__encoder__push_huffman_tree(self, 0u, 0u);
+    v_repetitions -= 1u;
+  }
+  if (v_repetitions < 3u) {
+    while (v_repetitions > 0u) {
+      wuffs_brotli__encoder__push_huffman_tree(self, 0u, 0u);
+      v_repetitions -= 1u;
+    }
+  } else {
+    v_start = self->private_impl.f_huffman_tree_size;
+    v_repetitions -= 3u;
+    while (true) {
+      wuffs_brotli__encoder__push_huffman_tree(self, 17u, ((uint8_t)((v_repetitions & 7u))));
+      v_repetitions >>= 3u;
+      if (v_repetitions == 0u) {
+        break;
+      }
+      v_repetitions -= 1u;
+    }
+    wuffs_brotli__encoder__reverse_huffman_tree(self, v_start, self->private_impl.f_huffman_tree_size);
+  }
+  return wuffs_base__make_empty_struct();
+}
+
+// -------- func brotli.encoder.decide_over_rle_use
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint32_t
+wuffs_brotli__encoder__decide_over_rle_use(
+    const wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_depth,
+    uint32_t a_length) {
+  uint32_t v_total_reps_zero = 0;
+  uint32_t v_total_reps_non_zero = 0;
+  uint32_t v_count_reps_zero = 0;
+  uint32_t v_count_reps_non_zero = 0;
+  uint64_t v_i = 0;
+  uint64_t v_k = 0;
+  uint64_t v_length = 0;
+  uint32_t v_reps = 0;
+  uint8_t v_value = 0;
+  uint32_t v_ret = 0;
+
+  v_length = ((uint64_t)(a_length));
+  v_count_reps_zero = 1u;
+  v_count_reps_non_zero = 1u;
+  v_i = 0u;
+  while (v_i < v_length) {
+    if (v_i >= ((uint64_t)(a_depth.len))) {
+      break;
+    }
+    v_value = a_depth.ptr[v_i];
+    v_reps = 1u;
+    v_k = ((uint64_t)(v_i + 1u));
+    while ((v_k < v_length) && (v_k < ((uint64_t)(a_depth.len)))) {
+      if (a_depth.ptr[v_k] != v_value) {
+        break;
+      }
+      v_reps += 1u;
+      v_k += 1u;
+    }
+    if ((v_reps >= 3u) && (v_value == 0u)) {
+      v_total_reps_zero += v_reps;
+      v_count_reps_zero += 1u;
+    }
+    if ((v_reps >= 4u) && (v_value != 0u)) {
+      v_total_reps_non_zero += v_reps;
+      v_count_reps_non_zero += 1u;
+    }
+    v_i += ((uint64_t)(v_reps));
+  }
+  if (v_total_reps_non_zero > ((uint32_t)(v_count_reps_non_zero * 2u))) {
+    v_ret |= 1u;
+  }
+  if (v_total_reps_zero > ((uint32_t)(v_count_reps_zero * 2u))) {
+    v_ret |= 2u;
+  }
+  return v_ret;
+}
+
+// -------- func brotli.encoder.write_huffman_tree
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__write_huffman_tree(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_depth,
+    uint32_t a_length) {
+  uint8_t v_previous_value = 0;
+  uint64_t v_i = 0;
+  uint64_t v_k = 0;
+  uint64_t v_length = 0;
+  uint32_t v_reps = 0;
+  uint64_t v_new_length = 0;
+  uint32_t v_rle = 0;
+  uint8_t v_value = 0;
+
+  v_previous_value = 8u;
+  v_length = ((uint64_t)(a_length));
+  v_new_length = v_length;
+  v_i = 0u;
+  while (v_i < v_length) {
+    v_k = ((uint64_t)(((uint64_t)(v_length - v_i)) - 1u));
+    if (v_k >= ((uint64_t)(a_depth.len))) {
+      break;
+    }
+    if (a_depth.ptr[v_k] == 0u) {
+      v_new_length -= 1u;
+    } else {
+      break;
+    }
+    v_i += 1u;
+  }
+  if (v_length > 50u) {
+    v_rle = wuffs_brotli__encoder__decide_over_rle_use(self, a_depth, ((uint32_t)(v_new_length)));
+  }
+  v_i = 0u;
+  while (v_i < v_new_length) {
+    if (v_i >= ((uint64_t)(a_depth.len))) {
+      break;
+    }
+    v_value = a_depth.ptr[v_i];
+    v_reps = 1u;
+    if (((v_value != 0u) && ((v_rle & 1u) != 0u)) || ((v_value == 0u) && ((v_rle & 2u) != 0u))) {
+      v_k = ((uint64_t)(v_i + 1u));
+      while ((v_k < v_new_length) && (v_k < ((uint64_t)(a_depth.len)))) {
+        if (a_depth.ptr[v_k] != v_value) {
+          break;
+        }
+        v_reps += 1u;
+        v_k += 1u;
+      }
+    }
+    if (v_value == 0u) {
+      wuffs_brotli__encoder__write_huffman_tree_repetitions_zeros(self, v_reps);
+    } else {
+      wuffs_brotli__encoder__write_huffman_tree_repetitions(self, v_previous_value, v_value, v_reps);
+      v_previous_value = v_value;
+    }
+    v_i += ((uint64_t)(v_reps));
+  }
+  return wuffs_base__make_empty_struct();
+}
+
+// -------- func brotli.encoder.store_huffman_tree_of_huffman_tree_to_bit_mask
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__store_huffman_tree_of_huffman_tree_to_bit_mask(
+    wuffs_brotli__encoder* self,
+    uint32_t a_num_codes,
+    wuffs_base__slice_u8 a_s) {
+  uint32_t v_skip_some = 0;
+  uint32_t v_codes_to_store = 0;
+  uint32_t v_i = 0;
+  uint32_t v_l = 0;
+
+  v_codes_to_store = 18u;
+  if (a_num_codes > 1u) {
+    while (v_codes_to_store > 0u) {
+      if (self->private_data.f_cl_depth[WUFFS_BROTLI__STORAGE_ORDER[(v_codes_to_store - 1u)]] != 0u) {
+        break;
+      }
+      v_codes_to_store -= 1u;
+    }
+  }
+  if ((self->private_data.f_cl_depth[WUFFS_BROTLI__STORAGE_ORDER[0u]] == 0u) && (self->private_data.f_cl_depth[WUFFS_BROTLI__STORAGE_ORDER[1u]] == 0u)) {
+    v_skip_some = 2u;
+    if (self->private_data.f_cl_depth[WUFFS_BROTLI__STORAGE_ORDER[2u]] == 0u) {
+      v_skip_some = 3u;
+    }
+  }
+  wuffs_brotli__encoder__write_bits(self, 2u, ((uint64_t)(v_skip_some)), a_s);
+  v_i = v_skip_some;
+  while ((v_i < ((uint32_t)(v_codes_to_store))) && (v_i < 18u)) {
+    v_l = ((uint32_t)(self->private_data.f_cl_depth[WUFFS_BROTLI__STORAGE_ORDER[v_i]]));
+    if (v_l < 6u) {
+      wuffs_brotli__encoder__write_bits(self, WUFFS_BROTLI__HUFFMAN_BIT_LENGTH_HUFFMAN_CODE_BIT_LENGTHS[v_l], WUFFS_BROTLI__HUFFMAN_BIT_LENGTH_HUFFMAN_CODE_SYMBOLS[v_l], a_s);
+    }
+    v_i += 1u;
+  }
+  return wuffs_base__make_empty_struct();
+}
+
+// -------- func brotli.encoder.store_huffman_tree_to_bit_mask
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__store_huffman_tree_to_bit_mask(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_s) {
+  uint32_t v_i = 0;
+  uint32_t v_ix = 0;
+
+  v_i = 0u;
+  while (v_i < self->private_impl.f_huffman_tree_size) {
+    v_ix = ((uint32_t)(((uint8_t)(self->private_data.f_huffman_tree[(v_i & 1023u)] & 31u))));
+    wuffs_brotli__encoder__write_bits(self, ((uint32_t)(self->private_data.f_cl_depth[v_ix])), ((uint64_t)(self->private_data.f_cl_bits[v_ix])), a_s);
+    if (v_ix == 16u) {
+      wuffs_brotli__encoder__write_bits(self, 2u, ((uint64_t)(self->private_data.f_huffman_tree_extra_bits[(v_i & 1023u)])), a_s);
+    } else if (v_ix == 17u) {
+      wuffs_brotli__encoder__write_bits(self, 3u, ((uint64_t)(self->private_data.f_huffman_tree_extra_bits[(v_i & 1023u)])), a_s);
+    }
+    v_i += 1u;
+  }
+  return wuffs_base__make_empty_struct();
+}
+
+// -------- func brotli.encoder.store_huffman_tree
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__store_huffman_tree(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_depths,
+    uint32_t a_num,
+    wuffs_base__slice_u8 a_s) {
+  uint32_t v_i = 0;
+  uint32_t v_num_codes = 0;
+  uint32_t v_code = 0;
+
+  self->private_impl.f_huffman_tree_size = 0u;
+  wuffs_brotli__encoder__write_huffman_tree(self, a_depths, a_num);
+  v_i = 0u;
+  while (v_i < 32u) {
+    self->private_data.f_cl_histo[v_i] = 0u;
+    self->private_data.f_cl_depth[v_i] = 0u;
+    v_i += 1u;
+  }
+  v_i = 0u;
+  while (v_i < self->private_impl.f_huffman_tree_size) {
+    self->private_data.f_cl_histo[((uint8_t)(self->private_data.f_huffman_tree[(v_i & 1023u)] & 31u))] += 1u;
+    v_i += 1u;
+  }
+  v_i = 0u;
+  while (v_i < 18u) {
+    if (self->private_data.f_cl_histo[v_i] != 0u) {
+      if (v_num_codes == 0u) {
+        v_code = v_i;
+        v_num_codes = 1u;
+      } else if (v_num_codes == 1u) {
+        v_num_codes = 2u;
+        break;
+      }
+    }
+    v_i += 1u;
+  }
+  wuffs_brotli__encoder__create_huffman_tree(self,
+      1u,
+      0u,
+      18u,
+      5u,
+      wuffs_base__make_slice_u8(self->private_data.f_cl_depth, 32));
+  wuffs_brotli__encoder__convert_bit_depths_to_symbols(self, wuffs_base__make_slice_u8(self->private_data.f_cl_depth, 32), 18u, 2u);
+  wuffs_brotli__encoder__store_huffman_tree_of_huffman_tree_to_bit_mask(self, v_num_codes, a_s);
+  if (v_num_codes == 1u) {
+    self->private_data.f_cl_depth[(v_code & 31u)] = 0u;
+  }
+  wuffs_brotli__encoder__store_huffman_tree_to_bit_mask(self, a_s);
+  return wuffs_base__make_empty_struct();
+}
+
+// -------- func brotli.encoder.build_and_store_huffman_tree_fast
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__build_and_store_huffman_tree_fast(
+    wuffs_brotli__encoder* self,
+    uint64_t a_histogram_total,
+    uint32_t a_max_bits,
+    wuffs_base__slice_u8 a_s) {
+  uint32_t v_count = 0;
+  uint32_t v_symbols[4] = {0};
+  uint32_t v_length = 0;
+  uint64_t v_total = 0;
+  uint32_t v_count_limit = 0;
+  uint32_t v_n = 0;
+  uint32_t v_l = 0;
+  uint32_t v_h = 0;
+  uint32_t v_i = 0;
+  uint32_t v_j = 0;
+  uint32_t v_tmp = 0;
+  bool v_depth_ok = false;
+  uint32_t v_value = 0;
+  uint32_t v_prev_value = 0;
+  uint32_t v_reps = 0;
+  uint32_t v_k = 0;
+
+  v_total = a_histogram_total;
+  while ((v_total != 0u) && (v_length < 256u)) {
+    v_h = self->private_data.f_histogram[v_length];
+    if (v_h != 0u) {
+      if (v_count < 4u) {
+        v_symbols[v_count] = v_length;
+      }
+      v_count += 1u;
+      v_total -= ((uint64_t)(v_h));
+    }
+    v_length += 1u;
+  }
+  if (v_count <= 1u) {
+    wuffs_brotli__encoder__write_bits(self, 4u, 1u, a_s);
+    wuffs_brotli__encoder__write_bits(self, a_max_bits, ((uint64_t)(v_symbols[0u])), a_s);
+    self->private_data.f_lit_depth[(v_symbols[0u] & 255u)] = 0u;
+    self->private_data.f_lit_bits[(v_symbols[0u] & 255u)] = 0u;
+    return wuffs_base__make_empty_struct();
+  }
+  v_i = 0u;
+  while (v_i < v_length) {
+    self->private_data.f_lit_depth[(v_i & 255u)] = 0u;
+    v_i += 1u;
+  }
+  v_count_limit = 1u;
+  while (true) {
+    v_n = 0u;
+    v_l = v_length;
+    while (v_l > 0u) {
+      v_l -= 1u;
+      v_h = self->private_data.f_histogram[(v_l & 255u)];
+      if (v_h != 0u) {
+        if (v_h >= v_count_limit) {
+          self->private_data.f_tree_count[(v_n & 1023u)] = v_h;
+        } else {
+          self->private_data.f_tree_count[(v_n & 1023u)] = v_count_limit;
+        }
+        self->private_data.f_tree_left[(v_n & 1023u)] = 65535u;
+        self->private_data.f_tree_right[(v_n & 1023u)] = ((uint16_t)(v_l));
+        v_n += 1u;
+      }
+    }
+    wuffs_brotli__encoder__sort_huffman_tree_items(self, v_n, false);
+    wuffs_brotli__encoder__merge_huffman_nodes(self, v_n);
+    v_depth_ok = wuffs_brotli__encoder__set_depth(self, ((uint32_t)(((uint32_t)(v_n * 2u)) - 1u)), wuffs_base__make_slice_u8(self->private_data.f_lit_depth, 256), 14u);
+    if (v_depth_ok) {
+      break;
+    }
+    v_count_limit *= 2u;
+  }
+  wuffs_brotli__encoder__convert_bit_depths_to_symbols(self, wuffs_base__make_slice_u8(self->private_data.f_lit_depth, 256), v_length, 3u);
+  if (v_count <= 4u) {
+    wuffs_brotli__encoder__write_bits(self, 2u, 1u, a_s);
+    wuffs_brotli__encoder__write_bits(self, 2u, ((uint64_t)(((uint32_t)(v_count - 1u)))), a_s);
+    v_i = 0u;
+    while (v_i < v_count) {
+      v_j = ((uint32_t)(v_i + 1u));
+      while (v_j < v_count) {
+        if (self->private_data.f_lit_depth[(v_symbols[(v_j & 3u)] & 255u)] < self->private_data.f_lit_depth[(v_symbols[(v_i & 3u)] & 255u)]) {
+          v_tmp = v_symbols[(v_j & 3u)];
+          v_symbols[(v_j & 3u)] = v_symbols[(v_i & 3u)];
+          v_symbols[(v_i & 3u)] = v_tmp;
+        }
+        v_j += 1u;
+      }
+      v_i += 1u;
+    }
+    wuffs_brotli__encoder__write_bits(self, a_max_bits, ((uint64_t)(v_symbols[0u])), a_s);
+    wuffs_brotli__encoder__write_bits(self, a_max_bits, ((uint64_t)(v_symbols[1u])), a_s);
+    if (v_count >= 3u) {
+      wuffs_brotli__encoder__write_bits(self, a_max_bits, ((uint64_t)(v_symbols[2u])), a_s);
+    }
+    if (v_count >= 4u) {
+      wuffs_brotli__encoder__write_bits(self, a_max_bits, ((uint64_t)(v_symbols[3u])), a_s);
+      if (self->private_data.f_lit_depth[(v_symbols[0u] & 255u)] == 1u) {
+        wuffs_brotli__encoder__write_bits(self, 1u, 1u, a_s);
+      } else {
+        wuffs_brotli__encoder__write_bits(self, 1u, 0u, a_s);
+      }
+    }
+  } else {
+    wuffs_brotli__encoder__write_bits(self, 40u, 1096648316244u, a_s);
+    v_prev_value = 8u;
+    v_i = 0u;
+    while (v_i < v_length) {
+      v_value = ((uint32_t)(self->private_data.f_lit_depth[(v_i & 255u)]));
+      v_reps = 1u;
+      v_k = ((uint32_t)(v_i + 1u));
+      while (v_k < v_length) {
+        if (((uint32_t)(self->private_data.f_lit_depth[(v_k & 255u)])) != v_value) {
+          break;
+        }
+        v_reps += 1u;
+        v_k += 1u;
+      }
+      v_i += v_reps;
+      if (v_value == 0u) {
+        wuffs_brotli__encoder__write_bits(self, WUFFS_BROTLI__ZERO_REPS_DEPTH[(v_reps & 511u)], WUFFS_BROTLI__ZERO_REPS_BITS[(v_reps & 511u)], a_s);
+      } else {
+        if (v_prev_value != v_value) {
+          wuffs_brotli__encoder__write_bits(self, WUFFS_BROTLI__CODE_LENGTH_DEPTH[(v_value & 15u)], WUFFS_BROTLI__CODE_LENGTH_BITS[(v_value & 15u)], a_s);
+          v_reps -= 1u;
+        }
+        if (v_reps < 3u) {
+          while (v_reps != 0u) {
+            v_reps -= 1u;
+            wuffs_brotli__encoder__write_bits(self, WUFFS_BROTLI__CODE_LENGTH_DEPTH[(v_value & 15u)], WUFFS_BROTLI__CODE_LENGTH_BITS[(v_value & 15u)], a_s);
+          }
+        } else {
+          v_reps -= 3u;
+          wuffs_brotli__encoder__write_bits(self, WUFFS_BROTLI__NON_ZERO_REPS_DEPTH[(v_reps & 511u)], WUFFS_BROTLI__NON_ZERO_REPS_BITS[(v_reps & 511u)], a_s);
+        }
+        v_prev_value = v_value;
+      }
+    }
+  }
+  return wuffs_base__make_empty_struct();
+}
+
+// -------- func brotli.encoder.copy_tmp_bits_to_cmd_bits
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__copy_tmp_bits_to_cmd_bits(
+    wuffs_brotli__encoder* self,
+    uint32_t a_dst,
+    uint32_t a_src,
+    uint32_t a_n) {
+  uint32_t v_i = 0;
+
+  v_i = 0u;
+  while (v_i < a_n) {
+    self->private_data.f_cmd_bits[(((uint32_t)(a_dst + v_i)) & 127u)] = self->private_data.f_tmp_bits[(((uint32_t)(a_src + v_i)) & 63u)];
+    v_i += 1u;
+  }
+  return wuffs_base__make_empty_struct();
+}
+
+// -------- func brotli.encoder.hash_fast
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint32_t
+wuffs_brotli__encoder__hash_fast(
+    const wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_input,
+    uint64_t a_i,
+    uint32_t a_shift) {
+  uint64_t v_h = 0;
+
+  v_h = ((uint64_t)(((uint64_t)(wuffs_brotli__encoder__load64le(self, a_input, a_i) << 24u)) * 506832829u));
+  return ((uint32_t)((v_h >> (a_shift & 63u))));
+}
+
+// -------- func brotli.encoder.hash_bytes_at_offset_fast
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint32_t
+wuffs_brotli__encoder__hash_bytes_at_offset_fast(
+    const wuffs_brotli__encoder* self,
+    uint64_t a_v,
+    uint32_t a_offset,
+    uint32_t a_shift) {
+  uint64_t v_h = 0;
+
+  v_h = ((uint64_t)(((uint64_t)((a_v >> (((uint32_t)(8u * a_offset)) & 63u)) << 24u)) * 506832829u));
+  return ((uint32_t)((v_h >> (a_shift & 63u))));
+}
+
+// -------- func brotli.encoder.is_match_fast
+
+WUFFS_BASE__GENERATED_C_CODE
+static bool
+wuffs_brotli__encoder__is_match_fast(
+    const wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_input,
+    uint64_t a_i1,
+    uint64_t a_i2) {
+  if ((a_i1 >= ((uint64_t)(a_input.len))) || (a_i2 >= ((uint64_t)(a_input.len)))) {
+    return false;
+  }
+  if (wuffs_brotli__encoder__load32le(self, a_input, a_i1) != wuffs_brotli__encoder__load32le(self, a_input, a_i2)) {
+    return false;
+  }
+  if ((((uint64_t)(a_i1 + 4u)) >= ((uint64_t)(a_input.len))) || (((uint64_t)(a_i2 + 4u)) >= ((uint64_t)(a_input.len)))) {
+    return false;
+  }
+  return (a_input.ptr[((uint64_t)(a_i1 + 4u))] == a_input.ptr[((uint64_t)(a_i2 + 4u))]);
+}
+
+// -------- func brotli.encoder.build_and_store_literal_prefix_code
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint64_t
+wuffs_brotli__encoder__build_and_store_literal_prefix_code(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_input,
+    uint64_t a_from,
+    uint64_t a_input_size,
+    wuffs_base__slice_u8 a_s) {
+  uint64_t v_histogram_total = 0;
+  uint64_t v_i = 0;
+  uint32_t v_j = 0;
+  uint32_t v_adjust = 0;
+  uint64_t v_literal_ratio = 0;
+  uint32_t v_h = 0;
+
+  v_j = 0u;
+  while (v_j < 256u) {
+    self->private_data.f_histogram[v_j] = 0u;
+    v_j += 1u;
+  }
+  if (a_input_size < 32768u) {
+    v_i = 0u;
+    while (v_i < a_input_size) {
+      if (((uint64_t)(a_from + v_i)) < ((uint64_t)(a_input.len))) {
+        self->private_data.f_histogram[a_input.ptr[((uint64_t)(a_from + v_i))]] += 1u;
+      }
+      v_i += 1u;
+    }
+    v_histogram_total = a_input_size;
+    v_j = 0u;
+    while (v_j < 256u) {
+      v_adjust = (2u * wuffs_base__u32__min(self->private_data.f_histogram[v_j], 11u));
+      self->private_data.f_histogram[v_j] += v_adjust;
+      v_histogram_total += ((uint64_t)(v_adjust));
+      v_j += 1u;
+    }
+  } else {
+    v_i = 0u;
+    while (v_i < a_input_size) {
+      if (((uint64_t)(a_from + v_i)) < ((uint64_t)(a_input.len))) {
+        self->private_data.f_histogram[a_input.ptr[((uint64_t)(a_from + v_i))]] += 1u;
+      }
+      v_i += 29u;
+    }
+    v_histogram_total = (((uint64_t)(a_input_size + 28u)) / 29u);
+    v_j = 0u;
+    while (v_j < 256u) {
+      v_adjust = (1u + (2u * wuffs_base__u32__min(self->private_data.f_histogram[v_j], 11u)));
+      self->private_data.f_histogram[v_j] += v_adjust;
+      v_histogram_total += ((uint64_t)(v_adjust));
+      v_j += 1u;
+    }
+  }
+  wuffs_brotli__encoder__build_and_store_huffman_tree_fast(self, v_histogram_total, 8u, a_s);
+  v_j = 0u;
+  while (v_j < 256u) {
+    v_h = self->private_data.f_histogram[v_j];
+    if (v_h != 0u) {
+      v_literal_ratio += ((uint64_t)(((uint32_t)(v_h * ((uint32_t)(self->private_data.f_lit_depth[v_j]))))));
+    }
+    v_j += 1u;
+  }
+  if (v_histogram_total == 0u) {
+    return 0u;
+  }
+  return (((uint64_t)(v_literal_ratio * 125u)) / v_histogram_total);
+}
+
+// -------- func brotli.encoder.build_and_store_command_prefix_code_fast
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__build_and_store_command_prefix_code_fast(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_s) {
+  uint32_t v_i = 0;
+
+  wuffs_private_impl__bulk_memset(&self->private_data.f_tmp_depth[0], 704u, 0u);
+  wuffs_brotli__encoder__create_huffman_tree(self,
+      0u,
+      0u,
+      64u,
+      15u,
+      wuffs_base__make_slice_u8(self->private_data.f_cmd_depth, 64));
+  wuffs_brotli__encoder__create_huffman_tree(self,
+      0u,
+      64u,
+      64u,
+      14u,
+      wuffs_base__make_slice_u8_ij(self->private_data.f_cmd_depth, 64, 128));
+  wuffs_private_impl__slice_u8__copy_from_slice(wuffs_base__make_slice_u8_ij(self->private_data.f_tmp_depth, 0, 24), wuffs_base__make_slice_u8_ij(self->private_data.f_cmd_depth, 0, 24));
+  wuffs_private_impl__slice_u8__copy_from_slice(wuffs_base__make_slice_u8_ij(self->private_data.f_tmp_depth, 24, 32), wuffs_base__make_slice_u8_ij(self->private_data.f_cmd_depth, 40, 48));
+  wuffs_private_impl__slice_u8__copy_from_slice(wuffs_base__make_slice_u8_ij(self->private_data.f_tmp_depth, 32, 40), wuffs_base__make_slice_u8_ij(self->private_data.f_cmd_depth, 24, 32));
+  wuffs_private_impl__slice_u8__copy_from_slice(wuffs_base__make_slice_u8_ij(self->private_data.f_tmp_depth, 40, 48), wuffs_base__make_slice_u8_ij(self->private_data.f_cmd_depth, 48, 56));
+  wuffs_private_impl__slice_u8__copy_from_slice(wuffs_base__make_slice_u8_ij(self->private_data.f_tmp_depth, 48, 56), wuffs_base__make_slice_u8_ij(self->private_data.f_cmd_depth, 32, 40));
+  wuffs_private_impl__slice_u8__copy_from_slice(wuffs_base__make_slice_u8_ij(self->private_data.f_tmp_depth, 56, 64), wuffs_base__make_slice_u8_ij(self->private_data.f_cmd_depth, 56, 64));
+  wuffs_brotli__encoder__convert_bit_depths_to_symbols(self, wuffs_base__make_slice_u8(self->private_data.f_tmp_depth, 704), 64u, 0u);
+  wuffs_brotli__encoder__copy_tmp_bits_to_cmd_bits(self, 0u, 0u, 24u);
+  wuffs_brotli__encoder__copy_tmp_bits_to_cmd_bits(self, 24u, 32u, 8u);
+  wuffs_brotli__encoder__copy_tmp_bits_to_cmd_bits(self, 32u, 48u, 8u);
+  wuffs_brotli__encoder__copy_tmp_bits_to_cmd_bits(self, 40u, 24u, 8u);
+  wuffs_brotli__encoder__copy_tmp_bits_to_cmd_bits(self, 48u, 40u, 8u);
+  wuffs_brotli__encoder__copy_tmp_bits_to_cmd_bits(self, 56u, 56u, 8u);
+  wuffs_brotli__encoder__convert_bit_depths_to_symbols(self, wuffs_base__make_slice_u8_ij(self->private_data.f_cmd_depth, 64, 128), 64u, 1u);
+  wuffs_private_impl__bulk_memset(&self->private_data.f_tmp_depth[0], 64u, 0u);
+  wuffs_private_impl__slice_u8__copy_from_slice(wuffs_base__make_slice_u8_ij(self->private_data.f_tmp_depth, 0, 8), wuffs_base__make_slice_u8_ij(self->private_data.f_cmd_depth, 0, 8));
+  wuffs_private_impl__slice_u8__copy_from_slice(wuffs_base__make_slice_u8_ij(self->private_data.f_tmp_depth, 64, 72), wuffs_base__make_slice_u8_ij(self->private_data.f_cmd_depth, 8, 16));
+  wuffs_private_impl__slice_u8__copy_from_slice(wuffs_base__make_slice_u8_ij(self->private_data.f_tmp_depth, 128, 136), wuffs_base__make_slice_u8_ij(self->private_data.f_cmd_depth, 16, 24));
+  wuffs_private_impl__slice_u8__copy_from_slice(wuffs_base__make_slice_u8_ij(self->private_data.f_tmp_depth, 192, 200), wuffs_base__make_slice_u8_ij(self->private_data.f_cmd_depth, 24, 32));
+  wuffs_private_impl__slice_u8__copy_from_slice(wuffs_base__make_slice_u8_ij(self->private_data.f_tmp_depth, 384, 392), wuffs_base__make_slice_u8_ij(self->private_data.f_cmd_depth, 32, 40));
+  v_i = 0u;
+  while (v_i < 8u) {
+    self->private_data.f_tmp_depth[(128u + (8u * v_i))] = self->private_data.f_cmd_depth[(40u + v_i)];
+    self->private_data.f_tmp_depth[(256u + (8u * v_i))] = self->private_data.f_cmd_depth[(48u + v_i)];
+    self->private_data.f_tmp_depth[(448u + (8u * v_i))] = self->private_data.f_cmd_depth[(56u + v_i)];
+    v_i += 1u;
+  }
+  wuffs_brotli__encoder__store_huffman_tree(self, wuffs_base__make_slice_u8(self->private_data.f_tmp_depth, 704), 704u, a_s);
+  wuffs_brotli__encoder__store_huffman_tree(self, wuffs_base__make_slice_u8_ij(self->private_data.f_cmd_depth, 64, 128), 64u, a_s);
+  return wuffs_base__make_empty_struct();
+}
+
+// -------- func brotli.encoder.emit_cmd_fast
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__emit_cmd_fast(
+    wuffs_brotli__encoder* self,
+    uint64_t a_code,
+    wuffs_base__slice_u8 a_s) {
+  wuffs_brotli__encoder__write_bits(self, ((uint32_t)(self->private_data.f_cmd_depth[(a_code & 127u)])), ((uint64_t)(self->private_data.f_cmd_bits[(a_code & 127u)])), a_s);
+  self->private_data.f_cmd_histo[(a_code & 127u)] += 1u;
+  return wuffs_base__make_empty_struct();
+}
+
+// -------- func brotli.encoder.emit_insert_len_fast
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__emit_insert_len_fast(
+    wuffs_brotli__encoder* self,
+    uint64_t a_insertlen,
+    wuffs_base__slice_u8 a_s) {
+  uint64_t v_tail = 0;
+  uint32_t v_nbits = 0;
+  uint64_t v_prefix = 0;
+
+  if (a_insertlen < 6u) {
+    wuffs_brotli__encoder__emit_cmd_fast(self, (a_insertlen + 40u), a_s);
+  } else if (a_insertlen < 130u) {
+    v_tail = (a_insertlen - 2u);
+    v_nbits = ((uint32_t)(wuffs_brotli__encoder__log2_floor_non_zero(self, v_tail) - 1u));
+    v_prefix = (v_tail >> (v_nbits & 63u));
+    wuffs_brotli__encoder__emit_cmd_fast(self, ((uint64_t)(((uint64_t)(((uint64_t)(((uint64_t)(v_nbits)) << 1u)) + v_prefix)) + 42u)), a_s);
+    wuffs_brotli__encoder__write_bits(self, v_nbits, ((uint64_t)(v_tail - ((uint64_t)(v_prefix << (v_nbits & 63u))))), a_s);
+  } else if (a_insertlen < 2114u) {
+    v_tail = (a_insertlen - 66u);
+    v_nbits = wuffs_brotli__encoder__log2_floor_non_zero(self, v_tail);
+    wuffs_brotli__encoder__emit_cmd_fast(self, (((uint64_t)(v_nbits)) + 50u), a_s);
+    wuffs_brotli__encoder__write_bits(self, v_nbits, ((uint64_t)(v_tail - (((uint64_t)(1u)) << v_nbits))), a_s);
+  } else {
+    wuffs_brotli__encoder__emit_cmd_fast(self, 61u, a_s);
+    wuffs_brotli__encoder__write_bits(self, 12u, ((uint64_t)(a_insertlen - 2114u)), a_s);
+  }
+  return wuffs_base__make_empty_struct();
+}
+
+// -------- func brotli.encoder.emit_long_insert_len_fast
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__emit_long_insert_len_fast(
+    wuffs_brotli__encoder* self,
+    uint64_t a_insertlen,
+    wuffs_base__slice_u8 a_s) {
+  if (a_insertlen < 22594u) {
+    wuffs_brotli__encoder__emit_cmd_fast(self, 62u, a_s);
+    wuffs_brotli__encoder__write_bits(self, 14u, ((uint64_t)(a_insertlen - 6210u)), a_s);
+  } else {
+    wuffs_brotli__encoder__emit_cmd_fast(self, 63u, a_s);
+    wuffs_brotli__encoder__write_bits(self, 24u, ((uint64_t)(a_insertlen - 22594u)), a_s);
+  }
+  return wuffs_base__make_empty_struct();
+}
+
+// -------- func brotli.encoder.emit_copy_len_fast
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__emit_copy_len_fast(
+    wuffs_brotli__encoder* self,
+    uint64_t a_copylen,
+    wuffs_base__slice_u8 a_s) {
+  uint64_t v_tail = 0;
+  uint32_t v_nbits = 0;
+  uint64_t v_prefix = 0;
+
+  if (a_copylen < 10u) {
+    wuffs_brotli__encoder__emit_cmd_fast(self, (a_copylen + 14u), a_s);
+  } else if (a_copylen < 134u) {
+    v_tail = (a_copylen - 6u);
+    v_nbits = ((uint32_t)(wuffs_brotli__encoder__log2_floor_non_zero(self, v_tail) - 1u));
+    v_prefix = (v_tail >> (v_nbits & 63u));
+    wuffs_brotli__encoder__emit_cmd_fast(self, ((uint64_t)(((uint64_t)(((uint64_t)(((uint64_t)(v_nbits)) << 1u)) + v_prefix)) + 20u)), a_s);
+    wuffs_brotli__encoder__write_bits(self, v_nbits, ((uint64_t)(v_tail - ((uint64_t)(v_prefix << (v_nbits & 63u))))), a_s);
+  } else if (a_copylen < 2118u) {
+    v_tail = (a_copylen - 70u);
+    v_nbits = wuffs_brotli__encoder__log2_floor_non_zero(self, v_tail);
+    wuffs_brotli__encoder__emit_cmd_fast(self, (((uint64_t)(v_nbits)) + 28u), a_s);
+    wuffs_brotli__encoder__write_bits(self, v_nbits, ((uint64_t)(v_tail - (((uint64_t)(1u)) << v_nbits))), a_s);
+  } else {
+    wuffs_brotli__encoder__emit_cmd_fast(self, 39u, a_s);
+    wuffs_brotli__encoder__write_bits(self, 24u, ((uint64_t)(a_copylen - 2118u)), a_s);
+  }
+  return wuffs_base__make_empty_struct();
+}
+
+// -------- func brotli.encoder.emit_copy_len_last_distance_fast
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__emit_copy_len_last_distance_fast(
+    wuffs_brotli__encoder* self,
+    uint64_t a_copylen,
+    wuffs_base__slice_u8 a_s) {
+  uint64_t v_tail = 0;
+  uint32_t v_nbits = 0;
+  uint64_t v_prefix = 0;
+
+  if (a_copylen < 12u) {
+    wuffs_brotli__encoder__emit_cmd_fast(self, ((uint64_t)(a_copylen - 4u)), a_s);
+  } else if (a_copylen < 72u) {
+    v_tail = (a_copylen - 8u);
+    v_nbits = ((uint32_t)(wuffs_brotli__encoder__log2_floor_non_zero(self, v_tail) - 1u));
+    v_prefix = (v_tail >> (v_nbits & 63u));
+    wuffs_brotli__encoder__emit_cmd_fast(self, ((uint64_t)(((uint64_t)(((uint64_t)(((uint64_t)(v_nbits)) << 1u)) + v_prefix)) + 4u)), a_s);
+    wuffs_brotli__encoder__write_bits(self, v_nbits, ((uint64_t)(v_tail - ((uint64_t)(v_prefix << (v_nbits & 63u))))), a_s);
+  } else if (a_copylen < 136u) {
+    v_tail = (a_copylen - 8u);
+    wuffs_brotli__encoder__emit_cmd_fast(self, ((v_tail >> 5u) + 30u), a_s);
+    wuffs_brotli__encoder__write_bits(self, 5u, (v_tail & 31u), a_s);
+    wuffs_brotli__encoder__emit_cmd_fast(self, 64u, a_s);
+  } else if (a_copylen < 2120u) {
+    v_tail = (a_copylen - 72u);
+    v_nbits = wuffs_brotli__encoder__log2_floor_non_zero(self, v_tail);
+    wuffs_brotli__encoder__emit_cmd_fast(self, (((uint64_t)(v_nbits)) + 28u), a_s);
+    wuffs_brotli__encoder__write_bits(self, v_nbits, ((uint64_t)(v_tail - (((uint64_t)(1u)) << v_nbits))), a_s);
+    wuffs_brotli__encoder__emit_cmd_fast(self, 64u, a_s);
+  } else {
+    wuffs_brotli__encoder__emit_cmd_fast(self, 39u, a_s);
+    wuffs_brotli__encoder__write_bits(self, 24u, ((uint64_t)(a_copylen - 2120u)), a_s);
+    wuffs_brotli__encoder__emit_cmd_fast(self, 64u, a_s);
+  }
+  return wuffs_base__make_empty_struct();
+}
+
+// -------- func brotli.encoder.emit_distance_fast
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__emit_distance_fast(
+    wuffs_brotli__encoder* self,
+    uint64_t a_distance,
+    wuffs_base__slice_u8 a_s) {
+  uint64_t v_d = 0;
+  uint32_t v_nbits = 0;
+  uint64_t v_prefix = 0;
+  uint64_t v_offset = 0;
+
+  v_d = ((uint64_t)(a_distance + 3u));
+  v_nbits = ((uint32_t)(wuffs_brotli__encoder__log2_floor_non_zero(self, v_d) - 1u));
+  v_prefix = ((v_d >> (v_nbits & 63u)) & 1u);
+  v_offset = ((uint64_t)((2u + v_prefix) << (v_nbits & 63u)));
+  wuffs_brotli__encoder__emit_cmd_fast(self, ((uint64_t)(((uint64_t)((2u * ((uint64_t)(((uint32_t)(v_nbits - 1u))))) + v_prefix)) + 80u)), a_s);
+  wuffs_brotli__encoder__write_bits(self, v_nbits, ((uint64_t)(v_d - v_offset)), a_s);
+  return wuffs_base__make_empty_struct();
+}
+
+// -------- func brotli.encoder.emit_literals
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__emit_literals(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_input,
+    uint64_t a_from,
+    uint64_t a_len,
+    wuffs_base__slice_u8 a_s) {
+  uint64_t v_j = 0;
+  uint8_t v_lit = 0;
+
+  v_j = 0u;
+  while (v_j < a_len) {
+    if (((uint64_t)(a_from + v_j)) >= ((uint64_t)(a_input.len))) {
+      break;
+    }
+    v_lit = a_input.ptr[((uint64_t)(a_from + v_j))];
+    wuffs_brotli__encoder__write_bits(self, ((uint32_t)(self->private_data.f_lit_depth[v_lit])), ((uint64_t)(self->private_data.f_lit_bits[v_lit])), a_s);
+    v_j += 1u;
+  }
+  return wuffs_base__make_empty_struct();
+}
+
+// -------- func brotli.encoder.should_merge_block
+
+WUFFS_BASE__GENERATED_C_CODE
+static bool
+wuffs_brotli__encoder__should_merge_block(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_input,
+    uint64_t a_from,
+    uint64_t a_len) {
+  uint64_t v_i = 0;
+  uint32_t v_j = 0;
+  uint64_t v_total = 0;
+  uint64_t v_r = 0;
+  uint64_t v_h = 0;
+
+  v_j = 0u;
+  while (v_j < 256u) {
+    self->private_data.f_histogram[v_j] = 0u;
+    v_j += 1u;
+  }
+  v_i = 0u;
+  while (v_i < a_len) {
+    if (((uint64_t)(a_from + v_i)) < ((uint64_t)(a_input.len))) {
+      self->private_data.f_histogram[a_input.ptr[((uint64_t)(a_from + v_i))]] += 1u;
+    }
+    v_i += 43u;
+  }
+  v_total = (((uint64_t)(a_len + 42u)) / 43u);
+  v_r = wuffs_softfloat__arith__f64_add(&self->private_data.f_sf, wuffs_softfloat__arith__f64_mul(&self->private_data.f_sf, wuffs_softfloat__arith__f64_add(&self->private_data.f_sf, wuffs_brotli__encoder__fast_log2(self, v_total), 4602678819172646912u), wuffs_softfloat__arith__f64_from_u64(&self->private_data.f_sf, v_total)), 4641240890982006784u);
+  v_j = 0u;
+  while (v_j < 256u) {
+    v_h = ((uint64_t)(self->private_data.f_histogram[v_j]));
+    v_r = wuffs_softfloat__arith__f64_sub(&self->private_data.f_sf, v_r, wuffs_softfloat__arith__f64_mul(&self->private_data.f_sf, wuffs_softfloat__arith__f64_from_u64(&self->private_data.f_sf, v_h), wuffs_softfloat__arith__f64_add(&self->private_data.f_sf, wuffs_softfloat__arith__f64_from_u32(&self->private_data.f_sf, ((uint32_t)(self->private_data.f_lit_depth[v_j]))), wuffs_brotli__encoder__fast_log2(self, v_h))));
+    v_j += 1u;
+  }
+  return (wuffs_softfloat__arith__f64_ge(&self->private_data.f_sf, v_r, 0u) != 0u);
+}
+
+// -------- func brotli.encoder.should_use_uncompressed_mode
+
+WUFFS_BASE__GENERATED_C_CODE
+static bool
+wuffs_brotli__encoder__should_use_uncompressed_mode(
+    const wuffs_brotli__encoder* self,
+    uint64_t a_metablock_start,
+    uint64_t a_next_emit,
+    uint64_t a_insertlen,
+    uint64_t a_literal_ratio) {
+  uint64_t v_compressed = 0;
+
+  v_compressed = ((uint64_t)(a_next_emit - a_metablock_start));
+  if (((uint64_t)(v_compressed * 50u)) > a_insertlen) {
+    return false;
+  }
+  return (a_literal_ratio > 980u);
+}
+
+// -------- func brotli.encoder.emit_uncompressed_meta_block_fast
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__emit_uncompressed_meta_block_fast(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_input,
+    uint64_t a_begin,
+    uint64_t a_end,
+    uint64_t a_storage_ix_start,
+    wuffs_base__slice_u8 a_s) {
+  uint64_t v_len = 0;
+  uint64_t v_p = 0;
+
+  v_len = ((uint64_t)(a_end - a_begin));
+  wuffs_brotli__encoder__rewind_bit_position(self, a_storage_ix_start, a_s);
+  wuffs_brotli__encoder__store_meta_block_header(self, v_len, true, a_s);
+  wuffs_brotli__encoder__align_to_byte(self);
+  wuffs_brotli__encoder__copy_bytes(self,
+      a_input,
+      a_begin,
+      a_end,
+      a_s);
+  self->private_impl.f_bw_ix += ((uint64_t)(v_len << 3u));
+  v_p = (self->private_impl.f_bw_ix >> 3u);
+  if (v_p < ((uint64_t)(a_s.len))) {
+    a_s.ptr[v_p] = 0u;
+  }
+  return wuffs_base__make_empty_struct();
+}
+
+// -------- func brotli.encoder.copy_bytes
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__copy_bytes(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_input,
+    uint64_t a_begin,
+    uint64_t a_end,
+    wuffs_base__slice_u8 a_s) {
+  uint64_t v_p = 0;
+
+  v_p = (self->private_impl.f_bw_ix >> 3u);
+  if ((a_begin <= a_end) && (a_end <= ((uint64_t)(a_input.len))) && (v_p <= ((uint64_t)(a_s.len)))) {
+    wuffs_private_impl__slice_u8__copy_from_slice(wuffs_base__slice_u8__subslice_i(a_s, v_p), wuffs_base__slice_u8__subslice_ij(a_input,
+        a_begin,
+        a_end));
+  }
+  return wuffs_base__make_empty_struct();
+}
+
+// -------- func brotli.encoder.update_table_fast
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint64_t
+wuffs_brotli__encoder__update_table_fast(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_input,
+    uint64_t a_ip,
+    uint32_t a_shift) {
+  uint64_t v_input_bytes = 0;
+  uint32_t v_prev_hash = 0;
+  uint32_t v_cur_hash = 0;
+  uint64_t v_candidate = 0;
+
+  v_input_bytes = wuffs_brotli__encoder__load64le(self, a_input, ((uint64_t)(a_ip - 3u)));
+  v_prev_hash = wuffs_brotli__encoder__hash_bytes_at_offset_fast(self, v_input_bytes, 0u, a_shift);
+  v_cur_hash = wuffs_brotli__encoder__hash_bytes_at_offset_fast(self, v_input_bytes, 3u, a_shift);
+  self->private_data.f_hash_table[(v_prev_hash & 131071u)] = ((uint32_t)(((uint64_t)(a_ip - 3u))));
+  v_prev_hash = wuffs_brotli__encoder__hash_bytes_at_offset_fast(self, v_input_bytes, 1u, a_shift);
+  self->private_data.f_hash_table[(v_prev_hash & 131071u)] = ((uint32_t)(((uint64_t)(a_ip - 2u))));
+  v_prev_hash = wuffs_brotli__encoder__hash_bytes_at_offset_fast(self, v_input_bytes, 2u, a_shift);
+  self->private_data.f_hash_table[(v_prev_hash & 131071u)] = ((uint32_t)(((uint64_t)(a_ip - 1u))));
+  v_candidate = ((uint64_t)(self->private_data.f_hash_table[(v_cur_hash & 131071u)]));
+  self->private_data.f_hash_table[(v_cur_hash & 131071u)] = ((uint32_t)(a_ip));
+  return v_candidate;
+}
+
+// -------- func brotli.encoder.compress_fragment_fast
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__compress_fragment_fast(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_input,
+    bool a_is_last,
+    uint32_t a_table_bits,
+    wuffs_base__slice_u8 a_s) {
+  uint64_t v_initial_ix = 0;
+  uint64_t v_input_size = 0;
+
+  v_initial_ix = self->private_impl.f_bw_ix;
+  v_input_size = ((uint64_t)(a_input.len));
+  if (v_input_size == 0u) {
+    wuffs_brotli__encoder__write_bits(self, 1u, 1u, a_s);
+    wuffs_brotli__encoder__write_bits(self, 1u, 1u, a_s);
+    wuffs_brotli__encoder__align_to_byte(self);
+    return wuffs_base__make_empty_struct();
+  }
+  wuffs_brotli__encoder__compress_fragment_fast_impl(self,
+      a_input,
+      a_is_last,
+      a_table_bits,
+      a_s);
+  if (((uint64_t)(self->private_impl.f_bw_ix - v_initial_ix)) > ((uint64_t)(31u + ((uint64_t)(v_input_size << 3u))))) {
+    wuffs_brotli__encoder__emit_uncompressed_meta_block_fast(self,
+        a_input,
+        0u,
+        v_input_size,
+        v_initial_ix,
+        a_s);
+  }
+  if (a_is_last) {
+    wuffs_brotli__encoder__write_bits(self, 1u, 1u, a_s);
+    wuffs_brotli__encoder__write_bits(self, 1u, 1u, a_s);
+    wuffs_brotli__encoder__align_to_byte(self);
+  }
+  return wuffs_base__make_empty_struct();
+}
+
+// -------- func brotli.encoder.compress_fragment_fast_impl
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__compress_fragment_fast_impl(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_input,
+    bool a_is_last,
+    uint32_t a_table_bits,
+    wuffs_base__slice_u8 a_s) {
+  uint64_t v_in_off = 0;
+  uint64_t v_in_size = 0;
+  uint64_t v_next_emit = 0;
+  uint64_t v_metablock_start = 0;
+  uint64_t v_block_size = 0;
+  uint64_t v_total_block_size = 0;
+  uint64_t v_mlen_storage_ix = 0;
+  uint64_t v_literal_ratio = 0;
+  uint32_t v_shift = 0;
+  uint64_t v_i = 0;
+  uint64_t v_ip = 0;
+  uint64_t v_ip_end = 0;
+  uint64_t v_ip_limit = 0;
+  uint64_t v_len_limit = 0;
+  uint64_t v_next_ip = 0;
+  uint64_t v_candidate = 0;
+  uint64_t v_base_ip = 0;
+  uint64_t v_matched = 0;
+  uint64_t v_distance = 0;
+  uint64_t v_insert = 0;
+  uint64_t v_last_distance = 0;
+  uint32_t v_skip = 0;
+  uint32_t v_hash = 0;
+  uint32_t v_next_hash = 0;
+  bool v_goto_next_block = false;
+  bool v_merge = false;
+  uint64_t v_saved_ix = 0;
+
+  v_shift = ((uint32_t)(64u - a_table_bits));
+  v_in_size = ((uint64_t)(a_input.len));
+  v_block_size = wuffs_base__u64__min(v_in_size, 98304u);
+  v_total_block_size = v_block_size;
+  v_mlen_storage_ix = ((uint64_t)(self->private_impl.f_bw_ix + 3u));
+  wuffs_brotli__encoder__store_meta_block_header(self, v_block_size, false, a_s);
+  wuffs_brotli__encoder__write_bits(self, 13u, 0u, a_s);
+  v_literal_ratio = wuffs_brotli__encoder__build_and_store_literal_prefix_code(self,
+      a_input,
+      v_in_off,
+      v_block_size,
+      a_s);
+  v_i = 0u;
+  while (((uint64_t)(v_i + 7u)) < self->private_impl.f_cmd_code_numbits) {
+    wuffs_brotli__encoder__write_bits(self, 8u, ((uint64_t)(self->private_data.f_cmd_code[((v_i >> 3u) & 511u)])), a_s);
+    v_i += 8u;
+  }
+  wuffs_brotli__encoder__write_bits(self, ((uint32_t)((self->private_impl.f_cmd_code_numbits & 7u))), ((uint64_t)(self->private_data.f_cmd_code[((self->private_impl.f_cmd_code_numbits >> 3u) & 511u)])), a_s);
+  while (true) {
+    v_i = 0u;
+    while (v_i < 128u) {
+      self->private_data.f_cmd_histo[v_i] = WUFFS_BROTLI__CMD_HISTO_SEED[v_i];
+      v_i += 1u;
+    }
+    v_ip = v_in_off;
+    v_last_distance = 0u;
+    v_ip_end = ((uint64_t)(v_in_off + v_block_size));
+    v_goto_next_block = false;
+    if (v_block_size >= 16u) {
+      v_len_limit = ((uint64_t)(v_block_size - 5u));
+      v_len_limit = wuffs_base__u64__min(v_len_limit, ((uint64_t)(v_in_size - 16u)));
+      v_ip_limit = ((uint64_t)(v_in_off + v_len_limit));
+      v_ip += 1u;
+      v_next_hash = wuffs_brotli__encoder__hash_fast(self, a_input, v_ip, v_shift);
+      while (true) {
+        v_skip = 32u;
+        v_next_ip = v_ip;
+        while (true) {
+          v_hash = v_next_hash;
+          v_ip = v_next_ip;
+          v_next_ip = ((uint64_t)(v_ip + ((uint64_t)((v_skip >> 5u)))));
+          v_skip += 1u;
+          if (v_next_ip > v_ip_limit) {
+            goto label__outer__break;
+          }
+          v_next_hash = wuffs_brotli__encoder__hash_fast(self, a_input, v_next_ip, v_shift);
+          if ((v_last_distance > 0u) && (v_last_distance <= v_ip)) {
+            v_candidate = ((uint64_t)(v_ip - v_last_distance));
+            if (wuffs_brotli__encoder__is_match_fast(self, a_input, v_ip, v_candidate)) {
+              self->private_data.f_hash_table[(v_hash & 131071u)] = ((uint32_t)(v_ip));
+              if (((uint64_t)(v_ip - v_candidate)) > 262128u) {
+                continue;
+              }
+              break;
+            }
+          }
+          v_candidate = ((uint64_t)(self->private_data.f_hash_table[(v_hash & 131071u)]));
+          self->private_data.f_hash_table[(v_hash & 131071u)] = ((uint32_t)(v_ip));
+          if (wuffs_brotli__encoder__is_match_fast(self, a_input, v_ip, v_candidate)) {
+            if (((uint64_t)(v_ip - v_candidate)) > 262128u) {
+              continue;
+            }
+            break;
+          }
+        }
+        v_base_ip = v_ip;
+        v_matched = ((uint64_t)(5u + wuffs_brotli__encoder__find_match_length_with_limit(self,
+            a_input,
+            ((uint64_t)(v_candidate + 5u)),
+            ((uint64_t)(v_ip + 5u)),
+            ((uint64_t)(((uint64_t)(v_ip_end - v_ip)) - 5u)))));
+        v_distance = ((uint64_t)(v_base_ip - v_candidate));
+        v_insert = ((uint64_t)(v_base_ip - v_next_emit));
+        v_ip += v_matched;
+        if (v_insert < 6210u) {
+          wuffs_brotli__encoder__emit_insert_len_fast(self, v_insert, a_s);
+        } else if (wuffs_brotli__encoder__should_use_uncompressed_mode(self,
+            v_metablock_start,
+            v_next_emit,
+            v_insert,
+            v_literal_ratio)) {
+          wuffs_brotli__encoder__emit_uncompressed_meta_block_fast(self,
+              a_input,
+              v_metablock_start,
+              v_base_ip,
+              ((uint64_t)(v_mlen_storage_ix - 3u)),
+              a_s);
+          v_in_size -= ((uint64_t)(v_base_ip - v_in_off));
+          v_in_off = v_base_ip;
+          v_next_emit = v_in_off;
+          v_goto_next_block = true;
+          break;
+        } else {
+          wuffs_brotli__encoder__emit_long_insert_len_fast(self, v_insert, a_s);
+        }
+        wuffs_brotli__encoder__emit_literals(self,
+            a_input,
+            v_next_emit,
+            v_insert,
+            a_s);
+        if (v_distance == v_last_distance) {
+          wuffs_brotli__encoder__emit_cmd_fast(self, 64u, a_s);
+        } else {
+          wuffs_brotli__encoder__emit_distance_fast(self, v_distance, a_s);
+          v_last_distance = v_distance;
+        }
+        wuffs_brotli__encoder__emit_copy_len_last_distance_fast(self, v_matched, a_s);
+        v_next_emit = v_ip;
+        if (v_ip >= v_ip_limit) {
+          break;
+        }
+        v_candidate = wuffs_brotli__encoder__update_table_fast(self, a_input, v_ip, v_shift);
+        while (wuffs_brotli__encoder__is_match_fast(self, a_input, v_ip, v_candidate)) {
+          v_base_ip = v_ip;
+          v_matched = ((uint64_t)(5u + wuffs_brotli__encoder__find_match_length_with_limit(self,
+              a_input,
+              ((uint64_t)(v_candidate + 5u)),
+              ((uint64_t)(v_ip + 5u)),
+              ((uint64_t)(((uint64_t)(v_ip_end - v_ip)) - 5u)))));
+          if (((uint64_t)(v_ip - v_candidate)) > 262128u) {
+            break;
+          }
+          v_ip += v_matched;
+          v_last_distance = ((uint64_t)(v_base_ip - v_candidate));
+          wuffs_brotli__encoder__emit_copy_len_fast(self, v_matched, a_s);
+          wuffs_brotli__encoder__emit_distance_fast(self, v_last_distance, a_s);
+          v_next_emit = v_ip;
+          if (v_ip >= v_ip_limit) {
+            goto label__outer__break;
+          }
+          v_candidate = wuffs_brotli__encoder__update_table_fast(self, a_input, v_ip, v_shift);
+        }
+        v_ip += 1u;
+        v_next_hash = wuffs_brotli__encoder__hash_fast(self, a_input, v_ip, v_shift);
+      }
+      label__outer__break:;
+    }
+    if ( ! v_goto_next_block) {
+      v_in_off += v_block_size;
+      v_in_size -= v_block_size;
+      v_block_size = wuffs_base__u64__min(v_in_size, 65536u);
+      v_merge = false;
+      if ((v_in_size > 0u) && (((uint64_t)(v_total_block_size + v_block_size)) <= 1048576u)) {
+        v_merge = wuffs_brotli__encoder__should_merge_block(self, a_input, v_in_off, v_block_size);
+      }
+      if (v_merge) {
+        v_total_block_size += v_block_size;
+        wuffs_brotli__encoder__update_bits(self,
+            20u,
+            ((uint32_t)(((uint64_t)(v_total_block_size - 1u)))),
+            v_mlen_storage_ix,
+            a_s);
+        continue;
+      }
+      if (v_next_emit < v_ip_end) {
+        v_insert = ((uint64_t)(v_ip_end - v_next_emit));
+        if (v_insert < 6210u) {
+          wuffs_brotli__encoder__emit_insert_len_fast(self, v_insert, a_s);
+          wuffs_brotli__encoder__emit_literals(self,
+              a_input,
+              v_next_emit,
+              v_insert,
+              a_s);
+        } else if (wuffs_brotli__encoder__should_use_uncompressed_mode(self,
+            v_metablock_start,
+            v_next_emit,
+            v_insert,
+            v_literal_ratio)) {
+          wuffs_brotli__encoder__emit_uncompressed_meta_block_fast(self,
+              a_input,
+              v_metablock_start,
+              v_ip_end,
+              ((uint64_t)(v_mlen_storage_ix - 3u)),
+              a_s);
+        } else {
+          wuffs_brotli__encoder__emit_long_insert_len_fast(self, v_insert, a_s);
+          wuffs_brotli__encoder__emit_literals(self,
+              a_input,
+              v_next_emit,
+              v_insert,
+              a_s);
+        }
+      }
+      v_next_emit = v_ip_end;
+    }
+    if (v_in_size > 0u) {
+      v_metablock_start = v_in_off;
+      v_block_size = wuffs_base__u64__min(v_in_size, 98304u);
+      v_total_block_size = v_block_size;
+      v_mlen_storage_ix = ((uint64_t)(self->private_impl.f_bw_ix + 3u));
+      wuffs_brotli__encoder__store_meta_block_header(self, v_block_size, false, a_s);
+      wuffs_brotli__encoder__write_bits(self, 13u, 0u, a_s);
+      v_literal_ratio = wuffs_brotli__encoder__build_and_store_literal_prefix_code(self,
+          a_input,
+          v_in_off,
+          v_block_size,
+          a_s);
+      wuffs_brotli__encoder__build_and_store_command_prefix_code_fast(self, a_s);
+      continue;
+    }
+    break;
+  }
+  if ( ! a_is_last) {
+    self->private_data.f_cmd_code[0u] = 0u;
+    v_saved_ix = self->private_impl.f_bw_ix;
+    self->private_impl.f_bw_ix = 0u;
+    wuffs_brotli__encoder__build_and_store_command_prefix_code_fast(self, wuffs_base__make_slice_u8(self->private_data.f_cmd_code, 520));
+    self->private_impl.f_cmd_code_numbits = self->private_impl.f_bw_ix;
+    self->private_impl.f_bw_ix = v_saved_ix;
+  }
+  return wuffs_base__make_empty_struct();
+}
+
+// -------- func brotli.encoder.hash_two_pass
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint32_t
+wuffs_brotli__encoder__hash_two_pass(
+    const wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_input,
+    uint64_t a_i,
+    uint32_t a_shift,
+    uint32_t a_length) {
+  uint64_t v_h = 0;
+
+  v_h = ((uint64_t)(((uint64_t)(wuffs_brotli__encoder__load64le(self, a_input, a_i) << (((uint32_t)(64u - ((uint32_t)(8u * a_length)))) & 63u))) * 506832829u));
+  return ((uint32_t)((v_h >> (a_shift & 63u))));
+}
+
+// -------- func brotli.encoder.hash_bytes_at_offset_two_pass
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint32_t
+wuffs_brotli__encoder__hash_bytes_at_offset_two_pass(
+    const wuffs_brotli__encoder* self,
+    uint64_t a_v,
+    uint32_t a_offset,
+    uint32_t a_shift,
+    uint32_t a_length) {
+  uint64_t v_h = 0;
+
+  v_h = ((uint64_t)(((uint64_t)((a_v >> (((uint32_t)(8u * a_offset)) & 63u)) << (((uint32_t)(64u - ((uint32_t)(8u * a_length)))) & 63u))) * 506832829u));
+  return ((uint32_t)((v_h >> (a_shift & 63u))));
+}
+
+// -------- func brotli.encoder.is_match_two_pass
+
+WUFFS_BASE__GENERATED_C_CODE
+static bool
+wuffs_brotli__encoder__is_match_two_pass(
+    const wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_input,
+    uint64_t a_i1,
+    uint64_t a_i2,
+    uint32_t a_length) {
+  wuffs_base__slice_u8 v_q1 = {0};
+  wuffs_base__slice_u8 v_q2 = {0};
+
+  if ((a_i1 >= ((uint64_t)(a_input.len))) || (a_i2 >= ((uint64_t)(a_input.len)))) {
+    return false;
+  }
+  if (wuffs_brotli__encoder__load32le(self, a_input, a_i1) != wuffs_brotli__encoder__load32le(self, a_input, a_i2)) {
+    return false;
+  }
+  if (a_length == 4u) {
+    return true;
+  }
+  v_q1 = wuffs_base__slice_u8__subslice_i(a_input, a_i1);
+  v_q2 = wuffs_base__slice_u8__subslice_i(a_input, a_i2);
+  if ((((uint64_t)(v_q1.len)) >= 6u) && (((uint64_t)(v_q2.len)) >= 6u)) {
+    return ((v_q1.ptr[4u] == v_q2.ptr[4u]) && (v_q1.ptr[5u] == v_q2.ptr[5u]));
+  }
+  return false;
+}
+
+// -------- func brotli.encoder.build_and_store_command_prefix_code_two_pass
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__build_and_store_command_prefix_code_two_pass(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_s) {
+  uint32_t v_i = 0;
+
+  wuffs_private_impl__bulk_memset(&self->private_data.f_tmp_depth[0], 704u, 0u);
+  wuffs_brotli__encoder__create_huffman_tree(self,
+      0u,
+      0u,
+      64u,
+      15u,
+      wuffs_base__make_slice_u8(self->private_data.f_cmd_depth, 64));
+  wuffs_brotli__encoder__create_huffman_tree(self,
+      0u,
+      64u,
+      64u,
+      14u,
+      wuffs_base__make_slice_u8_ij(self->private_data.f_cmd_depth, 64, 128));
+  wuffs_private_impl__slice_u8__copy_from_slice(wuffs_base__make_slice_u8_ij(self->private_data.f_tmp_depth, 0, 24), wuffs_base__make_slice_u8_ij(self->private_data.f_cmd_depth, 24, 48));
+  wuffs_private_impl__slice_u8__copy_from_slice(wuffs_base__make_slice_u8_ij(self->private_data.f_tmp_depth, 24, 32), wuffs_base__make_slice_u8_ij(self->private_data.f_cmd_depth, 0, 8));
+  wuffs_private_impl__slice_u8__copy_from_slice(wuffs_base__make_slice_u8_ij(self->private_data.f_tmp_depth, 32, 40), wuffs_base__make_slice_u8_ij(self->private_data.f_cmd_depth, 48, 56));
+  wuffs_private_impl__slice_u8__copy_from_slice(wuffs_base__make_slice_u8_ij(self->private_data.f_tmp_depth, 40, 48), wuffs_base__make_slice_u8_ij(self->private_data.f_cmd_depth, 8, 16));
+  wuffs_private_impl__slice_u8__copy_from_slice(wuffs_base__make_slice_u8_ij(self->private_data.f_tmp_depth, 48, 56), wuffs_base__make_slice_u8_ij(self->private_data.f_cmd_depth, 56, 64));
+  wuffs_private_impl__slice_u8__copy_from_slice(wuffs_base__make_slice_u8_ij(self->private_data.f_tmp_depth, 56, 64), wuffs_base__make_slice_u8_ij(self->private_data.f_cmd_depth, 16, 24));
+  wuffs_brotli__encoder__convert_bit_depths_to_symbols(self, wuffs_base__make_slice_u8(self->private_data.f_tmp_depth, 704), 64u, 0u);
+  wuffs_brotli__encoder__copy_tmp_bits_to_cmd_bits(self, 0u, 24u, 8u);
+  wuffs_brotli__encoder__copy_tmp_bits_to_cmd_bits(self, 8u, 40u, 8u);
+  wuffs_brotli__encoder__copy_tmp_bits_to_cmd_bits(self, 16u, 56u, 8u);
+  wuffs_brotli__encoder__copy_tmp_bits_to_cmd_bits(self, 24u, 0u, 24u);
+  wuffs_brotli__encoder__copy_tmp_bits_to_cmd_bits(self, 48u, 32u, 8u);
+  wuffs_brotli__encoder__copy_tmp_bits_to_cmd_bits(self, 56u, 48u, 8u);
+  wuffs_brotli__encoder__convert_bit_depths_to_symbols(self, wuffs_base__make_slice_u8_ij(self->private_data.f_cmd_depth, 64, 128), 64u, 1u);
+  wuffs_private_impl__bulk_memset(&self->private_data.f_tmp_depth[0], 64u, 0u);
+  wuffs_private_impl__slice_u8__copy_from_slice(wuffs_base__make_slice_u8_ij(self->private_data.f_tmp_depth, 0, 8), wuffs_base__make_slice_u8_ij(self->private_data.f_cmd_depth, 24, 32));
+  wuffs_private_impl__slice_u8__copy_from_slice(wuffs_base__make_slice_u8_ij(self->private_data.f_tmp_depth, 64, 72), wuffs_base__make_slice_u8_ij(self->private_data.f_cmd_depth, 32, 40));
+  wuffs_private_impl__slice_u8__copy_from_slice(wuffs_base__make_slice_u8_ij(self->private_data.f_tmp_depth, 128, 136), wuffs_base__make_slice_u8_ij(self->private_data.f_cmd_depth, 40, 48));
+  wuffs_private_impl__slice_u8__copy_from_slice(wuffs_base__make_slice_u8_ij(self->private_data.f_tmp_depth, 192, 200), wuffs_base__make_slice_u8_ij(self->private_data.f_cmd_depth, 48, 56));
+  wuffs_private_impl__slice_u8__copy_from_slice(wuffs_base__make_slice_u8_ij(self->private_data.f_tmp_depth, 384, 392), wuffs_base__make_slice_u8_ij(self->private_data.f_cmd_depth, 56, 64));
+  v_i = 0u;
+  while (v_i < 8u) {
+    self->private_data.f_tmp_depth[(128u + (8u * v_i))] = self->private_data.f_cmd_depth[v_i];
+    self->private_data.f_tmp_depth[(256u + (8u * v_i))] = self->private_data.f_cmd_depth[(8u + v_i)];
+    self->private_data.f_tmp_depth[(448u + (8u * v_i))] = self->private_data.f_cmd_depth[(16u + v_i)];
+    v_i += 1u;
+  }
+  wuffs_brotli__encoder__store_huffman_tree(self, wuffs_base__make_slice_u8(self->private_data.f_tmp_depth, 704), 704u, a_s);
+  wuffs_brotli__encoder__store_huffman_tree(self, wuffs_base__make_slice_u8_ij(self->private_data.f_cmd_depth, 64, 128), 64u, a_s);
+  return wuffs_base__make_empty_struct();
+}
+
+// -------- func brotli.encoder.push_command
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__push_command(
+    wuffs_brotli__encoder* self,
+    uint32_t a_c) {
+  self->private_data.f_command_buf[(self->private_impl.f_num_commands & 131071u)] = a_c;
+  self->private_impl.f_num_commands += 1u;
+  return wuffs_base__make_empty_struct();
+}
+
+// -------- func brotli.encoder.emit_insert_len_two_pass
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__emit_insert_len_two_pass(
+    wuffs_brotli__encoder* self,
+    uint32_t a_insertlen) {
+  uint32_t v_tail = 0;
+  uint32_t v_nbits = 0;
+  uint32_t v_prefix = 0;
+  uint32_t v_extra = 0;
+
+  if (a_insertlen < 6u) {
+    wuffs_brotli__encoder__push_command(self, a_insertlen);
+  } else if (a_insertlen < 130u) {
+    v_tail = (a_insertlen - 2u);
+    v_nbits = ((uint32_t)(wuffs_brotli__encoder__log2_floor_non_zero(self, ((uint64_t)(v_tail))) - 1u));
+    v_prefix = (v_tail >> (v_nbits & 31u));
+    v_extra = ((uint32_t)(v_tail - ((uint32_t)(v_prefix << (v_nbits & 31u)))));
+    wuffs_brotli__encoder__push_command(self, (((uint32_t)(((uint32_t)(((uint32_t)(v_nbits << 1u)) + v_prefix)) + 2u)) | ((uint32_t)(v_extra << 8u))));
+  } else if (a_insertlen < 2114u) {
+    v_tail = (a_insertlen - 66u);
+    v_nbits = wuffs_brotli__encoder__log2_floor_non_zero(self, ((uint64_t)(v_tail)));
+    v_extra = ((uint32_t)(v_tail - (((uint32_t)(1u)) << v_nbits)));
+    wuffs_brotli__encoder__push_command(self, ((v_nbits + 10u) | ((uint32_t)(v_extra << 8u))));
+  } else if (a_insertlen < 6210u) {
+    wuffs_brotli__encoder__push_command(self, (21u | ((uint32_t)((a_insertlen - 2114u) << 8u))));
+  } else if (a_insertlen < 22594u) {
+    wuffs_brotli__encoder__push_command(self, (22u | ((uint32_t)((a_insertlen - 6210u) << 8u))));
+  } else {
+    wuffs_brotli__encoder__push_command(self, (23u | ((uint32_t)((a_insertlen - 22594u) << 8u))));
+  }
+  return wuffs_base__make_empty_struct();
+}
+
+// -------- func brotli.encoder.emit_copy_len_two_pass
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__emit_copy_len_two_pass(
+    wuffs_brotli__encoder* self,
+    uint64_t a_copylen) {
+  uint64_t v_tail = 0;
+  uint32_t v_nbits = 0;
+  uint64_t v_prefix = 0;
+  uint64_t v_extra = 0;
+
+  if (a_copylen < 10u) {
+    wuffs_brotli__encoder__push_command(self, ((uint32_t)((a_copylen + 38u))));
+  } else if (a_copylen < 134u) {
+    v_tail = (a_copylen - 6u);
+    v_nbits = ((uint32_t)(wuffs_brotli__encoder__log2_floor_non_zero(self, v_tail) - 1u));
+    v_prefix = (v_tail >> (v_nbits & 63u));
+    v_extra = ((uint64_t)(v_tail - ((uint64_t)(v_prefix << (v_nbits & 63u)))));
+    wuffs_brotli__encoder__push_command(self, ((uint32_t)((((uint64_t)(((uint64_t)(((uint64_t)(((uint64_t)(v_nbits)) << 1u)) + v_prefix)) + 44u)) | ((uint64_t)(v_extra << 8u))))));
+  } else if (a_copylen < 2118u) {
+    v_tail = (a_copylen - 70u);
+    v_nbits = wuffs_brotli__encoder__log2_floor_non_zero(self, v_tail);
+    v_extra = ((uint64_t)(v_tail - (((uint64_t)(1u)) << v_nbits)));
+    wuffs_brotli__encoder__push_command(self, ((uint32_t)(((((uint64_t)(v_nbits)) + 52u) | ((uint64_t)(v_extra << 8u))))));
+  } else {
+    wuffs_brotli__encoder__push_command(self, ((uint32_t)((63u | ((uint64_t)(((uint64_t)(a_copylen - 2118u)) << 8u))))));
+  }
+  return wuffs_base__make_empty_struct();
+}
+
+// -------- func brotli.encoder.emit_copy_len_last_distance_two_pass
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__emit_copy_len_last_distance_two_pass(
+    wuffs_brotli__encoder* self,
+    uint64_t a_copylen) {
+  uint64_t v_tail = 0;
+  uint32_t v_nbits = 0;
+  uint64_t v_prefix = 0;
+  uint64_t v_extra = 0;
+
+  if (a_copylen < 12u) {
+    wuffs_brotli__encoder__push_command(self, ((uint32_t)((a_copylen + 20u))));
+  } else if (a_copylen < 72u) {
+    v_tail = (a_copylen - 8u);
+    v_nbits = ((uint32_t)(wuffs_brotli__encoder__log2_floor_non_zero(self, v_tail) - 1u));
+    v_prefix = (v_tail >> (v_nbits & 63u));
+    v_extra = ((uint64_t)(v_tail - ((uint64_t)(v_prefix << (v_nbits & 63u)))));
+    wuffs_brotli__encoder__push_command(self, ((uint32_t)((((uint64_t)(((uint64_t)(((uint64_t)(((uint64_t)(v_nbits)) << 1u)) + v_prefix)) + 28u)) | ((uint64_t)(v_extra << 8u))))));
+  } else if (a_copylen < 136u) {
+    v_tail = (a_copylen - 8u);
+    wuffs_brotli__encoder__push_command(self, ((uint32_t)((((v_tail >> 5u) + 54u) | ((v_tail & 31u) << 8u)))));
+    wuffs_brotli__encoder__push_command(self, 64u);
+  } else if (a_copylen < 2120u) {
+    v_tail = (a_copylen - 72u);
+    v_nbits = wuffs_brotli__encoder__log2_floor_non_zero(self, v_tail);
+    v_extra = ((uint64_t)(v_tail - (((uint64_t)(1u)) << v_nbits)));
+    wuffs_brotli__encoder__push_command(self, ((uint32_t)(((((uint64_t)(v_nbits)) + 52u) | ((uint64_t)(v_extra << 8u))))));
+    wuffs_brotli__encoder__push_command(self, 64u);
+  } else {
+    wuffs_brotli__encoder__push_command(self, ((uint32_t)((63u | ((uint64_t)(((uint64_t)(a_copylen - 2120u)) << 8u))))));
+    wuffs_brotli__encoder__push_command(self, 64u);
+  }
+  return wuffs_base__make_empty_struct();
+}
+
+// -------- func brotli.encoder.emit_distance_two_pass
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__emit_distance_two_pass(
+    wuffs_brotli__encoder* self,
+    uint32_t a_distance) {
+  uint32_t v_d = 0;
+  uint32_t v_nbits = 0;
+  uint32_t v_prefix = 0;
+  uint32_t v_offset = 0;
+  uint32_t v_distcode = 0;
+  uint32_t v_extra = 0;
+
+  v_d = ((uint32_t)(a_distance + 3u));
+  v_nbits = ((uint32_t)(wuffs_brotli__encoder__log2_floor_non_zero(self, ((uint64_t)(v_d))) - 1u));
+  v_prefix = ((v_d >> (v_nbits & 31u)) & 1u);
+  v_offset = ((uint32_t)((2u + v_prefix) << (v_nbits & 31u)));
+  v_distcode = ((uint32_t)(((uint32_t)(((uint32_t)(2u * ((uint32_t)(v_nbits - 1u)))) + v_prefix)) + 80u));
+  v_extra = ((uint32_t)(v_d - v_offset));
+  wuffs_brotli__encoder__push_command(self, (v_distcode | ((uint32_t)(v_extra << 8u))));
+  return wuffs_base__make_empty_struct();
+}
+
+// -------- func brotli.encoder.push_literals
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__push_literals(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_input,
+    uint64_t a_from,
+    uint64_t a_n) {
+  uint64_t v_j = 0;
+
+  v_j = 0u;
+  while (v_j < a_n) {
+    if (((uint64_t)(a_from + v_j)) >= ((uint64_t)(a_input.len))) {
+      break;
+    }
+    self->private_data.f_literal_buf[(self->private_impl.f_num_literals & 131071u)] = a_input.ptr[((uint64_t)(a_from + v_j))];
+    self->private_impl.f_num_literals += 1u;
+    v_j += 1u;
+  }
+  return wuffs_base__make_empty_struct();
+}
+
+// -------- func brotli.encoder.update_table_two_pass
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint64_t
+wuffs_brotli__encoder__update_table_two_pass(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_input,
+    uint64_t a_ip,
+    uint32_t a_shift,
+    uint32_t a_min_match,
+    uint32_t a_third_offset) {
+  uint64_t v_input_bytes = 0;
+  uint32_t v_prev_hash = 0;
+  uint32_t v_cur_hash = 0;
+  uint64_t v_candidate = 0;
+  uint32_t v_mm = 0;
+
+  v_mm = a_min_match;
+  if (v_mm == 4u) {
+    v_input_bytes = wuffs_brotli__encoder__load64le(self, a_input, ((uint64_t)(a_ip - 3u)));
+    v_cur_hash = wuffs_brotli__encoder__hash_bytes_at_offset_two_pass(self,
+        v_input_bytes,
+        3u,
+        a_shift,
+        v_mm);
+    v_prev_hash = wuffs_brotli__encoder__hash_bytes_at_offset_two_pass(self,
+        v_input_bytes,
+        0u,
+        a_shift,
+        v_mm);
+    self->private_data.f_hash_table[(v_prev_hash & 131071u)] = ((uint32_t)(((uint64_t)(a_ip - 3u))));
+    v_prev_hash = wuffs_brotli__encoder__hash_bytes_at_offset_two_pass(self,
+        v_input_bytes,
+        1u,
+        a_shift,
+        v_mm);
+    self->private_data.f_hash_table[(v_prev_hash & 131071u)] = ((uint32_t)(((uint64_t)(a_ip - 2u))));
+    v_prev_hash = wuffs_brotli__encoder__hash_bytes_at_offset_two_pass(self,
+        v_input_bytes,
+        a_third_offset,
+        a_shift,
+        v_mm);
+    self->private_data.f_hash_table[(v_prev_hash & 131071u)] = ((uint32_t)(((uint64_t)(a_ip - 1u))));
+  } else {
+    v_input_bytes = wuffs_brotli__encoder__load64le(self, a_input, ((uint64_t)(a_ip - 5u)));
+    v_prev_hash = wuffs_brotli__encoder__hash_bytes_at_offset_two_pass(self,
+        v_input_bytes,
+        0u,
+        a_shift,
+        v_mm);
+    self->private_data.f_hash_table[(v_prev_hash & 131071u)] = ((uint32_t)(((uint64_t)(a_ip - 5u))));
+    v_prev_hash = wuffs_brotli__encoder__hash_bytes_at_offset_two_pass(self,
+        v_input_bytes,
+        1u,
+        a_shift,
+        v_mm);
+    self->private_data.f_hash_table[(v_prev_hash & 131071u)] = ((uint32_t)(((uint64_t)(a_ip - 4u))));
+    v_prev_hash = wuffs_brotli__encoder__hash_bytes_at_offset_two_pass(self,
+        v_input_bytes,
+        2u,
+        a_shift,
+        v_mm);
+    self->private_data.f_hash_table[(v_prev_hash & 131071u)] = ((uint32_t)(((uint64_t)(a_ip - 3u))));
+    v_input_bytes = wuffs_brotli__encoder__load64le(self, a_input, ((uint64_t)(a_ip - 2u)));
+    v_cur_hash = wuffs_brotli__encoder__hash_bytes_at_offset_two_pass(self,
+        v_input_bytes,
+        2u,
+        a_shift,
+        v_mm);
+    v_prev_hash = wuffs_brotli__encoder__hash_bytes_at_offset_two_pass(self,
+        v_input_bytes,
+        0u,
+        a_shift,
+        v_mm);
+    self->private_data.f_hash_table[(v_prev_hash & 131071u)] = ((uint32_t)(((uint64_t)(a_ip - 2u))));
+    v_prev_hash = wuffs_brotli__encoder__hash_bytes_at_offset_two_pass(self,
+        v_input_bytes,
+        1u,
+        a_shift,
+        v_mm);
+    self->private_data.f_hash_table[(v_prev_hash & 131071u)] = ((uint32_t)(((uint64_t)(a_ip - 1u))));
+  }
+  v_candidate = ((uint64_t)(self->private_data.f_hash_table[(v_cur_hash & 131071u)]));
+  self->private_data.f_hash_table[(v_cur_hash & 131071u)] = ((uint32_t)(a_ip));
+  return v_candidate;
+}
+
+// -------- func brotli.encoder.create_commands
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__create_commands(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_input,
+    uint64_t a_from,
+    uint64_t a_block_size,
+    uint64_t a_input_size,
+    uint32_t a_table_bits,
+    uint32_t a_min_match) {
+  uint64_t v_ip = 0;
+  uint32_t v_shift = 0;
+  uint64_t v_ip_end = 0;
+  uint64_t v_next_emit = 0;
+  uint64_t v_last_distance = 0;
+  uint64_t v_len_limit = 0;
+  uint64_t v_ip_limit = 0;
+  uint32_t v_next_hash = 0;
+  uint32_t v_hash = 0;
+  uint32_t v_skip = 0;
+  uint64_t v_next_ip = 0;
+  uint64_t v_candidate = 0;
+  uint64_t v_base_ip = 0;
+  uint64_t v_matched = 0;
+  uint64_t v_distance = 0;
+  uint64_t v_insert = 0;
+  uint64_t v_mm = 0;
+
+  self->private_impl.f_num_commands = 0u;
+  self->private_impl.f_num_literals = 0u;
+  v_mm = ((uint64_t)(a_min_match));
+  v_ip = a_from;
+  v_shift = ((uint32_t)(64u - a_table_bits));
+  v_ip_end = ((uint64_t)(a_from + a_block_size));
+  v_next_emit = a_from;
+  if (a_block_size >= 16u) {
+    v_len_limit = ((uint64_t)(a_block_size - v_mm));
+    v_len_limit = wuffs_base__u64__min(v_len_limit, ((uint64_t)(a_input_size - 16u)));
+    v_ip_limit = ((uint64_t)(a_from + v_len_limit));
+    v_ip += 1u;
+    v_next_hash = wuffs_brotli__encoder__hash_two_pass(self,
+        a_input,
+        v_ip,
+        v_shift,
+        a_min_match);
+    while (true) {
+      v_skip = 32u;
+      v_next_ip = v_ip;
+      while (true) {
+        v_hash = v_next_hash;
+        v_ip = v_next_ip;
+        v_next_ip = ((uint64_t)(v_ip + ((uint64_t)((v_skip >> 5u)))));
+        v_skip += 1u;
+        if (v_next_ip > v_ip_limit) {
+          goto label__outer__break;
+        }
+        v_next_hash = wuffs_brotli__encoder__hash_two_pass(self,
+            a_input,
+            v_next_ip,
+            v_shift,
+            a_min_match);
+        if ((v_last_distance > 0u) && (v_last_distance <= v_ip)) {
+          v_candidate = ((uint64_t)(v_ip - v_last_distance));
+          if (wuffs_brotli__encoder__is_match_two_pass(self,
+              a_input,
+              v_ip,
+              v_candidate,
+              a_min_match)) {
+            self->private_data.f_hash_table[(v_hash & 131071u)] = ((uint32_t)(v_ip));
+            if (((uint64_t)(v_ip - v_candidate)) > 262128u) {
+              continue;
+            }
+            break;
+          }
+        }
+        v_candidate = ((uint64_t)(self->private_data.f_hash_table[(v_hash & 131071u)]));
+        self->private_data.f_hash_table[(v_hash & 131071u)] = ((uint32_t)(v_ip));
+        if (wuffs_brotli__encoder__is_match_two_pass(self,
+            a_input,
+            v_ip,
+            v_candidate,
+            a_min_match)) {
+          if (((uint64_t)(v_ip - v_candidate)) > 262128u) {
+            continue;
+          }
+          break;
+        }
+      }
+      v_base_ip = v_ip;
+      v_matched = ((uint64_t)(v_mm + wuffs_brotli__encoder__find_match_length_with_limit(self,
+          a_input,
+          ((uint64_t)(v_candidate + v_mm)),
+          ((uint64_t)(v_ip + v_mm)),
+          ((uint64_t)(((uint64_t)(v_ip_end - v_ip)) - v_mm)))));
+      v_distance = ((uint64_t)(v_base_ip - v_candidate));
+      v_insert = ((uint64_t)(v_base_ip - v_next_emit));
+      v_ip += v_matched;
+      wuffs_brotli__encoder__emit_insert_len_two_pass(self, ((uint32_t)(v_insert)));
+      wuffs_brotli__encoder__push_literals(self, a_input, v_next_emit, v_insert);
+      if (v_distance == v_last_distance) {
+        wuffs_brotli__encoder__push_command(self, 64u);
+      } else {
+        wuffs_brotli__encoder__emit_distance_two_pass(self, ((uint32_t)(v_distance)));
+        v_last_distance = v_distance;
+      }
+      wuffs_brotli__encoder__emit_copy_len_last_distance_two_pass(self, v_matched);
+      v_next_emit = v_ip;
+      if (v_ip >= v_ip_limit) {
+        break;
+      }
+      v_candidate = wuffs_brotli__encoder__update_table_two_pass(self,
+          a_input,
+          v_ip,
+          v_shift,
+          a_min_match,
+          0u);
+      while (((uint64_t)(v_ip - v_candidate)) <= 262128u) {
+        if ( ! wuffs_brotli__encoder__is_match_two_pass(self,
+            a_input,
+            v_ip,
+            v_candidate,
+            a_min_match)) {
+          break;
+        }
+        v_base_ip = v_ip;
+        v_matched = ((uint64_t)(v_mm + wuffs_brotli__encoder__find_match_length_with_limit(self,
+            a_input,
+            ((uint64_t)(v_candidate + v_mm)),
+            ((uint64_t)(v_ip + v_mm)),
+            ((uint64_t)(((uint64_t)(v_ip_end - v_ip)) - v_mm)))));
+        v_ip += v_matched;
+        v_last_distance = ((uint64_t)(v_base_ip - v_candidate));
+        wuffs_brotli__encoder__emit_copy_len_two_pass(self, v_matched);
+        wuffs_brotli__encoder__emit_distance_two_pass(self, ((uint32_t)(v_last_distance)));
+        v_next_emit = v_ip;
+        if (v_ip >= v_ip_limit) {
+          goto label__outer__break;
+        }
+        v_candidate = wuffs_brotli__encoder__update_table_two_pass(self,
+            a_input,
+            v_ip,
+            v_shift,
+            a_min_match,
+            2u);
+      }
+      v_ip += 1u;
+      v_next_hash = wuffs_brotli__encoder__hash_two_pass(self,
+          a_input,
+          v_ip,
+          v_shift,
+          a_min_match);
+    }
+    label__outer__break:;
+  }
+  if (v_next_emit < v_ip_end) {
+    v_insert = ((uint64_t)(v_ip_end - v_next_emit));
+    wuffs_brotli__encoder__emit_insert_len_two_pass(self, ((uint32_t)(v_insert)));
+    wuffs_brotli__encoder__push_literals(self, a_input, v_next_emit, v_insert);
+  }
+  return wuffs_base__make_empty_struct();
+}
+
+// -------- func brotli.encoder.store_commands
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__store_commands(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_s) {
+  uint32_t v_i = 0;
+  uint32_t v_j = 0;
+  uint32_t v_cmd = 0;
+  uint32_t v_code = 0;
+  uint32_t v_extra = 0;
+  uint32_t v_insert = 0;
+  uint32_t v_lit_i = 0;
+  uint8_t v_lit = 0;
+
+  wuffs_private_impl__bulk_memset(&self->private_data.f_histogram[0], 256u * (size_t)4u, 0u);
+  wuffs_private_impl__bulk_memset(&self->private_data.f_cmd_depth[0], 128u, 0u);
+  wuffs_private_impl__bulk_memset(&self->private_data.f_cmd_bits[0], 128u * (size_t)2u, 0u);
+  wuffs_private_impl__bulk_memset(&self->private_data.f_cmd_histo[0], 128u * (size_t)4u, 0u);
+  v_i = 0u;
+  while (v_i < self->private_impl.f_num_literals) {
+    self->private_data.f_histogram[self->private_data.f_literal_buf[(v_i & 131071u)]] += 1u;
+    v_i += 1u;
+  }
+  wuffs_brotli__encoder__build_and_store_huffman_tree_fast(self, ((uint64_t)(self->private_impl.f_num_literals)), 8u, a_s);
+  v_i = 0u;
+  while (v_i < self->private_impl.f_num_commands) {
+    v_code = (self->private_data.f_command_buf[(v_i & 131071u)] & 255u);
+    self->private_data.f_cmd_histo[(v_code & 127u)] += 1u;
+    v_i += 1u;
+  }
+  self->private_data.f_cmd_histo[1u] += 1u;
+  self->private_data.f_cmd_histo[2u] += 1u;
+  self->private_data.f_cmd_histo[64u] += 1u;
+  self->private_data.f_cmd_histo[84u] += 1u;
+  wuffs_brotli__encoder__build_and_store_command_prefix_code_two_pass(self, a_s);
+  v_i = 0u;
+  while (v_i < self->private_impl.f_num_commands) {
+    v_cmd = self->private_data.f_command_buf[(v_i & 131071u)];
+    v_code = (v_cmd & 127u);
+    v_extra = (v_cmd >> 8u);
+    wuffs_brotli__encoder__write_bits(self, ((uint32_t)(self->private_data.f_cmd_depth[v_code])), ((uint64_t)(self->private_data.f_cmd_bits[v_code])), a_s);
+    wuffs_brotli__encoder__write_bits(self, WUFFS_BROTLI__TWO_PASS_NUM_EXTRA_BITS[v_code], ((uint64_t)(v_extra)), a_s);
+    if (v_code < 24u) {
+      v_insert = ((uint32_t)(WUFFS_BROTLI__TWO_PASS_INSERT_OFFSET[v_code] + v_extra));
+      v_j = 0u;
+      while (v_j < v_insert) {
+        v_lit = self->private_data.f_literal_buf[(v_lit_i & 131071u)];
+        wuffs_brotli__encoder__write_bits(self, ((uint32_t)(self->private_data.f_lit_depth[v_lit])), ((uint64_t)(self->private_data.f_lit_bits[v_lit])), a_s);
+        v_lit_i += 1u;
+        v_j += 1u;
+      }
+    }
+    v_i += 1u;
+  }
+  return wuffs_base__make_empty_struct();
+}
+
+// -------- func brotli.encoder.should_compress_two_pass
+
+WUFFS_BASE__GENERATED_C_CODE
+static bool
+wuffs_brotli__encoder__should_compress_two_pass(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_input,
+    uint64_t a_from,
+    uint64_t a_input_size,
+    uint64_t a_num_literals) {
+  uint64_t v_corpus_size = 0;
+  uint64_t v_max_total_bit_cost = 0;
+  uint64_t v_i = 0;
+
+  v_corpus_size = wuffs_softfloat__arith__f64_from_u64(&self->private_data.f_sf, a_input_size);
+  if (wuffs_softfloat__arith__f64_lt(&self->private_data.f_sf, wuffs_softfloat__arith__f64_from_u64(&self->private_data.f_sf, a_num_literals), wuffs_softfloat__arith__f64_mul(&self->private_data.f_sf, 4607002274814922588u, v_corpus_size)) != 0u) {
+    return true;
+  }
+  v_max_total_bit_cost = wuffs_softfloat__arith__f64_div(&self->private_data.f_sf, wuffs_softfloat__arith__f64_mul(&self->private_data.f_sf, wuffs_softfloat__arith__f64_mul(&self->private_data.f_sf, v_corpus_size, 4620693217682128896u), 4607002274814922588u), 4631248529308778496u);
+  wuffs_private_impl__bulk_memset(&self->private_data.f_histogram[0], 256u * (size_t)4u, 0u);
+  v_i = 0u;
+  while (v_i < a_input_size) {
+    if (((uint64_t)(a_from + v_i)) < ((uint64_t)(a_input.len))) {
+      self->private_data.f_histogram[a_input.ptr[((uint64_t)(a_from + v_i))]] += 1u;
+    }
+    v_i += 43u;
+  }
+  return (wuffs_softfloat__arith__f64_lt(&self->private_data.f_sf, wuffs_brotli__encoder__bits_entropy_of_histogram(self), v_max_total_bit_cost) != 0u);
+}
+
+// -------- func brotli.encoder.emit_uncompressed_meta_block_two_pass
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__emit_uncompressed_meta_block_two_pass(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_input,
+    uint64_t a_from,
+    uint64_t a_input_size,
+    wuffs_base__slice_u8 a_s) {
+  uint64_t v_p = 0;
+
+  wuffs_brotli__encoder__store_meta_block_header(self, a_input_size, true, a_s);
+  wuffs_brotli__encoder__align_to_byte(self);
+  wuffs_brotli__encoder__copy_bytes(self,
+      a_input,
+      a_from,
+      ((uint64_t)(a_from + a_input_size)),
+      a_s);
+  self->private_impl.f_bw_ix += ((uint64_t)(a_input_size << 3u));
+  v_p = (self->private_impl.f_bw_ix >> 3u);
+  if (v_p < ((uint64_t)(a_s.len))) {
+    a_s.ptr[v_p] = 0u;
+  }
+  return wuffs_base__make_empty_struct();
+}
+
+// -------- func brotli.encoder.compress_fragment_two_pass
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__compress_fragment_two_pass(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_input,
+    bool a_is_last,
+    uint32_t a_table_bits,
+    wuffs_base__slice_u8 a_s) {
+  uint64_t v_initial_ix = 0;
+  uint32_t v_min_match = 0;
+  uint64_t v_from = 0;
+  uint64_t v_input_size = 0;
+  uint64_t v_block_size = 0;
+  bool v_compress = false;
+
+  v_initial_ix = self->private_impl.f_bw_ix;
+  v_min_match = 6u;
+  if (a_table_bits <= 15u) {
+    v_min_match = 4u;
+  }
+  v_input_size = ((uint64_t)(a_input.len));
+  while (v_input_size > 0u) {
+    v_block_size = wuffs_base__u64__min(v_input_size, ((uint64_t)(131072u)));
+    wuffs_brotli__encoder__create_commands(self,
+        a_input,
+        v_from,
+        v_block_size,
+        v_input_size,
+        a_table_bits,
+        v_min_match);
+    v_compress = wuffs_brotli__encoder__should_compress_two_pass(self,
+        a_input,
+        v_from,
+        v_block_size,
+        ((uint64_t)(self->private_impl.f_num_literals)));
+    if (v_compress) {
+      wuffs_brotli__encoder__store_meta_block_header(self, v_block_size, false, a_s);
+      wuffs_brotli__encoder__write_bits(self, 13u, 0u, a_s);
+      wuffs_brotli__encoder__store_commands(self, a_s);
+    } else {
+      wuffs_brotli__encoder__emit_uncompressed_meta_block_two_pass(self,
+          a_input,
+          v_from,
+          v_block_size,
+          a_s);
+    }
+    v_from += v_block_size;
+    v_input_size -= v_block_size;
+  }
+  if (((uint64_t)(self->private_impl.f_bw_ix - v_initial_ix)) > ((uint64_t)(31u + ((uint64_t)(((uint64_t)(a_input.len)) << 3u))))) {
+    wuffs_brotli__encoder__rewind_bit_position(self, v_initial_ix, a_s);
+    wuffs_brotli__encoder__emit_uncompressed_meta_block_two_pass(self,
+        a_input,
+        0u,
+        ((uint64_t)(a_input.len)),
+        a_s);
+  }
+  if (a_is_last) {
+    wuffs_brotli__encoder__write_bits(self, 1u, 1u, a_s);
+    wuffs_brotli__encoder__write_bits(self, 1u, 1u, a_s);
+    wuffs_brotli__encoder__align_to_byte(self);
+  }
+  return wuffs_base__make_empty_struct();
 }
 
 #endif  // !defined(WUFFS_CONFIG__MODULES) || defined(WUFFS_CONFIG__MODULE__BROTLI)
@@ -99367,2058 +106479,6 @@ wuffs_sha256__hasher__checksum_bitvec256(
 }
 
 #endif  // !defined(WUFFS_CONFIG__MODULES) || defined(WUFFS_CONFIG__MODULE__SHA256)
-
-#if !defined(WUFFS_CONFIG__MODULES) || defined(WUFFS_CONFIG__MODULE__SOFTFLOAT)
-
-// ---------------- Status Codes Implementations
-
-// ---------------- Private Consts
-
-#define WUFFS_SOFTFLOAT__F64_SIGN 9223372036854775808u
-
-#define WUFFS_SOFTFLOAT__F64_ABS 9223372036854775807u
-
-#define WUFFS_SOFTFLOAT__F64_INF 9218868437227405312u
-
-#define WUFFS_SOFTFLOAT__F64_FRAC 4503599627370495u
-
-#define WUFFS_SOFTFLOAT__F64_HIDDEN 4503599627370496u
-
-#define WUFFS_SOFTFLOAT__F64_QUIET 2251799813685248u
-
-#define WUFFS_SOFTFLOAT__F64_DEFAULT_NAN 18444492273895866368u
-
-static const uint8_t
-WUFFS_SOFTFLOAT__CLZ8[256] WUFFS_BASE__POTENTIALLY_UNUSED = {
-  8u, 7u, 6u, 6u, 5u, 5u, 5u, 5u,
-  4u, 4u, 4u, 4u, 4u, 4u, 4u, 4u,
-  3u, 3u, 3u, 3u, 3u, 3u, 3u, 3u,
-  3u, 3u, 3u, 3u, 3u, 3u, 3u, 3u,
-  2u, 2u, 2u, 2u, 2u, 2u, 2u, 2u,
-  2u, 2u, 2u, 2u, 2u, 2u, 2u, 2u,
-  2u, 2u, 2u, 2u, 2u, 2u, 2u, 2u,
-  2u, 2u, 2u, 2u, 2u, 2u, 2u, 2u,
-  1u, 1u, 1u, 1u, 1u, 1u, 1u, 1u,
-  1u, 1u, 1u, 1u, 1u, 1u, 1u, 1u,
-  1u, 1u, 1u, 1u, 1u, 1u, 1u, 1u,
-  1u, 1u, 1u, 1u, 1u, 1u, 1u, 1u,
-  1u, 1u, 1u, 1u, 1u, 1u, 1u, 1u,
-  1u, 1u, 1u, 1u, 1u, 1u, 1u, 1u,
-  1u, 1u, 1u, 1u, 1u, 1u, 1u, 1u,
-  1u, 1u, 1u, 1u, 1u, 1u, 1u, 1u,
-  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
-  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
-  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
-  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
-  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
-  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
-  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
-  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
-  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
-  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
-  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
-  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
-  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
-  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
-  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
-  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
-};
-
-#define WUFFS_SOFTFLOAT__F32_SIGN 2147483648u
-
-#define WUFFS_SOFTFLOAT__F32_ABS 2147483647u
-
-#define WUFFS_SOFTFLOAT__F32_INF 2139095040u
-
-#define WUFFS_SOFTFLOAT__LOG2_INVLN2_HI 4609176140020449280u
-
-#define WUFFS_SOFTFLOAT__LOG2_INVLN2_LO 4460540536611119616u
-
-#define WUFFS_SOFTFLOAT__LOG2_A0 13828044577248609081u
-
-#define WUFFS_SOFTFLOAT__LOG2_A1 4602334714382648510u
-
-#define WUFFS_SOFTFLOAT__LOG2_A2 13823540977608962043u
-
-#define WUFFS_SOFTFLOAT__LOG2_A3 4598869476581264456u
-
-#define WUFFS_SOFTFLOAT__LOG2_A4 13821203878746165948u
-
-#define WUFFS_SOFTFLOAT__LOG2_A5 4596594284514769198u
-
-#define WUFFS_SOFTFLOAT__LOG2_B0 13828044577248609022u
-
-#define WUFFS_SOFTFLOAT__LOG2_B1 4602334714382648311u
-
-#define WUFFS_SOFTFLOAT__LOG2_B2 13823540977621236799u
-
-#define WUFFS_SOFTFLOAT__LOG2_B3 4598869476596800484u
-
-#define WUFFS_SOFTFLOAT__LOG2_B4 13821203151630798821u
-
-#define WUFFS_SOFTFLOAT__LOG2_B5 4596593529635268406u
-
-#define WUFFS_SOFTFLOAT__LOG2_B6 13819037345097492379u
-
-#define WUFFS_SOFTFLOAT__LOG2_B7 4594943554432801610u
-
-#define WUFFS_SOFTFLOAT__LOG2_B8 13817758221876344892u
-
-#define WUFFS_SOFTFLOAT__LOG2_B9 4593868635039788646u
-
-#define WUFFS_SOFTFLOAT__F64_ONE 4607182418800017408u
-
-#define WUFFS_SOFTFLOAT__F64_NEG_ONE 13830554455654793216u
-
-static const uint64_t
-WUFFS_SOFTFLOAT__LOG2_TAB_INVC[64] WUFFS_BASE__POTENTIALLY_UNUSED = {
-  4609192499661090040u, 4609119721358544033u, 4609048552263439498u, 4608978935752977541u, 4608910827810035960u, 4608844174476640876u, 4608778932670517176u, 4608715056657886750u,
-  4608652505995016245u, 4608591236480216541u, 4608531212716768208u, 4608472393775796206u, 4608414747454330217u, 4608358236140386643u, 4608302825730857126u, 4608248488588498998u,
-  4608195190521789770u, 4608142902552467893u, 4608091596839446450u, 4608041245183688113u, 4607991821672542679u, 4607943301500489090u, 4607895658995436368u, 4607848870546001381u,
-  4607802913757468081u, 4607757767841591096u, 4607713409864934365u, 4607669821755832624u, 4607626980202848768u, 4607584869060826940u, 4607543467839055042u, 4607502757543314897u,
-  4607462725802730023u, 4607423351295589007u, 4607384620866568409u, 4607346516590018701u, 4607309024952925059u, 4607272131607993180u, 4607235821368544930u, 4607200080338058785u,
-  4607112595412526955u, 4606976147961868676u, 4606843801959665791u, 4606715378043149032u, 4606590705194581478u, 4606469619618625715u, 4606351967316207939u, 4606237606996243811u,
-  4606126401917471569u, 4606018221995330636u, 4605912946732701130u, 4605810462065308559u, 4605710654407004217u, 4605613423158833629u, 4605518667591971211u, 4605426298098548397u,
-  4605336222619703554u, 4605248357336792306u, 4605162622515894769u, 4605078941046797933u, 4604997241283328404u, 4604917450612805666u, 4604839505954084298u, 4604763342788034444u,
-};
-
-static const uint64_t
-WUFFS_SOFTFLOAT__LOG2_TAB_LOGC[64] WUFFS_BASE__POTENTIALLY_UNUSED = {
-  13826342638637133824u, 13826196630396129280u, 13826052246236362752u, 13825768029042720768u, 13825485539995279360u, 13825206079124377600u, 13824929594987094016u, 13824656018996125696u,
-  13824385299287748608u, 13824117362061238272u, 13823852166444584960u, 13823589642092011520u, 13823329752470622208u, 13823072432079704064u, 13822817626379755520u, 13822565306322034688u,
-  13822315408407748608u, 13822067889127702528u, 13821822706514976768u, 13821579813106167808u, 13821131081098354688u, 13820654214105104384u, 13820181677119676416u, 13819713392057769984u,
-  13819249286753288192u, 13818789299422093312u, 13818333340582215680u, 13817881364992663552u, 13817433267667582976u, 13816934369010221056u, 13816053372001304576u, 13815179735723180032u,
-  13814313441755004928u, 13813454269690494976u, 13812602167107960832u, 13810973880287035392u, 13809297139126697984u, 13807231240355184640u, 13803931045004312576u, 13796532236635865088u,
-  4577625706679238656u, 4584977561914671104u, 4588127867468742656u, 4590199577454788608u, 4591728374053568512u, 4593235018675142656u, 4594195890746384384u, 4594927996701155328u,
-  4595649931110391808u, 4596361981185310720u, 4597064405355782144u, 4597757451025965056u, 4598308306428592128u, 4598645833741746176u, 4598979039133097984u, 4599308018491162624u,
-  4599632888650723328u, 4599953748864847872u, 4600270694594048000u, 4600583822264602624u, 4600893218024939520u, 4601198981460250624u, 4601501185019535360u, 4601799915281006592u,
-};
-
-// ---------------- Private Initializer Prototypes
-
-// ---------------- Private Function Prototypes
-
-WUFFS_BASE__GENERATED_C_CODE
-static uint32_t
-wuffs_softfloat__arith__clz64(
-    const wuffs_softfloat__arith* self,
-    uint64_t a_a);
-
-WUFFS_BASE__GENERATED_C_CODE
-static uint64_t
-wuffs_softfloat__arith__shift_right_jam64(
-    const wuffs_softfloat__arith* self,
-    uint64_t a_a,
-    uint32_t a_dist);
-
-WUFFS_BASE__GENERATED_C_CODE
-static uint64_t
-wuffs_softfloat__arith__jam128_hi(
-    const wuffs_softfloat__arith* self,
-    uint64_t a_hi,
-    uint64_t a_lo,
-    uint32_t a_dist);
-
-WUFFS_BASE__GENERATED_C_CODE
-static uint64_t
-wuffs_softfloat__arith__jam128_lo(
-    const wuffs_softfloat__arith* self,
-    uint64_t a_hi,
-    uint64_t a_lo,
-    uint32_t a_dist);
-
-WUFFS_BASE__GENERATED_C_CODE
-static uint64_t
-wuffs_softfloat__arith__mul_hi64(
-    const wuffs_softfloat__arith* self,
-    uint64_t a_a,
-    uint64_t a_b);
-
-WUFFS_BASE__GENERATED_C_CODE
-static uint64_t
-wuffs_softfloat__arith__round_pack_f64(
-    const wuffs_softfloat__arith* self,
-    uint64_t a_sign,
-    uint32_t a_exp,
-    uint64_t a_sig);
-
-WUFFS_BASE__GENERATED_C_CODE
-static uint64_t
-wuffs_softfloat__arith__norm_round_pack_f64(
-    const wuffs_softfloat__arith* self,
-    uint64_t a_sign,
-    uint32_t a_exp,
-    uint64_t a_sig);
-
-WUFFS_BASE__GENERATED_C_CODE
-static uint32_t
-wuffs_softfloat__arith__norm_sub_exp(
-    const wuffs_softfloat__arith* self,
-    uint64_t a_frac);
-
-WUFFS_BASE__GENERATED_C_CODE
-static uint64_t
-wuffs_softfloat__arith__norm_sub_sig(
-    const wuffs_softfloat__arith* self,
-    uint64_t a_frac);
-
-WUFFS_BASE__GENERATED_C_CODE
-static uint64_t
-wuffs_softfloat__arith__f64_propagate_nan(
-    const wuffs_softfloat__arith* self,
-    uint64_t a_a,
-    uint64_t a_b);
-
-WUFFS_BASE__GENERATED_C_CODE
-static uint64_t
-wuffs_softfloat__arith__f64_add_mags(
-    const wuffs_softfloat__arith* self,
-    uint64_t a_a,
-    uint64_t a_b,
-    uint64_t a_sign);
-
-WUFFS_BASE__GENERATED_C_CODE
-static uint64_t
-wuffs_softfloat__arith__f64_sub_mags(
-    const wuffs_softfloat__arith* self,
-    uint64_t a_a,
-    uint64_t a_b,
-    uint64_t a_sign);
-
-WUFFS_BASE__GENERATED_C_CODE
-static uint32_t
-wuffs_softfloat__arith__round_pack_f32(
-    const wuffs_softfloat__arith* self,
-    uint32_t a_sign,
-    uint32_t a_exp,
-    uint32_t a_sig);
-
-// ---------------- VTables
-
-// ---------------- Initializer Implementations
-
-wuffs_base__status WUFFS_BASE__WARN_UNUSED_RESULT
-wuffs_softfloat__arith__initialize(
-    wuffs_softfloat__arith* self,
-    size_t sizeof_star_self,
-    uint64_t wuffs_version,
-    uint32_t options){
-  if (!self) {
-    return wuffs_base__make_status(wuffs_base__error__bad_receiver);
-  }
-  if (sizeof(*self) != sizeof_star_self) {
-    return wuffs_base__make_status(wuffs_base__error__bad_sizeof_receiver);
-  }
-  if (((wuffs_version >> 32) != WUFFS_VERSION_MAJOR) ||
-      (((wuffs_version >> 16) & 0xFFFF) > WUFFS_VERSION_MINOR)) {
-    return wuffs_base__make_status(wuffs_base__error__bad_wuffs_version);
-  }
-
-  if ((options & WUFFS_INITIALIZE__ALREADY_ZEROED) != 0) {
-    // The whole point of this if-check is to detect an uninitialized *self.
-    // We disable the warning on GCC. Clang-5.0 does not have this warning.
-#if !defined(__clang__) && defined(__GNUC__)
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
-#endif
-    if (self->private_impl.magic != 0) {
-      return wuffs_base__make_status(wuffs_base__error__initialize_falsely_claimed_already_zeroed);
-    }
-#if !defined(__clang__) && defined(__GNUC__)
-#pragma GCC diagnostic pop
-#endif
-  } else {
-    if ((options & WUFFS_INITIALIZE__LEAVE_INTERNAL_BUFFERS_UNINITIALIZED) == 0) {
-      memset(self, 0, sizeof(*self));
-      options |= WUFFS_INITIALIZE__ALREADY_ZEROED;
-    } else {
-      memset(&(self->private_impl), 0, sizeof(self->private_impl));
-    }
-  }
-
-  self->private_impl.magic = WUFFS_BASE__MAGIC;
-  return wuffs_base__make_status(NULL);
-}
-
-wuffs_softfloat__arith*
-wuffs_softfloat__arith__alloc(void) {
-  wuffs_softfloat__arith* x =
-      (wuffs_softfloat__arith*)(calloc(1, sizeof(wuffs_softfloat__arith)));
-  if (!x) {
-    return NULL;
-  }
-  if (wuffs_softfloat__arith__initialize(
-      x, sizeof(wuffs_softfloat__arith), WUFFS_VERSION, WUFFS_INITIALIZE__ALREADY_ZEROED).repr) {
-    free(x);
-    return NULL;
-  }
-  return x;
-}
-
-size_t
-sizeof__wuffs_softfloat__arith(void) {
-  return sizeof(wuffs_softfloat__arith);
-}
-
-// ---------------- Function Implementations
-
-// -------- func softfloat.arith.clz64
-
-WUFFS_BASE__GENERATED_C_CODE
-static uint32_t
-wuffs_softfloat__arith__clz64(
-    const wuffs_softfloat__arith* self,
-    uint64_t a_a) {
-  uint64_t v_x = 0;
-  uint32_t v_n32 = 0;
-  uint32_t v_n16 = 0;
-  uint32_t v_n8 = 0;
-
-  v_x = a_a;
-  if ((v_x >> 32u) == 0u) {
-    v_x = ((uint64_t)(v_x << 32u));
-    v_n32 = 32u;
-  }
-  if ((v_x >> 48u) == 0u) {
-    v_x = ((uint64_t)(v_x << 16u));
-    v_n16 = 16u;
-  }
-  if ((v_x >> 56u) == 0u) {
-    v_x = ((uint64_t)(v_x << 8u));
-    v_n8 = 8u;
-  }
-  return ((v_n32 +
-      v_n16 +
-      v_n8 +
-      (((uint32_t)(WUFFS_SOFTFLOAT__CLZ8[(v_x >> 56u)])) & 7u)) & 63u);
-}
-
-// -------- func softfloat.arith.shift_right_jam64
-
-WUFFS_BASE__GENERATED_C_CODE
-static uint64_t
-wuffs_softfloat__arith__shift_right_jam64(
-    const wuffs_softfloat__arith* self,
-    uint64_t a_a,
-    uint32_t a_dist) {
-  uint32_t v_d = 0;
-
-  if (a_dist == 0u) {
-    return a_a;
-  } else if (a_dist < 64u) {
-    v_d = a_dist;
-    if (((uint64_t)(a_a << (64u - v_d))) != 0u) {
-      return ((a_a >> v_d) | 1u);
-    }
-    return (a_a >> v_d);
-  } else if (a_a != 0u) {
-    return 1u;
-  }
-  return 0u;
-}
-
-// -------- func softfloat.arith.jam128_hi
-
-WUFFS_BASE__GENERATED_C_CODE
-static uint64_t
-wuffs_softfloat__arith__jam128_hi(
-    const wuffs_softfloat__arith* self,
-    uint64_t a_hi,
-    uint64_t a_lo,
-    uint32_t a_dist) {
-  if (a_dist < 64u) {
-    return (a_hi >> a_dist);
-  }
-  return 0u;
-}
-
-// -------- func softfloat.arith.jam128_lo
-
-WUFFS_BASE__GENERATED_C_CODE
-static uint64_t
-wuffs_softfloat__arith__jam128_lo(
-    const wuffs_softfloat__arith* self,
-    uint64_t a_hi,
-    uint64_t a_lo,
-    uint32_t a_dist) {
-  uint32_t v_d = 0;
-  uint64_t v_sticky = 0;
-
-  if (a_dist == 0u) {
-    return a_lo;
-  } else if (a_dist < 64u) {
-    v_d = a_dist;
-    if (((uint64_t)(a_lo << (64u - v_d))) != 0u) {
-      v_sticky = 1u;
-    }
-    return (((uint64_t)(a_hi << (64u - v_d))) | (a_lo >> v_d) | v_sticky);
-  } else if (a_dist < 128u) {
-    v_d = (a_dist - 64u);
-    if (v_d > 0u) {
-      if ((((uint64_t)(a_hi << (64u - v_d))) | a_lo) != 0u) {
-        v_sticky = 1u;
-      }
-    } else if (a_lo != 0u) {
-      v_sticky = 1u;
-    }
-    return ((a_hi >> v_d) | v_sticky);
-  } else if ((a_hi | a_lo) != 0u) {
-    return 1u;
-  }
-  return 0u;
-}
-
-// -------- func softfloat.arith.mul_hi64
-
-WUFFS_BASE__GENERATED_C_CODE
-static uint64_t
-wuffs_softfloat__arith__mul_hi64(
-    const wuffs_softfloat__arith* self,
-    uint64_t a_a,
-    uint64_t a_b) {
-  uint64_t v_a0 = 0;
-  uint64_t v_a1 = 0;
-  uint64_t v_b0 = 0;
-  uint64_t v_b1 = 0;
-  uint64_t v_p00 = 0;
-  uint64_t v_p01 = 0;
-  uint64_t v_p10 = 0;
-  uint64_t v_p11 = 0;
-  uint64_t v_mid = 0;
-
-  v_a0 = (a_a & 4294967295u);
-  v_a1 = (a_a >> 32u);
-  v_b0 = (a_b & 4294967295u);
-  v_b1 = (a_b >> 32u);
-  v_p00 = (v_a0 * v_b0);
-  v_p01 = (v_a0 * v_b1);
-  v_p10 = (v_a1 * v_b0);
-  v_p11 = (v_a1 * v_b1);
-  v_mid = ((v_p00 >> 32u) + (v_p01 & 4294967295u) + (v_p10 & 4294967295u));
-  return ((uint64_t)(((uint64_t)(((uint64_t)(v_p11 + (v_p01 >> 32u))) + (v_p10 >> 32u))) + (v_mid >> 32u)));
-}
-
-// -------- func softfloat.arith.round_pack_f64
-
-WUFFS_BASE__GENERATED_C_CODE
-static uint64_t
-wuffs_softfloat__arith__round_pack_f64(
-    const wuffs_softfloat__arith* self,
-    uint64_t a_sign,
-    uint32_t a_exp,
-    uint64_t a_sig) {
-  uint32_t v_e = 0;
-  uint64_t v_s = 0;
-  uint64_t v_round_bits = 0;
-
-  v_e = a_exp;
-  v_s = a_sig;
-  v_round_bits = (v_s & 1023u);
-  if (v_e >= 2147483648u) {
-    v_s = wuffs_softfloat__arith__shift_right_jam64(self, v_s, ((uint32_t)(0u - v_e)));
-    v_e = 0u;
-    v_round_bits = (v_s & 1023u);
-  } else if (v_e >= 2045u) {
-    if ((v_e > 2045u) || (v_s >= 9223372036854775296u)) {
-      return (a_sign | 9218868437227405312u);
-    }
-  }
-  v_s = (((uint64_t)(v_s + 512u)) >> 10u);
-  if (v_round_bits == 512u) {
-    v_s = (v_s & 18446744073709551614u);
-  }
-  if (v_s == 0u) {
-    v_e = 0u;
-  }
-  return (a_sign | ((uint64_t)(((uint64_t)(((uint64_t)(v_e)) << 52u)) + v_s)));
-}
-
-// -------- func softfloat.arith.norm_round_pack_f64
-
-WUFFS_BASE__GENERATED_C_CODE
-static uint64_t
-wuffs_softfloat__arith__norm_round_pack_f64(
-    const wuffs_softfloat__arith* self,
-    uint64_t a_sign,
-    uint32_t a_exp,
-    uint64_t a_sig) {
-  uint32_t v_c = 0;
-  uint32_t v_shift = 0;
-  uint32_t v_e = 0;
-
-  if (a_sig == 0u) {
-    return a_sign;
-  }
-  v_c = wuffs_softfloat__arith__clz64(self, a_sig);
-  if (v_c == 0u) {
-    return wuffs_softfloat__arith__round_pack_f64(self, a_sign, ((uint32_t)(a_exp + 1u)), ((a_sig >> 1u) | (a_sig & 1u)));
-  }
-  v_shift = (v_c - 1u);
-  v_e = ((uint32_t)(a_exp - v_shift));
-  if ((v_shift >= 10u) && (v_e < 2045u)) {
-    return (a_sign | ((uint64_t)(((uint64_t)(((uint64_t)(v_e)) << 52u)) + ((uint64_t)(a_sig << (v_shift - 10u))))));
-  }
-  return wuffs_softfloat__arith__round_pack_f64(self, a_sign, v_e, ((uint64_t)(a_sig << v_shift)));
-}
-
-// -------- func softfloat.arith.norm_sub_exp
-
-WUFFS_BASE__GENERATED_C_CODE
-static uint32_t
-wuffs_softfloat__arith__norm_sub_exp(
-    const wuffs_softfloat__arith* self,
-    uint64_t a_frac) {
-  return ((uint32_t)(12u - wuffs_softfloat__arith__clz64(self, a_frac)));
-}
-
-// -------- func softfloat.arith.norm_sub_sig
-
-WUFFS_BASE__GENERATED_C_CODE
-static uint64_t
-wuffs_softfloat__arith__norm_sub_sig(
-    const wuffs_softfloat__arith* self,
-    uint64_t a_frac) {
-  return ((uint64_t)(a_frac << (((uint32_t)(wuffs_softfloat__arith__clz64(self, a_frac) - 11u)) & 63u)));
-}
-
-// -------- func softfloat.arith.f64_propagate_nan
-
-WUFFS_BASE__GENERATED_C_CODE
-static uint64_t
-wuffs_softfloat__arith__f64_propagate_nan(
-    const wuffs_softfloat__arith* self,
-    uint64_t a_a,
-    uint64_t a_b) {
-  if ((a_a & 9223372036854775807u) > 9218868437227405312u) {
-    return (a_a | 2251799813685248u);
-  }
-  return (a_b | 2251799813685248u);
-}
-
-// -------- func softfloat.arith.f64_is_nan
-
-WUFFS_BASE__GENERATED_C_CODE
-WUFFS_BASE__MAYBE_STATIC uint32_t
-wuffs_softfloat__arith__f64_is_nan(
-    const wuffs_softfloat__arith* self,
-    uint64_t a_a) {
-  if (!self) {
-    return 0;
-  }
-  if ((self->private_impl.magic != WUFFS_BASE__MAGIC) &&
-      (self->private_impl.magic != WUFFS_BASE__DISABLED)) {
-    return 0;
-  }
-
-  if ((a_a & 9223372036854775807u) > 9218868437227405312u) {
-    return 1u;
-  }
-  return 0u;
-}
-
-// -------- func softfloat.arith.f64_neg
-
-WUFFS_BASE__GENERATED_C_CODE
-WUFFS_BASE__MAYBE_STATIC uint64_t
-wuffs_softfloat__arith__f64_neg(
-    const wuffs_softfloat__arith* self,
-    uint64_t a_a) {
-  if (!self) {
-    return 0;
-  }
-  if ((self->private_impl.magic != WUFFS_BASE__MAGIC) &&
-      (self->private_impl.magic != WUFFS_BASE__DISABLED)) {
-    return 0;
-  }
-
-  return (a_a ^ 9223372036854775808u);
-}
-
-// -------- func softfloat.arith.f64_abs
-
-WUFFS_BASE__GENERATED_C_CODE
-WUFFS_BASE__MAYBE_STATIC uint64_t
-wuffs_softfloat__arith__f64_abs(
-    const wuffs_softfloat__arith* self,
-    uint64_t a_a) {
-  if (!self) {
-    return 0;
-  }
-  if ((self->private_impl.magic != WUFFS_BASE__MAGIC) &&
-      (self->private_impl.magic != WUFFS_BASE__DISABLED)) {
-    return 0;
-  }
-
-  return (a_a & 9223372036854775807u);
-}
-
-// -------- func softfloat.arith.f64_cmp
-
-WUFFS_BASE__GENERATED_C_CODE
-WUFFS_BASE__MAYBE_STATIC uint32_t
-wuffs_softfloat__arith__f64_cmp(
-    const wuffs_softfloat__arith* self,
-    uint64_t a_a,
-    uint64_t a_b) {
-  if (!self) {
-    return 0;
-  }
-  if ((self->private_impl.magic != WUFFS_BASE__MAGIC) &&
-      (self->private_impl.magic != WUFFS_BASE__DISABLED)) {
-    return 0;
-  }
-
-  uint64_t v_ka = 0;
-  uint64_t v_kb = 0;
-
-  if (((a_a & 9223372036854775807u) > 9218868437227405312u) || ((a_b & 9223372036854775807u) > 9218868437227405312u)) {
-    return 3u;
-  } else if (((a_a | a_b) & 9223372036854775807u) == 0u) {
-    return 1u;
-  }
-  v_ka = (a_a | 9223372036854775808u);
-  if ((a_a >> 63u) != 0u) {
-    v_ka = (18446744073709551615u ^ a_a);
-  }
-  v_kb = (a_b | 9223372036854775808u);
-  if ((a_b >> 63u) != 0u) {
-    v_kb = (18446744073709551615u ^ a_b);
-  }
-  if (v_ka < v_kb) {
-    return 0u;
-  } else if (v_ka == v_kb) {
-    return 1u;
-  }
-  return 2u;
-}
-
-// -------- func softfloat.arith.f64_eq
-
-WUFFS_BASE__GENERATED_C_CODE
-WUFFS_BASE__MAYBE_STATIC uint32_t
-wuffs_softfloat__arith__f64_eq(
-    const wuffs_softfloat__arith* self,
-    uint64_t a_a,
-    uint64_t a_b) {
-  if (!self) {
-    return 0;
-  }
-  if ((self->private_impl.magic != WUFFS_BASE__MAGIC) &&
-      (self->private_impl.magic != WUFFS_BASE__DISABLED)) {
-    return 0;
-  }
-
-  if (wuffs_softfloat__arith__f64_cmp(self, a_a, a_b) == 1u) {
-    return 1u;
-  }
-  return 0u;
-}
-
-// -------- func softfloat.arith.f64_ne
-
-WUFFS_BASE__GENERATED_C_CODE
-WUFFS_BASE__MAYBE_STATIC uint32_t
-wuffs_softfloat__arith__f64_ne(
-    const wuffs_softfloat__arith* self,
-    uint64_t a_a,
-    uint64_t a_b) {
-  if (!self) {
-    return 0;
-  }
-  if ((self->private_impl.magic != WUFFS_BASE__MAGIC) &&
-      (self->private_impl.magic != WUFFS_BASE__DISABLED)) {
-    return 0;
-  }
-
-  if (wuffs_softfloat__arith__f64_cmp(self, a_a, a_b) == 1u) {
-    return 0u;
-  }
-  return 1u;
-}
-
-// -------- func softfloat.arith.f64_lt
-
-WUFFS_BASE__GENERATED_C_CODE
-WUFFS_BASE__MAYBE_STATIC uint32_t
-wuffs_softfloat__arith__f64_lt(
-    const wuffs_softfloat__arith* self,
-    uint64_t a_a,
-    uint64_t a_b) {
-  if (!self) {
-    return 0;
-  }
-  if ((self->private_impl.magic != WUFFS_BASE__MAGIC) &&
-      (self->private_impl.magic != WUFFS_BASE__DISABLED)) {
-    return 0;
-  }
-
-  if (wuffs_softfloat__arith__f64_cmp(self, a_a, a_b) == 0u) {
-    return 1u;
-  }
-  return 0u;
-}
-
-// -------- func softfloat.arith.f64_le
-
-WUFFS_BASE__GENERATED_C_CODE
-WUFFS_BASE__MAYBE_STATIC uint32_t
-wuffs_softfloat__arith__f64_le(
-    const wuffs_softfloat__arith* self,
-    uint64_t a_a,
-    uint64_t a_b) {
-  if (!self) {
-    return 0;
-  }
-  if ((self->private_impl.magic != WUFFS_BASE__MAGIC) &&
-      (self->private_impl.magic != WUFFS_BASE__DISABLED)) {
-    return 0;
-  }
-
-  if (wuffs_softfloat__arith__f64_cmp(self, a_a, a_b) <= 1u) {
-    return 1u;
-  }
-  return 0u;
-}
-
-// -------- func softfloat.arith.f64_gt
-
-WUFFS_BASE__GENERATED_C_CODE
-WUFFS_BASE__MAYBE_STATIC uint32_t
-wuffs_softfloat__arith__f64_gt(
-    const wuffs_softfloat__arith* self,
-    uint64_t a_a,
-    uint64_t a_b) {
-  if (!self) {
-    return 0;
-  }
-  if ((self->private_impl.magic != WUFFS_BASE__MAGIC) &&
-      (self->private_impl.magic != WUFFS_BASE__DISABLED)) {
-    return 0;
-  }
-
-  if (wuffs_softfloat__arith__f64_cmp(self, a_a, a_b) == 2u) {
-    return 1u;
-  }
-  return 0u;
-}
-
-// -------- func softfloat.arith.f64_ge
-
-WUFFS_BASE__GENERATED_C_CODE
-WUFFS_BASE__MAYBE_STATIC uint32_t
-wuffs_softfloat__arith__f64_ge(
-    const wuffs_softfloat__arith* self,
-    uint64_t a_a,
-    uint64_t a_b) {
-  if (!self) {
-    return 0;
-  }
-  if ((self->private_impl.magic != WUFFS_BASE__MAGIC) &&
-      (self->private_impl.magic != WUFFS_BASE__DISABLED)) {
-    return 0;
-  }
-
-  uint32_t v_c = 0;
-
-  v_c = wuffs_softfloat__arith__f64_cmp(self, a_a, a_b);
-  if ((v_c == 1u) || (v_c == 2u)) {
-    return 1u;
-  }
-  return 0u;
-}
-
-// -------- func softfloat.arith.f64_min
-
-WUFFS_BASE__GENERATED_C_CODE
-WUFFS_BASE__MAYBE_STATIC uint64_t
-wuffs_softfloat__arith__f64_min(
-    const wuffs_softfloat__arith* self,
-    uint64_t a_a,
-    uint64_t a_b) {
-  if (!self) {
-    return 0;
-  }
-  if ((self->private_impl.magic != WUFFS_BASE__MAGIC) &&
-      (self->private_impl.magic != WUFFS_BASE__DISABLED)) {
-    return 0;
-  }
-
-  if (wuffs_softfloat__arith__f64_cmp(self, a_a, a_b) == 0u) {
-    return a_a;
-  }
-  return a_b;
-}
-
-// -------- func softfloat.arith.f64_max
-
-WUFFS_BASE__GENERATED_C_CODE
-WUFFS_BASE__MAYBE_STATIC uint64_t
-wuffs_softfloat__arith__f64_max(
-    const wuffs_softfloat__arith* self,
-    uint64_t a_a,
-    uint64_t a_b) {
-  if (!self) {
-    return 0;
-  }
-  if ((self->private_impl.magic != WUFFS_BASE__MAGIC) &&
-      (self->private_impl.magic != WUFFS_BASE__DISABLED)) {
-    return 0;
-  }
-
-  if (wuffs_softfloat__arith__f64_cmp(self, a_a, a_b) == 2u) {
-    return a_a;
-  }
-  return a_b;
-}
-
-// -------- func softfloat.arith.f64_add
-
-WUFFS_BASE__GENERATED_C_CODE
-WUFFS_BASE__MAYBE_STATIC uint64_t
-wuffs_softfloat__arith__f64_add(
-    const wuffs_softfloat__arith* self,
-    uint64_t a_a,
-    uint64_t a_b) {
-  if (!self) {
-    return 0;
-  }
-  if ((self->private_impl.magic != WUFFS_BASE__MAGIC) &&
-      (self->private_impl.magic != WUFFS_BASE__DISABLED)) {
-    return 0;
-  }
-
-  if (((a_a ^ a_b) >> 63u) == 0u) {
-    return wuffs_softfloat__arith__f64_add_mags(self, a_a, a_b, (a_a & 9223372036854775808u));
-  }
-  return wuffs_softfloat__arith__f64_sub_mags(self, a_a, a_b, (a_a & 9223372036854775808u));
-}
-
-// -------- func softfloat.arith.f64_sub
-
-WUFFS_BASE__GENERATED_C_CODE
-WUFFS_BASE__MAYBE_STATIC uint64_t
-wuffs_softfloat__arith__f64_sub(
-    const wuffs_softfloat__arith* self,
-    uint64_t a_a,
-    uint64_t a_b) {
-  if (!self) {
-    return 0;
-  }
-  if ((self->private_impl.magic != WUFFS_BASE__MAGIC) &&
-      (self->private_impl.magic != WUFFS_BASE__DISABLED)) {
-    return 0;
-  }
-
-  if (((a_a ^ a_b) >> 63u) == 0u) {
-    return wuffs_softfloat__arith__f64_sub_mags(self, a_a, a_b, (a_a & 9223372036854775808u));
-  }
-  return wuffs_softfloat__arith__f64_add_mags(self, a_a, a_b, (a_a & 9223372036854775808u));
-}
-
-// -------- func softfloat.arith.f64_add_mags
-
-WUFFS_BASE__GENERATED_C_CODE
-static uint64_t
-wuffs_softfloat__arith__f64_add_mags(
-    const wuffs_softfloat__arith* self,
-    uint64_t a_a,
-    uint64_t a_b,
-    uint64_t a_sign) {
-  uint32_t v_exp_a = 0;
-  uint32_t v_exp_b = 0;
-  uint32_t v_exp_z = 0;
-  uint64_t v_sig_a = 0;
-  uint64_t v_sig_b = 0;
-  uint64_t v_sig_z = 0;
-
-  v_exp_a = ((uint32_t)(((a_a >> 52u) & 2047u)));
-  v_exp_b = ((uint32_t)(((a_b >> 52u) & 2047u)));
-  v_sig_a = (a_a & 4503599627370495u);
-  v_sig_b = (a_b & 4503599627370495u);
-  if (v_exp_a == v_exp_b) {
-    if (v_exp_a == 0u) {
-      return (a_sign | ((uint64_t)((a_a & 9223372036854775807u) + v_sig_b)));
-    } else if (v_exp_a == 2047u) {
-      if ((v_sig_a | v_sig_b) != 0u) {
-        return wuffs_softfloat__arith__f64_propagate_nan(self, a_a, a_b);
-      }
-      return a_a;
-    }
-    v_exp_z = v_exp_a;
-    v_sig_z = ((uint64_t)(((uint64_t)(((uint64_t)(9007199254740992u + v_sig_a)) + v_sig_b)) << 9u));
-    return wuffs_softfloat__arith__round_pack_f64(self, a_sign, v_exp_z, v_sig_z);
-  }
-  v_sig_a = ((uint64_t)(v_sig_a << 9u));
-  v_sig_b = ((uint64_t)(v_sig_b << 9u));
-  if (v_exp_a < v_exp_b) {
-    if (v_exp_b == 2047u) {
-      if (v_sig_b != 0u) {
-        return wuffs_softfloat__arith__f64_propagate_nan(self, a_a, a_b);
-      }
-      return (a_sign | 9218868437227405312u);
-    }
-    v_exp_z = v_exp_b;
-    if (v_exp_a != 0u) {
-      v_sig_a = ((uint64_t)(v_sig_a + 2305843009213693952u));
-    } else {
-      v_sig_a = ((uint64_t)(v_sig_a << 1u));
-    }
-    v_sig_a = wuffs_softfloat__arith__shift_right_jam64(self, v_sig_a, ((uint32_t)(v_exp_b - v_exp_a)));
-  } else {
-    if (v_exp_a == 2047u) {
-      if (v_sig_a != 0u) {
-        return wuffs_softfloat__arith__f64_propagate_nan(self, a_a, a_b);
-      }
-      return (a_sign | 9218868437227405312u);
-    }
-    v_exp_z = v_exp_a;
-    if (v_exp_b != 0u) {
-      v_sig_b = ((uint64_t)(v_sig_b + 2305843009213693952u));
-    } else {
-      v_sig_b = ((uint64_t)(v_sig_b << 1u));
-    }
-    v_sig_b = wuffs_softfloat__arith__shift_right_jam64(self, v_sig_b, ((uint32_t)(v_exp_a - v_exp_b)));
-  }
-  v_sig_z = ((uint64_t)(((uint64_t)(2305843009213693952u + v_sig_a)) + v_sig_b));
-  if (v_sig_z < 4611686018427387904u) {
-    v_exp_z = ((uint32_t)(v_exp_z - 1u));
-    v_sig_z = ((uint64_t)(v_sig_z << 1u));
-  }
-  return wuffs_softfloat__arith__round_pack_f64(self, a_sign, v_exp_z, v_sig_z);
-}
-
-// -------- func softfloat.arith.f64_sub_mags
-
-WUFFS_BASE__GENERATED_C_CODE
-static uint64_t
-wuffs_softfloat__arith__f64_sub_mags(
-    const wuffs_softfloat__arith* self,
-    uint64_t a_a,
-    uint64_t a_b,
-    uint64_t a_sign) {
-  uint64_t v_sign_z = 0;
-  uint32_t v_exp_a = 0;
-  uint32_t v_exp_b = 0;
-  uint32_t v_exp_z = 0;
-  uint64_t v_sig_a = 0;
-  uint64_t v_sig_b = 0;
-  uint64_t v_sig_z = 0;
-  uint32_t v_shift = 0;
-
-  v_sign_z = a_sign;
-  v_exp_a = ((uint32_t)(((a_a >> 52u) & 2047u)));
-  v_exp_b = ((uint32_t)(((a_b >> 52u) & 2047u)));
-  v_sig_a = (a_a & 4503599627370495u);
-  v_sig_b = (a_b & 4503599627370495u);
-  if (v_exp_a == v_exp_b) {
-    if (v_exp_a == 2047u) {
-      if ((v_sig_a | v_sig_b) != 0u) {
-        return wuffs_softfloat__arith__f64_propagate_nan(self, a_a, a_b);
-      }
-      return 18444492273895866368u;
-    } else if (v_sig_a == v_sig_b) {
-      return 0u;
-    }
-    if (v_exp_a != 0u) {
-      v_exp_a = ((uint32_t)(v_exp_a - 1u));
-    }
-    if (v_sig_a < v_sig_b) {
-      v_sign_z ^= 9223372036854775808u;
-      v_sig_z = ((uint64_t)(v_sig_b - v_sig_a));
-    } else {
-      v_sig_z = ((uint64_t)(v_sig_a - v_sig_b));
-    }
-    v_shift = (((uint32_t)(wuffs_softfloat__arith__clz64(self, v_sig_z) - 11u)) & 63u);
-    if (v_shift > v_exp_a) {
-      v_shift = (v_exp_a & 63u);
-      v_exp_z = 0u;
-    } else {
-      v_exp_z = ((uint32_t)(v_exp_a - v_shift));
-    }
-    return (v_sign_z | ((uint64_t)(((uint64_t)(((uint64_t)(v_exp_z)) << 52u)) + ((uint64_t)(v_sig_z << v_shift)))));
-  }
-  v_sig_a = ((uint64_t)(v_sig_a << 10u));
-  v_sig_b = ((uint64_t)(v_sig_b << 10u));
-  if (v_exp_a < v_exp_b) {
-    v_sign_z ^= 9223372036854775808u;
-    if (v_exp_b == 2047u) {
-      if (v_sig_b != 0u) {
-        return wuffs_softfloat__arith__f64_propagate_nan(self, a_a, a_b);
-      }
-      return (v_sign_z | 9218868437227405312u);
-    }
-    if (v_exp_a != 0u) {
-      v_sig_a = ((uint64_t)(v_sig_a + 4611686018427387904u));
-    } else {
-      v_sig_a = ((uint64_t)(v_sig_a + v_sig_a));
-    }
-    v_sig_a = wuffs_softfloat__arith__shift_right_jam64(self, v_sig_a, ((uint32_t)(v_exp_b - v_exp_a)));
-    v_sig_b = (v_sig_b | 4611686018427387904u);
-    v_exp_z = v_exp_b;
-    v_sig_z = ((uint64_t)(v_sig_b - v_sig_a));
-  } else {
-    if (v_exp_a == 2047u) {
-      if (v_sig_a != 0u) {
-        return wuffs_softfloat__arith__f64_propagate_nan(self, a_a, a_b);
-      }
-      return (v_sign_z | 9218868437227405312u);
-    }
-    if (v_exp_b != 0u) {
-      v_sig_b = ((uint64_t)(v_sig_b + 4611686018427387904u));
-    } else {
-      v_sig_b = ((uint64_t)(v_sig_b + v_sig_b));
-    }
-    v_sig_b = wuffs_softfloat__arith__shift_right_jam64(self, v_sig_b, ((uint32_t)(v_exp_a - v_exp_b)));
-    v_sig_a = (v_sig_a | 4611686018427387904u);
-    v_exp_z = v_exp_a;
-    v_sig_z = ((uint64_t)(v_sig_a - v_sig_b));
-  }
-  return wuffs_softfloat__arith__norm_round_pack_f64(self, v_sign_z, ((uint32_t)(v_exp_z - 1u)), v_sig_z);
-}
-
-// -------- func softfloat.arith.f64_mul
-
-WUFFS_BASE__GENERATED_C_CODE
-WUFFS_BASE__MAYBE_STATIC uint64_t
-wuffs_softfloat__arith__f64_mul(
-    const wuffs_softfloat__arith* self,
-    uint64_t a_a,
-    uint64_t a_b) {
-  if (!self) {
-    return 0;
-  }
-  if ((self->private_impl.magic != WUFFS_BASE__MAGIC) &&
-      (self->private_impl.magic != WUFFS_BASE__DISABLED)) {
-    return 0;
-  }
-
-  uint64_t v_sign_z = 0;
-  uint32_t v_exp_a = 0;
-  uint32_t v_exp_b = 0;
-  uint32_t v_exp_z = 0;
-  uint64_t v_sig_a = 0;
-  uint64_t v_sig_b = 0;
-  uint64_t v_sig_z = 0;
-
-  v_sign_z = ((a_a ^ a_b) & 9223372036854775808u);
-  v_exp_a = ((uint32_t)(((a_a >> 52u) & 2047u)));
-  v_exp_b = ((uint32_t)(((a_b >> 52u) & 2047u)));
-  v_sig_a = (a_a & 4503599627370495u);
-  v_sig_b = (a_b & 4503599627370495u);
-  if (v_exp_a == 2047u) {
-    if ((v_sig_a != 0u) || ((v_exp_b == 2047u) && (v_sig_b != 0u))) {
-      return wuffs_softfloat__arith__f64_propagate_nan(self, a_a, a_b);
-    } else if ((a_b & 9223372036854775807u) == 0u) {
-      return 18444492273895866368u;
-    }
-    return (v_sign_z | 9218868437227405312u);
-  } else if (v_exp_b == 2047u) {
-    if (v_sig_b != 0u) {
-      return wuffs_softfloat__arith__f64_propagate_nan(self, a_a, a_b);
-    } else if ((a_a & 9223372036854775807u) == 0u) {
-      return 18444492273895866368u;
-    }
-    return (v_sign_z | 9218868437227405312u);
-  }
-  if (v_exp_a == 0u) {
-    if (v_sig_a == 0u) {
-      return v_sign_z;
-    }
-    v_exp_a = wuffs_softfloat__arith__norm_sub_exp(self, v_sig_a);
-    v_sig_a = wuffs_softfloat__arith__norm_sub_sig(self, v_sig_a);
-  }
-  if (v_exp_b == 0u) {
-    if (v_sig_b == 0u) {
-      return v_sign_z;
-    }
-    v_exp_b = wuffs_softfloat__arith__norm_sub_exp(self, v_sig_b);
-    v_sig_b = wuffs_softfloat__arith__norm_sub_sig(self, v_sig_b);
-  }
-  v_exp_z = ((uint32_t)(((uint32_t)(v_exp_a + v_exp_b)) - 1023u));
-  v_sig_a = ((uint64_t)((v_sig_a | 4503599627370496u) << 10u));
-  v_sig_b = ((uint64_t)((v_sig_b | 4503599627370496u) << 11u));
-  v_sig_z = wuffs_softfloat__arith__mul_hi64(self, v_sig_a, v_sig_b);
-  if (((uint64_t)(v_sig_a * v_sig_b)) != 0u) {
-    v_sig_z |= 1u;
-  }
-  if (v_sig_z < 4611686018427387904u) {
-    v_exp_z = ((uint32_t)(v_exp_z - 1u));
-    v_sig_z = ((uint64_t)(v_sig_z << 1u));
-  }
-  return wuffs_softfloat__arith__round_pack_f64(self, v_sign_z, v_exp_z, v_sig_z);
-}
-
-// -------- func softfloat.arith.f64_div
-
-WUFFS_BASE__GENERATED_C_CODE
-WUFFS_BASE__MAYBE_STATIC uint64_t
-wuffs_softfloat__arith__f64_div(
-    const wuffs_softfloat__arith* self,
-    uint64_t a_a,
-    uint64_t a_b) {
-  if (!self) {
-    return 0;
-  }
-  if ((self->private_impl.magic != WUFFS_BASE__MAGIC) &&
-      (self->private_impl.magic != WUFFS_BASE__DISABLED)) {
-    return 0;
-  }
-
-  uint64_t v_sign_z = 0;
-  uint32_t v_exp_a = 0;
-  uint32_t v_exp_b = 0;
-  uint32_t v_exp_z = 0;
-  uint64_t v_sig_a = 0;
-  uint64_t v_sig_b = 0;
-  uint64_t v_q = 0;
-  uint64_t v_r = 0;
-  uint32_t v_i = 0;
-
-  v_sign_z = ((a_a ^ a_b) & 9223372036854775808u);
-  v_exp_a = ((uint32_t)(((a_a >> 52u) & 2047u)));
-  v_exp_b = ((uint32_t)(((a_b >> 52u) & 2047u)));
-  v_sig_a = (a_a & 4503599627370495u);
-  v_sig_b = (a_b & 4503599627370495u);
-  if (v_exp_a == 2047u) {
-    if (v_sig_a != 0u) {
-      return wuffs_softfloat__arith__f64_propagate_nan(self, a_a, a_b);
-    } else if (v_exp_b == 2047u) {
-      if (v_sig_b != 0u) {
-        return wuffs_softfloat__arith__f64_propagate_nan(self, a_a, a_b);
-      }
-      return 18444492273895866368u;
-    }
-    return (v_sign_z | 9218868437227405312u);
-  } else if (v_exp_b == 2047u) {
-    if (v_sig_b != 0u) {
-      return wuffs_softfloat__arith__f64_propagate_nan(self, a_a, a_b);
-    }
-    return v_sign_z;
-  }
-  if (v_exp_b == 0u) {
-    if (v_sig_b == 0u) {
-      if ((a_a & 9223372036854775807u) == 0u) {
-        return 18444492273895866368u;
-      }
-      return (v_sign_z | 9218868437227405312u);
-    }
-    v_exp_b = wuffs_softfloat__arith__norm_sub_exp(self, v_sig_b);
-    v_sig_b = wuffs_softfloat__arith__norm_sub_sig(self, v_sig_b);
-  }
-  if (v_exp_a == 0u) {
-    if (v_sig_a == 0u) {
-      return v_sign_z;
-    }
-    v_exp_a = wuffs_softfloat__arith__norm_sub_exp(self, v_sig_a);
-    v_sig_a = wuffs_softfloat__arith__norm_sub_sig(self, v_sig_a);
-  }
-  v_exp_z = ((uint32_t)(((uint32_t)(v_exp_a - v_exp_b)) + 1022u));
-  v_sig_a = ((v_sig_a & 4503599627370495u) | 4503599627370496u);
-  v_sig_b = ((v_sig_b & 4503599627370495u) | 4503599627370496u);
-  if (v_sig_a < v_sig_b) {
-    v_exp_z = ((uint32_t)(v_exp_z - 1u));
-    v_sig_a = ((uint64_t)(v_sig_a << 1u));
-  }
-  v_q = 1u;
-  v_r = ((uint64_t)(v_sig_a - v_sig_b));
-  v_i = 0u;
-  while (v_i < 5u) {
-    v_r = ((uint64_t)(v_r << 11u));
-    if (v_sig_b > 0u) {
-      v_q = (((uint64_t)(v_q << 11u)) | (v_r / v_sig_b));
-      v_r = (v_r % v_sig_b);
-    }
-    v_i += 1u;
-  }
-  v_q = ((uint64_t)(v_q << 7u));
-  if (v_r != 0u) {
-    v_q |= 1u;
-  }
-  return wuffs_softfloat__arith__round_pack_f64(self, v_sign_z, v_exp_z, v_q);
-}
-
-// -------- func softfloat.arith.f64_fma
-
-WUFFS_BASE__GENERATED_C_CODE
-WUFFS_BASE__MAYBE_STATIC uint64_t
-wuffs_softfloat__arith__f64_fma(
-    const wuffs_softfloat__arith* self,
-    uint64_t a_a,
-    uint64_t a_b,
-    uint64_t a_c) {
-  if (!self) {
-    return 0;
-  }
-  if ((self->private_impl.magic != WUFFS_BASE__MAGIC) &&
-      (self->private_impl.magic != WUFFS_BASE__DISABLED)) {
-    return 0;
-  }
-
-  uint64_t v_sign_p = 0;
-  uint64_t v_sign_c = 0;
-  uint64_t v_sign_z = 0;
-  uint32_t v_exp_a = 0;
-  uint32_t v_exp_b = 0;
-  uint32_t v_exp_c = 0;
-  uint32_t v_exp_z = 0;
-  uint64_t v_sig_a = 0;
-  uint64_t v_sig_b = 0;
-  uint64_t v_sig_c = 0;
-  uint64_t v_p_hi = 0;
-  uint64_t v_p_lo = 0;
-  uint64_t v_c_hi = 0;
-  uint64_t v_c_lo = 0;
-  uint64_t v_z_hi = 0;
-  uint64_t v_z_lo = 0;
-  uint64_t v_tmp = 0;
-  uint32_t v_d = 0;
-  uint32_t v_top = 0;
-
-  if (((a_a & 9223372036854775807u) > 9218868437227405312u) || ((a_b & 9223372036854775807u) > 9218868437227405312u)) {
-    return wuffs_softfloat__arith__f64_propagate_nan(self, a_a, a_b);
-  } else if ((a_c & 9223372036854775807u) > 9218868437227405312u) {
-    return (a_c | 2251799813685248u);
-  }
-  v_sign_p = ((a_a ^ a_b) & 9223372036854775808u);
-  v_sign_c = (a_c & 9223372036854775808u);
-  v_exp_a = ((uint32_t)(((a_a >> 52u) & 2047u)));
-  v_exp_b = ((uint32_t)(((a_b >> 52u) & 2047u)));
-  v_exp_c = ((uint32_t)(((a_c >> 52u) & 2047u)));
-  v_sig_a = (a_a & 4503599627370495u);
-  v_sig_b = (a_b & 4503599627370495u);
-  v_sig_c = (a_c & 4503599627370495u);
-  if ((v_exp_a == 2047u) || (v_exp_b == 2047u)) {
-    if (((a_a & 9223372036854775807u) == 0u) || ((a_b & 9223372036854775807u) == 0u)) {
-      return 18444492273895866368u;
-    } else if ((v_exp_c == 2047u) && (v_sign_c != v_sign_p)) {
-      return 18444492273895866368u;
-    }
-    return (v_sign_p | 9218868437227405312u);
-  } else if (v_exp_c == 2047u) {
-    return a_c;
-  }
-  if (((a_a & 9223372036854775807u) == 0u) || ((a_b & 9223372036854775807u) == 0u)) {
-    if ((a_c & 9223372036854775807u) == 0u) {
-      if (v_sign_p == v_sign_c) {
-        return a_c;
-      }
-      return 0u;
-    }
-    return a_c;
-  }
-  if (v_exp_a == 0u) {
-    v_exp_a = wuffs_softfloat__arith__norm_sub_exp(self, v_sig_a);
-    v_sig_a = wuffs_softfloat__arith__norm_sub_sig(self, v_sig_a);
-  }
-  if (v_exp_b == 0u) {
-    v_exp_b = wuffs_softfloat__arith__norm_sub_exp(self, v_sig_b);
-    v_sig_b = wuffs_softfloat__arith__norm_sub_sig(self, v_sig_b);
-  }
-  v_sig_a = ((v_sig_a & 4503599627370495u) | 4503599627370496u);
-  v_sig_b = ((v_sig_b & 4503599627370495u) | 4503599627370496u);
-  v_p_hi = wuffs_softfloat__arith__mul_hi64(self, v_sig_a, v_sig_b);
-  v_p_lo = ((uint64_t)(v_sig_a * v_sig_b));
-  v_p_hi = (((uint64_t)(v_p_hi << 20u)) | (v_p_lo >> 44u));
-  v_p_lo = ((uint64_t)(v_p_lo << 20u));
-  if ((a_c & 9223372036854775807u) == 0u) {
-    v_top = (127u - wuffs_softfloat__arith__clz64(self, v_p_hi));
-    v_exp_z = ((uint32_t)(((uint32_t)(((uint32_t)(v_exp_a + v_exp_b)) + v_top)) - 1148u));
-    return wuffs_softfloat__arith__round_pack_f64(self, v_sign_p, v_exp_z, wuffs_softfloat__arith__jam128_lo(self, v_p_hi, v_p_lo, ((uint32_t)(v_top - 62u))));
-  }
-  if (v_exp_c == 0u) {
-    v_exp_c = wuffs_softfloat__arith__norm_sub_exp(self, v_sig_c);
-    v_sig_c = wuffs_softfloat__arith__norm_sub_sig(self, v_sig_c);
-  }
-  v_sig_c = ((v_sig_c & 4503599627370495u) | 4503599627370496u);
-  v_c_hi = ((uint64_t)(v_sig_c << 9u));
-  v_c_lo = 0u;
-  v_d = ((uint32_t)(((uint32_t)(((uint32_t)(v_exp_a + v_exp_b)) - v_exp_c)) - 1022u));
-  if (v_d < 2147483648u) {
-    v_tmp = wuffs_softfloat__arith__jam128_hi(self, v_c_hi, v_c_lo, v_d);
-    v_c_lo = wuffs_softfloat__arith__jam128_lo(self, v_c_hi, v_c_lo, v_d);
-    v_c_hi = v_tmp;
-    v_exp_z = ((uint32_t)(((uint32_t)(v_exp_a + v_exp_b)) - 1148u));
-  } else {
-    v_d = ((uint32_t)(0u - v_d));
-    v_tmp = wuffs_softfloat__arith__jam128_hi(self, v_p_hi, v_p_lo, v_d);
-    v_p_lo = wuffs_softfloat__arith__jam128_lo(self, v_p_hi, v_p_lo, v_d);
-    v_p_hi = v_tmp;
-    v_exp_z = ((uint32_t)(v_exp_c - 126u));
-  }
-  if (v_sign_p == v_sign_c) {
-    v_sign_z = v_sign_p;
-    v_z_lo = ((uint64_t)(v_p_lo + v_c_lo));
-    v_z_hi = ((uint64_t)(v_p_hi + v_c_hi));
-    if (v_z_lo < v_p_lo) {
-      v_z_hi = ((uint64_t)(v_z_hi + 1u));
-    }
-  } else {
-    if ((v_p_hi > v_c_hi) || ((v_p_hi == v_c_hi) && (v_p_lo >= v_c_lo))) {
-      v_sign_z = v_sign_p;
-      v_z_lo = ((uint64_t)(v_p_lo - v_c_lo));
-      v_z_hi = ((uint64_t)(v_p_hi - v_c_hi));
-      if (v_p_lo < v_c_lo) {
-        v_z_hi = ((uint64_t)(v_z_hi - 1u));
-      }
-    } else {
-      v_sign_z = v_sign_c;
-      v_z_lo = ((uint64_t)(v_c_lo - v_p_lo));
-      v_z_hi = ((uint64_t)(v_c_hi - v_p_hi));
-      if (v_c_lo < v_p_lo) {
-        v_z_hi = ((uint64_t)(v_z_hi - 1u));
-      }
-    }
-    if ((v_z_hi | v_z_lo) == 0u) {
-      return 0u;
-    }
-  }
-  if (v_z_hi != 0u) {
-    v_top = (127u - wuffs_softfloat__arith__clz64(self, v_z_hi));
-  } else {
-    v_top = (63u - wuffs_softfloat__arith__clz64(self, v_z_lo));
-  }
-  v_exp_z = ((uint32_t)(v_exp_z + v_top));
-  if (v_top >= 62u) {
-    return wuffs_softfloat__arith__round_pack_f64(self, v_sign_z, v_exp_z, wuffs_softfloat__arith__jam128_lo(self, v_z_hi, v_z_lo, (v_top - 62u)));
-  }
-  return wuffs_softfloat__arith__round_pack_f64(self, v_sign_z, v_exp_z, ((uint64_t)(v_z_lo << (62u - v_top))));
-}
-
-// -------- func softfloat.arith.f64_from_u64
-
-WUFFS_BASE__GENERATED_C_CODE
-WUFFS_BASE__MAYBE_STATIC uint64_t
-wuffs_softfloat__arith__f64_from_u64(
-    const wuffs_softfloat__arith* self,
-    uint64_t a_a) {
-  if (!self) {
-    return 0;
-  }
-  if ((self->private_impl.magic != WUFFS_BASE__MAGIC) &&
-      (self->private_impl.magic != WUFFS_BASE__DISABLED)) {
-    return 0;
-  }
-
-  return wuffs_softfloat__arith__norm_round_pack_f64(self, 0u, 1084u, a_a);
-}
-
-// -------- func softfloat.arith.f64_from_u32
-
-WUFFS_BASE__GENERATED_C_CODE
-WUFFS_BASE__MAYBE_STATIC uint64_t
-wuffs_softfloat__arith__f64_from_u32(
-    const wuffs_softfloat__arith* self,
-    uint32_t a_a) {
-  if (!self) {
-    return 0;
-  }
-  if ((self->private_impl.magic != WUFFS_BASE__MAGIC) &&
-      (self->private_impl.magic != WUFFS_BASE__DISABLED)) {
-    return 0;
-  }
-
-  return wuffs_softfloat__arith__norm_round_pack_f64(self, 0u, 1084u, ((uint64_t)(a_a)));
-}
-
-// -------- func softfloat.arith.f64_from_i64
-
-WUFFS_BASE__GENERATED_C_CODE
-WUFFS_BASE__MAYBE_STATIC uint64_t
-wuffs_softfloat__arith__f64_from_i64(
-    const wuffs_softfloat__arith* self,
-    int64_t a_a) {
-  if (!self) {
-    return 0;
-  }
-  if ((self->private_impl.magic != WUFFS_BASE__MAGIC) &&
-      (self->private_impl.magic != WUFFS_BASE__DISABLED)) {
-    return 0;
-  }
-
-  uint64_t v_m = 0;
-
-  if (a_a >= 0u) {
-    return wuffs_softfloat__arith__norm_round_pack_f64(self, 0u, 1084u, ((uint64_t)(a_a)));
-  }
-  v_m = (((uint64_t)((0u - (a_a + 1u)))) + 1u);
-  return wuffs_softfloat__arith__norm_round_pack_f64(self, 9223372036854775808u, 1084u, v_m);
-}
-
-// -------- func softfloat.arith.f64_to_u64_trunc
-
-WUFFS_BASE__GENERATED_C_CODE
-WUFFS_BASE__MAYBE_STATIC uint64_t
-wuffs_softfloat__arith__f64_to_u64_trunc(
-    const wuffs_softfloat__arith* self,
-    uint64_t a_a) {
-  if (!self) {
-    return 0;
-  }
-  if ((self->private_impl.magic != WUFFS_BASE__MAGIC) &&
-      (self->private_impl.magic != WUFFS_BASE__DISABLED)) {
-    return 0;
-  }
-
-  uint32_t v_exp = 0;
-  uint64_t v_sig = 0;
-
-  if (a_a >= 9223372036854775808u) {
-    return 0u;
-  } else if (a_a > 9218868437227405312u) {
-    return 0u;
-  }
-  v_exp = ((uint32_t)(((a_a >> 52u) & 2047u)));
-  v_sig = ((a_a & 4503599627370495u) | 4503599627370496u);
-  if (v_exp < 1023u) {
-    return 0u;
-  } else if (v_exp >= 1087u) {
-    return 18446744073709551615u;
-  } else if (v_exp >= 1075u) {
-    return ((uint64_t)(v_sig << ((v_exp - 1075u) & 63u)));
-  }
-  return (v_sig >> ((1075u - v_exp) & 63u));
-}
-
-// -------- func softfloat.arith.f64_to_f32
-
-WUFFS_BASE__GENERATED_C_CODE
-WUFFS_BASE__MAYBE_STATIC uint32_t
-wuffs_softfloat__arith__f64_to_f32(
-    const wuffs_softfloat__arith* self,
-    uint64_t a_a) {
-  if (!self) {
-    return 0;
-  }
-  if ((self->private_impl.magic != WUFFS_BASE__MAGIC) &&
-      (self->private_impl.magic != WUFFS_BASE__DISABLED)) {
-    return 0;
-  }
-
-  uint32_t v_sign = 0;
-  uint32_t v_exp = 0;
-  uint64_t v_frac = 0;
-  uint32_t v_sig = 0;
-
-  v_sign = (((uint32_t)((a_a >> 32u))) & 2147483648u);
-  v_exp = ((uint32_t)(((a_a >> 52u) & 2047u)));
-  v_frac = (a_a & 4503599627370495u);
-  if (v_exp == 2047u) {
-    if (v_frac != 0u) {
-      return (v_sign | 2143289344u | ((uint32_t)((v_frac >> 29u))));
-    }
-    return (v_sign | 2139095040u);
-  }
-  v_sig = ((uint32_t)((wuffs_softfloat__arith__shift_right_jam64(self, v_frac, 22u) & 1073741823u)));
-  if ((v_exp == 0u) && (v_sig == 0u)) {
-    return v_sign;
-  }
-  return wuffs_softfloat__arith__round_pack_f32(self, v_sign, ((uint32_t)(v_exp - 897u)), (v_sig | 1073741824u));
-}
-
-// -------- func softfloat.arith.round_pack_f32
-
-WUFFS_BASE__GENERATED_C_CODE
-static uint32_t
-wuffs_softfloat__arith__round_pack_f32(
-    const wuffs_softfloat__arith* self,
-    uint32_t a_sign,
-    uint32_t a_exp,
-    uint32_t a_sig) {
-  uint32_t v_e = 0;
-  uint32_t v_s = 0;
-  uint32_t v_round_bits = 0;
-
-  v_e = a_exp;
-  v_s = a_sig;
-  v_round_bits = (v_s & 127u);
-  if (v_e >= 2147483648u) {
-    v_s = ((uint32_t)(wuffs_softfloat__arith__shift_right_jam64(self, ((uint64_t)(v_s)), ((uint32_t)(0u - v_e)))));
-    v_e = 0u;
-    v_round_bits = (v_s & 127u);
-  } else if (v_e >= 253u) {
-    if ((v_e > 253u) || (v_s >= 2147483584u)) {
-      return (a_sign | 2139095040u);
-    }
-  }
-  v_s = (((uint32_t)(v_s + 64u)) >> 7u);
-  if (v_round_bits == 64u) {
-    v_s = (v_s & 4294967294u);
-  }
-  if (v_s == 0u) {
-    v_e = 0u;
-  }
-  return (a_sign | ((uint32_t)(((uint32_t)(v_e << 23u)) + v_s)));
-}
-
-// -------- func softfloat.arith.f32_to_f64
-
-WUFFS_BASE__GENERATED_C_CODE
-WUFFS_BASE__MAYBE_STATIC uint64_t
-wuffs_softfloat__arith__f32_to_f64(
-    const wuffs_softfloat__arith* self,
-    uint32_t a_a) {
-  if (!self) {
-    return 0;
-  }
-  if ((self->private_impl.magic != WUFFS_BASE__MAGIC) &&
-      (self->private_impl.magic != WUFFS_BASE__DISABLED)) {
-    return 0;
-  }
-
-  uint64_t v_sign = 0;
-  uint32_t v_exp = 0;
-  uint64_t v_frac = 0;
-  uint32_t v_top = 0;
-
-  v_sign = ((((uint64_t)(a_a)) >> 31u) << 63u);
-  v_exp = ((a_a >> 23u) & 255u);
-  v_frac = ((uint64_t)((a_a & 8388607u)));
-  if (v_exp == 255u) {
-    if (v_frac != 0u) {
-      return (v_sign | 9221120237041090560u | (v_frac << 29u));
-    }
-    return (v_sign | 9218868437227405312u);
-  } else if (v_exp == 0u) {
-    if (v_frac == 0u) {
-      return v_sign;
-    }
-    v_top = (63u - wuffs_softfloat__arith__clz64(self, v_frac));
-    if (v_top > 22u) {
-      return 0u;
-    }
-    return (v_sign | (((uint64_t)((v_top + 874u))) << 52u) | (((uint64_t)(v_frac << (52u - v_top))) & 4503599627370495u));
-  }
-  return (v_sign | (((uint64_t)((v_exp + 896u))) << 52u) | (v_frac << 29u));
-}
-
-// -------- func softfloat.arith.f32_is_nan
-
-WUFFS_BASE__GENERATED_C_CODE
-WUFFS_BASE__MAYBE_STATIC uint32_t
-wuffs_softfloat__arith__f32_is_nan(
-    const wuffs_softfloat__arith* self,
-    uint32_t a_a) {
-  if (!self) {
-    return 0;
-  }
-  if ((self->private_impl.magic != WUFFS_BASE__MAGIC) &&
-      (self->private_impl.magic != WUFFS_BASE__DISABLED)) {
-    return 0;
-  }
-
-  if ((a_a & 2147483647u) > 2139095040u) {
-    return 1u;
-  }
-  return 0u;
-}
-
-// -------- func softfloat.arith.f32_neg
-
-WUFFS_BASE__GENERATED_C_CODE
-WUFFS_BASE__MAYBE_STATIC uint32_t
-wuffs_softfloat__arith__f32_neg(
-    const wuffs_softfloat__arith* self,
-    uint32_t a_a) {
-  if (!self) {
-    return 0;
-  }
-  if ((self->private_impl.magic != WUFFS_BASE__MAGIC) &&
-      (self->private_impl.magic != WUFFS_BASE__DISABLED)) {
-    return 0;
-  }
-
-  return (a_a ^ 2147483648u);
-}
-
-// -------- func softfloat.arith.f32_abs
-
-WUFFS_BASE__GENERATED_C_CODE
-WUFFS_BASE__MAYBE_STATIC uint32_t
-wuffs_softfloat__arith__f32_abs(
-    const wuffs_softfloat__arith* self,
-    uint32_t a_a) {
-  if (!self) {
-    return 0;
-  }
-  if ((self->private_impl.magic != WUFFS_BASE__MAGIC) &&
-      (self->private_impl.magic != WUFFS_BASE__DISABLED)) {
-    return 0;
-  }
-
-  return (a_a & 2147483647u);
-}
-
-// -------- func softfloat.arith.f32_add
-
-WUFFS_BASE__GENERATED_C_CODE
-WUFFS_BASE__MAYBE_STATIC uint32_t
-wuffs_softfloat__arith__f32_add(
-    const wuffs_softfloat__arith* self,
-    uint32_t a_a,
-    uint32_t a_b) {
-  if (!self) {
-    return 0;
-  }
-  if ((self->private_impl.magic != WUFFS_BASE__MAGIC) &&
-      (self->private_impl.magic != WUFFS_BASE__DISABLED)) {
-    return 0;
-  }
-
-  return wuffs_softfloat__arith__f64_to_f32(self, wuffs_softfloat__arith__f64_add(self, wuffs_softfloat__arith__f32_to_f64(self, a_a), wuffs_softfloat__arith__f32_to_f64(self, a_b)));
-}
-
-// -------- func softfloat.arith.f32_sub
-
-WUFFS_BASE__GENERATED_C_CODE
-WUFFS_BASE__MAYBE_STATIC uint32_t
-wuffs_softfloat__arith__f32_sub(
-    const wuffs_softfloat__arith* self,
-    uint32_t a_a,
-    uint32_t a_b) {
-  if (!self) {
-    return 0;
-  }
-  if ((self->private_impl.magic != WUFFS_BASE__MAGIC) &&
-      (self->private_impl.magic != WUFFS_BASE__DISABLED)) {
-    return 0;
-  }
-
-  return wuffs_softfloat__arith__f64_to_f32(self, wuffs_softfloat__arith__f64_sub(self, wuffs_softfloat__arith__f32_to_f64(self, a_a), wuffs_softfloat__arith__f32_to_f64(self, a_b)));
-}
-
-// -------- func softfloat.arith.f32_mul
-
-WUFFS_BASE__GENERATED_C_CODE
-WUFFS_BASE__MAYBE_STATIC uint32_t
-wuffs_softfloat__arith__f32_mul(
-    const wuffs_softfloat__arith* self,
-    uint32_t a_a,
-    uint32_t a_b) {
-  if (!self) {
-    return 0;
-  }
-  if ((self->private_impl.magic != WUFFS_BASE__MAGIC) &&
-      (self->private_impl.magic != WUFFS_BASE__DISABLED)) {
-    return 0;
-  }
-
-  return wuffs_softfloat__arith__f64_to_f32(self, wuffs_softfloat__arith__f64_mul(self, wuffs_softfloat__arith__f32_to_f64(self, a_a), wuffs_softfloat__arith__f32_to_f64(self, a_b)));
-}
-
-// -------- func softfloat.arith.f32_div
-
-WUFFS_BASE__GENERATED_C_CODE
-WUFFS_BASE__MAYBE_STATIC uint32_t
-wuffs_softfloat__arith__f32_div(
-    const wuffs_softfloat__arith* self,
-    uint32_t a_a,
-    uint32_t a_b) {
-  if (!self) {
-    return 0;
-  }
-  if ((self->private_impl.magic != WUFFS_BASE__MAGIC) &&
-      (self->private_impl.magic != WUFFS_BASE__DISABLED)) {
-    return 0;
-  }
-
-  return wuffs_softfloat__arith__f64_to_f32(self, wuffs_softfloat__arith__f64_div(self, wuffs_softfloat__arith__f32_to_f64(self, a_a), wuffs_softfloat__arith__f32_to_f64(self, a_b)));
-}
-
-// -------- func softfloat.arith.f32_cmp
-
-WUFFS_BASE__GENERATED_C_CODE
-WUFFS_BASE__MAYBE_STATIC uint32_t
-wuffs_softfloat__arith__f32_cmp(
-    const wuffs_softfloat__arith* self,
-    uint32_t a_a,
-    uint32_t a_b) {
-  if (!self) {
-    return 0;
-  }
-  if ((self->private_impl.magic != WUFFS_BASE__MAGIC) &&
-      (self->private_impl.magic != WUFFS_BASE__DISABLED)) {
-    return 0;
-  }
-
-  uint32_t v_ka = 0;
-  uint32_t v_kb = 0;
-
-  if (((a_a & 2147483647u) > 2139095040u) || ((a_b & 2147483647u) > 2139095040u)) {
-    return 3u;
-  } else if (((a_a | a_b) & 2147483647u) == 0u) {
-    return 1u;
-  }
-  v_ka = (a_a | 2147483648u);
-  if ((a_a >> 31u) != 0u) {
-    v_ka = (4294967295u ^ a_a);
-  }
-  v_kb = (a_b | 2147483648u);
-  if ((a_b >> 31u) != 0u) {
-    v_kb = (4294967295u ^ a_b);
-  }
-  if (v_ka < v_kb) {
-    return 0u;
-  } else if (v_ka == v_kb) {
-    return 1u;
-  }
-  return 2u;
-}
-
-// -------- func softfloat.arith.f32_eq
-
-WUFFS_BASE__GENERATED_C_CODE
-WUFFS_BASE__MAYBE_STATIC uint32_t
-wuffs_softfloat__arith__f32_eq(
-    const wuffs_softfloat__arith* self,
-    uint32_t a_a,
-    uint32_t a_b) {
-  if (!self) {
-    return 0;
-  }
-  if ((self->private_impl.magic != WUFFS_BASE__MAGIC) &&
-      (self->private_impl.magic != WUFFS_BASE__DISABLED)) {
-    return 0;
-  }
-
-  if (wuffs_softfloat__arith__f32_cmp(self, a_a, a_b) == 1u) {
-    return 1u;
-  }
-  return 0u;
-}
-
-// -------- func softfloat.arith.f32_ne
-
-WUFFS_BASE__GENERATED_C_CODE
-WUFFS_BASE__MAYBE_STATIC uint32_t
-wuffs_softfloat__arith__f32_ne(
-    const wuffs_softfloat__arith* self,
-    uint32_t a_a,
-    uint32_t a_b) {
-  if (!self) {
-    return 0;
-  }
-  if ((self->private_impl.magic != WUFFS_BASE__MAGIC) &&
-      (self->private_impl.magic != WUFFS_BASE__DISABLED)) {
-    return 0;
-  }
-
-  if (wuffs_softfloat__arith__f32_cmp(self, a_a, a_b) == 1u) {
-    return 0u;
-  }
-  return 1u;
-}
-
-// -------- func softfloat.arith.f32_lt
-
-WUFFS_BASE__GENERATED_C_CODE
-WUFFS_BASE__MAYBE_STATIC uint32_t
-wuffs_softfloat__arith__f32_lt(
-    const wuffs_softfloat__arith* self,
-    uint32_t a_a,
-    uint32_t a_b) {
-  if (!self) {
-    return 0;
-  }
-  if ((self->private_impl.magic != WUFFS_BASE__MAGIC) &&
-      (self->private_impl.magic != WUFFS_BASE__DISABLED)) {
-    return 0;
-  }
-
-  if (wuffs_softfloat__arith__f32_cmp(self, a_a, a_b) == 0u) {
-    return 1u;
-  }
-  return 0u;
-}
-
-// -------- func softfloat.arith.f32_le
-
-WUFFS_BASE__GENERATED_C_CODE
-WUFFS_BASE__MAYBE_STATIC uint32_t
-wuffs_softfloat__arith__f32_le(
-    const wuffs_softfloat__arith* self,
-    uint32_t a_a,
-    uint32_t a_b) {
-  if (!self) {
-    return 0;
-  }
-  if ((self->private_impl.magic != WUFFS_BASE__MAGIC) &&
-      (self->private_impl.magic != WUFFS_BASE__DISABLED)) {
-    return 0;
-  }
-
-  if (wuffs_softfloat__arith__f32_cmp(self, a_a, a_b) <= 1u) {
-    return 1u;
-  }
-  return 0u;
-}
-
-// -------- func softfloat.arith.f32_gt
-
-WUFFS_BASE__GENERATED_C_CODE
-WUFFS_BASE__MAYBE_STATIC uint32_t
-wuffs_softfloat__arith__f32_gt(
-    const wuffs_softfloat__arith* self,
-    uint32_t a_a,
-    uint32_t a_b) {
-  if (!self) {
-    return 0;
-  }
-  if ((self->private_impl.magic != WUFFS_BASE__MAGIC) &&
-      (self->private_impl.magic != WUFFS_BASE__DISABLED)) {
-    return 0;
-  }
-
-  if (wuffs_softfloat__arith__f32_cmp(self, a_a, a_b) == 2u) {
-    return 1u;
-  }
-  return 0u;
-}
-
-// -------- func softfloat.arith.f32_ge
-
-WUFFS_BASE__GENERATED_C_CODE
-WUFFS_BASE__MAYBE_STATIC uint32_t
-wuffs_softfloat__arith__f32_ge(
-    const wuffs_softfloat__arith* self,
-    uint32_t a_a,
-    uint32_t a_b) {
-  if (!self) {
-    return 0;
-  }
-  if ((self->private_impl.magic != WUFFS_BASE__MAGIC) &&
-      (self->private_impl.magic != WUFFS_BASE__DISABLED)) {
-    return 0;
-  }
-
-  uint32_t v_c = 0;
-
-  v_c = wuffs_softfloat__arith__f32_cmp(self, a_a, a_b);
-  if ((v_c == 1u) || (v_c == 2u)) {
-    return 1u;
-  }
-  return 0u;
-}
-
-// -------- func softfloat.arith.f32_min
-
-WUFFS_BASE__GENERATED_C_CODE
-WUFFS_BASE__MAYBE_STATIC uint32_t
-wuffs_softfloat__arith__f32_min(
-    const wuffs_softfloat__arith* self,
-    uint32_t a_a,
-    uint32_t a_b) {
-  if (!self) {
-    return 0;
-  }
-  if ((self->private_impl.magic != WUFFS_BASE__MAGIC) &&
-      (self->private_impl.magic != WUFFS_BASE__DISABLED)) {
-    return 0;
-  }
-
-  if (wuffs_softfloat__arith__f32_cmp(self, a_a, a_b) == 0u) {
-    return a_a;
-  }
-  return a_b;
-}
-
-// -------- func softfloat.arith.f32_max
-
-WUFFS_BASE__GENERATED_C_CODE
-WUFFS_BASE__MAYBE_STATIC uint32_t
-wuffs_softfloat__arith__f32_max(
-    const wuffs_softfloat__arith* self,
-    uint32_t a_a,
-    uint32_t a_b) {
-  if (!self) {
-    return 0;
-  }
-  if ((self->private_impl.magic != WUFFS_BASE__MAGIC) &&
-      (self->private_impl.magic != WUFFS_BASE__DISABLED)) {
-    return 0;
-  }
-
-  if (wuffs_softfloat__arith__f32_cmp(self, a_a, a_b) == 2u) {
-    return a_a;
-  }
-  return a_b;
-}
-
-// -------- func softfloat.arith.f32_from_u32
-
-WUFFS_BASE__GENERATED_C_CODE
-WUFFS_BASE__MAYBE_STATIC uint32_t
-wuffs_softfloat__arith__f32_from_u32(
-    const wuffs_softfloat__arith* self,
-    uint32_t a_a) {
-  if (!self) {
-    return 0;
-  }
-  if ((self->private_impl.magic != WUFFS_BASE__MAGIC) &&
-      (self->private_impl.magic != WUFFS_BASE__DISABLED)) {
-    return 0;
-  }
-
-  return wuffs_softfloat__arith__f64_to_f32(self, wuffs_softfloat__arith__f64_from_u32(self, a_a));
-}
-
-// -------- func softfloat.arith.f32_from_i32
-
-WUFFS_BASE__GENERATED_C_CODE
-WUFFS_BASE__MAYBE_STATIC uint32_t
-wuffs_softfloat__arith__f32_from_i32(
-    const wuffs_softfloat__arith* self,
-    int32_t a_a) {
-  if (!self) {
-    return 0;
-  }
-  if ((self->private_impl.magic != WUFFS_BASE__MAGIC) &&
-      (self->private_impl.magic != WUFFS_BASE__DISABLED)) {
-    return 0;
-  }
-
-  return wuffs_softfloat__arith__f64_to_f32(self, wuffs_softfloat__arith__f64_from_i64(self, ((int64_t)(a_a))));
-}
-
-// -------- func softfloat.arith.f32_from_u64
-
-WUFFS_BASE__GENERATED_C_CODE
-WUFFS_BASE__MAYBE_STATIC uint32_t
-wuffs_softfloat__arith__f32_from_u64(
-    const wuffs_softfloat__arith* self,
-    uint64_t a_a) {
-  if (!self) {
-    return 0;
-  }
-  if ((self->private_impl.magic != WUFFS_BASE__MAGIC) &&
-      (self->private_impl.magic != WUFFS_BASE__DISABLED)) {
-    return 0;
-  }
-
-  uint32_t v_top = 0;
-  uint64_t v_x = 0;
-
-  v_x = a_a;
-  if (v_x >= 9007199254740992u) {
-    v_top = (63u - wuffs_softfloat__arith__clz64(self, v_x));
-    if (v_top >= 53u) {
-      v_x = ((uint64_t)(wuffs_softfloat__arith__shift_right_jam64(self, v_x, (v_top - 52u)) << (v_top - 52u)));
-    }
-  }
-  return wuffs_softfloat__arith__f64_to_f32(self, wuffs_softfloat__arith__f64_from_u64(self, v_x));
-}
-
-// -------- func softfloat.arith.log2_u64
-
-WUFFS_BASE__GENERATED_C_CODE
-WUFFS_BASE__MAYBE_STATIC uint64_t
-wuffs_softfloat__arith__log2_u64(
-    const wuffs_softfloat__arith* self,
-    uint64_t a_v) {
-  if (!self) {
-    return 0;
-  }
-  if ((self->private_impl.magic != WUFFS_BASE__MAGIC) &&
-      (self->private_impl.magic != WUFFS_BASE__DISABLED)) {
-    return 0;
-  }
-
-  return wuffs_softfloat__arith__log2_f64(self, wuffs_softfloat__arith__f64_from_u64(self, a_v));
-}
-
-// -------- func softfloat.arith.log2_f64
-
-WUFFS_BASE__GENERATED_C_CODE
-WUFFS_BASE__MAYBE_STATIC uint64_t
-wuffs_softfloat__arith__log2_f64(
-    const wuffs_softfloat__arith* self,
-    uint64_t a_x) {
-  if (!self) {
-    return 0;
-  }
-  if ((self->private_impl.magic != WUFFS_BASE__MAGIC) &&
-      (self->private_impl.magic != WUFFS_BASE__DISABLED)) {
-    return 0;
-  }
-
-  uint64_t v_ix = 0;
-  uint64_t v_top = 0;
-  uint64_t v_tmp = 0;
-  uint64_t v_i = 0;
-  uint64_t v_k = 0;
-  uint64_t v_kd = 0;
-  uint64_t v_invc = 0;
-  uint64_t v_logc = 0;
-  uint64_t v_z = 0;
-  uint64_t v_r = 0;
-  uint64_t v_r2 = 0;
-  uint64_t v_r4 = 0;
-  uint64_t v_t1 = 0;
-  uint64_t v_t2 = 0;
-  uint64_t v_t3 = 0;
-  uint64_t v_hi = 0;
-  uint64_t v_lo = 0;
-  uint64_t v_p = 0;
-  uint64_t v_y = 0;
-
-  v_ix = a_x;
-  if (((uint64_t)(v_ix - 4606800540372828160u)) < 581272283906048u) {
-    if (v_ix == 4607182418800017408u) {
-      return 0u;
-    }
-    v_r = wuffs_softfloat__arith__f64_sub(self, v_ix, 4607182418800017408u);
-    v_hi = wuffs_softfloat__arith__f64_mul(self, 4609176140020449280u, v_r);
-    v_r2 = wuffs_softfloat__arith__f64_mul(self, v_r, v_r);
-    v_lo = wuffs_softfloat__arith__f64_fma(self, 4609176140020449280u, v_r, wuffs_softfloat__arith__f64_neg(self, v_hi));
-    v_r4 = wuffs_softfloat__arith__f64_mul(self, v_r2, v_r2);
-    v_p = wuffs_softfloat__arith__f64_fma(self, v_r, 4602334714382648311u, 13828044577248609022u);
-    v_lo = wuffs_softfloat__arith__f64_fma(self, v_r, 4460540536611119616u, v_lo);
-    v_y = wuffs_softfloat__arith__f64_fma(self, v_p, v_r2, v_hi);
-    v_lo = wuffs_softfloat__arith__f64_add(self, v_lo, wuffs_softfloat__arith__f64_fma(self, v_p, v_r2, wuffs_softfloat__arith__f64_sub(self, v_hi, v_y)));
-    v_t1 = wuffs_softfloat__arith__f64_fma(self, wuffs_softfloat__arith__f64_fma(self, v_r, 4596593529635268406u, 13821203151630798821u), v_r2, wuffs_softfloat__arith__f64_fma(self, v_r, 4598869476596800484u, 13823540977621236799u));
-    v_t2 = wuffs_softfloat__arith__f64_fma(self, wuffs_softfloat__arith__f64_fma(self, v_r, 4593868635039788646u, 13817758221876344892u), v_r2, wuffs_softfloat__arith__f64_fma(self, v_r, 4594943554432801610u, 13819037345097492379u));
-    v_t3 = wuffs_softfloat__arith__f64_fma(self, wuffs_softfloat__arith__f64_fma(self, v_t2, v_r4, v_t1), v_r4, v_lo);
-    return wuffs_softfloat__arith__f64_add(self, v_y, v_t3);
-  }
-  v_top = (v_ix >> 48u);
-  if (((uint64_t)(v_top - 16u)) >= 32736u) {
-    if ((v_ix & 9223372036854775807u) == 0u) {
-      return 18442240474082181120u;
-    } else if (v_ix == 9218868437227405312u) {
-      return v_ix;
-    } else if (((v_top & 32768u) != 0u) || ((v_top & 32752u) == 32752u)) {
-      if ((v_ix & 9223372036854775807u) > 9218868437227405312u) {
-        return (v_ix | 2251799813685248u);
-      }
-      return 18444492273895866368u;
-    }
-    v_ix = ((uint64_t)(wuffs_softfloat__arith__f64_mul(self, v_ix, 4841369599423283200u) - 234187180623265792u));
-  }
-  v_tmp = ((uint64_t)(v_ix - 4604367669032910848u));
-  v_i = ((v_tmp >> 46u) & 63u);
-  v_k = (v_tmp >> 52u);
-  if (v_k >= 2048u) {
-    v_kd = wuffs_softfloat__arith__f64_neg(self, wuffs_softfloat__arith__f64_from_u64(self, (4096u - v_k)));
-  } else {
-    v_kd = wuffs_softfloat__arith__f64_from_u64(self, v_k);
-  }
-  v_z = ((uint64_t)(v_ix - (v_tmp & 18442240474082181120u)));
-  v_invc = WUFFS_SOFTFLOAT__LOG2_TAB_INVC[v_i];
-  v_logc = WUFFS_SOFTFLOAT__LOG2_TAB_LOGC[v_i];
-  v_t3 = wuffs_softfloat__arith__f64_add(self, v_kd, v_logc);
-  v_r = wuffs_softfloat__arith__f64_fma(self, v_z, v_invc, 13830554455654793216u);
-  v_t1 = wuffs_softfloat__arith__f64_mul(self, 4609176140020449280u, v_r);
-  v_t2 = wuffs_softfloat__arith__f64_fma(self, v_r, 4460540536611119616u, wuffs_softfloat__arith__f64_fma(self, 4609176140020449280u, v_r, wuffs_softfloat__arith__f64_neg(self, v_t1)));
-  v_hi = wuffs_softfloat__arith__f64_add(self, v_t1, v_t3);
-  v_lo = wuffs_softfloat__arith__f64_add(self, wuffs_softfloat__arith__f64_add(self, wuffs_softfloat__arith__f64_sub(self, v_t3, v_hi), v_t1), v_t2);
-  v_r2 = wuffs_softfloat__arith__f64_mul(self, v_r, v_r);
-  v_r4 = wuffs_softfloat__arith__f64_mul(self, v_r2, v_r2);
-  v_p = wuffs_softfloat__arith__f64_fma(self, wuffs_softfloat__arith__f64_fma(self, v_r, 4598869476581264456u, 13823540977608962043u), v_r2, wuffs_softfloat__arith__f64_fma(self, v_r, 4602334714382648510u, 13828044577248609081u));
-  v_p = wuffs_softfloat__arith__f64_fma(self, wuffs_softfloat__arith__f64_fma(self, v_r, 4596594284514769198u, 13821203878746165948u), v_r4, v_p);
-  v_y = wuffs_softfloat__arith__f64_fma(self, v_r2, v_p, v_lo);
-  return wuffs_softfloat__arith__f64_add(self, v_y, v_hi);
-}
-
-#endif  // !defined(WUFFS_CONFIG__MODULES) || defined(WUFFS_CONFIG__MODULE__SOFTFLOAT)
 
 #if !defined(WUFFS_CONFIG__MODULES) || defined(WUFFS_CONFIG__MODULE__TARGA)
 

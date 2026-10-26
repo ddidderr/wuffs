@@ -5,6 +5,7 @@ particular file format or algorithm. Those packages can be grouped into several
 categories:
 
 - [Compression Decoders](/doc/std/compression-decoders.md).
+- [Compression Encoders](/doc/std/compression-encoders.md).
 - [Hashers](/doc/std/hashers.md).
 - [Image Decoders](/doc/std/image-decoders.md).
 

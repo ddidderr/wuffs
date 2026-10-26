@@ -1,0 +1,833 @@
+// Copyright 2026 The Wuffs Authors.
+//
+// Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
+// https://www.apache.org/licenses/LICENSE-2.0> or the MIT license
+// <LICENSE-MIT or https://opensource.org/licenses/MIT>, at your
+// option. This file may not be copied, modified, or distributed
+// except according to those terms.
+//
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+
+// --------
+
+// The encoder aims for parity with the reference C implementation's encoder
+// (libbrotlienc, tag v1.2.1): for the same parameters and the same sequence of
+// BrotliEncoderCompressStream operations (with the same input chunking), it
+// produces byte-for-byte identical output. Comments like "Mirrors Foo in
+// encode.c" name the C function whose logic a Wuffs function mirrors.
+//
+// The C code's floating point (double) arithmetic is done with the
+// std/softfloat package, which is bit-exact. FastLog2's log2 matches glibc's.
+//
+// Only qualities 0 and 1 (the C code's BrotliCompressFragmentFast and
+// BrotliCompressFragmentTwoPass) are implemented so far. See README.md for
+// the API, including how the C code's FLUSH and EMIT_METADATA operations map
+// to the request_flush and request_emit_metadata methods.
+//
+// TODO: qualities 2 to 11 (the C code's EncodeData, WriteMetaBlockInternal,
+// hashers, block splitting, context modeling and Zopfli), large-window
+// brotli at those qualities and custom (prepared or shared) dictionaries.
+
+use "std/softfloat"
+
+pub status "#unsupported encoder quality"
+
+pri status "#internal error: inconsistent encoder state"
+
+pub const ENCODER_DST_HISTORY_RETAIN_LENGTH_MAX_INCL_WORST_CASE : base.u64 = 0
+
+// The C code's BrotliEncoderStreamState values.
+pri const STREAM_PROCESSING      : base.u32 = 0
+pri const STREAM_FLUSH_REQUESTED : base.u32 = 1
+pri const STREAM_FINISHED        : base.u32 = 2
+pri const STREAM_METADATA_HEAD   : base.u32 = 3
+pri const STREAM_METADATA_BODY   : base.u32 = 4
+
+// The C code's BrotliEncoderOperation values.
+pri const OP_PROCESS       : base.u32 = 0
+pri const OP_FLUSH         : base.u32 = 1
+pri const OP_FINISH        : base.u32 = 2
+pri const OP_EMIT_METADATA : base.u32 = 3
+
+// The C code's BrotliEncoderFlintState values, as two's complement u32s.
+pri const FLINT_NEEDS_2_BYTES : base.u32 = 2
+pri const FLINT_DONE          : base.u32 = 0xFFFF_FFFF
+
+// STORAGE_SLACK is how many bytes the storage (the workbuf) needs on top of
+// the C code's (2 * block_size + 503) bytes for a metablock: the 8-byte
+// stores of write_bits and up to 3 bytes for InjectBytePaddingBlock.
+pri const STORAGE_SLACK : base.u64 = 16
+
+// Mirrors kCompressFragmentTwoPassBlockSize in compress_fragment_two_pass.h.
+pri const TWO_PASS_BLOCK_SIZE : base.u32 = 0x2_0000
+
+pub struct encoder? implements base.io_transformer(
+        // The raw parameters, as set by set_quirk (the C code's
+        // BrotliEncoderSetParameter). The quality and lgwin defaults (11 and
+        // 22) apply unless the p_quality_set and p_lgwin_set bools are set.
+        p_mode          : base.u32,
+        p_quality       : base.u32,
+        p_quality_set   : base.bool,
+        p_lgwin         : base.u32,
+        p_lgwin_set     : base.bool,
+        p_lgblock       : base.u32,
+        p_disable_lcm   : base.u32,
+        p_size_hint     : base.u32,
+        p_large_window  : base.u32,
+        p_npostfix      : base.u32,
+        p_ndirect       : base.u32,
+        p_stream_offset : base.u32,
+
+        // The parameters after EnsureInitialized (SanitizeParams,
+        // ComputeLgBlock and ChooseDistanceParams).
+        is_initialized            : base.bool,
+        quality                   : base.u32[..= 11],
+        lgwin                     : base.u32[..= 30],
+        lgblock                   : base.u32[..= 30],
+        large_window              : base.bool,
+        size_hint                 : base.u32,
+        stream_offset             : base.u32,
+        distance_postfix_bits     : base.u32,
+        num_direct_distance_codes : base.u32,
+
+        // The C code's BrotliEncoderState fields of the same name.
+        dist_cache               : array[4] base.u32,
+        saved_dist_cache         : array[4] base.u32,
+        flint                    : base.u32,
+        last_bytes               : base.u32[..= 0xFFFF],
+        last_bytes_bits          : base.u32[..= 15],
+        stream_state             : base.u32,
+        remaining_metadata_bytes : base.u32,
+
+        // The pending output: out_len bytes starting at out_pos, in either
+        // the tiny_buf array (if out_in_tiny_buf) or in the storage (the
+        // workbuf). These are the C code's next_out_ and available_out_.
+        out_in_tiny_buf : base.bool,
+        out_pos         : base.u64,
+        out_len         : base.u64,
+
+        // The pending requests. See request_flush and request_emit_metadata.
+        flush_requested    : base.bool,
+        metadata_requested : base.bool,
+        metadata_length    : base.u32,
+
+        // bw_ix is the bit writer's position, the C code's *storage_ix.
+        bw_ix : base.u64,
+
+        // cmd_code_numbits is the C code's BrotliOnePassArena.cmd_code_numbits.
+        cmd_code_numbits : base.u64,
+
+        // huffman_tree_size is BrotliStoreHuffmanTree's huffman_tree_size.
+        huffman_tree_size : base.u32,
+
+        // num_commands and num_literals are the lengths of command_buf and
+        // literal_buf, as filled by CreateCommands.
+        num_commands : base.u32,
+        num_literals : base.u32,
+
+        sf   : softfloat.arith,
+        util : base.utility,
+) + (
+        // tiny_buf is the C code's tiny_buf_ (plus slack for the 8-byte
+        // stores of write_bits).
+        tiny_buf : array[32] base.u8,
+
+        // These are the fields of the C code's BrotliOnePassArena and
+        // BrotliTwoPassArena (an encoder uses only one of the two). The
+        // histogram field is the C code's BrotliOnePassArena.histogram and
+        // BrotliTwoPassArena.lit_histo.
+        lit_depth : array[256] base.u8,
+        lit_bits  : array[256] base.u16,
+        cmd_depth : array[128] base.u8,
+        cmd_bits  : array[128] base.u16,
+        cmd_histo : array[128] base.u32,
+        cmd_code  : array[520] base.u8,
+        histogram : array[256] base.u32,
+        tmp_depth : array[704] base.u8,
+        tmp_bits  : array[64] base.u16,
+
+        // The C code's HuffmanTree pool. See encode_entropy.wuffs.
+        tree_count : array[1024] base.u32,
+        tree_left  : array[1024] base.u16,
+        tree_right : array[1024] base.u16,
+
+        // BrotliStoreHuffmanTree's local variables: huffman_tree,
+        // huffman_tree_extra_bits, huffman_tree_histogram,
+        // code_length_bitdepth and code_length_bitdepth_symbols.
+        huffman_tree            : array[1024] base.u8,
+        huffman_tree_extra_bits : array[1024] base.u8,
+        cl_histo                : array[32] base.u32,
+        cl_depth                : array[32] base.u8,
+        cl_bits                 : array[32] base.u16,
+
+        // hash_table is the C code's small_table_ or large_table_ (the
+        // GetHashTable result), with up to (1 << 17) elements.
+        hash_table : array[131072] base.u32,
+
+        // command_buf and literal_buf are the C code's command_buf_ and
+        // literal_buf_ (quality 1 only).
+        command_buf : array[131072] base.u32,
+        literal_buf : array[131072] base.u8,
+)
+
+pub func encoder.get_quirk(key: base.u32) base.u64 {
+    if args.key == QUIRK_MODE {
+        return this.p_mode as base.u64
+    } else if args.key == QUIRK_ENCODER_QUALITY {
+        if not this.p_quality_set {
+            return 11
+        }
+        return this.p_quality as base.u64
+    } else if args.key == QUIRK_LGWIN {
+        if not this.p_lgwin_set {
+            return 22
+        }
+        return this.p_lgwin as base.u64
+    } else if args.key == QUIRK_LGBLOCK {
+        return this.p_lgblock as base.u64
+    } else if args.key == QUIRK_DISABLE_LITERAL_CONTEXT_MODELING {
+        return this.p_disable_lcm as base.u64
+    } else if args.key == QUIRK_SIZE_HINT {
+        return this.p_size_hint as base.u64
+    } else if args.key == QUIRK_LARGE_WINDOW {
+        return this.p_large_window as base.u64
+    } else if args.key == QUIRK_NPOSTFIX {
+        return this.p_npostfix as base.u64
+    } else if args.key == QUIRK_NDIRECT {
+        return this.p_ndirect as base.u64
+    } else if args.key == QUIRK_STREAM_OFFSET {
+        return this.p_stream_offset as base.u64
+    }
+    return 0
+}
+
+// Mirrors BrotliEncoderSetParameter in encode.c.
+pub func encoder.set_quirk!(key: base.u32, value: base.u64) base.status {
+    var v : base.u32
+
+    // Changing parameters on the fly is not implemented (in the C code).
+    if this.is_initialized {
+        return base."#bad call sequence"
+    } else if args.value > 0xFFFF_FFFF {
+        return base."#bad argument"
+    }
+    v = (args.value & 0xFFFF_FFFF) as base.u32
+
+    if args.key == QUIRK_MODE {
+        this.p_mode = v
+    } else if args.key == QUIRK_ENCODER_QUALITY {
+        this.p_quality = v
+        this.p_quality_set = true
+    } else if args.key == QUIRK_LGWIN {
+        this.p_lgwin = v
+        this.p_lgwin_set = true
+    } else if args.key == QUIRK_LGBLOCK {
+        this.p_lgblock = v
+    } else if args.key == QUIRK_DISABLE_LITERAL_CONTEXT_MODELING {
+        if v > 1 {
+            return base."#bad argument"
+        }
+        this.p_disable_lcm = v
+    } else if args.key == QUIRK_SIZE_HINT {
+        this.p_size_hint = v
+    } else if args.key == QUIRK_LARGE_WINDOW {
+        if v <> 0 {
+            this.p_large_window = 1
+        } else {
+            this.p_large_window = 0
+        }
+    } else if args.key == QUIRK_NPOSTFIX {
+        this.p_npostfix = v
+    } else if args.key == QUIRK_NDIRECT {
+        this.p_ndirect = v
+    } else if args.key == QUIRK_STREAM_OFFSET {
+        if v > 0x4000_0000 {
+            return base."#bad argument"
+        }
+        this.p_stream_offset = v
+    } else {
+        return base."#unsupported option"
+    }
+    return ok
+}
+
+pub func encoder.dst_history_retain_length() base.optional_u63 {
+    return this.util.make_optional_u63(has_value: true, value: 0)
+}
+
+// workbuf_len returns the workbuf length needed for the current parameters
+// (after the C code's SanitizeParams). At qualities 0 and 1 the workbuf is
+// the storage for one metablock's output: ((2 << lgwin) + 503) bytes (the C
+// code's GetBrotliStorage size for a (1 << lgwin) byte block) plus 16 bytes
+// of slack. A shorter workbuf still works if every transform_io input block
+// is short enough: a block of n bytes needs ((2 * n) + 519) bytes.
+pub func encoder.workbuf_len() base.range_ii_u64 {
+    var q : base.u32[..= 11]
+    var n : base.u64
+
+    q = this.sanitized_quality()
+    if q <= 1 {
+        n = ((2 as base.u64) << this.sanitized_lgwin(quality: q)) + 503 + STORAGE_SLACK
+    }
+    return this.util.make_range_ii_u64(min_incl: n, max_incl: n)
+}
+
+// max_compressed_size mirrors BrotliEncoderMaxCompressedSize in encode.c:
+// an upper bound on the compressed size of input_size bytes (with an
+// uncompressed fallback, which this encoder does not do itself), or 0 on
+// overflow.
+pub func encoder.max_compressed_size(input_size: base.u64) base.u64 {
+    var num_large_blocks : base.u64
+    var overhead         : base.u64
+    var result           : base.u64
+
+    num_large_blocks = args.input_size >> 14
+    overhead = 2 + (4 * num_large_blocks) + 3 + 1
+    result = args.input_size ~mod+ overhead
+    if args.input_size == 0 {
+        return 2
+    } else if result < args.input_size {
+        return 0
+    }
+    return result
+}
+
+// request_flush makes the next transform_io call act like the C code's
+// BrotliEncoderCompressStream with BROTLI_OPERATION_FLUSH (instead of
+// PROCESS or FINISH), until the flush is complete. It is complete once a
+// transform_io call returns "$short read" (or ok).
+pub func encoder.request_flush!() base.status {
+    if this.metadata_requested {
+        return base."#bad call sequence"
+    }
+    this.flush_requested = true
+    return ok
+}
+
+// request_emit_metadata makes the next transform_io call act like the C
+// code's BrotliEncoderCompressStream with BROTLI_OPERATION_EMIT_METADATA,
+// with the next length bytes of src as the metadata. Once those length bytes
+// have been read (transform_io returns "$short read" if src has fewer of
+// them), and the metadata block written, transform_io continues as usual.
+// Like the C code, length can be at most (1 << 24).
+pub func encoder.request_emit_metadata!(length: base.u64) base.status {
+    if args.length > 0x100_0000 {
+        return base."#bad argument"
+    } else if this.flush_requested or this.metadata_requested {
+        return base."#bad call sequence"
+    }
+    this.metadata_requested = true
+    this.metadata_length = (args.length & 0xFFFF_FFFF) as base.u32
+    return ok
+}
+
+// sanitized_quality mirrors SanitizeParams in quality.h, for the quality.
+pri func encoder.sanitized_quality() base.u32[..= 11] {
+    if not this.p_quality_set {
+        return 11
+    } else if this.p_quality >= 0x8000_0000 {
+        // A negative (int) value.
+        return 0
+    }
+    return this.p_quality.min(no_more_than: 11)
+}
+
+// sanitized_lgwin mirrors SanitizeParams in quality.h, for the lgwin.
+pri func encoder.sanitized_lgwin(quality: base.u32[..= 11]) base.u32[..= 30] {
+    var lgwin : base.u32
+
+    lgwin = 22
+    if this.p_lgwin_set {
+        lgwin = this.p_lgwin
+    }
+    if (lgwin >= 0x8000_0000) or (lgwin < 10) {
+        return 10
+    } else if (this.p_large_window <> 0) and (args.quality > 2) {
+        return lgwin.min(no_more_than: 30)
+    }
+    return lgwin.min(no_more_than: 24)
+}
+
+// Mirrors EnsureInitialized (and BrotliEncoderInitState's distance cache
+// initialization) in encode.c.
+pri func encoder.ensure_initialized!() {
+    var lgblock     : base.u32
+    var lgwin       : base.u32[..= 30]
+    var limit       : base.u32
+    var npostfix    : base.u32
+    var ndirect     : base.u32
+    var ndirect_msb : base.u32
+    var i           : base.u32
+
+    if this.is_initialized {
+        return nothing
+    }
+
+    // BrotliEncoderInitState.
+    this.dist_cache[0] = 4
+    this.dist_cache[1] = 11
+    this.dist_cache[2] = 15
+    this.dist_cache[3] = 16
+    this.saved_dist_cache[0] = 4
+    this.saved_dist_cache[1] = 11
+    this.saved_dist_cache[2] = 15
+    this.saved_dist_cache[3] = 16
+    this.stream_state = STREAM_PROCESSING
+
+    this.last_bytes_bits = 0
+    this.last_bytes = 0
+    this.flint = FLINT_DONE
+    this.remaining_metadata_bytes = 0xFFFF_FFFF
+
+    // SanitizeParams.
+    this.quality = this.sanitized_quality()
+    this.large_window = (this.p_large_window <> 0) and (this.quality > 2)
+    this.lgwin = this.sanitized_lgwin(quality: this.quality)
+    this.size_hint = this.p_size_hint
+    this.stream_offset = this.p_stream_offset
+
+    // ComputeLgBlock.
+    if this.quality <= 1 {
+        this.lgblock = this.lgwin
+    } else if this.quality < 4 {
+        this.lgblock = 14
+    } else if this.p_lgblock == 0 {
+        this.lgblock = 16
+        if (this.quality >= 9) and (this.lgwin > 16) {
+            this.lgblock = this.lgwin.min(no_more_than: 18)
+        }
+    } else {
+        lgblock = this.p_lgblock
+        if lgblock >= 0x8000_0000 {
+            // A negative (int) value.
+            lgblock = 16
+        }
+        this.lgblock = lgblock.max(no_less_than: 16).min(no_more_than: 24)
+    }
+
+    // ChooseDistanceParams. BrotliInitDistanceParams' other fields are not
+    // needed at qualities 0 and 1.
+    if this.quality >= 4 {
+        if this.p_mode == 2 {
+            npostfix = 1
+            ndirect = 12
+        } else {
+            npostfix = this.p_npostfix
+            ndirect = this.p_ndirect
+        }
+        if npostfix > 3 {
+            npostfix = 0
+            ndirect = 0
+        } else {
+            ndirect_msb = (ndirect >> npostfix) & 0x0F
+            if (ndirect > 120) or ((ndirect_msb << npostfix) <> ndirect) {
+                npostfix = 0
+                ndirect = 0
+            }
+        }
+    }
+    this.distance_postfix_bits = npostfix
+    this.num_direct_distance_codes = ndirect
+
+    if this.stream_offset <> 0 {
+        this.flint = FLINT_NEEDS_2_BYTES
+        // Poison the distance cache. -16 +- 3 is still less than zero
+        // (invalid).
+        i = 0
+        while i < 4 {
+            this.dist_cache[i] = 0xFFFF_FFF0
+            this.saved_dist_cache[i] = 0xFFFF_FFF0
+            i += 1
+        }
+    }
+
+    // Initialize last byte with stream header.
+    lgwin = this.lgwin
+    if this.quality <= 1 {
+        lgwin = lgwin.max(no_less_than: 18)
+    }
+    if this.stream_offset == 0 {
+        this.encode_window_bits!(lgwin: lgwin)
+    } else {
+        // Bigger values have the same effect, but could cause overflows.
+        limit = ((1 as base.u32) << lgwin) ~mod- 16
+        this.stream_offset = this.stream_offset.min(no_more_than: limit)
+    }
+
+    if this.quality == 0 {
+        this.init_command_prefix_codes!()
+    }
+
+    this.is_initialized = true
+}
+
+// Mirrors EncodeWindowBits in encode.c.
+pri func encoder.encode_window_bits!(lgwin: base.u32[..= 30]) {
+    if this.large_window {
+        this.last_bytes = ((args.lgwin & 0x3F) << 8) | 0x11
+        this.last_bytes_bits = 14
+    } else if args.lgwin == 16 {
+        this.last_bytes = 0
+        this.last_bytes_bits = 1
+    } else if args.lgwin == 17 {
+        this.last_bytes = 1
+        this.last_bytes_bits = 7
+    } else if args.lgwin > 17 {
+        this.last_bytes = ((args.lgwin - 17) << 1) | 0x01
+        this.last_bytes_bits = 4
+    } else if args.lgwin >= 8 {
+        this.last_bytes = ((args.lgwin - 8) << 4) | 0x01
+        this.last_bytes_bits = 7
+    }
+}
+
+// Mirrors InitCommandPrefixCodes in encode.c.
+pri func encoder.init_command_prefix_codes!() {
+    var i : base.u32
+
+    i = 0
+    while i < 128 {
+        this.cmd_depth[i] = DEFAULT_COMMAND_DEPTHS[i]
+        this.cmd_bits[i] = DEFAULT_COMMAND_BITS[i]
+        i += 1
+    }
+    i = 0
+    while i < 57 {
+        this.cmd_code[i] = DEFAULT_COMMAND_CODE[i]
+        i += 1
+    }
+    this.cmd_code_numbits = DEFAULT_COMMAND_CODE_NUM_BITS as base.u64
+}
+
+// Mirrors HashTableSize and GetHashTable in encode.c. It zeroes the first
+// htsize elements of this.hash_table and returns log2(htsize), the C code's
+// table_bits (Log2FloorNonZero(table_size) in BrotliCompressFragmentFast and
+// BrotliCompressFragmentTwoPass).
+pri func encoder.get_hash_table!(input_size: base.u64) base.u32 {
+    var max_table_size : base.u64
+    var htsize         : base.u64
+    var table_bits     : base.u32
+
+    // MaxHashTableSize in quality.h.
+    max_table_size = 0x2_0000
+    if this.quality == 0 {
+        max_table_size = 0x8000
+    }
+    htsize = 256
+    table_bits = 8
+    while (htsize < max_table_size) and (htsize < args.input_size) {
+        htsize ~mod<<= 1
+        table_bits ~mod+= 1
+    }
+    if this.quality == 0 {
+        // Only odd shifts are supported by fast-one-pass.
+        if (htsize & 0xA_AAAA) == 0 {
+            htsize ~mod<<= 1
+            table_bits ~mod+= 1
+        }
+    }
+    if htsize <= 0x2_0000 {
+        this.hash_table[.. htsize].bulk_memset!(byte_value: 0)
+    }
+    return table_bits
+}
+
+// Mirrors InjectBytePaddingBlock in encode.c. Its destination is right after
+// the pending output (in the storage or in tiny_buf).
+pri func encoder.inject_byte_padding_block!(workbuf: slice base.u8) {
+    var seal      : base.u32
+    var seal_bits : base.u32
+    var p         : base.u64
+    var n         : base.u32
+
+    seal = this.last_bytes
+    seal_bits = this.last_bytes_bits
+    this.last_bytes = 0
+    this.last_bytes_bits = 0
+    // is_last = 0, data_nibbles = 11, reserved = 0, meta_nibbles = 00.
+    seal |= (6 as base.u32) << seal_bits
+    seal_bits += 6
+    n = (seal_bits + 7) >> 3
+
+    if this.out_len == 0 {
+        this.out_in_tiny_buf = true
+        this.out_pos = 0
+    }
+    p = this.out_pos ~mod+ this.out_len
+    if this.out_in_tiny_buf {
+        if p <= 24 {
+            this.tiny_buf[p] = (seal & 0xFF) as base.u8
+            this.tiny_buf[p + 1] = ((seal >> 8) & 0xFF) as base.u8
+            this.tiny_buf[p + 2] = ((seal >> 16) & 0xFF) as base.u8
+        }
+    } else if p < args.workbuf.length() {
+        args.workbuf[p] = (seal & 0xFF) as base.u8
+        if seal_bits > 8 {
+            p ~mod+= 1
+            if p < args.workbuf.length() {
+                args.workbuf[p] = ((seal >> 8) & 0xFF) as base.u8
+            }
+        }
+        if seal_bits > 16 {
+            p ~mod+= 1
+            if p < args.workbuf.length() {
+                args.workbuf[p] = ((seal >> 16) & 0xFF) as base.u8
+            }
+        }
+    }
+    this.out_len ~mod+= n as base.u64
+}
+
+// push_output copies as much pending output to args.dst as fits, like the
+// second half of InjectFlushOrPushOutput in encode.c.
+pri func encoder.push_output!(dst: base.io_writer, workbuf: slice base.u8) {
+    var n   : base.u64
+    var end : base.u64
+
+    end = this.out_pos ~mod+ this.out_len
+    if this.out_in_tiny_buf {
+        if (this.out_pos <= end) and (end <= 32) {
+            n = args.dst.copy_from_slice!(s: this.tiny_buf[this.out_pos .. end])
+        }
+    } else if (this.out_pos <= end) and (end <= args.workbuf.length()) {
+        n = args.dst.copy_from_slice!(s: args.workbuf[this.out_pos .. end])
+    }
+    if n == 0 {
+        // Should be unreachable, since the caller checks that args.dst is
+        // not full. Discard the output so that the caller makes progress.
+        this.out_len = 0
+        return nothing
+    }
+    n = n.min(no_more_than: this.out_len)
+    this.out_pos ~mod+= n
+    this.out_len ~mod-= n
+}
+
+// Mirrors CheckFlushComplete in encode.c.
+pri func encoder.check_flush_complete!() {
+    if (this.stream_state == STREAM_FLUSH_REQUESTED) and (this.out_len == 0) {
+        this.stream_state = STREAM_PROCESSING
+        this.out_in_tiny_buf = false
+        this.out_pos = 0
+    }
+}
+
+// Mirrors WriteMetadataHeader in encode.c, writing to tiny_buf.
+pri func encoder.write_metadata_header!(block_size: base.u32) base.u64 {
+    var nbits  : base.u32[..= 32]
+    var nbytes : base.u32[..= 4]
+
+    this.bw_ix = this.last_bytes_bits as base.u64
+    this.tiny_buf[0] = (this.last_bytes & 0xFF) as base.u8
+    this.tiny_buf[1] = (this.last_bytes >> 8) as base.u8
+    this.last_bytes = 0
+    this.last_bytes_bits = 0
+
+    this.write_bits!(n_bits: 1, bits: 0, s: this.tiny_buf[..])
+    this.write_bits!(n_bits: 2, bits: 3, s: this.tiny_buf[..])
+    this.write_bits!(n_bits: 1, bits: 0, s: this.tiny_buf[..])
+    if args.block_size == 0 {
+        this.write_bits!(n_bits: 2, bits: 0, s: this.tiny_buf[..])
+    } else {
+        nbits = 1
+        if args.block_size > 1 {
+            nbits = this.log2_floor_non_zero(n: (args.block_size - 1) as base.u64) + 1
+        }
+        nbytes = (nbits + 7) / 8
+        this.write_bits!(n_bits: 2, bits: nbytes as base.u64, s: this.tiny_buf[..])
+        this.write_bits!(n_bits: 8 * nbytes, bits: (args.block_size - 1) as base.u64, s: this.tiny_buf[..])
+    }
+    return (this.bw_ix ~mod+ 7) >> 3
+}
+
+// transform_io mirrors BrotliEncoderCompressStream in encode.c (and, for
+// qualities 0 and 1, BrotliEncoderCompressStreamFast). Each (initial or
+// resumed) transform_io call corresponds to one or more C calls. See
+// README.md for the details.
+pub func encoder.transform_io?(dst: base.io_writer, src: base.io_reader, workbuf: slice base.u8) {
+    var op          : base.u32
+    var avail       : base.u64
+    var block_size  : base.u64
+    var is_last     : base.bool
+    var force_flush : base.bool
+    var storage_len : base.u64
+    var table_bits  : base.u32
+    var mark        : base.u64
+    var n32         : base.u32
+    var ix          : base.u64
+
+    this.ensure_initialized!()
+    if this.quality > 1 {
+        // TODO: implement the C code's EncodeData (and its callees) for
+        // qualities 2 to 11.
+        return "#unsupported encoder quality"
+    }
+
+    while true {
+        // ---- The start of a C BrotliEncoderCompressStream call.
+
+        if this.metadata_requested {
+            // op == BROTLI_OPERATION_EMIT_METADATA. UpdateSizeHint(s, 0) is a
+            // no-op at qualities 0 and 1 (and so is ProcessMetadata's
+            // EncodeData call, as the fast path never advances input_pos_).
+            //
+            // Mirrors ProcessMetadata in encode.c.
+            if this.stream_state == STREAM_PROCESSING {
+                this.remaining_metadata_bytes = this.metadata_length
+                this.stream_state = STREAM_METADATA_HEAD
+            }
+            if (this.stream_state <> STREAM_METADATA_HEAD) and
+                    (this.stream_state <> STREAM_METADATA_BODY) {
+                return base."#bad call sequence"
+            }
+            while true {
+                if this.out_len <> 0 {
+                    if args.dst.length() <= 0 {
+                        yield? base."$short write"
+                        continue
+                    }
+                    this.push_output!(dst: args.dst, workbuf: args.workbuf)
+                    continue
+                }
+                if this.stream_state == STREAM_METADATA_HEAD {
+                    this.out_len = this.write_metadata_header!(block_size: this.remaining_metadata_bytes)
+                    this.out_in_tiny_buf = true
+                    this.out_pos = 0
+                    this.stream_state = STREAM_METADATA_BODY
+                    continue
+                }
+                // Exit workflow only when there is no more input and no more
+                // output.
+                if this.remaining_metadata_bytes == 0 {
+                    this.remaining_metadata_bytes = 0xFFFF_FFFF
+                    this.stream_state = STREAM_PROCESSING
+                    this.metadata_requested = false
+                    break
+                }
+                if args.dst.length() <= 0 {
+                    yield? base."$short write"
+                    continue
+                } else if args.src.length() <= 0 {
+                    if args.src.is_closed() {
+                        return "#truncated input"
+                    }
+                    yield? base."$short read"
+                    continue
+                }
+                // Directly copy input to output.
+                n32 = args.dst.limited_copy_u32_from_reader!(
+                        up_to: this.remaining_metadata_bytes, r: args.src)
+                this.remaining_metadata_bytes ~mod-= n32
+            }
+            continue
+        }
+
+        if this.flush_requested {
+            op = OP_FLUSH
+        } else if args.src.is_closed() {
+            op = OP_FINISH
+        } else {
+            op = OP_PROCESS
+        }
+
+        if (this.stream_state == STREAM_METADATA_HEAD) or
+                (this.stream_state == STREAM_METADATA_BODY) {
+            return base."#bad call sequence"
+        } else if (this.stream_state <> STREAM_PROCESSING) and (args.src.length() > 0) {
+            return base."#bad call sequence"
+        }
+
+        // Mirrors BrotliEncoderCompressStreamFast in encode.c.
+        while true {
+            // Mirrors InjectFlushOrPushOutput in encode.c.
+            if (this.stream_state == STREAM_FLUSH_REQUESTED) and (this.last_bytes_bits <> 0) {
+                this.inject_byte_padding_block!(workbuf: args.workbuf)
+                continue
+            }
+            if (this.out_len <> 0) and (args.dst.length() > 0) {
+                this.push_output!(dst: args.dst, workbuf: args.workbuf)
+                continue
+            }
+
+            // Compress block only when internal output buffer is empty,
+            // stream is not finished, there is no pending flush request, and
+            // there is either additional input or pending operation.
+            if (this.out_len == 0) and (this.stream_state == STREAM_PROCESSING) and
+                    ((args.src.length() > 0) or (op <> OP_PROCESS)) {
+                avail = args.src.length()
+                block_size = avail.min(no_more_than: (1 as base.u64) << this.lgwin)
+                is_last = (avail == block_size) and (op == OP_FINISH)
+                force_flush = (avail == block_size) and (op == OP_FLUSH)
+                if force_flush and (block_size == 0) {
+                    this.stream_state = STREAM_FLUSH_REQUESTED
+                    continue
+                }
+
+                storage_len = (block_size * 2) + 503 + STORAGE_SLACK
+                if (storage_len > args.workbuf.length()) or (args.workbuf.length() < 2) {
+                    return base."#bad workbuf length"
+                }
+                args.workbuf[0] = (this.last_bytes & 0xFF) as base.u8
+                args.workbuf[1] = (this.last_bytes >> 8) as base.u8
+                this.bw_ix = this.last_bytes_bits as base.u64
+                table_bits = this.get_hash_table!(input_size: block_size)
+
+                // The C code compresses straight from next_in. So does this
+                // code, from the args.src bytes that it skips over.
+                mark = args.src.mark()
+                args.src.skip?(n: block_size)
+                if storage_len > args.workbuf.length() {
+                    return "#internal error: inconsistent encoder state"
+                }
+                if this.quality == 0 {
+                    this.compress_fragment_fast!(
+                            input: args.src.since(mark: mark),
+                            is_last: is_last,
+                            table_bits: table_bits,
+                            s: args.workbuf[.. storage_len])
+                } else {
+                    this.compress_fragment_two_pass!(
+                            input: args.src.since(mark: mark),
+                            is_last: is_last,
+                            table_bits: table_bits,
+                            s: args.workbuf[.. storage_len])
+                }
+
+                this.out_in_tiny_buf = false
+                this.out_pos = 0
+                this.out_len = this.bw_ix >> 3
+                ix = this.bw_ix >> 3
+                if ix < args.workbuf.length() {
+                    this.last_bytes = args.workbuf[ix] as base.u32
+                } else {
+                    this.last_bytes = 0
+                }
+                this.last_bytes_bits = (this.bw_ix & 7) as base.u32
+
+                if force_flush {
+                    this.stream_state = STREAM_FLUSH_REQUESTED
+                }
+                if is_last {
+                    this.stream_state = STREAM_FINISHED
+                }
+                continue
+            }
+            break
+        }
+        this.check_flush_complete!()
+
+        // ---- The end of a C BrotliEncoderCompressStream call.
+
+        if this.out_len <> 0 {
+            yield? base."$short write"
+        } else if op == OP_FLUSH {
+            this.flush_requested = false
+        } else if this.stream_state == STREAM_FINISHED {
+            return ok
+        } else if op == OP_PROCESS {
+            yield? base."$short read"
+        } else {
+            return "#internal error: inconsistent encoder state"
+        }
+    }
+}

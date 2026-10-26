@@ -1,0 +1,804 @@
+// Copyright 2026 The Wuffs Authors.
+//
+// Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
+// https://www.apache.org/licenses/LICENSE-2.0> or the MIT license
+// <LICENSE-MIT or https://opensource.org/licenses/MIT>, at your
+// option. This file may not be copied, modified, or distributed
+// except according to those terms.
+//
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+
+// --------
+
+// This file holds the Huffman (prefix code) construction and storage
+// functions that the quality 0 and quality 1 encoders need, from the C code's
+// entropy_encode.c and brotli_bit_stream.c.
+//
+// The C code's HuffmanTree array (a pool of nodes) is the encoder.tree_count,
+// encoder.tree_left and encoder.tree_right arrays. A node's int16_t
+// index_left_ and index_right_or_value_ fields are stored as base.u16 values,
+// with 0xFFFF meaning -1. The C code's pools hold at most (2 * 256) + 1
+// nodes. The arrays have 1024 elements so that indexes can be masked.
+
+// TREE_NONE is the C code's -1 for a HuffmanTree index.
+pri const TREE_NONE : base.u16 = 0xFFFF
+
+// Mirrors BrotliSetDepth in entropy_encode.c.
+pri func encoder.set_depth!(p0: base.u32, depth: slice base.u8, max_depth: base.u32[..= 15]) base.bool {
+    var stack : array[16] base.u32
+    var level : base.u32[..= 15]
+    var p     : base.u32
+    var v     : base.u64
+
+    stack[0] = 0xFFFF_FFFF
+    p = args.p0
+    while true {
+        if this.tree_left[p & 1023] <> TREE_NONE {
+            if (level >= args.max_depth) or (level >= 15) {
+                return false
+            }
+            level += 1
+            stack[level] = this.tree_right[p & 1023] as base.u32
+            p = this.tree_left[p & 1023] as base.u32
+            continue
+        }
+        v = this.tree_right[p & 1023] as base.u64
+        if v < args.depth.length() {
+            args.depth[v] = level as base.u8
+        }
+        while stack[level] == 0xFFFF_FFFF {
+            if level == 0 {
+                return true
+            }
+            level -= 1
+        }
+        p = stack[level]
+        stack[level] = 0xFFFF_FFFF
+    }
+}
+
+// huffman_tree_less is the C code's SortHuffmanTree comparators. With
+// tie_break, it mirrors the one in entropy_encode.c (ties are broken by
+// index_right_or_value_, in decreasing order). Without, it mirrors the one in
+// brotli_bit_stream.c (only total_count_ is compared).
+pri func encoder.huffman_tree_less(c0: base.u32, r0: base.u16, c1: base.u32, r1: base.u16, tie_break: base.bool) base.bool {
+    if args.c0 <> args.c1 {
+        return args.c0 < args.c1
+    }
+    return args.tie_break and (args.r0 > args.r1)
+}
+
+// Mirrors SortHuffmanTreeItems in entropy_encode.h, sorting the first n
+// nodes of the pool.
+pri func encoder.sort_huffman_tree_items!(n: base.u32, tie_break: base.bool) {
+    var i   : base.u32
+    var j   : base.u32
+    var k   : base.u32
+    var g   : base.u32
+    var gap : base.u32
+    var tc  : base.u32
+    var tl  : base.u16
+    var tr  : base.u16
+
+    if args.n < 13 {
+        // Insertion sort.
+        i = 1
+        while i < args.n {
+            tc = this.tree_count[i & 1023]
+            tl = this.tree_left[i & 1023]
+            tr = this.tree_right[i & 1023]
+            k = i
+            j = i ~mod- 1
+            while this.huffman_tree_less(
+                    c0: tc,
+                    r0: tr,
+                    c1: this.tree_count[j & 1023],
+                    r1: this.tree_right[j & 1023],
+                    tie_break: args.tie_break) {
+                this.tree_count[k & 1023] = this.tree_count[j & 1023]
+                this.tree_left[k & 1023] = this.tree_left[j & 1023]
+                this.tree_right[k & 1023] = this.tree_right[j & 1023]
+                k = j
+                if j == 0 {
+                    break
+                }
+                j -= 1
+            }
+            this.tree_count[k & 1023] = tc
+            this.tree_left[k & 1023] = tl
+            this.tree_right[k & 1023] = tr
+            i ~mod+= 1
+        }
+        return nothing
+    }
+
+    // Shell sort.
+    g = 0
+    if args.n < 57 {
+        g = 2
+    }
+    while g < 6 {
+        gap = SHELL_GAPS[g]
+        i = gap
+        while i < args.n {
+            j = i
+            tc = this.tree_count[i & 1023]
+            tl = this.tree_left[i & 1023]
+            tr = this.tree_right[i & 1023]
+            while j >= gap {
+                if not this.huffman_tree_less(
+                        c0: tc,
+                        r0: tr,
+                        c1: this.tree_count[(j ~mod- gap) & 1023],
+                        r1: this.tree_right[(j ~mod- gap) & 1023],
+                        tie_break: args.tie_break) {
+                    break
+                }
+                this.tree_count[j & 1023] = this.tree_count[(j ~mod- gap) & 1023]
+                this.tree_left[j & 1023] = this.tree_left[(j ~mod- gap) & 1023]
+                this.tree_right[j & 1023] = this.tree_right[(j ~mod- gap) & 1023]
+                j ~mod-= gap
+            }
+            this.tree_count[j & 1023] = tc
+            this.tree_left[j & 1023] = tl
+            this.tree_right[j & 1023] = tr
+            i ~mod+= 1
+        }
+        g ~mod+= 1
+    }
+}
+
+// set_sentinel sets the pool's i'th node to the C code's sentinel node.
+pri func encoder.set_sentinel!(i: base.u32) {
+    this.tree_count[args.i & 1023] = 0xFFFF_FFFF
+    this.tree_left[args.i & 1023] = TREE_NONE
+    this.tree_right[args.i & 1023] = TREE_NONE
+}
+
+// merge_huffman_nodes runs the C code's "for (k = n - 1; k != 0; --k)" loop
+// (shared by BrotliCreateHuffmanTree in entropy_encode.c and
+// BrotliBuildAndStoreHuffmanTreeFast in brotli_bit_stream.c) that combines
+// the n sorted leaf nodes into a tree, whose root is node ((2 * n) - 1).
+pri func encoder.merge_huffman_nodes!(n: base.u32) {
+    var i     : base.u32
+    var j     : base.u32
+    var k     : base.u32
+    var left  : base.u32
+    var right : base.u32
+    var j_end : base.u32
+
+    this.set_sentinel!(i: args.n)
+    this.set_sentinel!(i: args.n ~mod+ 1)
+    i = 0
+    j = args.n ~mod+ 1
+    k = args.n ~mod- 1
+    while k <> 0 {
+        if this.tree_count[i & 1023] <= this.tree_count[j & 1023] {
+            left = i
+            i ~mod+= 1
+        } else {
+            left = j
+            j ~mod+= 1
+        }
+        if this.tree_count[i & 1023] <= this.tree_count[j & 1023] {
+            right = i
+            i ~mod+= 1
+        } else {
+            right = j
+            j ~mod+= 1
+        }
+        j_end = (args.n ~mod* 2) ~mod- k
+        this.tree_count[j_end & 1023] = this.tree_count[left & 1023] ~mod+ this.tree_count[right & 1023]
+        this.tree_left[j_end & 1023] = (left & 0xFFFF) as base.u16
+        this.tree_right[j_end & 1023] = (right & 0xFFFF) as base.u16
+        this.set_sentinel!(i: j_end ~mod+ 1)
+        k -= 1
+    }
+}
+
+// Mirrors BrotliCreateHuffmanTree in entropy_encode.c. Wuffs' C code
+// generator does not support "slice base.u32" arguments, so the C code's data
+// argument is either this.cmd_histo[args.off ..] (when args.src is 0) or
+// this.cl_histo[args.off ..] (when args.src is 1).
+pri func encoder.create_huffman_tree!(src: base.u32, off: base.u32, length: base.u32, tree_limit: base.u32[..= 15], depth: slice base.u8) {
+    var count_limit : base.u32
+    var n           : base.u32
+    var i           : base.u64
+    var count       : base.u32
+    var v           : base.u64
+    var depth_ok    : base.bool
+
+    count_limit = 1
+    while true {
+        n = 0
+        i = args.length as base.u64
+        while i > 0 {
+            i -= 1
+            if args.src == 0 {
+                count = this.cmd_histo[((args.off as base.u64) ~mod+ i) & 127]
+            } else {
+                count = this.cl_histo[((args.off as base.u64) ~mod+ i) & 31]
+            }
+            if count <> 0 {
+                this.tree_count[n & 1023] = count.max(no_less_than: count_limit)
+                this.tree_left[n & 1023] = TREE_NONE
+                this.tree_right[n & 1023] = (i & 0xFFFF) as base.u16
+                n ~mod+= 1
+            }
+        }
+
+        if n == 1 {
+            v = this.tree_right[0] as base.u64
+            if v < args.depth.length() {
+                args.depth[v] = 1
+            }
+            break
+        } else if n == 0 {
+            // The C code never calls this with an all-zero histogram.
+            break
+        }
+
+        this.sort_huffman_tree_items!(n: n, tie_break: true)
+        this.merge_huffman_nodes!(n: n)
+        depth_ok = this.set_depth!(p0: (n ~mod* 2) ~mod- 1, depth: args.depth, max_depth: args.tree_limit)
+        if depth_ok {
+            break
+        }
+        count_limit ~mod*= 2
+    }
+}
+
+// Mirrors BrotliReverseBits in entropy_encode.c.
+pri func encoder.reverse_bits(num_bits: base.u32, bits: base.u16) base.u16 {
+    var retval : base.u32
+    var bits   : base.u32
+    var i      : base.u32
+
+    bits = args.bits as base.u32
+    retval = REVERSE_BITS_LUT[bits & 15]
+    i = 4
+    while i < args.num_bits {
+        retval = (retval ~mod<< 4) | REVERSE_BITS_LUT[(bits >> 4) & 15]
+        bits >>= 4
+        i ~mod+= 4
+    }
+    retval >>= (0 ~mod- args.num_bits) & 3
+    return (retval & 0xFFFF) as base.u16
+}
+
+// Mirrors BrotliConvertBitDepthsToSymbols in entropy_encode.c. Wuffs' C code
+// generator does not support "slice base.u16" arguments, so the C code's bits
+// argument is this.tmp_bits, this.cmd_bits[64 ..], this.cl_bits or
+// this.lit_bits when args.dst is 0, 1, 2 or 3.
+pri func encoder.convert_bit_depths_to_symbols!(depth: slice base.u8, len: base.u32, dst: base.u32) {
+    var bl_count  : array[16] base.u16
+    var next_code : array[16] base.u16
+    var i         : base.u64
+    var code      : base.u32
+    var d         : base.u32
+    var r         : base.u16
+
+    i = 0
+    while i < (args.len as base.u64) {
+        if i < args.depth.length() {
+            d = (args.depth[i] & 15) as base.u32
+            bl_count[d] ~mod+= 1
+        }
+        i ~mod+= 1
+    }
+    bl_count[0] = 0
+    next_code[0] = 0
+    i = 1
+    while i < 16 {
+        code = (code ~mod+ (bl_count[(i ~mod- 1) & 15] as base.u32)) ~mod<< 1
+        next_code[i] = (code & 0xFFFF) as base.u16
+        i ~mod+= 1
+    }
+    i = 0
+    while i < (args.len as base.u64) {
+        if i < args.depth.length() {
+            d = (args.depth[i] & 15) as base.u32
+            if d <> 0 {
+                r = this.reverse_bits(num_bits: d, bits: next_code[d])
+                if args.dst == 0 {
+                    this.tmp_bits[i & 63] = r
+                } else if args.dst == 1 {
+                    this.cmd_bits[(i ~mod+ 64) & 127] = r
+                } else if args.dst == 2 {
+                    this.cl_bits[i & 31] = r
+                } else {
+                    this.lit_bits[i & 255] = r
+                }
+                next_code[d] ~mod+= 1
+            }
+        }
+        i ~mod+= 1
+    }
+}
+
+// Mirrors Reverse in entropy_encode.c, applied to both the huffman_tree and
+// huffman_tree_extra_bits arrays.
+pri func encoder.reverse_huffman_tree!(start: base.u32, end: base.u32) {
+    var start : base.u32
+    var end   : base.u32
+    var tmp   : base.u8
+
+    start = args.start
+    end = args.end ~mod- 1
+    while start < end {
+        tmp = this.huffman_tree[start & 1023]
+        this.huffman_tree[start & 1023] = this.huffman_tree[end & 1023]
+        this.huffman_tree[end & 1023] = tmp
+        tmp = this.huffman_tree_extra_bits[start & 1023]
+        this.huffman_tree_extra_bits[start & 1023] = this.huffman_tree_extra_bits[end & 1023]
+        this.huffman_tree_extra_bits[end & 1023] = tmp
+        start ~mod+= 1
+        end ~mod-= 1
+    }
+}
+
+// push_huffman_tree appends (value, extra_bits) to the huffman_tree and
+// huffman_tree_extra_bits arrays.
+pri func encoder.push_huffman_tree!(value: base.u8, extra_bits: base.u8) {
+    this.huffman_tree[this.huffman_tree_size & 1023] = args.value
+    this.huffman_tree_extra_bits[this.huffman_tree_size & 1023] = args.extra_bits
+    this.huffman_tree_size ~mod+= 1
+}
+
+// Mirrors BrotliWriteHuffmanTreeRepetitions in entropy_encode.c.
+pri func encoder.write_huffman_tree_repetitions!(previous_value: base.u8, value: base.u8, repetitions: base.u32) {
+    var repetitions : base.u32
+    var start       : base.u32
+
+    repetitions = args.repetitions
+    if args.previous_value <> args.value {
+        this.push_huffman_tree!(value: args.value, extra_bits: 0)
+        repetitions ~mod-= 1
+    }
+    if repetitions == 7 {
+        this.push_huffman_tree!(value: args.value, extra_bits: 0)
+        repetitions ~mod-= 1
+    }
+    if repetitions < 3 {
+        while repetitions > 0 {
+            this.push_huffman_tree!(value: args.value, extra_bits: 0)
+            repetitions -= 1
+        }
+    } else {
+        start = this.huffman_tree_size
+        repetitions -= 3
+        while true {
+            this.push_huffman_tree!(value: 16, extra_bits: (repetitions & 3) as base.u8)
+            repetitions >>= 2
+            if repetitions == 0 {
+                break
+            }
+            repetitions -= 1
+        }
+        this.reverse_huffman_tree!(start: start, end: this.huffman_tree_size)
+    }
+}
+
+// Mirrors BrotliWriteHuffmanTreeRepetitionsZeros in entropy_encode.c.
+pri func encoder.write_huffman_tree_repetitions_zeros!(repetitions: base.u32) {
+    var repetitions : base.u32
+    var start       : base.u32
+
+    repetitions = args.repetitions
+    if repetitions == 11 {
+        this.push_huffman_tree!(value: 0, extra_bits: 0)
+        repetitions -= 1
+    }
+    if repetitions < 3 {
+        while repetitions > 0 {
+            this.push_huffman_tree!(value: 0, extra_bits: 0)
+            repetitions -= 1
+        }
+    } else {
+        start = this.huffman_tree_size
+        repetitions -= 3
+        while true {
+            this.push_huffman_tree!(value: 17, extra_bits: (repetitions & 7) as base.u8)
+            repetitions >>= 3
+            if repetitions == 0 {
+                break
+            }
+            repetitions -= 1
+        }
+        this.reverse_huffman_tree!(start: start, end: this.huffman_tree_size)
+    }
+}
+
+// Mirrors DecideOverRleUse in entropy_encode.c. The result's 0x01 bit is
+// use_rle_for_non_zero and its 0x02 bit is use_rle_for_zero.
+pri func encoder.decide_over_rle_use(depth: slice base.u8, length: base.u32) base.u32 {
+    var total_reps_zero     : base.u32
+    var total_reps_non_zero : base.u32
+    var count_reps_zero     : base.u32
+    var count_reps_non_zero : base.u32
+    var i                   : base.u64
+    var k                   : base.u64
+    var length              : base.u64
+    var reps                : base.u32
+    var value               : base.u8
+    var ret                 : base.u32
+
+    length = args.length as base.u64
+    count_reps_zero = 1
+    count_reps_non_zero = 1
+    i = 0
+    while i < length {
+        if i >= args.depth.length() {
+            break
+        }
+        value = args.depth[i]
+        reps = 1
+        k = i ~mod+ 1
+        while (k < length) and (k < args.depth.length()) {
+            if args.depth[k] <> value {
+                break
+            }
+            reps ~mod+= 1
+            k ~mod+= 1
+        }
+        if (reps >= 3) and (value == 0) {
+            total_reps_zero ~mod+= reps
+            count_reps_zero ~mod+= 1
+        }
+        if (reps >= 4) and (value <> 0) {
+            total_reps_non_zero ~mod+= reps
+            count_reps_non_zero ~mod+= 1
+        }
+        i ~mod+= reps as base.u64
+    }
+    if total_reps_non_zero > (count_reps_non_zero ~mod* 2) {
+        ret |= 1
+    }
+    if total_reps_zero > (count_reps_zero ~mod* 2) {
+        ret |= 2
+    }
+    return ret
+}
+
+// Mirrors BrotliWriteHuffmanTree in entropy_encode.c. The output is appended
+// to the huffman_tree and huffman_tree_extra_bits arrays.
+pri func encoder.write_huffman_tree!(depth: slice base.u8, length: base.u32) {
+    var previous_value : base.u8
+    var i              : base.u64
+    var k              : base.u64
+    var length         : base.u64
+    var reps           : base.u32
+    var new_length     : base.u64
+    var rle            : base.u32
+    var value          : base.u8
+
+    previous_value = 8  // BROTLI_INITIAL_REPEATED_CODE_LENGTH.
+    length = args.length as base.u64
+
+    // Throw away trailing zeros.
+    new_length = length
+    i = 0
+    while i < length {
+        k = (length ~mod- i) ~mod- 1
+        if k >= args.depth.length() {
+            break
+        }
+        if args.depth[k] == 0 {
+            new_length ~mod-= 1
+        } else {
+            break
+        }
+        i ~mod+= 1
+    }
+
+    // First gather statistics on if it is a good idea to do RLE.
+    if length > 50 {
+        rle = this.decide_over_rle_use(depth: args.depth, length: (new_length & 0xFFFF_FFFF) as base.u32)
+    }
+
+    // Actual RLE coding.
+    i = 0
+    while i < new_length {
+        if i >= args.depth.length() {
+            break
+        }
+        value = args.depth[i]
+        reps = 1
+        if ((value <> 0) and ((rle & 1) <> 0)) or ((value == 0) and ((rle & 2) <> 0)) {
+            k = i ~mod+ 1
+            while (k < new_length) and (k < args.depth.length()) {
+                if args.depth[k] <> value {
+                    break
+                }
+                reps ~mod+= 1
+                k ~mod+= 1
+            }
+        }
+        if value == 0 {
+            this.write_huffman_tree_repetitions_zeros!(repetitions: reps)
+        } else {
+            this.write_huffman_tree_repetitions!(previous_value: previous_value, value: value, repetitions: reps)
+            previous_value = value
+        }
+        i ~mod+= reps as base.u64
+    }
+}
+
+// Mirrors BrotliStoreHuffmanTreeOfHuffmanTreeToBitMask in
+// brotli_bit_stream.c, using this.cl_depth as code_length_bitdepth.
+pri func encoder.store_huffman_tree_of_huffman_tree_to_bit_mask!(num_codes: base.u32, s: slice base.u8) {
+    var skip_some      : base.u32
+    var codes_to_store : base.u32[..= 18]
+    var i              : base.u32
+    var l              : base.u32
+
+    // Throw away trailing zeros.
+    codes_to_store = 18
+    if args.num_codes > 1 {
+        while codes_to_store > 0 {
+            if this.cl_depth[STORAGE_ORDER[codes_to_store - 1]] <> 0 {
+                break
+            }
+            codes_to_store -= 1
+        }
+    }
+    if (this.cl_depth[STORAGE_ORDER[0]] == 0) and (this.cl_depth[STORAGE_ORDER[1]] == 0) {
+        skip_some = 2
+        if this.cl_depth[STORAGE_ORDER[2]] == 0 {
+            skip_some = 3
+        }
+    }
+    this.write_bits!(n_bits: 2, bits: skip_some as base.u64, s: args.s)
+    i = skip_some
+    while (i < (codes_to_store as base.u32)) and (i < 18) {
+        l = this.cl_depth[STORAGE_ORDER[i]] as base.u32
+        if l < 6 {
+            this.write_bits!(
+                    n_bits: HUFFMAN_BIT_LENGTH_HUFFMAN_CODE_BIT_LENGTHS[l],
+                    bits: HUFFMAN_BIT_LENGTH_HUFFMAN_CODE_SYMBOLS[l],
+                    s: args.s)
+        }
+        i ~mod+= 1
+    }
+}
+
+// Mirrors BrotliStoreHuffmanTreeToBitMask in brotli_bit_stream.c, using
+// this.cl_depth and this.cl_bits as code_length_bitdepth and
+// code_length_bitdepth_symbols.
+pri func encoder.store_huffman_tree_to_bit_mask!(s: slice base.u8) {
+    var i  : base.u32
+    var ix : base.u32
+
+    i = 0
+    while i < this.huffman_tree_size {
+        ix = (this.huffman_tree[i & 1023] & 31) as base.u32
+        this.write_bits!(
+                n_bits: this.cl_depth[ix] as base.u32,
+                bits: this.cl_bits[ix] as base.u64,
+                s: args.s)
+        // Extra bits.
+        if ix == 16 {  // BROTLI_REPEAT_PREVIOUS_CODE_LENGTH.
+            this.write_bits!(n_bits: 2, bits: this.huffman_tree_extra_bits[i & 1023] as base.u64, s: args.s)
+        } else if ix == 17 {  // BROTLI_REPEAT_ZERO_CODE_LENGTH.
+            this.write_bits!(n_bits: 3, bits: this.huffman_tree_extra_bits[i & 1023] as base.u64, s: args.s)
+        }
+        i ~mod+= 1
+    }
+}
+
+// Mirrors BrotliStoreHuffmanTree in brotli_bit_stream.c.
+pri func encoder.store_huffman_tree!(depths: slice base.u8, num: base.u32, s: slice base.u8) {
+    var i         : base.u32
+    var num_codes : base.u32
+    var code      : base.u32
+
+    this.huffman_tree_size = 0
+    this.write_huffman_tree!(depth: args.depths, length: args.num)
+
+    // Calculate the statistics of the Huffman tree in brotli-representation.
+    i = 0
+    while i < 32 {
+        this.cl_histo[i] = 0
+        this.cl_depth[i] = 0
+        i ~mod+= 1
+    }
+    i = 0
+    while i < this.huffman_tree_size {
+        this.cl_histo[this.huffman_tree[i & 1023] & 31] ~mod+= 1
+        i ~mod+= 1
+    }
+
+    i = 0
+    while i < 18 {
+        if this.cl_histo[i] <> 0 {
+            if num_codes == 0 {
+                code = i
+                num_codes = 1
+            } else if num_codes == 1 {
+                num_codes = 2
+                break
+            }
+        }
+        i ~mod+= 1
+    }
+
+    // Calculate another Huffman tree to use for compressing both the earlier
+    // Huffman tree with.
+    this.create_huffman_tree!(src: 1, off: 0, length: 18, tree_limit: 5, depth: this.cl_depth[..])
+    this.convert_bit_depths_to_symbols!(depth: this.cl_depth[..], len: 18, dst: 2)
+
+    // Now, we have all the data, let's start storing it.
+    this.store_huffman_tree_of_huffman_tree_to_bit_mask!(num_codes: num_codes, s: args.s)
+
+    if num_codes == 1 {
+        this.cl_depth[code & 31] = 0
+    }
+
+    // Store the real Huffman tree now.
+    this.store_huffman_tree_to_bit_mask!(s: args.s)
+}
+
+// Mirrors BrotliBuildAndStoreHuffmanTreeFast in brotli_bit_stream.c, with
+// this.histogram, this.lit_depth and this.lit_bits as the histogram, depth and
+// bits arguments.
+pri func encoder.build_and_store_huffman_tree_fast!(histogram_total: base.u64, max_bits: base.u32, s: slice base.u8) {
+    var count       : base.u32
+    var symbols     : array[4] base.u32
+    var length      : base.u32
+    var total       : base.u64
+    var count_limit : base.u32
+    var n           : base.u32
+    var l           : base.u32
+    var h           : base.u32
+    var i           : base.u32
+    var j           : base.u32
+    var tmp         : base.u32
+    var depth_ok    : base.bool
+    var value       : base.u32
+    var prev_value  : base.u32
+    var reps        : base.u32
+    var k           : base.u32
+
+    total = args.histogram_total
+    while (total <> 0) and (length < 256) {
+        h = this.histogram[length]
+        if h <> 0 {
+            if count < 4 {
+                symbols[count] = length
+            }
+            count ~mod+= 1
+            total ~mod-= h as base.u64
+        }
+        length ~mod+= 1
+    }
+
+    if count <= 1 {
+        this.write_bits!(n_bits: 4, bits: 1, s: args.s)
+        this.write_bits!(n_bits: args.max_bits, bits: symbols[0] as base.u64, s: args.s)
+        this.lit_depth[symbols[0] & 255] = 0
+        this.lit_bits[symbols[0] & 255] = 0
+        return nothing
+    }
+
+    i = 0
+    while i < length {
+        this.lit_depth[i & 255] = 0
+        i ~mod+= 1
+    }
+
+    count_limit = 1
+    while true {
+        n = 0
+        l = length
+        while l > 0 {
+            l -= 1
+            h = this.histogram[l & 255]
+            if h <> 0 {
+                if h >= count_limit {
+                    this.tree_count[n & 1023] = h
+                } else {
+                    this.tree_count[n & 1023] = count_limit
+                }
+                this.tree_left[n & 1023] = TREE_NONE
+                this.tree_right[n & 1023] = (l & 0xFFFF) as base.u16
+                n ~mod+= 1
+            }
+        }
+        this.sort_huffman_tree_items!(n: n, tie_break: false)
+        this.merge_huffman_nodes!(n: n)
+        depth_ok = this.set_depth!(p0: (n ~mod* 2) ~mod- 1, depth: this.lit_depth[..], max_depth: 14)
+        if depth_ok {
+            break
+        }
+        count_limit ~mod*= 2
+    }
+    this.convert_bit_depths_to_symbols!(depth: this.lit_depth[..], len: length, dst: 3)
+
+    if count <= 4 {
+        // Value of 1 indicates a simple Huffman code.
+        this.write_bits!(n_bits: 2, bits: 1, s: args.s)
+        this.write_bits!(n_bits: 2, bits: (count ~mod- 1) as base.u64, s: args.s)  // NSYM - 1.
+
+        // Sort.
+        i = 0
+        while i < count {
+            j = i ~mod+ 1
+            while j < count {
+                if this.lit_depth[symbols[j & 3] & 255] < this.lit_depth[symbols[i & 3] & 255] {
+                    tmp = symbols[j & 3]
+                    symbols[j & 3] = symbols[i & 3]
+                    symbols[i & 3] = tmp
+                }
+                j ~mod+= 1
+            }
+            i ~mod+= 1
+        }
+
+        this.write_bits!(n_bits: args.max_bits, bits: symbols[0] as base.u64, s: args.s)
+        this.write_bits!(n_bits: args.max_bits, bits: symbols[1] as base.u64, s: args.s)
+        if count >= 3 {
+            this.write_bits!(n_bits: args.max_bits, bits: symbols[2] as base.u64, s: args.s)
+        }
+        if count >= 4 {
+            this.write_bits!(n_bits: args.max_bits, bits: symbols[3] as base.u64, s: args.s)
+            // Tree-select.
+            if this.lit_depth[symbols[0] & 255] == 1 {
+                this.write_bits!(n_bits: 1, bits: 1, s: args.s)
+            } else {
+                this.write_bits!(n_bits: 1, bits: 0, s: args.s)
+            }
+        }
+
+    } else {
+        // Complex Huffman Tree.
+        this.write_bits!(n_bits: 40, bits: STATIC_CODE_LENGTH_CODE, s: args.s)
+
+        // Actual RLE coding.
+        prev_value = 8
+        i = 0
+        while i < length {
+            value = this.lit_depth[i & 255] as base.u32
+            reps = 1
+            k = i ~mod+ 1
+            while k < length {
+                if (this.lit_depth[k & 255] as base.u32) <> value {
+                    break
+                }
+                reps ~mod+= 1
+                k ~mod+= 1
+            }
+            i ~mod+= reps
+            if value == 0 {
+                this.write_bits!(n_bits: ZERO_REPS_DEPTH[reps & 511], bits: ZERO_REPS_BITS[reps & 511], s: args.s)
+            } else {
+                if prev_value <> value {
+                    this.write_bits!(n_bits: CODE_LENGTH_DEPTH[value & 15], bits: CODE_LENGTH_BITS[value & 15], s: args.s)
+                    reps ~mod-= 1
+                }
+                if reps < 3 {
+                    while reps <> 0 {
+                        reps -= 1
+                        this.write_bits!(n_bits: CODE_LENGTH_DEPTH[value & 15], bits: CODE_LENGTH_BITS[value & 15], s: args.s)
+                    }
+                } else {
+                    reps -= 3
+                    this.write_bits!(n_bits: NON_ZERO_REPS_DEPTH[reps & 511], bits: NON_ZERO_REPS_BITS[reps & 511], s: args.s)
+                }
+                prev_value = value
+            }
+        }
+    }
+}
+
+// copy_tmp_bits_to_cmd_bits copies this.tmp_bits[args.src .. args.src + args.n]
+// to this.cmd_bits[args.dst .. args.dst + args.n]. Wuffs' C code generator
+// mishandles copy_from_slice on base.u16 arrays, so this is an explicit loop.
+pri func encoder.copy_tmp_bits_to_cmd_bits!(dst: base.u32, src: base.u32, n: base.u32) {
+    var i : base.u32
+
+    i = 0
+    while i < args.n {
+        this.cmd_bits[(args.dst ~mod+ i) & 127] = this.tmp_bits[(args.src ~mod+ i) & 63]
+        i ~mod+= 1
+    }
+}
