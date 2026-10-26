@@ -135,7 +135,7 @@ pri func decoder.read_simple_huffman_code?(src: base.io_reader, alphabet_size_ma
 // symbol, 1 means 2 symbols, 2 means 3 symbols, 3 means 4 symbols with
 // lengths [2, 2, 2, 2], 4 means 4 symbols with lengths [1, 2, 3, 3].
 pri func decoder.build_simple_huffman_table!(hoff: base.u32, num_symbols: base.u32[..= 4]) base.status {
-    var t          : base.u32[..= 671634]
+    var t          : base.u32[..= 677778]
     var v          : array[4] base.u32[..= 0x3FF]
     var tmp        : base.u32[..= 0x3FF]
     var i          : base.u32

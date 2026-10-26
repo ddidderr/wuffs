@@ -49,8 +49,10 @@ decoder does not read any further than that.
 
 ## Workbuf Layout
 
-`workbuf_len` is `(1 << 24) + 542` bytes, both minimum and maximum: the
-largest (non-large-window) brotli window size plus some slack. The slack
+Without the large-window quirk and without attached dictionaries (see the
+"Large Window" and "Dictionaries" sections below), `workbuf_len` is `(1 << 24)
++ 542` bytes, both minimum and maximum: the largest (non-large-window) brotli
+window size plus some slack. The slack
 mirrors the C code's `kRingBufferWriteAheadSlack`, which its fast paths use to
 write (and discard) a few bytes past the ring buffer's end. This
 implementation does not yet have such fast paths, but it still reserves the
@@ -101,15 +103,18 @@ a corresponding Wuffs status:
 | `BROTLI_DECODER_ERROR_FORMAT_PADDING_2`               | `"#bad final padding"`                                |
 | `BROTLI_DECODER_ERROR_FORMAT_DISTANCE`                | `"#bad distance"`                                     |
 | `BROTLI_DECODER_ERROR_FORMAT_BLOCK_SWITCH`            | `"#bad block switch"`                                 |
+| `BROTLI_DECODER_ERROR_COMPOUND_DICTIONARY`            | `"#bad compound dictionary"`                          |
 | `BROTLI_DECODER_NEEDS_MORE_INPUT` (with closed `src`) | `"#truncated input"`                                  |
 
 Notes:
 
 - `"#unsupported large window"` is for the large-window escape `WBITS` value
-  (`0010001`). libbrotlidec (with `BROTLI_DECODER_PARAM_LARGE_WINDOW` not set,
-  the default) rejects it with `BROTLI_DECODER_ERROR_FORMAT_WINDOW_BITS`. For
-  standard (non-large-window) brotli, no other `WBITS` value is invalid, so
-  `"#bad window bits"` is not currently produced.
+  (`0010001`) when the `QUIRK_LARGE_WINDOW` quirk is not set. libbrotlidec
+  (with `BROTLI_DECODER_PARAM_LARGE_WINDOW` not set, the default) rejects it
+  with `BROTLI_DECODER_ERROR_FORMAT_WINDOW_BITS`. For standard
+  (non-large-window) brotli, no other `WBITS` value is invalid. With the quirk
+  set, `"#bad window bits"` is for a large-window header with a non-zero
+  reserved bit or with window bits outside of `[10 ..= 30]`.
 - Like the C code, which error an overrun metablock produces (`"#bad block
   length"` or `"#bad metablock length"`) can depend on how the input is split
   across `transform_io` calls. When the C code runs out of input, it first
@@ -118,8 +123,9 @@ Notes:
   running out of input.
 - `"#bad block switch"` needs more than `(1 << 24)` commands in one metablock.
   It is implemented but not tested.
-- The remaining libbrotlidec error codes do not apply: `COMPOUND_DICTIONARY`
-  and `DICTIONARY_NOT_SET` (custom dictionaries are not supported),
+- The remaining libbrotlidec error codes do not apply: `DICTIONARY_NOT_SET`
+  (it needs a word list without data, which libbrotlidec only has when built
+  with `BROTLI_EXTERNAL_DICTIONARY_DATA` and not given that data),
   `INVALID_ARGUMENTS`, the `ALLOC_*` codes (this decoder does not allocate)
   and `UNREACHABLE`.
 
@@ -145,13 +151,11 @@ invariants for memory safety but Wuffs requires explicit bounds checks.
 
 ## TODO
 
-- Large-window brotli (`BROTLI_DECODER_PARAM_LARGE_WINDOW`, window bits up to
-  30). The window-related fields are sized for 24 bits.
-- Custom, shared and compound dictionaries.
-- Metadata callbacks (metadata blocks are currently skipped).
+- Metadata callbacks (metadata blocks are currently skipped). See the
+  "Metadata Blocks" section below.
 - Fast paths.
-- Fuzzers.
-- An encoder.
+- Encoder quality levels 2 to 11, encoder dictionaries and large-window
+  encoding (see the "Encoder" section below).
 
 
 ## Encoder
@@ -324,3 +328,147 @@ some synthetic inputs).
 - Large-window encoding (only used at qualities 3 and above).
 - Custom and shared dictionaries (`BrotliEncoderAttachPreparedDictionary`).
 - Changing parameters mid-stream.
+
+
+## Large Window
+
+Large-window brotli (an incompatible extension of RFC 7932, with window sizes
+up to `(1 << 30)` bytes) is enabled by the `QUIRK_LARGE_WINDOW` quirk. It
+mirrors libbrotlidec's `BROTLI_DECODER_PARAM_LARGE_WINDOW` parameter: it must
+be set before decoding starts (afterwards, `set_quirk` returns `"#bad call
+sequence"`, like `BrotliDecoderSetParameter` failing once the decoder has
+left its `BROTLI_STATE_UNINITED` state). With the quirk set:
+
+- a stream that starts with the large-window `WBITS` escape is decoded as a
+  large-window stream: the escape is followed by a reserved bit (that must be
+  zero) and 6 window bits (that must be in `[10 ..= 30]`), otherwise the
+  decoder fails with `"#bad window bits"`.
+- a stream that does not start with that escape is decoded as standard brotli,
+  exactly as without the quirk.
+- `workbuf_len` is `(1 << 30) + 542` bytes (plus any dictionaries), the
+  largest large-window window size plus slack. As before, the workbuf only
+  needs to be as long as the stream's actual window size plus 542 bytes (plus
+  any dictionaries). Without the quirk, it is `(1 << 24) + 542` bytes (plus
+  any dictionaries), as before.
+
+For a large-window stream, like the C code, the distance alphabet's
+`alphabet_size_max` uses `BROTLI_LARGE_MAX_DISTANCE_BITS` (62) and its
+`alphabet_size_limit` comes from `BrotliCalculateDistanceCodeLimit` (at most
+544 symbols, so that no distance exceeds `BROTLI_MAX_ALLOWED_DISTANCE`). Up to
+29 extra distance bits are read (the C code's `BrotliSafeReadBits32`) and the
+distance is calculated with 64-bit arithmetic, like the C code's
+`brotli_reg_t`. The Huffman table stride for distance trees is sized for 544
+symbols in both modes.
+
+The `DECODER_WORKBUF_LEN_MAX_INCL_WORST_CASE` constant is now the overall
+worst case: `(1 << 30) + 542` plus the maximum total dictionary length
+(`0x7FFF_FFFF`). The new `DECODER_WORKBUF_LEN_STANDARD` and
+`DECODER_WORKBUF_LEN_LARGE_WINDOW` constants give the window-only values.
+
+
+## Dictionaries
+
+`decoder.add_dictionary!(dict_type: base.u32, dict: roslice base.u8, workbuf:
+slice base.u8) base.status` mirrors libbrotlidec's
+`BrotliDecoderAttachDictionary`. `dict_type` is `DICTIONARY_TYPE_RAW` (0, the
+C code's `BROTLI_SHARED_DICTIONARY_RAW`) or `DICTIONARY_TYPE_SERIALIZED` (1,
+`BROTLI_SHARED_DICTIONARY_SERIALIZED`). It must be called before decoding
+starts. It can be called multiple times.
+
+Wuffs structs cannot hold pointers or slices, so `add_dictionary` copies the
+dictionary bytes into the workbuf. Every `add_dictionary` and `transform_io`
+call must be passed the same workbuf (or at least one whose first bytes hold
+the same dictionary bytes). The `add_dictionary` workbuf only needs to be long
+enough to hold all of the dictionaries added so far. Call `workbuf_len` after
+the last `add_dictionary` call: it grows by each dictionary's length.
+
+The workbuf layout is:
+
+    [0 .. D)            the attached dictionaries, concatenated, where D is
+                        the total length of all successfully added
+                        dictionaries (raw or serialized, in full).
+    [D .. D + W + 542)  the history ring buffer (W = 1 << WBITS) and slack.
+
+The dictionaries come first because their position should not depend on the
+stream's window size, which is only known once decoding has started.
+
+Raw dictionaries are LZ77 prefix dictionaries. Like the C code (its
+`BrotliDecoderCompoundDictionary` and `AttachCompoundDictionary`,
+`InitializeCompoundDictionaryCopy` and `CopyFromCompoundDictionary`
+functions), at most 15 such "compound dictionary" chunks (raw dictionaries
+plus serialized dictionaries' LZ77 prefixes) can be attached. A backward
+reference distance `d` beyond the current maximum LZ77 distance `m` (but
+within `BROTLI_MAX_ALLOWED_DISTANCE`) refers to the compound dictionary when
+`d - m - 1` is less than the compound dictionary's total size `T`, at address
+`T - (d - m)`. A copy that would extend past the compound dictionary's end
+fails with `"#bad compound dictionary"`. Otherwise, the static dictionary's
+address is `d - m - 1 - T`.
+
+Serialized dictionaries are parsed and validated like
+`BrotliSharedDictionaryAttach` (`DecodeSharedDictionary`,
+`DryParseDictionary`, `ParseDictionary`, `ParseWordList`,
+`ParseTransformsList` and `ParsePrefixSuffixTable` in
+`c/common/shared_dictionary.c`): the `0x91 0x00` magic, an optional LZ77
+prefix (at most 1073741823 bytes), up to 64 custom word lists (word lengths 4
+to 31, at most 15 size bits per length), up to 64 custom transform lists (up
+to 256 prefix/suffix stringlets, up to 255 transforms, transform types up to
+`BROTLI_TRANSFORM_SHIFT_ALL`, with 16-bit parameters for the
+`BROTLI_TRANSFORM_SHIFT_FIRST` and `BROTLI_TRANSFORM_SHIFT_ALL` types), up to
+64 (word list, transform list) combinations and an optional 64-entry context
+map. The parsed metadata lives in fixed-size decoder fields (`wl_etc`, `tl_etc`
+and `sd_etc`), with offsets into the copied bytes in the workbuf. Like the C
+code:
+
+- only one attached serialized dictionary can have custom word lists or
+  transform lists (otherwise `"#unsupported multiple custom static
+  dictionaries"`), and
+- attaching a serialized dictionary without custom word lists or transform
+  lists (only an LZ77 prefix) resets the static dictionary to the built-in
+  (RFC 7932) one, even if an earlier serialized dictionary had custom lists.
+
+Static dictionary references then mirror `ProcessCommandsInternal`: the word
+list and transform list are selected by the literal context (`BROTLI_CONTEXT(p1,
+p2, context_lookup)`) through the context map (if enabled), with the C code's
+fall back to the other (word list, transform list) combinations when the
+address is out of range, and words are transformed like
+`BrotliTransformDictionaryWord` (including `Shift` for the shift transforms).
+Transformed words can be up to 541 bytes long.
+
+`add_dictionary` statuses (the C code just returns `BROTLI_FALSE`):
+
+| Condition                                                      | Wuffs status                                          |
+| -------------------------------------------------------------- | ----------------------------------------------------- |
+| decoding has started                                           | `base."#bad call sequence"`                           |
+| unknown `dict_type`                                            | `base."#bad argument"`                                |
+| more than 15 compound dictionary chunks                        | `"#too many compound dictionaries"`                   |
+| invalid serialized dictionary                                  | `"#bad shared dictionary"`                            |
+| a second serialized dictionary with custom lists               | `"#unsupported multiple custom static dictionaries"`  |
+| more than `0x7FFF_FFFF` bytes of dictionaries in total         | `"#too much dictionary data"`                         |
+| `workbuf` shorter than the dictionaries so far plus this one   | `base."#bad workbuf length"`                          |
+
+Differences from the C code:
+
+- On failure, `add_dictionary` leaves the decoder unchanged. libbrotlidec's
+  `BrotliDecoderAttachDictionary` can fail after partially updating its shared
+  dictionary (e.g. after counting a serialized dictionary's LZ77 prefix or
+  reading its number of word lists), which can affect later attach calls.
+- libbrotlicommon only parses serialized dictionaries when built with
+  `BROTLI_EXPERIMENTAL`, which is not the default. A default build rejects
+  every serialized dictionary. This package always accepts them, matching an
+  experimental build. The mimic tests skip serialized dictionary cases when
+  the linked libbrotlidec rejects them; they pass, with no skips, when linked
+  against a `BROTLI_EXPERIMENTAL` build.
+- The C code holds the compound dictionary's total size in an `int`. This
+  package rejects more than `0x7FFF_FFFF` bytes of dictionaries in total
+  (counting serialized dictionaries in full), where the C code would overflow.
+- `BROTLI_DECODER_ERROR_DICTIONARY_NOT_SET` cannot happen (see above).
+
+
+## Metadata Blocks
+
+libbrotlidec can report metadata blocks' contents through callbacks
+(`BrotliDecoderSetMetadataCallbacks`). Wuffs code cannot call back into its
+caller, so there is no equivalent: metadata blocks are skipped (validated and
+consumed but not reported), exactly as libbrotlidec does without callbacks,
+so the decoded output is the same. A future quirk could expose metadata
+blocks, e.g. by suspending with a status when one starts.

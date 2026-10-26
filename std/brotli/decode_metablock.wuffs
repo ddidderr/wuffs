@@ -13,17 +13,18 @@
 // Mirrors the BROTLI_STATE_HUFFMAN_CODE_0 through
 // BROTLI_STATE_BEFORE_COMPRESSED_METABLOCK_BODY states of
 // BrotliDecoderDecompressStream in decode.c, followed by ProcessCommands.
-pri func decoder.decode_compressed_metablock?(src: base.io_reader, workbuf: slice base.u8) {
-    var t        : base.u32
-    var n        : base.u32[..= 256]
-    var n0       : base.u32[..= 256]
-    var n2       : base.u32[..= 256]
-    var bits     : base.u32
-    var npostfix : base.u32[..= 3]
-    var ndirect  : base.u32[..= 120]
-    var alphabet : base.u32[..= 520]
-    var i        : base.u32
-    var k        : base.u32
+pri func decoder.decode_compressed_metablock?(src: base.io_reader, workbuf: slice base.u8, dictbuf: roslice base.u8) {
+    var t            : base.u32
+    var n            : base.u32[..= 256]
+    var n0           : base.u32[..= 256]
+    var n2           : base.u32[..= 256]
+    var bits         : base.u32
+    var npostfix     : base.u32[..= 3]
+    var ndirect      : base.u32[..= 120]
+    var alphabet_max : base.u32[..= 1128]
+    var alphabet     : base.u32[..= 544]
+    var i            : base.u32
+    var k            : base.u32
 
     // BROTLI_STATE_HUFFMAN_CODE_0 ..= BROTLI_STATE_HUFFMAN_CODE_3.
     t = 0
@@ -75,8 +76,19 @@ pri func decoder.decode_compressed_metablock?(src: base.io_reader, workbuf: slic
     this.decode_context_map?(src: args.src, size: n2 << 2, offset: DIST_CONTEXT_MAP_BASE)
     this.num_dist_htrees = this.bits_value.min(no_more_than: 256)
 
-    // BROTLI_DISTANCE_ALPHABET_SIZE(npostfix, ndirect, BROTLI_MAX_DISTANCE_BITS).
-    alphabet = 16 + ndirect + ((24 as base.u32) << (npostfix + 1))
+    if this.large_window {
+        // BROTLI_DISTANCE_ALPHABET_SIZE(npostfix, ndirect,
+        // BROTLI_LARGE_MAX_DISTANCE_BITS) and the max_alphabet_size of
+        // BrotliCalculateDistanceCodeLimit(BROTLI_MAX_ALLOWED_DISTANCE,
+        // npostfix, ndirect).
+        alphabet_max = 16 + ndirect + ((62 as base.u32) << (npostfix + 1))
+        alphabet = this.calculate_distance_code_limit(npostfix: npostfix, ndirect: ndirect)
+    } else {
+        // BROTLI_DISTANCE_ALPHABET_SIZE(npostfix, ndirect,
+        // BROTLI_MAX_DISTANCE_BITS).
+        alphabet = 16 + ndirect + ((24 as base.u32) << (npostfix + 1))
+        alphabet_max = alphabet
+    }
     this.distance_alphabet_size = alphabet
 
     // BROTLI_STATE_TREE_GROUP. Mirrors HuffmanTreeGroupDecode, three times.
@@ -104,7 +116,7 @@ pri func decoder.decode_compressed_metablock?(src: base.io_reader, workbuf: slic
     while k < this.num_dist_htrees {
         assert k < 256 via "a < b: a < c; c <= b"(c: this.num_dist_htrees)
         this.read_huffman_code?(src: args.src,
-                alphabet_size_max: alphabet,
+                alphabet_size_max: alphabet_max,
                 alphabet_size_limit: alphabet,
                 hoff: DIST_HUFFS_BASE + (k * DIST_HUFFS_STRIDE),
                 table_size_max: DIST_HUFFS_STRIDE)
@@ -117,7 +129,50 @@ pri func decoder.decode_compressed_metablock?(src: base.io_reader, workbuf: slic
     this.htree_command = 0
     this.calculate_distance_lut!()
 
-    this.process_commands?(src: args.src, workbuf: args.workbuf)
+    this.process_commands?(src: args.src, workbuf: args.workbuf, dictbuf: args.dictbuf)
+}
+
+// Mirrors BrotliCalculateDistanceCodeLimit in constants.h, with a
+// max_distance of BROTLI_MAX_ALLOWED_DISTANCE (0x7FFF_FFFC). It returns the
+// max_alphabet_size, which is at most 544.
+pri func decoder.calculate_distance_code_limit(npostfix: base.u32[..= 3], ndirect: base.u32[..= 120]) base.u32[..= 544] {
+    var offset    : base.u32
+    var ndistbits : base.u32
+    var tmp       : base.u32
+    var half      : base.u32[..= 1]
+    var group     : base.u32
+    var postfix   : base.u32[..= 7]
+    var ret       : base.u32
+
+    // The max_distance <= ndirect case cannot happen.
+    //
+    // offset is (forbidden_distance - ndirect - 1), where forbidden_distance
+    // is (max_distance + 1), after removing the postfix and "head-start".
+    offset = ((0x7FFF_FFFC - args.ndirect) >> args.npostfix) + 4
+    postfix = ((1 as base.u32) << args.npostfix) - 1
+    // Calculate the number of distance bits (a poor man's log2floor).
+    tmp = offset / 2
+    ndistbits = 0
+    while (tmp <> 0) and (ndistbits < 32) {
+        ndistbits += 1
+        tmp >>= 1
+    }
+    // One bit is covered with subrange addressing ("half").
+    ndistbits ~mod-= 1
+    // Find the subrange.
+    half = (offset >> (ndistbits & 31)) & 1
+    // Calculate the "group" part of the dcode.
+    group = ((ndistbits ~mod- 1) ~mod<< 1) | half
+    if group == 0 {
+        return args.ndirect + 16
+    }
+    // Decrement "group", so it is the last permitted "group".
+    group -= 1
+    ret = (((group ~mod<< args.npostfix) | postfix) ~mod+ args.ndirect) ~mod+ 17
+    if ret > 544 {
+        return 544
+    }
+    return ret
 }
 
 // Mirrors DecodeContextMap in decode.c. The context map is written to
@@ -310,7 +365,7 @@ pri func decoder.prepare_literal_decoding!() {
 pri func decoder.calculate_distance_lut!() {
     var npostfix : base.u32[..= 3]
     var ndirect  : base.u32[..= 120]
-    var limit    : base.u32[..= 520]
+    var limit    : base.u32[..= 544]
     var postfix  : base.u32[..= 8]
     var i        : base.u32
     var j        : base.u32
@@ -361,7 +416,7 @@ pri func decoder.calculate_distance_lut!() {
 }
 
 // Mirrors ProcessCommandsInternal in decode.c.
-pri func decoder.process_commands?(src: base.io_reader, workbuf: slice base.u8) {
+pri func decoder.process_commands?(src: base.io_reader, workbuf: slice base.u8, dictbuf: roslice base.u8) {
     var cmd_code      : base.u32[..= 703]
     var insert_length : base.u32
     var p1            : base.u32[..= 0xFF]
@@ -375,6 +430,10 @@ pri func decoder.process_commands?(src: base.io_reader, workbuf: slice base.u8) 
     var n             : base.u32
     var k             : base.u32
     var b             : base.u8
+    var compound_size : base.u32
+    var address       : base.u32
+    var chunk         : base.u32[..= 14]
+    var j             : base.u64
 
     while true {
         // CommandBegin.
@@ -460,39 +519,84 @@ pri func decoder.process_commands?(src: base.io_reader, workbuf: slice base.u8) 
         distance = this.distance_code
 
         if distance > max_distance {
-            // Apply a static dictionary reference, since the distance is
-            // larger than the max LZ77 distance.
+            // Apply a compound dictionary or static dictionary reference,
+            // since the distance is larger than the max LZ77 distance.
             //
             // The maximum allowed distance is BROTLI_MAX_ALLOWED_DISTANCE.
             if distance > 0x7FFF_FFFC {
                 return "#bad distance"
             }
-            // The C code checks for SHARED_BROTLI_MIN_DICTIONARY_WORD_LENGTH
-            // (4) and SHARED_BROTLI_MAX_DICTIONARY_WORD_LENGTH (31) but the
-            // RFC 7932 dictionary's size_bits_by_length is zero for lengths
-            // 25 ..= 31, which also fails with "#bad dictionary".
-            //
-            // TODO: support custom dictionaries.
-            if (i < 4) or (24 < i) {
-                return "#bad dictionary"
-            }
-            this.dist_rb_idx ~mod+= this.distance_context
-            n = this.copy_dictionary_word!(
-                    address: (distance ~mod- max_distance) ~mod- 1,
-                    len: i.min(no_more_than: 24))
-            if n == 0xFFFF_FFFF {
-                return "#bad transform"
-            } else if (n == 0) and (distance <= 120) {
-                return "#bad transform"
-            }
-            this.mb_remaining ~mod-= n
-            k = 0
-            while k < n {
-                this.put_byte!(workbuf: args.workbuf, b: this.transformed_word[k & 63])
-                k ~mod+= 1
-                if this.pos == this.rb_size {
-                    this.ring_event?()
+            compound_size = this.chunk_offsets[this.num_chunks]
+            address = (distance - max_distance) - 1
+
+            if address < compound_size {
+                // Mirrors InitializeCompoundDictionaryCopy and
+                // CopyFromCompoundDictionary in decode.c. This address is the
+                // C code's (compound_dictionary_size - (s->distance_code -
+                // s->max_distance)).
+                address = compound_size ~mod- (address + 1)
+                if ((address as base.u64) + (i as base.u64)) > (compound_size as base.u64) {
+                    return "#bad compound dictionary"
                 }
+                // Update the recent distances cache.
+                this.dist_rb[this.dist_rb_idx & 3] = distance
+                this.dist_rb_idx ~mod+= 1
+                this.mb_remaining ~mod-= i
+                chunk = 0
+                while i > 0 {
+                    while chunk < 14 {
+                        if address < this.chunk_offsets[chunk + 1] {
+                            break
+                        }
+                        chunk += 1
+                    }
+                    j = (this.chunk_starts[chunk] as base.u64) +
+                            ((address ~mod- this.chunk_offsets[chunk]) as base.u64)
+                    b = 0
+                    if j < args.dictbuf.length() {
+                        b = args.dictbuf[j]
+                    }
+                    this.put_byte!(workbuf: args.workbuf, b: b)
+                    address ~mod+= 1
+                    i ~mod-= 1
+                    if this.pos == this.rb_size {
+                        this.ring_event?()
+                    }
+                }
+
+            } else if (4 <= i) and (i <= 31) {
+                // SHARED_BROTLI_MIN_DICTIONARY_WORD_LENGTH and
+                // SHARED_BROTLI_MAX_DICTIONARY_WORD_LENGTH.
+                p1 = this.get_byte(workbuf: args.workbuf, distance: 1) as base.u32
+                p2 = this.get_byte(workbuf: args.workbuf, distance: 2) as base.u32
+                mode_offset = this.context_mode << 9
+                ctx = (CONTEXT_LOOKUP[mode_offset | p1] |
+                        CONTEXT_LOOKUP[mode_offset | 0x100 | p2]) as base.u32
+                // Compensate double distance-ring-buffer roll.
+                this.dist_rb_idx ~mod+= this.distance_context
+                n = this.copy_dictionary_word!(dictbuf: args.dictbuf,
+                        address: address ~mod- compound_size,
+                        len: i.min(no_more_than: 31),
+                        ctx: ctx)
+                if n == 0xFFFF_FFFE {
+                    return "#bad dictionary"
+                } else if n == 0xFFFF_FFFF {
+                    return "#bad transform"
+                } else if (n == 0) and (distance <= 120) {
+                    return "#bad transform"
+                }
+                this.mb_remaining ~mod-= n
+                k = 0
+                while k < n {
+                    this.put_byte!(workbuf: args.workbuf, b: this.transformed_word[k & 1023])
+                    k ~mod+= 1
+                    if this.pos == this.rb_size {
+                        this.ring_event?()
+                    }
+                }
+
+            } else {
+                return "#bad dictionary"
             }
 
         } else {
@@ -543,12 +647,17 @@ pri func decoder.read_distance?(src: base.io_reader) {
     if (code >= this.distance_alphabet_size) or (code >= 1128) {
         return "#internal error: inconsistent Huffman table"
     }
-    this.read_bits?(src: args.src, n: this.dist_extra_bits[code].min(no_more_than: 24) as base.u32)
+    // The C code uses BrotliSafeReadBits32, as large-window brotli can have
+    // more than 24 extra bits.
+    this.read_bits32?(src: args.src, n: this.dist_extra_bits[code].min(no_more_than: 32) as base.u32)
     if code >= 1128 {
         return "#internal error: inconsistent Huffman table"
     }
-    this.distance_code = this.dist_offset[code] ~mod+
-            (this.bits_value ~mod<< this.distance_postfix_bits)
+    // The C code calculates this with brotli_reg_t (64-bit) arithmetic and
+    // then casts to int. BrotliCalculateDistanceCodeLimit means that the
+    // result is less than BROTLI_MAX_ALLOWED_DISTANCE.
+    this.distance_code = (((this.dist_offset[code] as base.u64) ~mod+
+            ((this.bits_value as base.u64) ~mod<< this.distance_postfix_bits)) & 0xFFFF_FFFF) as base.u32
 }
 
 // Mirrors TakeDistanceFromRingBuffer in decode.c.
@@ -584,145 +693,4 @@ pri func decoder.take_distance_from_ring_buffer!(code: base.u32[..= 15]) {
     } else {
         this.distance_code = v - 3
     }
-}
-
-// copy_dictionary_word writes a transformed static dictionary word to
-// this.transformed_word and returns its length. It returns 0xFFFF_FFFF if the
-// transform index is out of range. Mirrors part of ProcessCommandsInternal in
-// decode.c and BrotliTransformDictionaryWord in transform.c.
-pri func decoder.copy_dictionary_word!(address: base.u32, len: base.u32[..= 24]) base.u32 {
-    var shift         : base.u32[..= 24]
-    var word_idx      : base.u32
-    var transform_idx : base.u32
-    var offset        : base.u32
-    var t             : base.u32[..= 120]
-    var t_type        : base.u32[..= 22]
-    var affix         : base.u32[..= 216]
-    var affix_len     : base.u32
-    var idx           : base.u32
-    var word_start    : base.u32
-    var word_len      : base.u32
-    var skip          : base.u32[..= 9]
-    var i             : base.u32
-    var j             : base.u32
-    var step          : base.u32
-
-    shift = DICTIONARY_SIZE_BITS_BY_LENGTH[args.len]
-    word_idx = args.address & (((1 as base.u32) << shift) - 1)
-    transform_idx = args.address >> shift
-    if transform_idx >= NUM_TRANSFORMS {
-        return 0xFFFF_FFFF
-    }
-    t = transform_idx.min(no_more_than: 120)
-    offset = DICTIONARY_OFFSETS_BY_LENGTH[args.len] ~mod+ (word_idx ~mod* args.len)
-
-    // The prefix.
-    idx = 0
-    affix = PREFIX_SUFFIX_MAP[TRANSFORM_PREFIX_ID[t]]
-    affix_len = PREFIX_SUFFIX[affix] as base.u32
-    i = 0
-    while i < affix_len {
-        j = (affix ~mod+ 1) ~mod+ i
-        if (j >= 217) or (idx >= 64) {
-            break
-        }
-        this.transformed_word[idx] = PREFIX_SUFFIX[j]
-        idx ~mod+= 1
-        i ~mod+= 1
-    }
-
-    // The word, possibly with its first or last few bytes omitted.
-    t_type = TRANSFORM_TYPE[t] as base.u32
-    word_len = args.len
-    skip = 0
-    if t_type <= 9 {
-        // BROTLI_TRANSFORM_OMIT_LAST_N.
-        if t_type < args.len {
-            word_len = args.len ~mod- t_type
-        } else {
-            word_len = 0
-        }
-    } else if (12 <= t_type) and (t_type <= 20) {
-        // BROTLI_TRANSFORM_OMIT_FIRST_N.
-        skip = t_type - 11
-        if skip < args.len {
-            word_len = args.len ~mod- skip
-        } else {
-            word_len = 0
-        }
-    }
-    word_start = idx
-    i = 0
-    while i < word_len {
-        j = (offset ~mod+ skip) ~mod+ i
-        if (j >= 122784) or (idx >= 64) {
-            break
-        }
-        this.transformed_word[idx] = DICTIONARY[j]
-        idx ~mod+= 1
-        i ~mod+= 1
-    }
-
-    // Upper-casing. The C code's ToUpperCase can modify bytes after the
-    // word's end, but those bytes are either overwritten by the suffix or are
-    // past the transformed word's length, so we don't bother.
-    if t_type == 10 {
-        // BROTLI_TRANSFORM_UPPERCASE_FIRST.
-        this.to_upper_case!(p: word_start, end: idx)
-    } else if t_type == 11 {
-        // BROTLI_TRANSFORM_UPPERCASE_ALL.
-        i = word_start
-        while i < idx {
-            step = this.to_upper_case!(p: i, end: idx)
-            i ~mod+= step
-        }
-    }
-    // TODO: support BROTLI_TRANSFORM_SHIFT_FIRST and _SHIFT_ALL (used only by
-    // custom dictionaries' transforms).
-
-    // The suffix.
-    affix = PREFIX_SUFFIX_MAP[TRANSFORM_SUFFIX_ID[t]]
-    affix_len = PREFIX_SUFFIX[affix] as base.u32
-    i = 0
-    while i < affix_len {
-        j = (affix ~mod+ 1) ~mod+ i
-        if (j >= 217) or (idx >= 64) {
-            break
-        }
-        this.transformed_word[idx] = PREFIX_SUFFIX[j]
-        idx ~mod+= 1
-        i ~mod+= 1
-    }
-
-    return idx
-}
-
-// Mirrors ToUpperCase in transform.c, except that it does not modify bytes at
-// or after args.end. It returns the step: the number of bytes in the
-// (overly simplified model of a) UTF-8 encoded character.
-pri func decoder.to_upper_case!(p: base.u32, end: base.u32) base.u32 {
-    var c : base.u8
-
-    if args.p >= 64 {
-        return 1
-    }
-    c = this.transformed_word[args.p]
-    if c < 0xC0 {
-        if ('a' <= c) and (c <= 'z') {
-            this.transformed_word[args.p] = c ^ 32
-        }
-        return 1
-    }
-    // An overly simplified uppercasing model for UTF-8.
-    if c < 0xE0 {
-        if ((args.p + 1) < args.end) and ((args.p + 1) < 64) {
-            this.transformed_word[args.p + 1] ^= 32
-        }
-        return 2
-    }
-    // An arbitrary transform for three byte characters.
-    if ((args.p + 2) < args.end) and ((args.p + 2) < 64) {
-        this.transformed_word[args.p + 2] ^= 5
-    }
-    return 3
 }

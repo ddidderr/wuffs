@@ -1,0 +1,955 @@
+// Copyright 2026 The Wuffs Authors.
+//
+// Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
+// https://www.apache.org/licenses/LICENSE-2.0> or the MIT license
+// <LICENSE-MIT or https://opensource.org/licenses/MIT>, at your
+// option. This file may not be copied, modified, or distributed
+// except according to those terms.
+//
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+
+// --------
+
+// add_dictionary attaches a dictionary, like BrotliDecoderAttachDictionary in
+// decode.c. It must be called before decoding starts (before the first
+// transform_io call that consumes any input).
+//
+// args.dict_type is DICTIONARY_TYPE_RAW (a raw LZ77 prefix dictionary) or
+// DICTIONARY_TYPE_SERIALIZED (a serialized shared dictionary).
+//
+// Wuffs structs cannot hold pointers, so the dictionary's bytes are copied
+// into the workbuf: they are appended to the dictionaries added so far, which
+// live at the start of the workbuf. args.workbuf must therefore be at least
+// as long as the total length of all dictionaries added so far, including
+// this one, and every later add_dictionary and transform_io call must be
+// passed the same workbuf (or at least one whose prefix holds the same
+// bytes). After the last add_dictionary call, workbuf_len gives the workbuf
+// length that transform_io needs.
+//
+// On failure, the decoder's state is unchanged. The C code can leave its
+// state partially updated when BrotliDecoderAttachDictionary fails.
+pub func decoder.add_dictionary!(dict_type: base.u32, dict: roslice base.u8, workbuf: slice base.u8) base.status {
+    var status : base.status
+    var n      : base.u64
+    var lo     : base.u64
+    var hi     : base.u64
+    var i      : base.u32
+
+    if this.started {
+        return base."#bad call sequence"
+    }
+    n = args.dict.length()
+
+    if args.dict_type == DICTIONARY_TYPE_RAW {
+        // Mirrors the BROTLI_SHARED_DICTIONARY_RAW case of
+        // BrotliSharedDictionaryAttach in shared_dictionary.c and
+        // AttachCompoundDictionary in decode.c.
+        if this.num_chunks >= 15 {
+            return "#too many compound dictionaries"
+        }
+    } else if args.dict_type == DICTIONARY_TYPE_SERIALIZED {
+        // Mirrors DecodeSharedDictionary in shared_dictionary.c.
+        status = this.parse_shared_dictionary!(dict: args.dict, base_offset: this.dict_total)
+        if not status.is_ok() {
+            return status
+        }
+    } else {
+        return base."#bad argument"
+    }
+
+    // Copy the dictionary bytes into the workbuf.
+    if n > DICT_TOTAL_MAX {
+        return "#too much dictionary data"
+    }
+    lo = this.dict_total
+    hi = lo + n
+    if hi > DICT_TOTAL_MAX {
+        return "#too much dictionary data"
+    } else if hi > args.workbuf.length() {
+        return base."#bad workbuf length"
+    }
+    if lo > hi {
+        return "#too much dictionary data"
+    }
+    args.workbuf[lo .. hi].copy_from_slice!(s: args.dict)
+
+    // Commit.
+    if args.dict_type == DICTIONARY_TYPE_RAW {
+        this.add_chunk!(start: lo, size: n)
+
+    } else {
+        if this.sd_prefix_size > 0 {
+            this.add_chunk!(start: lo ~sat+ this.sd_prefix_pos, size: this.sd_prefix_size)
+        }
+        // Mirrors the end of ParseDictionary in shared_dictionary.c. If the
+        // serialized dictionary has no custom word lists or transform lists,
+        // the static dictionary is reset to the built-in one, even if an
+        // earlier serialized dictionary had custom lists.
+        this.sd_num_word_lists = this.stage_num_word_lists
+        this.sd_num_transform_lists = this.stage_num_transform_lists
+        if (this.stage_num_word_lists > 0) or (this.stage_num_transform_lists > 0) {
+            this.sd_context_based = this.stage_context_based
+            this.sd_num_dictionaries = this.stage_num_dictionaries
+            i = 0
+            while i < 64 {
+                this.sd_words[i] = this.stage_words[i].min(no_more_than: 64)
+                this.sd_transforms[i] = this.stage_transforms[i].min(no_more_than: 64)
+                this.sd_context_map[i] = this.stage_context_map[i] & 0x3F
+                i += 1
+            }
+        } else {
+            this.sd_context_based = false
+            this.sd_num_dictionaries = 1
+            this.sd_words[0] = 0
+            this.sd_transforms[0] = 0
+        }
+    }
+
+    if hi <= DICT_TOTAL_MAX {
+        this.dict_total = hi
+    }
+    return ok
+}
+
+// add_chunk adds a chunk to the compound dictionary. Mirrors
+// AttachCompoundDictionary in decode.c.
+pri func decoder.add_chunk!(start: base.u64, size: base.u64) {
+    var k : base.u32[..= 15]
+
+    k = this.num_chunks
+    if k >= 15 {
+        return nothing
+    }
+    this.chunk_starts[k] = (args.start & 0xFFFF_FFFF) as base.u32
+    this.chunk_offsets[k + 1] = this.chunk_offsets[k] ~mod+ ((args.size & 0xFFFF_FFFF) as base.u32)
+    this.num_chunks = k + 1
+}
+
+// parse_shared_dictionary parses and validates a serialized shared
+// dictionary. Mirrors DecodeSharedDictionary, DryParseDictionary and
+// ParseDictionary in shared_dictionary.c.
+//
+// It does not change the decoder's sd_etc fields, only the stage_etc fields
+// (and the wl_etc and tl_etc fields, but only when there are no custom word
+// lists or transform lists in use). The caller commits them.
+//
+// args.base_offset is where the serialized dictionary's bytes will be copied
+// to, within the workbuf.
+pri func decoder.parse_shared_dictionary!(dict: roslice base.u8, base_offset: base.u64) base.status {
+    var pos        : base.u64
+    var chunk_size : base.u64
+    var prefix_pos : base.u64
+    var num_prefix : base.u32[..= 1]
+    var nwl        : base.u32[..= 0xFF]
+    var ntl        : base.u32[..= 0xFF]
+    var ndict      : base.u32[..= 0xFF]
+    var is_custom  : base.bool
+    var has_custom : base.bool
+    var i          : base.u32
+    var v          : base.u32[..= 0xFF]
+    var v2         : base.u32[..= 0xFF]
+    var status     : base.status
+
+    // Check the magic header bytes.
+    if args.dict.length() < 2 {
+        return "#bad shared dictionary"
+    } else if (args.dict[0] <> 0x91) or (args.dict[1] <> 0x00) {
+        return "#bad shared dictionary"
+    }
+
+    // DryParseDictionary.
+    pos = 2
+    // LZ77_DICTIONARY_LENGTH. Mirrors ReadVarint32.
+    chunk_size = this.read_varint32!(dict: args.dict, pos: pos)
+    if chunk_size >= 0x1_0000_0000 {
+        return "#bad shared dictionary"
+    }
+    pos = this.parse_pos
+    prefix_pos = pos
+    num_prefix = 0
+    if chunk_size <> 0 {
+        // "This limitation is not specified but the 32-bit Brotli decoder for
+        // now".
+        if chunk_size > 1073_741823 {
+            return "#bad shared dictionary"
+        }
+        num_prefix = 1
+        if (pos ~sat+ chunk_size) > args.dict.length() {
+            return "#bad shared dictionary"
+        }
+        pos ~sat+= chunk_size
+    }
+    // NUM_WORD_LISTS and NUM_TRANSFORM_LISTS.
+    if (pos ~sat+ 2) > args.dict.length() {
+        return "#bad shared dictionary"
+    }
+    is_custom = false
+    if pos < args.dict.length() {
+        if args.dict[pos] > 0 {
+            is_custom = true
+        }
+    }
+    if (pos ~sat+ 1) < args.dict.length() {
+        if args.dict[pos ~sat+ 1] > 0 {
+            is_custom = true
+        }
+    }
+
+    if (num_prefix + this.num_chunks) > 15 {
+        return "#too many compound dictionaries"
+    }
+    // "Cannot combine different static dictionaries, only prefix
+    // dictionaries".
+    has_custom = (this.sd_num_word_lists > 0) or (this.sd_num_transform_lists > 0)
+    if has_custom and is_custom {
+        return "#unsupported multiple custom static dictionaries"
+    }
+
+    // ParseDictionary. The LZ77_DICTIONARY_LENGTH bytes were checked above.
+
+    // NUM_WORD_LISTS.
+    if pos >= args.dict.length() {
+        return "#bad shared dictionary"
+    }
+    nwl = args.dict[pos] as base.u32
+    pos ~sat+= 1
+    if nwl > 64 {
+        return "#bad shared dictionary"
+    }
+    i = 0
+    while i < nwl,
+            inv nwl <= 64,
+    {
+        assert i < 64 via "a < b: a < c; c <= b"(c: nwl)
+        status = this.parse_word_list!(dict: args.dict, pos: pos, base_offset: args.base_offset, list: i)
+        if not status.is_ok() {
+            return status
+        }
+        pos = this.parse_pos
+        i += 1
+    }
+
+    // NUM_TRANSFORM_LISTS.
+    if pos >= args.dict.length() {
+        return "#bad shared dictionary"
+    }
+    ntl = args.dict[pos] as base.u32
+    pos ~sat+= 1
+    if ntl > 64 {
+        return "#bad shared dictionary"
+    }
+    i = 0
+    while i < ntl,
+            inv ntl <= 64,
+    {
+        assert i < 64 via "a < b: a < c; c <= b"(c: ntl)
+        status = this.parse_transforms_list!(dict: args.dict, pos: pos, base_offset: args.base_offset, list: i)
+        if not status.is_ok() {
+            return status
+        }
+        pos = this.parse_pos
+        i += 1
+    }
+
+    this.stage_num_word_lists = nwl.min(no_more_than: 64)
+    this.stage_num_transform_lists = ntl.min(no_more_than: 64)
+    this.stage_num_dictionaries = 1
+    this.stage_context_based = false
+    i = 0
+    while i < 64 {
+        this.stage_words[i] = 0
+        this.stage_transforms[i] = 0
+        this.stage_context_map[i] = 0
+        i += 1
+    }
+
+    if (nwl <> 0) or (ntl <> 0) {
+        // NUM_DICTIONARIES.
+        if pos >= args.dict.length() {
+            return "#bad shared dictionary"
+        }
+        ndict = args.dict[pos] as base.u32
+        pos ~sat+= 1
+        if (ndict == 0) or (ndict > 64) {
+            return "#bad shared dictionary"
+        }
+        this.stage_num_dictionaries = ndict.min(no_more_than: 64)
+        i = 0
+        while i < ndict,
+                inv ndict <= 64,
+        {
+            assert i < 64 via "a < b: a < c; c <= b"(c: ndict)
+            if pos >= args.dict.length() {
+                return "#bad shared dictionary"
+            }
+            v = args.dict[pos] as base.u32
+            pos ~sat+= 1
+            if v > nwl {
+                return "#bad shared dictionary"
+            }
+            if pos >= args.dict.length() {
+                return "#bad shared dictionary"
+            }
+            v2 = args.dict[pos] as base.u32
+            pos ~sat+= 1
+            if v2 > ntl {
+                return "#bad shared dictionary"
+            }
+            // Index nwl (or ntl) means the built-in list, which this.sd_words
+            // (or this.sd_transforms) represents as 0.
+            if v == nwl {
+                this.stage_words[i] = 0
+            } else {
+                this.stage_words[i] = ((v & 0x3F) + 1) as base.u8
+            }
+            if v2 == ntl {
+                this.stage_transforms[i] = 0
+            } else {
+                this.stage_transforms[i] = ((v2 & 0x3F) + 1) as base.u8
+            }
+            i += 1
+        }
+
+        // CONTEXT_ENABLED. Mirrors ReadBool.
+        if pos >= args.dict.length() {
+            return "#bad shared dictionary"
+        }
+        v = args.dict[pos] as base.u32
+        pos ~sat+= 1
+        if v > 1 {
+            return "#bad shared dictionary"
+        }
+        this.stage_context_based = v == 1
+
+        // CONTEXT_MAP.
+        if this.stage_context_based {
+            i = 0
+            while i < 64 {
+                if pos >= args.dict.length() {
+                    return "#bad shared dictionary"
+                }
+                v = args.dict[pos] as base.u32
+                pos ~sat+= 1
+                if v >= ndict {
+                    return "#bad shared dictionary"
+                }
+                this.stage_context_map[i] = (v & 0x3F) as base.u8
+                i += 1
+            }
+        }
+    }
+
+    this.sd_prefix_pos = prefix_pos
+    this.sd_prefix_size = chunk_size
+    return ok
+}
+
+// read_varint32 reads a varint at args.dict[args.pos ..]. It returns a value
+// of 0x1_0000_0000 or more on failure. On success, it returns the value and
+// stores the new position in this.parse_pos. Mirrors ReadVarint32 in
+// shared_dictionary.c.
+pri func decoder.read_varint32!(dict: roslice base.u8, pos: base.u64) base.u64 {
+    var pos    : base.u64
+    var num    : base.u32[..= 4]
+    var b      : base.u64
+    var result : base.u64
+
+    pos = args.pos
+    result = 0
+    num = 0
+    while true {
+        if pos >= args.dict.length() {
+            return 0x1_0000_0000
+        }
+        b = args.dict[pos] as base.u64
+        pos ~sat+= 1
+        if (num == 4) and (b > 15) {
+            return 0x1_0000_0000
+        }
+        result |= (b & 127) << (7 * num)
+        if b < 128 {
+            break
+        }
+        if num >= 4 {
+            return 0x1_0000_0000
+        }
+        num += 1
+    }
+    this.parse_pos = pos
+    return result & 0xFFFF_FFFF
+}
+
+// parse_word_list parses the args.list'th custom word list, at
+// args.dict[args.pos ..]. On success, it stores the new position in
+// this.parse_pos. Mirrors ParseWordList and BrotliSizeBitsToOffsets in
+// shared_dictionary.c.
+pri func decoder.parse_word_list!(dict: roslice base.u8, pos: base.u64, base_offset: base.u64, list: base.u32[..= 63]) base.status {
+    var pos    : base.u64
+    var len    : base.u32
+    var v      : base.u8
+    var offset : base.u32
+    var wpos   : base.u64
+
+    pos = args.pos
+    if (pos ~sat+ 28) > args.dict.length() {
+        return "#bad shared dictionary"
+    }
+    len = 0
+    while len < 32 {
+        v = 0
+        if len >= 4 {
+            if (pos ~sat+ ((len - 4) as base.u64)) < args.dict.length() {
+                v = args.dict[pos ~sat+ ((len - 4) as base.u64)]
+            }
+            // BROTLI_MAX_SIZE_BITS.
+            if v > 15 {
+                return "#bad shared dictionary"
+            }
+        }
+        this.wl_size_bits[args.list][len] = v
+        len += 1
+    }
+    pos ~sat+= 28
+
+    offset = 0
+    len = 0
+    while len < 32 {
+        this.wl_offsets[args.list][len] = offset
+        v = this.wl_size_bits[args.list][len]
+        if v <> 0 {
+            offset ~mod+= len << (v & 15)
+        }
+        len += 1
+    }
+
+    wpos = args.base_offset ~sat+ pos
+    this.wl_data[args.list] = (wpos & 0xFFFF_FFFF) as base.u32
+    pos ~sat+= offset as base.u64
+    if pos > args.dict.length() {
+        return "#bad shared dictionary"
+    }
+    this.parse_pos = pos
+    return ok
+}
+
+// parse_transforms_list parses the args.list'th custom transform list, at
+// args.dict[args.pos ..]. On success, it stores the new position in
+// this.parse_pos. Mirrors ParseTransformsList and ParsePrefixSuffixTable
+// in shared_dictionary.c.
+pri func decoder.parse_transforms_list!(dict: roslice base.u8, pos: base.u64, base_offset: base.u64, list: base.u32[..= 63]) base.status {
+    var pos           : base.u64
+    var data_length   : base.u64
+    var ps_start      : base.u64
+    var offset        : base.u64
+    var stringlet_len : base.u64
+    var count         : base.u32[..= 256]
+    var nt            : base.u32[..= 0xFF]
+    var t             : base.u32
+    var tpos          : base.u64
+    var j             : base.u64
+    var prefix_id     : base.u32[..= 0xFF]
+    var t_type        : base.u32[..= 0xFF]
+    var suffix_id     : base.u32[..= 0xFF]
+    var has_params    : base.bool
+    var p0            : base.u32
+    var p1            : base.u32
+
+    pos = args.pos
+    if pos >= args.dict.length() {
+        return "#bad shared dictionary"
+    }
+
+    // ParsePrefixSuffixTable. PREFIX_SUFFIX_LENGTH.
+    if (pos ~sat+ 2) > args.dict.length() {
+        return "#bad shared dictionary"
+    }
+    data_length = (this.byte_at(s: args.dict, i: pos) as base.u64) |
+            ((this.byte_at(s: args.dict, i: pos ~sat+ 1) as base.u64) << 8)
+    pos ~sat+= 2
+    // It must at least have space for the NUL terminator.
+    if data_length < 1 {
+        return "#bad shared dictionary"
+    }
+    ps_start = pos
+    if (pos ~sat+ data_length) >= args.dict.length() {
+        return "#bad shared dictionary"
+    }
+    offset = 0
+    count = 0
+    while true {
+        // STRING_LENGTH.
+        j = ps_start ~sat+ offset
+        stringlet_len = 0
+        if j < args.dict.length() {
+            stringlet_len = args.dict[j] as base.u64
+        }
+        if count >= 256 {
+            return "#bad shared dictionary"
+        }
+        this.tl_map[args.list][count] = (offset & 0xFFFF) as base.u16
+        count += 1
+        offset ~sat+= 1
+        if stringlet_len == 0 {
+            if offset == data_length {
+                break
+            }
+            return "#bad shared dictionary"
+        }
+        if count > 255 {
+            return "#bad shared dictionary"
+        }
+        offset ~sat+= stringlet_len
+        if offset >= data_length {
+            return "#bad shared dictionary"
+        }
+    }
+    pos ~sat+= data_length
+    this.tl_prefix_suffix[args.list] = ((args.base_offset ~sat+ ps_start) & 0xFFFF_FFFF) as base.u32
+
+    // NUM_TRANSFORMS. The "(pos + data_length) >= length" check above means
+    // that this is in bounds.
+    nt = 0
+    if pos < args.dict.length() {
+        nt = args.dict[pos] as base.u32
+    }
+    pos ~sat+= 1
+    this.tl_num_transforms[args.list] = nt
+    tpos = pos
+    this.tl_transforms[args.list] = ((args.base_offset ~sat+ tpos) & 0xFFFF_FFFF) as base.u32
+    pos ~sat+= (nt as base.u64) * 3
+    if pos > args.dict.length() {
+        return "#bad shared dictionary"
+    }
+
+    // Check for errors and read extra parameters.
+    has_params = false
+    t = 0
+    while t < nt {
+        j = tpos ~sat+ ((t as base.u64) * 3)
+        prefix_id = this.byte_at(s: args.dict, i: j)
+        t_type = this.byte_at(s: args.dict, i: j ~sat+ 1)
+        suffix_id = this.byte_at(s: args.dict, i: j ~sat+ 2)
+        if prefix_id >= count {
+            return "#bad shared dictionary"
+        } else if t_type >= 23 {
+            // BROTLI_NUM_TRANSFORM_TYPES.
+            return "#bad shared dictionary"
+        } else if suffix_id >= count {
+            return "#bad shared dictionary"
+        }
+        // BROTLI_TRANSFORM_SHIFT_FIRST or BROTLI_TRANSFORM_SHIFT_ALL.
+        if (t_type == 21) or (t_type == 22) {
+            has_params = true
+        }
+        t ~mod+= 1
+    }
+
+    this.tl_params[args.list] = 0
+    if has_params {
+        this.tl_params[args.list] = ((args.base_offset ~sat+ pos) & 0xFFFF_FFFF) as base.u32
+        j = pos
+        pos ~sat+= (nt as base.u64) * 2
+        if pos > args.dict.length() {
+            return "#bad shared dictionary"
+        }
+        t = 0
+        while t < nt {
+            t_type = this.byte_at(s: args.dict, i: tpos ~sat+ (((t as base.u64) * 3) + 1))
+            if (t_type <> 21) and (t_type <> 22) {
+                p0 = this.byte_at(s: args.dict, i: j ~sat+ ((t as base.u64) * 2))
+                p1 = this.byte_at(s: args.dict, i: j ~sat+ (((t as base.u64) * 2) + 1))
+                if (p0 <> 0) or (p1 <> 0) {
+                    return "#bad shared dictionary"
+                }
+            }
+            t ~mod+= 1
+        }
+    }
+    this.parse_pos = pos
+    return ok
+}
+
+// --------
+
+// copy_dictionary_word writes a transformed static dictionary word to
+// this.transformed_word and returns its length. It returns 0xFFFF_FFFE for a
+// BROTLI_DECODER_ERROR_FORMAT_DICTIONARY error and 0xFFFF_FFFF for a
+// BROTLI_DECODER_ERROR_FORMAT_TRANSFORM error. args.address is the C code's
+// (distance_code - max_distance - 1 - compound_dictionary_size) and args.ctx
+// is the C code's BROTLI_CONTEXT(p1, p2, s->context_lookup).
+//
+// Mirrors the static dictionary part of ProcessCommandsInternal in decode.c,
+// including its selection of a word list and transform list from the shared
+// dictionary.
+pri func decoder.copy_dictionary_word!(dictbuf: roslice base.u8, address: base.u32, len: base.u32[..= 31], ctx: base.u32[..= 63]) base.u32 {
+    var dict_id        : base.u32[..= 63]
+    var wsel           : base.u32[..= 64]
+    var tsel           : base.u32[..= 64]
+    var shift          : base.u32[..= 24]
+    var nt             : base.u32[..= 255]
+    var address        : base.u32
+    var transform_idx  : base.u32
+    var word_idx       : base.u32
+    var offset         : base.u32
+    var dist_remaining : base.u32
+    var d2             : base.u32
+    var w2             : base.u32[..= 64]
+    var t2             : base.u32[..= 64]
+    var shift2         : base.u32[..= 24]
+    var num            : base.u32
+
+    dict_id = 0
+    if this.sd_context_based {
+        dict_id = (this.sd_context_map[args.ctx] & 0x3F) as base.u32
+    }
+    wsel = this.sd_words[dict_id] as base.u32
+    tsel = this.sd_transforms[dict_id] as base.u32
+    shift = this.word_list_size_bits(wsel: wsel, len: args.len)
+    nt = this.transform_list_length(tsel: tsel)
+    address = args.address
+    transform_idx = address >> shift
+
+    // If the distance is out of bound, select a next static dictionary if
+    // there exist multiple.
+    if ((transform_idx >= nt) or (shift == 0)) and (this.sd_num_dictionaries > 1) {
+        dist_remaining = address ~mod- ((((1 as base.u32) << shift) & 0xFFFF_FFFE) ~mod* nt)
+        d2 = 0
+        while d2 < this.sd_num_dictionaries {
+            assert d2 < 64 via "a < b: a < c; c <= b"(c: this.sd_num_dictionaries)
+            w2 = this.sd_words[d2] as base.u32
+            shift2 = this.word_list_size_bits(wsel: w2, len: args.len)
+            if (d2 <> dict_id) and (shift2 <> 0) {
+                t2 = this.sd_transforms[d2] as base.u32
+                num = (((1 as base.u32) << shift2) & 0xFFFF_FFFE) ~mod* this.transform_list_length(tsel: t2)
+                if dist_remaining < num {
+                    wsel = w2
+                    tsel = t2
+                    address = dist_remaining
+                    shift = shift2
+                    nt = this.transform_list_length(tsel: tsel)
+                    transform_idx = address >> shift
+                    break
+                }
+                dist_remaining -= num
+            }
+            d2 += 1
+        }
+    }
+
+    if shift == 0 {
+        return 0xFFFF_FFFE
+    } else if transform_idx >= nt {
+        return 0xFFFF_FFFF
+    }
+    word_idx = address & (((1 as base.u32) << shift) - 1)
+    offset = this.word_list_offset(wsel: wsel, len: args.len) ~mod+ (word_idx ~mod* args.len)
+    num = this.transform_dictionary_word!(dictbuf: args.dictbuf,
+            wsel: wsel,
+            tsel: tsel,
+            offset: offset,
+            len: args.len,
+            transform_idx: transform_idx.min(no_more_than: 254))
+    return num
+}
+
+// word_list_size_bits returns the C code's size_bits_by_length[args.len] for
+// the word list selected by args.wsel: 0 for the built-in list or (1 + j) for
+// the j'th custom list.
+pri func decoder.word_list_size_bits(wsel: base.u32[..= 64], len: base.u32[..= 31]) base.u32[..= 24] {
+    if args.wsel == 0 {
+        return DICTIONARY_SIZE_BITS_BY_LENGTH[args.len]
+    }
+    return (this.wl_size_bits[(args.wsel - 1) & 63][args.len] & 15) as base.u32
+}
+
+// word_list_offset returns the C code's offsets_by_length[args.len] for the
+// word list selected by args.wsel.
+pri func decoder.word_list_offset(wsel: base.u32[..= 64], len: base.u32[..= 31]) base.u32 {
+    if args.wsel == 0 {
+        return DICTIONARY_OFFSETS_BY_LENGTH[args.len]
+    }
+    return this.wl_offsets[(args.wsel - 1) & 63][args.len]
+}
+
+// transform_list_length returns the C code's num_transforms for the
+// transform list selected by args.tsel: 0 for the built-in list or (1 + j)
+// for the j'th custom list.
+pri func decoder.transform_list_length(tsel: base.u32[..= 64]) base.u32[..= 255] {
+    if args.tsel == 0 {
+        return NUM_TRANSFORMS
+    }
+    return this.tl_num_transforms[(args.tsel - 1) & 63].min(no_more_than: 255)
+}
+
+// transform_dictionary_word writes the transformed word to
+// this.transformed_word and returns its length. Mirrors
+// BrotliTransformDictionaryWord in transform.c.
+pri func decoder.transform_dictionary_word!(dictbuf: roslice base.u8, wsel: base.u32[..= 64], tsel: base.u32[..= 64], offset: base.u32, len: base.u32[..= 31], transform_idx: base.u32[..= 254]) base.u32 {
+    var idx        : base.u32
+    var t          : base.u32[..= 120]
+    var k          : base.u32[..= 63]
+    var tpos       : base.u64
+    var prefix_id  : base.u32[..= 0xFF]
+    var t_type     : base.u32[..= 0xFF]
+    var suffix_id  : base.u32[..= 0xFF]
+    var param      : base.u32
+    var word_start : base.u32
+    var word_len   : base.u32
+    var skip       : base.u32[..= 9]
+    var i          : base.u32
+    var j          : base.u64
+    var remaining  : base.u32
+    var step       : base.u32
+
+    // Look up the transform's prefix_id, type and suffix_id.
+    k = 0
+    tpos = 0
+    if args.tsel == 0 {
+        t = args.transform_idx.min(no_more_than: 120)
+        prefix_id = TRANSFORM_PREFIX_ID[t] as base.u32
+        t_type = TRANSFORM_TYPE[t] as base.u32
+        suffix_id = TRANSFORM_SUFFIX_ID[t] as base.u32
+    } else {
+        k = (args.tsel - 1) & 63
+        tpos = (this.tl_transforms[k] as base.u64) + ((args.transform_idx as base.u64) * 3)
+        prefix_id = this.byte_at(s: args.dictbuf, i: tpos)
+        t_type = this.byte_at(s: args.dictbuf, i: tpos + 1)
+        suffix_id = this.byte_at(s: args.dictbuf, i: tpos + 2)
+    }
+
+    // The prefix.
+    idx = this.append_affix!(dictbuf: args.dictbuf, tsel: args.tsel, id: prefix_id, idx: 0)
+
+    // The word, possibly with its first or last few bytes omitted.
+    word_len = args.len
+    skip = 0
+    if t_type <= 9 {
+        // BROTLI_TRANSFORM_OMIT_LAST_N.
+        if t_type < args.len {
+            word_len = args.len ~mod- t_type
+        } else {
+            word_len = 0
+        }
+    } else if (12 <= t_type) and (t_type <= 20) {
+        // BROTLI_TRANSFORM_OMIT_FIRST_N.
+        skip = t_type - 11
+        if skip < args.len {
+            word_len = args.len ~mod- skip
+        } else {
+            word_len = 0
+        }
+    }
+    word_start = idx
+    i = 0
+    while i < word_len {
+        if idx >= 1024 {
+            break
+        }
+        if args.wsel == 0 {
+            j = ((args.offset ~mod+ skip) ~mod+ i) as base.u64
+            if j < 122784 {
+                this.transformed_word[idx] = DICTIONARY[j]
+            }
+        } else {
+            j = (this.wl_data[(args.wsel - 1) & 63] as base.u64) +
+                    (((args.offset ~mod+ skip) ~mod+ i) as base.u64)
+            if j < args.dictbuf.length() {
+                this.transformed_word[idx] = args.dictbuf[j]
+            }
+        }
+        idx ~mod+= 1
+        i ~mod+= 1
+    }
+
+    // Upper-casing and shifting. The C code's ToUpperCase can modify bytes
+    // after the word's end, but those bytes are either overwritten by the
+    // suffix or are past the transformed word's length, so we don't bother.
+    if t_type == 10 {
+        // BROTLI_TRANSFORM_UPPERCASE_FIRST.
+        this.to_upper_case!(p: word_start, end: idx)
+    } else if t_type == 11 {
+        // BROTLI_TRANSFORM_UPPERCASE_ALL.
+        i = word_start
+        while i < idx {
+            step = this.to_upper_case!(p: i, end: idx)
+            i ~mod+= step
+        }
+    } else if (t_type == 21) or (t_type == 22) {
+        // BROTLI_TRANSFORM_SHIFT_FIRST or BROTLI_TRANSFORM_SHIFT_ALL. Only
+        // custom transforms have these types, and their parameters exist.
+        j = (this.tl_params[k] as base.u64) + ((args.transform_idx as base.u64) * 2)
+        param = this.byte_at(s: args.dictbuf, i: j) |
+                (this.byte_at(s: args.dictbuf, i: j + 1) << 8)
+        if t_type == 21 {
+            this.shift!(p: word_start, word_len: idx ~mod- word_start, param: param)
+        } else {
+            i = word_start
+            remaining = idx ~mod- word_start
+            while remaining > 0 {
+                step = this.shift!(p: i, word_len: remaining, param: param)
+                if step >= remaining {
+                    break
+                }
+                i ~mod+= step
+                remaining ~mod-= step
+            }
+        }
+    }
+
+    // The suffix.
+    idx = this.append_affix!(dictbuf: args.dictbuf, tsel: args.tsel, id: suffix_id, idx: idx)
+    return idx
+}
+
+// append_affix appends the args.id'th prefix or suffix of the transform list
+// selected by args.tsel to this.transformed_word, starting at args.idx. It
+// returns the new length.
+pri func decoder.append_affix!(dictbuf: roslice base.u8, tsel: base.u32[..= 64], id: base.u32[..= 0xFF], idx: base.u32) base.u32 {
+    var idx       : base.u32
+    var affix     : base.u32[..= 216]
+    var affix_len : base.u32
+    var i         : base.u32
+    var j         : base.u32
+    var k         : base.u32[..= 63]
+    var pos       : base.u64
+
+    idx = args.idx
+    if args.tsel == 0 {
+        affix = PREFIX_SUFFIX_MAP[args.id.min(no_more_than: 49)]
+        affix_len = PREFIX_SUFFIX[affix] as base.u32
+        i = 0
+        while i < affix_len {
+            j = (affix ~mod+ 1) ~mod+ i
+            if (j >= 217) or (idx >= 1024) {
+                break
+            }
+            this.transformed_word[idx] = PREFIX_SUFFIX[j]
+            idx ~mod+= 1
+            i ~mod+= 1
+        }
+        return idx
+    }
+
+    k = (args.tsel - 1) & 63
+    pos = (this.tl_prefix_suffix[k] as base.u64) + (this.tl_map[k][args.id] as base.u64)
+    affix_len = 0
+    if pos < args.dictbuf.length() {
+        affix_len = args.dictbuf[pos] as base.u32
+    }
+    i = 0
+    while i < affix_len {
+        pos ~mod+= 1
+        if (pos >= args.dictbuf.length()) or (idx >= 1024) {
+            break
+        }
+        this.transformed_word[idx] = args.dictbuf[pos]
+        idx ~mod+= 1
+        i ~mod+= 1
+    }
+    return idx
+}
+
+// shift applies a shift transform to the (UTF-8 encoded) character at
+// this.transformed_word[args.p ..], which is args.word_len bytes long. It
+// returns the step: the number of bytes in the character. Mirrors Shift in
+// transform.c.
+pri func decoder.shift!(p: base.u32, word_len: base.u32, param: base.u32) base.u32 {
+    var p      : base.u32[..= 1019]
+    var scalar : base.u32
+    var c0     : base.u32
+    var c1     : base.u32
+    var c2     : base.u32
+    var c3     : base.u32
+
+    if args.p > 1019 {
+        return 1
+    }
+    p = args.p
+    // Limited sign extension: scalar < (1 << 24).
+    scalar = (args.param & 0x7FFF) ~mod+ (0x100_0000 ~mod- (args.param & 0x8000))
+    c0 = this.transformed_word[p] as base.u32
+    if c0 < 0x80 {
+        // 1-byte rune / 0sssssss / 7 bit scalar (ASCII).
+        scalar ~mod+= c0
+        this.transformed_word[p] = (scalar & 0x7F) as base.u8
+        return 1
+    } else if c0 < 0xC0 {
+        // Continuation / 10AAAAAA.
+        return 1
+    } else if c0 < 0xE0 {
+        // 2-byte rune / 110sssss AAssssss / 11 bit scalar.
+        if args.word_len < 2 {
+            return 1
+        }
+        c1 = this.transformed_word[p + 1] as base.u32
+        scalar ~mod+= (c1 & 0x3F) | ((c0 & 0x1F) << 6)
+        this.transformed_word[p + 0] = (0xC0 | ((scalar >> 6) & 0x1F)) as base.u8
+        this.transformed_word[p + 1] = ((c1 & 0xC0) | (scalar & 0x3F)) as base.u8
+        return 2
+    } else if c0 < 0xF0 {
+        // 3-byte rune / 1110ssss AAssssss BBssssss / 16 bit scalar.
+        if args.word_len < 3 {
+            return args.word_len
+        }
+        c1 = this.transformed_word[p + 1] as base.u32
+        c2 = this.transformed_word[p + 2] as base.u32
+        scalar ~mod+= (c2 & 0x3F) | ((c1 & 0x3F) << 6) | ((c0 & 0x0F) << 12)
+        this.transformed_word[p + 0] = (0xE0 | ((scalar >> 12) & 0x0F)) as base.u8
+        this.transformed_word[p + 1] = ((c1 & 0xC0) | ((scalar >> 6) & 0x3F)) as base.u8
+        this.transformed_word[p + 2] = ((c2 & 0xC0) | (scalar & 0x3F)) as base.u8
+        return 3
+    } else if c0 < 0xF8 {
+        // 4-byte rune / 11110sss AAssssss BBssssss CCssssss / 21 bit scalar.
+        if args.word_len < 4 {
+            return args.word_len
+        }
+        c1 = this.transformed_word[p + 1] as base.u32
+        c2 = this.transformed_word[p + 2] as base.u32
+        c3 = this.transformed_word[p + 3] as base.u32
+        scalar ~mod+= (c3 & 0x3F) | ((c2 & 0x3F) << 6) | ((c1 & 0x3F) << 12) | ((c0 & 0x07) << 18)
+        this.transformed_word[p + 0] = (0xF0 | ((scalar >> 18) & 0x07)) as base.u8
+        this.transformed_word[p + 1] = ((c1 & 0xC0) | ((scalar >> 12) & 0x3F)) as base.u8
+        this.transformed_word[p + 2] = ((c2 & 0xC0) | ((scalar >> 6) & 0x3F)) as base.u8
+        this.transformed_word[p + 3] = ((c3 & 0xC0) | (scalar & 0x3F)) as base.u8
+        return 4
+    }
+    return 1
+}
+
+// Mirrors ToUpperCase in transform.c, except that it does not modify bytes at
+// or after args.end. It returns the step: the number of bytes in the
+// (overly simplified model of a) UTF-8 encoded character.
+pri func decoder.to_upper_case!(p: base.u32, end: base.u32) base.u32 {
+    var c : base.u8
+
+    if args.p >= 1024 {
+        return 1
+    }
+    c = this.transformed_word[args.p]
+    if c < 0xC0 {
+        if ('a' <= c) and (c <= 'z') {
+            this.transformed_word[args.p] = c ^ 32
+        }
+        return 1
+    }
+    // An overly simplified uppercasing model for UTF-8.
+    if c < 0xE0 {
+        if ((args.p + 1) < args.end) and ((args.p + 1) < 1024) {
+            this.transformed_word[args.p + 1] ^= 32
+        }
+        return 2
+    }
+    // An arbitrary transform for three byte characters.
+    if ((args.p + 2) < args.end) and ((args.p + 2) < 1024) {
+        this.transformed_word[args.p + 2] ^= 5
+    }
+    return 3
+}
+
+// byte_at returns args.s[args.i], or 0 if args.i is out of bounds.
+pri func decoder.byte_at(s: roslice base.u8, i: base.u64) base.u32[..= 0xFF] {
+    if args.i < args.s.length() {
+        return args.s[args.i] as base.u32
+    }
+    return 0
+}
