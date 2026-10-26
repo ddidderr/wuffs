@@ -1,0 +1,651 @@
+// Copyright 2026 The Wuffs Authors.
+//
+// Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
+// https://www.apache.org/licenses/LICENSE-2.0> or the MIT license
+// <LICENSE-MIT or https://opensource.org/licenses/MIT>, at your
+// option. This file may not be copied, modified, or distributed
+// except according to those terms.
+//
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+
+// --------
+
+// read_huffman_code reads a prefix code's description and builds its decoding
+// table at this.huffs[args.table ..]. The table uses at most
+// args.table_size_max elements. Mirrors ReadHuffmanCode in decode.c.
+pri func decoder.read_huffman_code?(src: base.io_reader, alphabet_size_max: base.u32[..= 1128], alphabet_size_limit: base.u32[..= 704], hoff: base.u32, table_size_max: base.u32[..= 1080]) {
+    var alphabet_size_max   : base.u32[..= 1128]
+    var alphabet_size_limit : base.u32[..= 704]
+    var hoff                : base.u32
+    var table_size_max      : base.u32[..= 1080]
+    var hskip               : base.u32[..= 3]
+    var status              : base.status
+
+    alphabet_size_max = args.alphabet_size_max
+    alphabet_size_limit = args.alphabet_size_limit
+    hoff = args.hoff
+    table_size_max = args.table_size_max
+
+    this.read_bits?(src: args.src, n: 2)
+    hskip = this.bits_value & 3
+    if hskip == 1 {
+        // A simple prefix code.
+        this.read_simple_huffman_code?(src: args.src,
+                alphabet_size_max: alphabet_size_max,
+                alphabet_size_limit: alphabet_size_limit,
+                hoff: hoff)
+
+    } else {
+        // A complex prefix code. hskip is the number of code length code
+        // lengths to skip: 0, 2 or 3.
+        this.read_code_length_code_lengths?(src: args.src, hskip: hskip)
+        this.build_code_lengths_huffman_table!()
+        this.read_symbol_code_lengths?(src: args.src, alphabet_size: alphabet_size_limit)
+        status = this.build_huffman_table!(
+                hoff: hoff,
+                alphabet_size: alphabet_size_limit,
+                table_size_max: table_size_max)
+        if not status.is_ok() {
+            return status
+        }
+    }
+}
+
+// Mirrors the BROTLI_STATE_HUFFMAN_SIMPLE_ETC states of ReadHuffmanCode and
+// also ReadSimpleHuffmanSymbols in decode.c.
+pri func decoder.read_simple_huffman_code?(src: base.io_reader, alphabet_size_max: base.u32[..= 1128], alphabet_size_limit: base.u32[..= 704], hoff: base.u32) {
+    var alphabet_size_limit : base.u32[..= 704]
+    var hoff                : base.u32
+    var x                   : base.u32
+    var max_bits            : base.u32[..= 11]
+    var num_symbols         : base.u32[..= 3]
+    var i                   : base.u32[..= 4]
+    var k                   : base.u32[..= 4]
+    var v                   : base.u32
+    var status              : base.status
+
+    alphabet_size_limit = args.alphabet_size_limit
+    hoff = args.hoff
+
+    // max_bits is what the C code calls Log2Floor(alphabet_size_max - 1),
+    // although that function returns the bit length, not the floor of the
+    // base-2 logarithm.
+    x = args.alphabet_size_max ~mod- 1
+    max_bits = 0
+    while (x > 0) and (max_bits < 11) {
+        x >>= 1
+        max_bits += 1
+    }
+
+    // NSYM - 1.
+    this.read_bits?(src: args.src, n: 2)
+    num_symbols = this.bits_value & 3
+
+    i = 0
+    while i <= num_symbols,
+            inv num_symbols <= 3,
+    {
+        this.read_bits?(src: args.src, n: max_bits)
+        v = this.bits_value
+        if v >= alphabet_size_limit {
+            return "#bad simple Huffman alphabet"
+        }
+        assert i < 4 via "a < b: a <= c; c < b"(c: num_symbols)
+        this.simple_symbols[i] = v
+        i += 1
+    }
+
+    i = 0
+    while i < num_symbols,
+            inv num_symbols <= 3,
+    {
+        assert i < 3 via "a < b: a < c; c <= b"(c: num_symbols)
+        k = i + 1
+        while k <= num_symbols,
+                inv num_symbols <= 3,
+                inv i < num_symbols,
+        {
+            assert i < 4 via "a < b: a < c; c <= b"(c: num_symbols)
+            assert k < 4 via "a < b: a <= c; c < b"(c: num_symbols)
+            if this.simple_symbols[i] == this.simple_symbols[k] {
+                return "#bad simple Huffman symbol"
+            }
+            k += 1
+        }
+        assert i < 3 via "a < b: a < c; c <= b"(c: num_symbols)
+        i += 1
+    }
+
+    if num_symbols == 3 {
+        // The tree-select bit.
+        this.read_bits?(src: args.src, n: 1)
+        status = this.build_simple_huffman_table!(
+                hoff: hoff,
+                num_symbols: 3 + (this.bits_value & 1))
+    } else {
+        status = this.build_simple_huffman_table!(hoff: hoff, num_symbols: num_symbols)
+    }
+    if not status.is_ok() {
+        return status
+    }
+}
+
+// Mirrors BrotliBuildSimpleHuffmanTable in huffman.c, with a root_bits of 8.
+// The args.num_symbols value is to be interpreted as follows: 0 means 1
+// symbol, 1 means 2 symbols, 2 means 3 symbols, 3 means 4 symbols with
+// lengths [2, 2, 2, 2], 4 means 4 symbols with lengths [1, 2, 3, 3].
+pri func decoder.build_simple_huffman_table!(hoff: base.u32, num_symbols: base.u32[..= 4]) base.status {
+    var t          : base.u32[..= 671634]
+    var v          : array[4] base.u32[..= 0x3FF]
+    var tmp        : base.u32[..= 0x3FF]
+    var i          : base.u32
+    var k          : base.u32
+    var table_size : base.u32[..= 256]
+
+    if args.hoff > (HUFFS_LEN - 256) {
+        return "#internal error: inconsistent Huffman table"
+    }
+    t = args.hoff
+
+    i = 0
+    while i < 4 {
+        v[i] = this.simple_symbols[i] & 0x3FF
+        i += 1
+    }
+
+    if args.num_symbols == 0 {
+        this.huffs[t + 0] = (v[0] << 4) as base.u16
+        table_size = 1
+
+    } else if args.num_symbols == 1 {
+        if v[1] > v[0] {
+            this.huffs[t + 0] = ((v[0] << 4) | 1) as base.u16
+            this.huffs[t + 1] = ((v[1] << 4) | 1) as base.u16
+        } else {
+            this.huffs[t + 0] = ((v[1] << 4) | 1) as base.u16
+            this.huffs[t + 1] = ((v[0] << 4) | 1) as base.u16
+        }
+        table_size = 2
+
+    } else if args.num_symbols == 2 {
+        this.huffs[t + 0] = ((v[0] << 4) | 1) as base.u16
+        this.huffs[t + 2] = ((v[0] << 4) | 1) as base.u16
+        if v[2] > v[1] {
+            this.huffs[t + 1] = ((v[1] << 4) | 2) as base.u16
+            this.huffs[t + 3] = ((v[2] << 4) | 2) as base.u16
+        } else {
+            this.huffs[t + 1] = ((v[2] << 4) | 2) as base.u16
+            this.huffs[t + 3] = ((v[1] << 4) | 2) as base.u16
+        }
+        table_size = 4
+
+    } else if args.num_symbols == 3 {
+        i = 0
+        while i < 3 {
+            k = i + 1
+            while k < 4,
+                    inv i < 3,
+            {
+                if v[k] < v[i] {
+                    tmp = v[k]
+                    v[k] = v[i]
+                    v[i] = tmp
+                }
+                k += 1
+            }
+            i += 1
+        }
+        this.huffs[t + 0] = ((v[0] << 4) | 2) as base.u16
+        this.huffs[t + 2] = ((v[1] << 4) | 2) as base.u16
+        this.huffs[t + 1] = ((v[2] << 4) | 2) as base.u16
+        this.huffs[t + 3] = ((v[3] << 4) | 2) as base.u16
+        table_size = 4
+
+    } else {
+        if v[3] < v[2] {
+            tmp = v[3]
+            v[3] = v[2]
+            v[2] = tmp
+        }
+        this.huffs[t + 0] = ((v[0] << 4) | 1) as base.u16
+        this.huffs[t + 1] = ((v[1] << 4) | 2) as base.u16
+        this.huffs[t + 2] = ((v[0] << 4) | 1) as base.u16
+        this.huffs[t + 3] = ((v[2] << 4) | 3) as base.u16
+        this.huffs[t + 4] = ((v[0] << 4) | 1) as base.u16
+        this.huffs[t + 5] = ((v[1] << 4) | 2) as base.u16
+        this.huffs[t + 6] = ((v[0] << 4) | 1) as base.u16
+        this.huffs[t + 7] = ((v[3] << 4) | 3) as base.u16
+        table_size = 8
+    }
+
+    // Replicate the table_size elements to fill the 256-element root table.
+    i = table_size as base.u32
+    while i < 256 {
+        this.huffs[t + i] = this.huffs[t + (i & ((table_size as base.u32) ~mod- 1))]
+        i += 1
+    }
+    return ok
+}
+
+// Mirrors ReadCodeLengthCodeLengths in decode.c, and part of the
+// BROTLI_STATE_HUFFMAN_COMPLEX state of ReadHuffmanCode.
+pri func decoder.read_code_length_code_lengths?(src: base.io_reader, hskip: base.u32[..= 3]) {
+    var i         : base.u32
+    var space     : base.u32
+    var num_codes : base.u32
+    var v         : base.u32[..= 5]
+
+    i = 0
+    while i < 16 {
+        this.code_length_histo[i] = 0
+        i += 1
+    }
+    i = 0
+    while i < 18 {
+        this.code_length_code_lengths[i] = 0
+        i += 1
+    }
+
+    space = 32
+    num_codes = 0
+    i = args.hskip
+    while i < 18 {
+        // Read a code length code length (a 2 ..= 4 bit code; see
+        // initialize_codes) and store it as code_length_code_lengths[etc].
+        this.read_symbol?(src: args.src, hoff: CODE_LENGTH_CODE_HUFFS_BASE)
+        v = this.symbol.min(no_more_than: 5)
+        this.code_length_code_lengths[CODE_LENGTH_CODE_ORDER[i]] = v as base.u8
+        if v <> 0 {
+            space ~mod-= (32 as base.u32) >> v
+            num_codes ~mod+= 1
+            this.code_length_histo[v] ~mod+= 1
+            if (space ~mod- 1) >= 32 {
+                // space is 0 or wrapped around.
+                break
+            }
+        }
+        i += 1
+    }
+    if (num_codes <> 1) and (space <> 0) {
+        return "#bad code length code lengths"
+    }
+}
+
+// Mirrors BrotliBuildCodeLengthsHuffmanTable in huffman.c. The table is 5
+// bits wide but it is replicated to fill 256 elements, so that read_symbol
+// can use it.
+pri func decoder.build_code_lengths_huffman_table!() {
+    var num_nonzero : base.u32
+    var only_symbol : base.u32[..= 17]
+    var symbol      : base.u32
+    var bits        : base.u32[..= 6]
+    var key         : base.u32
+    var key_step    : base.u32[..= 0x100]
+    var step        : base.u32[..= 64]
+    var end         : base.u32[..= 32]
+    var r           : base.u32[..= 0xFF]
+    var i           : base.u32
+    var code        : base.u16
+
+    num_nonzero = 0
+    only_symbol = 0
+    symbol = 0
+    while symbol < 18 {
+        if this.code_length_code_lengths[symbol] <> 0 {
+            num_nonzero ~mod+= 1
+            only_symbol = symbol
+        }
+        symbol += 1
+    }
+
+    if num_nonzero == 1 {
+        // Special case: all symbols but one have 0 code length.
+        code = (only_symbol << 4) as base.u16
+        i = 0
+        while i < 256 {
+            this.huffs[CODE_LENGTH_HUFFS_BASE + i] = code
+            i += 1
+        }
+        return nothing
+    }
+
+    // Fill in the 32-element table, in order of code length and then symbol.
+    key = 0
+    bits = 1
+    while bits <= 5 {
+        step = (1 as base.u32) << bits
+        key_step = (0x100 as base.u32) >> bits
+        symbol = 0
+        while symbol < 18,
+                inv bits <= 5,
+                inv step <= 32,
+        {
+            if (this.code_length_code_lengths[symbol] as base.u32) == bits {
+                code = ((symbol << 4) | bits) as base.u16
+                r = REVERSE_BITS[key & 0xFF] as base.u32
+                // ReplicateValue(&table[r], step, 32, code).
+                end = 32
+                while end >= step,
+                        inv bits <= 5,
+                        inv step <= 32,
+                        inv symbol < 18,
+                {
+                    end -= step
+                    this.huffs[CODE_LENGTH_HUFFS_BASE + ((r + end) & 31)] = code
+                }
+                key ~mod+= key_step
+            }
+            symbol += 1
+        }
+        bits += 1
+    }
+
+    // Replicate the 32 elements to fill 256.
+    i = 32
+    while i < 256 {
+        this.huffs[CODE_LENGTH_HUFFS_BASE + i] = this.huffs[CODE_LENGTH_HUFFS_BASE + (i & 31)]
+        i += 1
+    }
+}
+
+// Mirrors ReadSymbolCodeLengths and SafeReadSymbolCodeLengths (and
+// ProcessSingleCodeLength and ProcessRepeatedCodeLength) in decode.c, and
+// part of the BROTLI_STATE_HUFFMAN_LENGTH_SYMBOLS state of ReadHuffmanCode.
+pri func decoder.read_symbol_code_lengths?(src: base.io_reader, alphabet_size: base.u32[..= 704]) {
+    var alphabet_size   : base.u32[..= 704]
+    var symbol          : base.u32
+    var repeat          : base.u32
+    var space           : base.u32
+    var prev_code_len   : base.u32[..= 15]
+    var repeat_code_len : base.u32[..= 15]
+    var code_len        : base.u32
+    var new_len         : base.u32[..= 15]
+    var extra_bits      : base.u32[..= 3]
+    var repeat_delta    : base.u32
+    var old_repeat      : base.u32
+    var last            : base.u32
+    var i               : base.u32
+
+    alphabet_size = args.alphabet_size
+
+    i = 0
+    while i < 704 {
+        this.code_lengths[i] = 0
+        i += 1
+    }
+    i = 0
+    while i < 16 {
+        this.code_length_histo[i] = 0
+        i += 1
+    }
+
+    symbol = 0
+    prev_code_len = 8  // BROTLI_INITIAL_REPEATED_CODE_LENGTH.
+    repeat = 0
+    repeat_code_len = 0
+    space = 32768
+    while (symbol < alphabet_size) and (space <> 0) {
+        this.read_symbol?(src: args.src, hoff: CODE_LENGTH_HUFFS_BASE)
+        code_len = this.symbol
+
+        if code_len < 16 {
+            // ProcessSingleCodeLength.
+            assert symbol < 704 via "a < b: a < c; c <= b"(c: alphabet_size)
+            repeat = 0
+            if code_len <> 0 {
+                this.code_lengths[symbol] = code_len as base.u8
+                prev_code_len = code_len
+                space ~mod-= (32768 as base.u32) >> code_len
+                this.code_length_histo[code_len] ~mod+= 1
+            }
+            symbol += 1
+            continue
+        }
+
+        // ProcessRepeatedCodeLength. code_len is 16
+        // (BROTLI_REPEAT_PREVIOUS_CODE_LENGTH) or 17
+        // (BROTLI_REPEAT_ZERO_CODE_LENGTH).
+        extra_bits = 3
+        new_len = 0
+        if code_len == 16 {
+            new_len = prev_code_len
+            extra_bits = 2
+        }
+        this.read_bits?(src: args.src, n: extra_bits)
+        repeat_delta = this.bits_value
+
+        if repeat_code_len <> new_len {
+            repeat = 0
+            repeat_code_len = new_len
+        }
+        old_repeat = repeat
+        if repeat > 0 {
+            repeat = (repeat ~mod- 2) ~mod<< extra_bits
+        }
+        repeat = (repeat ~mod+ repeat_delta) ~mod+ 3
+        repeat_delta = repeat ~mod- old_repeat
+        if repeat_delta > (alphabet_size ~mod- symbol) {
+            symbol = alphabet_size
+            space = 0xF_FFFF
+            break
+        }
+        if repeat_code_len <> 0 {
+            last = symbol ~mod+ repeat_delta
+            while (symbol < last) and (symbol < 704) {
+                this.code_lengths[symbol] = repeat_code_len as base.u8
+                symbol += 1
+            }
+            space ~mod-= repeat_delta ~mod<< (15 - repeat_code_len)
+            this.code_length_histo[repeat_code_len] ~mod+= repeat_delta
+        } else {
+            symbol ~mod+= repeat_delta
+        }
+    }
+
+    if space <> 0 {
+        return "#bad Huffman space"
+    }
+}
+
+// Mirrors BrotliBuildHuffmanTable in huffman.c, with a root_bits of 8. The
+// code lengths are in this.code_lengths and their histogram is in
+// this.code_length_histo.
+//
+// Unlike the C code, second level table links hold the second level table's
+// offset relative to the root table, not relative to the root table element.
+pri func decoder.build_huffman_table!(hoff: base.u32, alphabet_size: base.u32[..= 704], table_size_max: base.u32[..= 1080]) base.status {
+    var count        : array[16] base.u32
+    var offset       : array[16] base.u32
+    var symbol       : base.u32
+    var len          : base.u32[..= 16]
+    var max_length   : base.u32[..= 15]
+    var si           : base.u32
+    var n            : base.u32
+    var code         : base.u16
+    var table_bits   : base.u32[..= 8]
+    var table_size   : base.u32[..= 256]
+    var total_size   : base.u32
+    var key          : base.u32
+    var key_step     : base.u32[..= 0x100]
+    var sub_key      : base.u32
+    var sub_key_step : base.u32[..= 0x80]
+    var step         : base.u32
+    var end          : base.u32
+    var r            : base.u32[..= 0xFF]
+    var cur          : base.u32
+    var i            : base.u32
+    var tb_len       : base.u32
+    var left         : base.u32
+
+    // Sort the symbols by code length and then by symbol. Also prepare
+    // count[len], the histogram of code lengths.
+    n = 0
+    len = 0
+    while len < 16 {
+        count[len] = this.code_length_histo[len]
+        offset[len] = n
+        if len > 0 {
+            n ~mod+= count[len]
+        }
+        len += 1
+    }
+    symbol = 0
+    while symbol < args.alphabet_size {
+        assert symbol < 704 via "a < b: a < c; c <= b"(c: args.alphabet_size)
+        len = (this.code_lengths[symbol] & 15) as base.u32
+        if len <> 0 {
+            i = offset[len]
+            if i >= 704 {
+                return "#internal error: inconsistent Huffman table"
+            }
+            this.sorted_symbols[i] = (symbol & 0xFFFF) as base.u16
+            offset[len] = i + 1
+        }
+        symbol += 1
+    }
+
+    max_length = 15
+    while (max_length > 0) and (count[max_length] == 0) {
+        max_length -= 1
+    }
+    if max_length == 0 {
+        return "#internal error: inconsistent Huffman table"
+    }
+
+    // Fill in the root table.
+    table_bits = 8
+    table_size = 256
+    total_size = 256
+    if max_length < 8 {
+        table_bits = max_length
+        table_size = (1 as base.u32) << max_length
+    }
+    key = 0
+    key_step = 0x80
+    step = 2
+    si = 0
+    len = 1
+    while (len <= (table_bits as base.u32)) and (len < 16),
+            inv len >= 1,
+    {
+        n = count[len & 15]
+        while n > 0,
+                inv len >= 1,
+                inv len < 16,
+        {
+            if si >= 704 {
+                return "#internal error: inconsistent Huffman table"
+            }
+            symbol = (this.sorted_symbols[si] & 0x3FF) as base.u32
+            si += 1
+            code = ((symbol << 4) | (len & 15)) as base.u16
+            r = REVERSE_BITS[key & 0xFF] as base.u32
+            // ReplicateValue(&table[r], step, table_size, code).
+            end = table_size as base.u32
+            while (end >= step) and (step > 0),
+                    inv len >= 1,
+                    inv len < 16,
+            {
+                end -= step
+                i = (args.hoff ~mod+ r) ~mod+ end
+                if i >= HUFFS_LEN {
+                    return "#internal error: inconsistent Huffman table"
+                }
+                this.huffs[i] = code
+            }
+            key ~mod+= key_step
+            n ~mod-= 1
+        }
+        step ~mod<<= 1
+        key_step >>= 1
+        len += 1
+    }
+
+    // If table_bits < 8 then replicate to fill the remaining root slots.
+    i = table_size as base.u32
+    while i < 256 {
+        n = args.hoff ~mod+ i
+        cur = args.hoff ~mod+ (i & ((table_size as base.u32) ~mod- 1))
+        if (n >= HUFFS_LEN) or (cur >= HUFFS_LEN) {
+            return "#internal error: inconsistent Huffman table"
+        }
+        this.huffs[n] = this.huffs[cur]
+        i += 1
+    }
+    table_size = 256
+
+    // Fill in the second level tables and add links to the root table.
+    key_step = 1
+    sub_key = 0x100
+    sub_key_step = 0x80
+    cur = 0
+    len = 9
+    step = 2
+    while (len <= (max_length as base.u32)) and (len < 16),
+            inv len >= 9,
+    {
+        while count[len & 15] > 0,
+                inv len >= 9,
+                inv len < 16,
+        {
+            if sub_key == 0x100 {
+                cur ~mod+= table_size as base.u32
+                // NextTableBitSize(count, len, 8).
+                tb_len = len
+                left = (1 as base.u32) << ((len - 8) & 7)
+                while tb_len < 15,
+                        inv len >= 9,
+                        inv len < 16,
+                {
+                    if count[tb_len] >= left {
+                        break
+                    }
+                    left ~mod-= count[tb_len]
+                    tb_len += 1
+                    left ~mod<<= 1
+                }
+                tb_len = tb_len ~mod- 8
+                table_bits = tb_len.min(no_more_than: 7)
+                table_size = (1 as base.u32) << table_bits
+                total_size ~mod+= table_size as base.u32
+                if total_size > args.table_size_max {
+                    return "#internal error: inconsistent Huffman table"
+                }
+                sub_key = REVERSE_BITS[key & 0xFF] as base.u32
+                key ~mod+= key_step
+                i = args.hoff ~mod+ sub_key
+                if i >= HUFFS_LEN {
+                    return "#internal error: inconsistent Huffman table"
+                }
+                this.huffs[i] = (((cur & 0xFFF) << 4) | ((table_bits as base.u32) + 8)) as base.u16
+                sub_key = 0
+            }
+            if si >= 704 {
+                return "#internal error: inconsistent Huffman table"
+            }
+            symbol = (this.sorted_symbols[si] & 0x3FF) as base.u32
+            si += 1
+            code = ((symbol << 4) | ((len - 8) & 15)) as base.u16
+            r = REVERSE_BITS[sub_key & 0xFF] as base.u32
+            // ReplicateValue(&table[cur + r], step, table_size, code).
+            end = table_size as base.u32
+            while (end >= step) and (step > 0),
+                    inv len >= 9,
+                    inv len < 16,
+            {
+                end -= step
+                i = ((args.hoff ~mod+ cur) ~mod+ r) ~mod+ end
+                if i >= HUFFS_LEN {
+                    return "#internal error: inconsistent Huffman table"
+                }
+                this.huffs[i] = code
+            }
+            sub_key ~mod+= sub_key_step
+            count[len & 15] ~mod-= 1
+        }
+        step ~mod<<= 1
+        sub_key_step >>= 1
+        len += 1
+    }
+    return ok
+}

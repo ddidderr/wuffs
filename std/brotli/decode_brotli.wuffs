@@ -1,0 +1,751 @@
+// Copyright 2026 The Wuffs Authors.
+//
+// Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
+// https://www.apache.org/licenses/LICENSE-2.0> or the MIT license
+// <LICENSE-MIT or https://opensource.org/licenses/MIT>, at your
+// option. This file may not be copied, modified, or distributed
+// except according to those terms.
+//
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+
+// --------
+
+// This package is a brotli (RFC 7932) decoder. It aims for parity with the
+// reference C implementation (github.com/google/brotli, tag v1.2.1), in
+// particular its c/dec/decode.c file. Comments like "Mirrors Foo in decode.c"
+// name the C function whose logic (and validation checks) a Wuffs function
+// mirrors. The C code's explicit BROTLI_STATE_ETC state machine is replaced by
+// Wuffs coroutines. The C code's "safe" and "unsafe" (fast path) variants are
+// implemented once, as the "safe" (read as few bits as possible) variant.
+//
+// See README.md for how C error codes map to Wuffs statuses.
+//
+// TODO: support large-window brotli (BROTLI_DECODER_PARAM_LARGE_WINDOW),
+// custom / attached / shared dictionaries, metadata callbacks and fast paths.
+
+pub status "#bad block length"
+pub status "#bad block switch"
+pub status "#bad code length code lengths"
+pub status "#bad context map repeat"
+pub status "#bad dictionary"
+pub status "#bad distance"
+pub status "#bad exuberant metadata nibble"
+pub status "#bad exuberant nibble"
+pub status "#bad final padding"
+pub status "#bad Huffman space"
+pub status "#bad metablock length"
+pub status "#bad padding"
+pub status "#bad reserved bit"
+pub status "#bad simple Huffman alphabet"
+pub status "#bad simple Huffman symbol"
+pub status "#bad transform"
+pub status "#bad window bits"
+pub status "#truncated input"
+pub status "#unsupported large window"
+
+pri status "#internal error: inconsistent bit reader"
+pri status "#internal error: inconsistent Huffman table"
+pri status "#internal error: inconsistent ring buffer"
+
+pub const DECODER_DST_HISTORY_RETAIN_LENGTH_MAX_INCL_WORST_CASE : base.u64 = 0
+
+// DECODER_WORKBUF_LEN_MAX_INCL_WORST_CASE is the largest (standard, not
+// large-window) brotli window size, (1 << 24) bytes, plus WORKBUF_SLACK. The
+// workbuf holds the history ring buffer.
+pub const DECODER_WORKBUF_LEN_MAX_INCL_WORST_CASE : base.u64 = 0x100_021E  // 0x100_0000 + 542.
+
+// WORKBUF_SLACK mirrors kRingBufferWriteAheadSlack in decode.c. The C code's
+// fast paths can write (and then discard) up to this many bytes past the end
+// of its ring buffer. This Wuffs implementation does not (yet) have such fast
+// paths but it still requires (and reserves) the slack, so that adding them
+// later will not change the workbuf_len API.
+pri const WORKBUF_SLACK : base.u64 = 542
+
+// The Huffman decoding tables all live in one decoder.huffs array. These
+// constants give each table's (or group of tables') offset within that array
+// and the stride between tables in a group.
+//
+// The strides are what the C code allocates per tree: (alphabet_size_limit +
+// 376) for a tree group (see BrotliDecoderHuffmanTreeGroupInit in state.c),
+// or the BROTLI_HUFFMAN_MAX_SIZE_ETC constants in huffman.h. There are at most
+// 256 trees in each of the literal, insert-and-copy and distance groups.
+//
+// TODO: large-window brotli needs a larger distance stride.
+
+pri const LIT_HUFFS_BASE   : base.u32 = 0
+pri const LIT_HUFFS_STRIDE : base.u32 = 632  // 256 + 376.
+
+pri const CMD_HUFFS_BASE   : base.u32 = 161792  // 0 + (256 * 632).
+pri const CMD_HUFFS_STRIDE : base.u32 = 1080  // 704 + 376.
+
+pri const DIST_HUFFS_BASE   : base.u32 = 438272  // 161792 + (256 * 1080).
+pri const DIST_HUFFS_STRIDE : base.u32 = 896  // 520 + 376.
+
+// BLOCK_TYPE_HUFFS_STRIDE is BROTLI_HUFFMAN_MAX_SIZE_258.
+pri const BLOCK_TYPE_HUFFS_BASE   : base.u32 = 667648  // 438272 + (256 * 896).
+pri const BLOCK_TYPE_HUFFS_STRIDE : base.u32 = 632
+
+// BLOCK_LEN_HUFFS_STRIDE is BROTLI_HUFFMAN_MAX_SIZE_26.
+pri const BLOCK_LEN_HUFFS_BASE   : base.u32 = 669544  // 667648 + (3 * 632).
+pri const BLOCK_LEN_HUFFS_STRIDE : base.u32 = 396
+
+// The context map table's size is BROTLI_HUFFMAN_MAX_SIZE_272.
+pri const CONTEXT_MAP_HUFFS_BASE : base.u32 = 670732  // 669544 + (3 * 396).
+
+// The code length code (and the code length code length code) tables are 5
+// (and 4) bits wide, replicated to fill 256 entries, the same as the 8-bit
+// root tables for every other code.
+pri const CODE_LENGTH_HUFFS_BASE      : base.u32 = 671378  // 670732 + 646.
+pri const CODE_LENGTH_CODE_HUFFS_BASE : base.u32 = 671634  // 671378 + 256.
+
+pri const HUFFS_LEN : base.u32 = 671890  // 671634 + 256.
+
+// The two context maps live in one decoder.context_maps array. The literal
+// context map (up to 256 block types times 64 contexts) comes first, then the
+// distance context map (up to 256 block types times 4 contexts).
+pri const DIST_CONTEXT_MAP_BASE : base.u32 = 16384
+
+// The decoder.huffs u16 entries hold ((value << 4) | n_bits), where n_bits is
+// the number of bits used for that symbol and value is the symbol. Like the C
+// code's HuffmanCode, n_bits greater than 8 in a root table entry means a
+// link to a second level table, of (n_bits - 8) bits, whose offset (relative
+// to the root table) is the value.
+
+pub struct decoder? implements base.io_transformer(
+        // bits and n_bits are the bit reader (BrotliBitReader in the C code).
+        // Bits are consumed Least Significant Bit first. The high (32 -
+        // n_bits) bits of bits are always zero. After any read_bits or
+        // read_symbol call, n_bits is less than 8.
+        bits   : base.u32,
+        n_bits : base.u32,
+
+        // bits_value and symbol are the results of the read_bits and
+        // read_symbol coroutines (which cannot return values directly).
+        bits_value : base.u32,
+        symbol     : base.u32,
+
+        // window_size is (1 << window_bits). The C code's ringbuffer_size is
+        // rb_size, which can grow (by powers of 2) over successive metablocks,
+        // up to window_size. The physical ring buffer (the first window_size
+        // bytes of args.workbuf) is always window_size bytes long, but the C
+        // code's ringbuffer_size determines when it calls WriteRingBuffer,
+        // which determines whether some invalid input is rejected as
+        // BROTLI_DECODER_ERROR_FORMAT_BLOCK_LENGTH_1 or _2.
+        //
+        // pos is the C code's s->pos. It is less than or equal to rb_size.
+        // rb_flushed is how many of the ring buffer's bytes (in the current
+        // trip around the ring) have been written to args.dst.
+        //
+        // TODO: large-window brotli allows up to 30 window_bits.
+        window_bits           : base.u32[..= 24],
+        window_size           : base.u32[..= 0x100_0000],
+        max_backward_distance : base.u32[..= 0x100_0000],
+        rb_size               : base.u32[..= 0x100_0000],
+        pos                   : base.u32,
+        rb_flushed            : base.u32,
+
+        // max_distance mirrors the C code's s->max_distance. Once the ring
+        // buffer is at its maximal size, and after certain WriteRingBuffer
+        // calls, it is fixed at s->max_backward_distance.
+        max_distance : base.u32,
+
+        is_last_metablock : base.bool,
+        is_uncompressed   : base.bool,
+        is_metadata       : base.bool,
+
+        // mb_remaining is the C code's s->meta_block_remaining_len. That
+        // value can go negative, for invalid input, so this field holds its
+        // two's complement representation. Negative means mb_remaining >=
+        // 0x8000_0000.
+        mb_remaining : base.u32,
+
+        // These are the C code's arrays of the same name, indexed by the
+        // block category: 0, 1 and 2 for literal, insert-and-copy and
+        // distance. The block_type_rb array holds two elements per category.
+        num_block_types : array[3] base.u32[..= 256],
+        block_type_rb   : array[6] base.u32,
+        block_length    : array[3] base.u32,
+
+        distance_postfix_bits     : base.u32[..= 3],
+        num_direct_distance_codes : base.u32[..= 120],
+        distance_alphabet_size    : base.u32[..= 520],
+        num_literal_htrees        : base.u32[..= 256],
+        num_dist_htrees           : base.u32[..= 256],
+
+        // The C code's context_map_slice and dist_context_map_slice, as
+        // offsets into decoder.context_maps, plus the context_lookup mode.
+        context_map_slice      : base.u32[..= 16320],
+        context_mode           : base.u32[..= 3],
+        dist_context_map_slice : base.u32[..= 1020],
+
+        // htree_command and dist_htree_index index (select one tree of) the
+        // insert-and-copy and distance Huffman tree groups.
+        htree_command    : base.u32[..= 255],
+        dist_htree_index : base.u32[..= 255],
+
+        // dist_rb holds the last four distances. dist_rb_idx is modular.
+        dist_rb     : array[4] base.u32,
+        dist_rb_idx : base.u32,
+
+        distance_code    : base.u32,
+        distance_context : base.u32[..= 3],
+
+        // implicit_zero_distance is whether the C code's s->distance_code is
+        // 0 (instead of -1) after ReadCommandInternal.
+        implicit_zero_distance : base.bool,
+
+        insert_length : base.u32,
+        copy_length   : base.u32,
+
+        util : base.utility,
+) + (
+        huffs : array[671890] base.u16,  // HUFFS_LEN.
+
+        context_maps  : array[17408] base.u8,  // 16384 + 1024.
+        context_modes : array[256] base.u8,
+
+        // Scratch space for reading Huffman codes. The largest alphabet (as
+        // limited by alphabet_size_limit) has 704 symbols.
+        code_lengths             : array[704] base.u8,
+        code_length_code_lengths : array[18] base.u8,
+        code_length_histo        : array[16] base.u32,
+        sorted_symbols           : array[704] base.u16,
+        simple_symbols           : array[4] base.u32,
+
+        // mtf is the move-to-front list for InverseMoveToFrontTransform.
+        mtf : array[256] base.u8,
+
+        // The distance lookup tables (the C code's dist_extra_bits and
+        // dist_offset), sized for BROTLI_NUM_DISTANCE_SYMBOLS.
+        dist_extra_bits : array[1128] base.u8,
+        dist_offset     : array[1128] base.u32,
+
+        // transformed_word holds a transformed static dictionary word: a
+        // prefix (up to 8 bytes), a word (up to 24 bytes) and a suffix (up to
+        // 8 bytes).
+        transformed_word : array[64] base.u8,
+)
+
+pub func decoder.get_quirk(key: base.u32) base.u64 {
+    return 0
+}
+
+pub func decoder.set_quirk!(key: base.u32, value: base.u64) base.status {
+    return base."#unsupported option"
+}
+
+pub func decoder.dst_history_retain_length() base.optional_u63 {
+    return this.util.make_optional_u63(has_value: true, value: 0)
+}
+
+pub func decoder.workbuf_len() base.range_ii_u64 {
+    return this.util.make_range_ii_u64(
+            min_incl: DECODER_WORKBUF_LEN_MAX_INCL_WORST_CASE,
+            max_incl: DECODER_WORKBUF_LEN_MAX_INCL_WORST_CASE)
+}
+
+// transform_io wraps do_transform_io, which decodes into the ring buffer (the
+// workbuf) but does not write to args.dst. This function copies (flushes)
+// decoded bytes from the ring buffer to args.dst.
+//
+// do_transform_io (or rather, its ring_event callee) suspends with "$short
+// write" when it needs every decoded byte flushed before it can wrap around
+// the ring buffer. If this function can flush all of them, it resumes
+// do_transform_io immediately instead of suspending.
+pub func decoder.transform_io?(dst: base.io_writer, src: base.io_reader, workbuf: slice base.u8) {
+    var status : base.status
+
+    while true {
+        status =? this.do_transform_io?(src: args.src, workbuf: args.workbuf)
+        this.flush!(dst: args.dst, workbuf: args.workbuf)
+
+        if status.is_ok() {
+            while not this.is_fully_flushed() {
+                yield? base."$short write"
+                this.flush!(dst: args.dst, workbuf: args.workbuf)
+            }
+            return ok
+
+        } else if status == base."$short write" {
+            if this.is_fully_flushed() {
+                continue
+            }
+
+        } else if status == base."$short read" {
+            // When the C code needs more input, it first tries to write out
+            // decoded bytes, via WriteRingBuffer, which fails if the
+            // metablock has been overrun.
+            if this.mb_remaining >= 0x8000_0000 {
+                return "#bad block length"
+            } else if args.src.is_closed() {
+                return "#truncated input"
+            }
+
+        } else if not status.is_suspension() {
+            return status
+        }
+
+        yield? status
+    }
+}
+
+// is_fully_flushed returns whether every decoded byte (up to the end of the
+// physical ring buffer) has been flushed.
+pri func decoder.is_fully_flushed() base.bool {
+    return this.rb_flushed >= this.pos.min(no_more_than: this.window_size)
+}
+
+pri func decoder.flush!(dst: base.io_writer, workbuf: slice base.u8) {
+    var start : base.u64
+    var end   : base.u64
+    var n     : base.u64
+
+    start = this.rb_flushed as base.u64
+    end = this.pos.min(no_more_than: this.window_size) as base.u64
+    if (start < end) and (end <= args.workbuf.length()) {
+        n = args.dst.copy_from_slice!(s: args.workbuf[start .. end])
+        this.rb_flushed ~mod+= (n & 0xFFFF_FFFF) as base.u32
+    }
+}
+
+// Mirrors the BROTLI_STATE_ETC state machine in BrotliDecoderDecompressStream
+// in decode.c.
+pri func decoder.do_transform_io?(src: base.io_reader, workbuf: slice base.u8) {
+    var w       : base.u64
+    var aligned : base.bool
+
+    this.initialize_codes!()
+
+    // BROTLI_STATE_UNINITED and BROTLI_STATE_INITIALIZE.
+    this.decode_window_bits?(src: args.src)
+    w = this.window_size as base.u64
+    if (w < 2) or (args.workbuf.length() < (w + WORKBUF_SLACK)) {
+        return base."#bad workbuf length"
+    }
+    // The C code (BrotliEnsureRingBuffer) zeroes the last two bytes of the
+    // ring buffer, which the first literals' context calculations read.
+    if (w - 1) < args.workbuf.length() {
+        args.workbuf[w - 1] = 0
+        assert ((w - 1) - 1) < args.workbuf.length() via "(a - b) < c: a < c; 0 <= b"()
+        args.workbuf[(w - 1) - 1] = 0
+    }
+
+    while true {
+        // BROTLI_STATE_METABLOCK_BEGIN.
+        this.metablock_begin!()
+
+        // BROTLI_STATE_METABLOCK_HEADER.
+        this.decode_metablock_length?(src: args.src)
+        if this.is_metadata or this.is_uncompressed {
+            aligned = this.jump_to_byte_boundary!()
+            if not aligned {
+                return "#bad padding"
+            } else if this.n_bits <> 0 {
+                return "#internal error: inconsistent bit reader"
+            }
+        }
+
+        if this.is_metadata {
+            // BROTLI_STATE_METADATA. Mirrors SkipMetadataBlock.
+            //
+            // TODO: support metadata callbacks.
+            args.src.skip?(n: this.mb_remaining as base.u64)
+            this.mb_remaining = 0
+
+        } else if this.mb_remaining > 0 {
+            this.calculate_ring_buffer_size!()
+            if this.is_uncompressed {
+                // BROTLI_STATE_UNCOMPRESSED.
+                this.copy_uncompressed?(src: args.src, workbuf: args.workbuf)
+            } else {
+                this.decode_compressed_metablock?(src: args.src, workbuf: args.workbuf)
+            }
+        }
+
+        // BROTLI_STATE_METABLOCK_DONE.
+        if this.mb_remaining >= 0x8000_0000 {
+            return "#bad metablock length"
+        }
+        if not this.is_last_metablock {
+            continue
+        }
+        aligned = this.jump_to_byte_boundary!()
+        if not aligned {
+            return "#bad final padding"
+        }
+        break
+    }
+}
+
+// initialize_codes sets up the decoder state that the C code sets in
+// BrotliDecoderStateInit (in state.c). It also builds the fixed table for
+// decoding the code length code lengths (kCodeLengthPrefixLength and
+// kCodeLengthPrefixValue in decode.c).
+pri func decoder.initialize_codes!() {
+    var i : base.u32
+
+    this.bits = 0
+    this.n_bits = 0
+    this.pos = 0
+    this.rb_size = 0
+    this.rb_flushed = 0
+    this.max_distance = 0
+    this.mb_remaining = 0
+    this.dist_rb[0] = 16
+    this.dist_rb[1] = 15
+    this.dist_rb[2] = 11
+    this.dist_rb[3] = 4
+    this.dist_rb_idx = 0
+
+    i = 0
+    while i < 256 {
+        this.huffs[CODE_LENGTH_CODE_HUFFS_BASE + i] =
+                ((CODE_LENGTH_PREFIX_VALUE[i & 15] as base.u16) << 4) |
+                (CODE_LENGTH_PREFIX_LENGTH[i & 15] as base.u16)
+        i += 1
+    }
+}
+
+// Mirrors BrotliDecoderStateMetablockBegin in state.c.
+pri func decoder.metablock_begin!() {
+    this.mb_remaining = 0
+    this.block_length[0] = 0x100_0000
+    this.block_length[1] = 0x100_0000
+    this.block_length[2] = 0x100_0000
+    this.num_block_types[0] = 1
+    this.num_block_types[1] = 1
+    this.num_block_types[2] = 1
+    this.block_type_rb[0] = 1
+    this.block_type_rb[1] = 0
+    this.block_type_rb[2] = 1
+    this.block_type_rb[3] = 0
+    this.block_type_rb[4] = 1
+    this.block_type_rb[5] = 0
+    this.context_map_slice = 0
+    this.context_mode = 0
+    this.dist_context_map_slice = 0
+    this.htree_command = 0
+    this.dist_htree_index = 0
+}
+
+// read_bits reads args.n bits, Least Significant Bit first, and stores them
+// in this.bits_value. Mirrors BrotliSafeReadBits in bit_reader.h.
+pri func decoder.read_bits?(src: base.io_reader, n: base.u32[..= 24]) {
+    var n      : base.u32[..= 24]
+    var bits   : base.u32
+    var n_bits : base.u32
+    var c32    : base.u32[..= 0xFF]
+
+    n = args.n
+    bits = this.bits
+    n_bits = this.n_bits
+    while n_bits < n,
+            post n_bits >= n,
+    {
+        c32 = args.src.read_u8_as_u32?()
+        assert n_bits < 24 via "a < b: a < c; c <= b"(c: n)
+        bits |= c32 << n_bits
+        n_bits += 8
+    }
+    this.bits_value = bits & (((1 as base.u32) << n) - 1)
+    this.bits = bits >> n
+    this.n_bits = n_bits - n
+}
+
+// read_symbol reads one Huffman-encoded symbol, decoded by the table at
+// this.huffs[args.table ..], and stores it in this.symbol. It reads input
+// bytes only when needed. Mirrors SafeReadSymbol and SafeDecodeSymbol in
+// decode.c.
+pri func decoder.read_symbol?(src: base.io_reader, hoff: base.u32) {
+    var hoff   : base.u32
+    var bits   : base.u32
+    var n_bits : base.u32
+    var c32    : base.u32[..= 0xFF]
+    var i      : base.u32
+    var e      : base.u32
+    var e_bits : base.u32[..= 23]
+
+    hoff = args.hoff
+    bits = this.bits
+    n_bits = this.n_bits
+    while true {
+        i = hoff ~mod+ (bits & 0xFF)
+        if i >= HUFFS_LEN {
+            return "#internal error: inconsistent Huffman table"
+        }
+        e = this.huffs[i] as base.u32
+        e_bits = e & 15
+        if e_bits <= 8 {
+            if n_bits >= e_bits {
+                this.symbol = e >> 4
+                bits >>= e_bits
+                n_bits -= e_bits
+                break
+            }
+        } else if n_bits > 8 {
+            i = (hoff ~mod+ (e >> 4)) ~mod+ ((bits >> 8) & (((1 as base.u32) << (e_bits - 8)) - 1))
+            if i >= HUFFS_LEN {
+                return "#internal error: inconsistent Huffman table"
+            }
+            e = this.huffs[i] as base.u32
+            e_bits = (e & 15) + 8
+            if n_bits >= e_bits {
+                this.symbol = e >> 4
+                bits >>= e_bits
+                n_bits -= e_bits
+                break
+            }
+        }
+        if n_bits >= 24 {
+            return "#internal error: inconsistent Huffman table"
+        }
+        c32 = args.src.read_u8_as_u32?()
+        bits |= c32 << n_bits
+        n_bits += 8
+    }
+    this.bits = bits
+    this.n_bits = n_bits
+}
+
+// jump_to_byte_boundary drops the bits up to the next byte boundary and
+// returns whether they were all zero. Mirrors BrotliJumpToByteBoundary in
+// bit_reader.h.
+pri func decoder.jump_to_byte_boundary!() base.bool {
+    var n   : base.u32[..= 7]
+    var pad : base.u32
+
+    n = this.n_bits & 7
+    pad = this.bits & (((1 as base.u32) << n) - 1)
+    this.bits >>= n
+    this.n_bits ~mod-= n
+    return pad == 0
+}
+
+// Mirrors DecodeWindowBits in decode.c.
+pri func decoder.decode_window_bits?(src: base.io_reader) {
+    var n : base.u32[..= 7]
+
+    this.read_bits?(src: args.src, n: 1)
+    if this.bits_value == 0 {
+        this.window_bits = 16
+    } else {
+        this.read_bits?(src: args.src, n: 3)
+        n = this.bits_value & 7
+        if n <> 0 {
+            this.window_bits = 17 + n
+        } else {
+            this.read_bits?(src: args.src, n: 3)
+            n = this.bits_value & 7
+            if n == 1 {
+                // The C code would read a "Large Window Brotli" header, if
+                // BROTLI_DECODER_PARAM_LARGE_WINDOW was set, or otherwise fail
+                // with BROTLI_DECODER_ERROR_FORMAT_WINDOW_BITS.
+                //
+                // TODO: support large-window brotli.
+                return "#unsupported large window"
+            } else if n <> 0 {
+                this.window_bits = 8 + n
+            } else {
+                this.window_bits = 17
+            }
+        }
+    }
+    if this.window_bits < 10 {
+        return "#bad window bits"
+    }
+    this.window_size = (1 as base.u32) << this.window_bits
+    // Maximum distance, see section 9.1. of the spec. BROTLI_WINDOW_GAP is 16.
+    this.max_backward_distance = this.window_size - 16
+}
+
+// Mirrors DecodeVarLenUint8 in decode.c. The result (in [0 ..= 255]) is
+// stored in this.bits_value.
+pri func decoder.decode_var_len_uint8?(src: base.io_reader) {
+    var n : base.u32[..= 7]
+
+    this.read_bits?(src: args.src, n: 1)
+    if this.bits_value == 0 {
+        return ok
+    }
+    this.read_bits?(src: args.src, n: 3)
+    n = this.bits_value & 7
+    if n == 0 {
+        this.bits_value = 1
+        return ok
+    }
+    this.read_bits?(src: args.src, n: n)
+    this.bits_value = ((1 as base.u32) << n) + (this.bits_value & 0xFF)
+}
+
+// Mirrors DecodeMetaBlockLength in decode.c.
+pri func decoder.decode_metablock_length?(src: base.io_reader) {
+    var size_nibbles : base.u32[..= 7]
+    var size_bytes   : base.u32[..= 3]
+    var i            : base.u32
+    var v            : base.u32
+
+    this.read_bits?(src: args.src, n: 1)
+    this.is_last_metablock = this.bits_value <> 0
+    this.mb_remaining = 0
+    this.is_uncompressed = false
+    this.is_metadata = false
+    if this.is_last_metablock {
+        // ISLASTEMPTY.
+        this.read_bits?(src: args.src, n: 1)
+        if this.bits_value <> 0 {
+            return ok
+        }
+    }
+
+    // MNIBBLES.
+    this.read_bits?(src: args.src, n: 2)
+    size_nibbles = (this.bits_value & 3) + 4
+    if size_nibbles == 7 {
+        this.is_metadata = true
+        this.read_bits?(src: args.src, n: 1)
+        if this.bits_value <> 0 {
+            return "#bad reserved bit"
+        }
+        // MSKIPBYTES.
+        this.read_bits?(src: args.src, n: 2)
+        size_bytes = this.bits_value & 3
+        if size_bytes == 0 {
+            return ok
+        }
+        i = 0
+        while i < size_bytes {
+            assert i < 3 via "a < b: a < c; c <= b"(c: size_bytes)
+            this.read_bits?(src: args.src, n: 8)
+            v = this.bits_value & 0xFF
+            if ((i + 1) == size_bytes) and (size_bytes > 1) and (v == 0) {
+                return "#bad exuberant metadata nibble"
+            }
+            this.mb_remaining |= v << (8 * i)
+            i += 1
+        }
+        this.mb_remaining ~mod+= 1
+        return ok
+    }
+
+    i = 0
+    while i < size_nibbles {
+        assert i < 7 via "a < b: a < c; c <= b"(c: size_nibbles)
+        this.read_bits?(src: args.src, n: 4)
+        v = this.bits_value & 15
+        if ((i + 1) == size_nibbles) and (size_nibbles > 4) and (v == 0) {
+            return "#bad exuberant nibble"
+        }
+        this.mb_remaining |= v << (4 * i)
+        i += 1
+    }
+
+    if not this.is_last_metablock {
+        // ISUNCOMPRESSED.
+        this.read_bits?(src: args.src, n: 1)
+        this.is_uncompressed = this.bits_value <> 0
+    }
+    this.mb_remaining ~mod+= 1
+}
+
+// Mirrors BrotliCalculateRingBufferSize in decode.c, with
+// canny_ringbuffer_allocation enabled (the C code's default).
+//
+// The physical ring buffer is always window_size bytes long. The C code's
+// (virtual) ring buffer size, this.rb_size, determines when ring_event is
+// called.
+pri func decoder.calculate_ring_buffer_size!() {
+    var min_size : base.u32
+    var new_size : base.u32
+
+    if this.rb_size >= this.window_size {
+        return nothing
+    }
+    min_size = 1024
+    if this.rb_size <> 0 {
+        min_size = this.rb_size
+    }
+    min_size = min_size.max(no_less_than: this.pos ~sat+ this.mb_remaining)
+    new_size = this.window_size
+    while (new_size >> 1) >= min_size {
+        new_size >>= 1
+    }
+    this.rb_size = new_size.min(no_more_than: this.window_size)
+}
+
+// ring_event is called whenever this.pos reaches this.rb_size, which is when
+// the C code (in ProcessCommandsInternal or CopyUncompressedBlockToOutput)
+// calls WriteRingBuffer and then WrapRingBuffer. Like the C code (in the
+// BROTLI_STATE_COMMAND_INNER_WRITE, BROTLI_STATE_COMMAND_POST_WRITE_ETC and
+// BROTLI_STATE_UNCOMPRESSED_WRITE states), it then sets max_distance to
+// max_backward_distance if the ring buffer is at its maximal size.
+pri func decoder.ring_event?() {
+    // WriteRingBuffer checks for an overrun metablock.
+    if this.mb_remaining >= 0x8000_0000 {
+        return "#bad block length"
+    }
+    if (this.rb_size == this.window_size) and (this.pos >= this.window_size) {
+        // Wait until every byte has been written to args.dst.
+        while this.rb_flushed < this.window_size {
+            yield? base."$short write"
+        }
+        if this.pos < this.window_size {
+            return "#internal error: inconsistent ring buffer"
+        }
+        this.pos -= this.window_size
+        this.rb_flushed = 0
+    }
+    if this.rb_size == this.window_size {
+        this.max_distance = this.max_backward_distance
+    }
+}
+
+// put_byte appends a byte to the ring buffer. The caller is responsible for
+// calling ring_event when this.pos reaches this.rb_size.
+pri func decoder.put_byte!(workbuf: slice base.u8, b: base.u8) {
+    var i : base.u64
+
+    i = (this.pos & (this.window_size ~mod- 1)) as base.u64
+    if i < args.workbuf.length() {
+        args.workbuf[i] = args.b
+    }
+    this.pos ~mod+= 1
+}
+
+// get_byte returns the ring buffer byte that is args.distance bytes before
+// this.pos. The distance is modulo the window size.
+pri func decoder.get_byte(workbuf: slice base.u8, distance: base.u32) base.u8 {
+    var i : base.u64
+
+    i = ((this.pos ~mod- args.distance) & (this.window_size ~mod- 1)) as base.u64
+    if i < args.workbuf.length() {
+        return args.workbuf[i]
+    }
+    return 0
+}
+
+// Mirrors CopyUncompressedBlockToOutput in decode.c.
+pri func decoder.copy_uncompressed?(src: base.io_reader, workbuf: slice base.u8) {
+    var n : base.u32
+    var i : base.u64
+
+    while this.mb_remaining > 0 {
+        if args.src.length() <= 0 {
+            yield? base."$short read"
+            continue
+        }
+        if this.pos >= this.rb_size {
+            return "#internal error: inconsistent ring buffer"
+        }
+        n = this.mb_remaining.min(no_more_than: this.rb_size ~mod- this.pos)
+        i = (this.pos & (this.window_size ~mod- 1)) as base.u64
+        if i >= args.workbuf.length() {
+            return "#internal error: inconsistent ring buffer"
+        }
+        n = args.src.limited_copy_u32_to_slice!(up_to: n, s: args.workbuf[i ..])
+        this.pos ~mod+= n
+        this.mb_remaining ~mod-= n
+        if this.pos == this.rb_size {
+            this.ring_event?()
+        }
+    }
+}
