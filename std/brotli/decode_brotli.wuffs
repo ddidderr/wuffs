@@ -20,12 +20,12 @@
 //
 // See README.md for how C error codes map to Wuffs statuses.
 //
-// TODO: support large-window brotli (BROTLI_DECODER_PARAM_LARGE_WINDOW),
-// custom / attached / shared dictionaries, metadata callbacks and fast paths.
+// TODO: support metadata callbacks and fast paths.
 
 pub status "#bad block length"
 pub status "#bad block switch"
 pub status "#bad code length code lengths"
+pub status "#bad compound dictionary"
 pub status "#bad context map repeat"
 pub status "#bad dictionary"
 pub status "#bad distance"
@@ -36,12 +36,16 @@ pub status "#bad Huffman space"
 pub status "#bad metablock length"
 pub status "#bad padding"
 pub status "#bad reserved bit"
+pub status "#bad shared dictionary"
 pub status "#bad simple Huffman alphabet"
 pub status "#bad simple Huffman symbol"
 pub status "#bad transform"
 pub status "#bad window bits"
+pub status "#too many compound dictionaries"
+pub status "#too much dictionary data"
 pub status "#truncated input"
 pub status "#unsupported large window"
+pub status "#unsupported multiple custom static dictionaries"
 
 pri status "#internal error: inconsistent bit reader"
 pri status "#internal error: inconsistent Huffman table"
@@ -49,10 +53,33 @@ pri status "#internal error: inconsistent ring buffer"
 
 pub const DECODER_DST_HISTORY_RETAIN_LENGTH_MAX_INCL_WORST_CASE : base.u64 = 0
 
-// DECODER_WORKBUF_LEN_MAX_INCL_WORST_CASE is the largest (standard, not
-// large-window) brotli window size, (1 << 24) bytes, plus WORKBUF_SLACK. The
-// workbuf holds the history ring buffer.
-pub const DECODER_WORKBUF_LEN_MAX_INCL_WORST_CASE : base.u64 = 0x100_021E  // 0x100_0000 + 542.
+// DECODER_WORKBUF_LEN_MAX_INCL_WORST_CASE is the largest workbuf_len value:
+// DICT_TOTAL_MAX bytes of attached dictionaries plus the largest
+// (large-window) brotli window size, (1 << 30) bytes, plus WORKBUF_SLACK.
+//
+// Without attached dictionaries and without the QUIRK_LARGE_WINDOW quirk,
+// workbuf_len is DECODER_WORKBUF_LEN_STANDARD, which is much smaller.
+pub const DECODER_WORKBUF_LEN_MAX_INCL_WORST_CASE : base.u64 = 0xC000_021D  // 0x7FFF_FFFF + 0x4000_0000 + 542.
+
+// DECODER_WORKBUF_LEN_STANDARD is the largest standard (not large-window)
+// brotli window size, (1 << 24) bytes, plus WORKBUF_SLACK. This is the
+// workbuf_len when no dictionaries are attached and the QUIRK_LARGE_WINDOW
+// quirk is not set.
+pub const DECODER_WORKBUF_LEN_STANDARD : base.u64 = 0x100_021E  // 0x100_0000 + 542.
+
+// DECODER_WORKBUF_LEN_LARGE_WINDOW is the largest large-window brotli window
+// size, (1 << 30) bytes, plus WORKBUF_SLACK.
+pub const DECODER_WORKBUF_LEN_LARGE_WINDOW : base.u64 = 0x4000_021E  // 0x4000_0000 + 542.
+
+// DICTIONARY_TYPE_RAW and DICTIONARY_TYPE_SERIALIZED are the values for
+// decoder.add_dictionary's dict_type argument. They mirror the C code's
+// BROTLI_SHARED_DICTIONARY_RAW and BROTLI_SHARED_DICTIONARY_SERIALIZED.
+pub const DICTIONARY_TYPE_RAW        : base.u32 = 0
+pub const DICTIONARY_TYPE_SERIALIZED : base.u32 = 1
+
+// DICT_TOTAL_MAX is the maximum total length of all attached dictionaries.
+// The C code holds the compound dictionaries' total size in an int.
+pri const DICT_TOTAL_MAX : base.u64 = 0x7FFF_FFFF
 
 // WORKBUF_SLACK mirrors kRingBufferWriteAheadSlack in decode.c. The C code's
 // fast paths can write (and then discard) up to this many bytes past the end
@@ -70,7 +97,9 @@ pri const WORKBUF_SLACK : base.u64 = 542
 // or the BROTLI_HUFFMAN_MAX_SIZE_ETC constants in huffman.h. There are at most
 // 256 trees in each of the literal, insert-and-copy and distance groups.
 //
-// TODO: large-window brotli needs a larger distance stride.
+// The distance stride is for the largest distance alphabet_size_limit, which
+// is 544 (for large-window brotli, BrotliCalculateDistanceCodeLimit with
+// NPOSTFIX = 3 and NDIRECT = 120), not 520 (for standard brotli).
 
 pri const LIT_HUFFS_BASE   : base.u32 = 0
 pri const LIT_HUFFS_STRIDE : base.u32 = 632  // 256 + 376.
@@ -79,26 +108,26 @@ pri const CMD_HUFFS_BASE   : base.u32 = 161792  // 0 + (256 * 632).
 pri const CMD_HUFFS_STRIDE : base.u32 = 1080  // 704 + 376.
 
 pri const DIST_HUFFS_BASE   : base.u32 = 438272  // 161792 + (256 * 1080).
-pri const DIST_HUFFS_STRIDE : base.u32 = 896  // 520 + 376.
+pri const DIST_HUFFS_STRIDE : base.u32 = 920  // 544 + 376.
 
 // BLOCK_TYPE_HUFFS_STRIDE is BROTLI_HUFFMAN_MAX_SIZE_258.
-pri const BLOCK_TYPE_HUFFS_BASE   : base.u32 = 667648  // 438272 + (256 * 896).
+pri const BLOCK_TYPE_HUFFS_BASE   : base.u32 = 673792  // 438272 + (256 * 920).
 pri const BLOCK_TYPE_HUFFS_STRIDE : base.u32 = 632
 
 // BLOCK_LEN_HUFFS_STRIDE is BROTLI_HUFFMAN_MAX_SIZE_26.
-pri const BLOCK_LEN_HUFFS_BASE   : base.u32 = 669544  // 667648 + (3 * 632).
+pri const BLOCK_LEN_HUFFS_BASE   : base.u32 = 675688  // 673792 + (3 * 632).
 pri const BLOCK_LEN_HUFFS_STRIDE : base.u32 = 396
 
 // The context map table's size is BROTLI_HUFFMAN_MAX_SIZE_272.
-pri const CONTEXT_MAP_HUFFS_BASE : base.u32 = 670732  // 669544 + (3 * 396).
+pri const CONTEXT_MAP_HUFFS_BASE : base.u32 = 676876  // 675688 + (3 * 396).
 
 // The code length code (and the code length code length code) tables are 5
 // (and 4) bits wide, replicated to fill 256 entries, the same as the 8-bit
 // root tables for every other code.
-pri const CODE_LENGTH_HUFFS_BASE      : base.u32 = 671378  // 670732 + 646.
-pri const CODE_LENGTH_CODE_HUFFS_BASE : base.u32 = 671634  // 671378 + 256.
+pri const CODE_LENGTH_HUFFS_BASE      : base.u32 = 677522  // 676876 + 646.
+pri const CODE_LENGTH_CODE_HUFFS_BASE : base.u32 = 677778  // 677522 + 256.
 
-pri const HUFFS_LEN : base.u32 = 671890  // 671634 + 256.
+pri const HUFFS_LEN : base.u32 = 678034  // 677778 + 256.
 
 // The two context maps live in one decoder.context_maps array. The literal
 // context map (up to 256 block types times 64 contexts) comes first, then the
@@ -136,11 +165,12 @@ pub struct decoder? implements base.io_transformer(
         // rb_flushed is how many of the ring buffer's bytes (in the current
         // trip around the ring) have been written to args.dst.
         //
-        // TODO: large-window brotli allows up to 30 window_bits.
-        window_bits           : base.u32[..= 24],
-        window_size           : base.u32[..= 0x100_0000],
-        max_backward_distance : base.u32[..= 0x100_0000],
-        rb_size               : base.u32[..= 0x100_0000],
+        // window_bits is at most 24 for standard brotli and at most 30 for
+        // large-window brotli.
+        window_bits           : base.u32[..= 30],
+        window_size           : base.u32[..= 0x4000_0000],
+        max_backward_distance : base.u32[..= 0x4000_0000],
+        rb_size               : base.u32[..= 0x4000_0000],
         pos                   : base.u32,
         rb_flushed            : base.u32,
 
@@ -168,9 +198,12 @@ pub struct decoder? implements base.io_transformer(
 
         distance_postfix_bits     : base.u32[..= 3],
         num_direct_distance_codes : base.u32[..= 120],
-        distance_alphabet_size    : base.u32[..= 520],
-        num_literal_htrees        : base.u32[..= 256],
-        num_dist_htrees           : base.u32[..= 256],
+        // distance_alphabet_size is the C code's
+        // distance_hgroup.alphabet_size_limit: at most 520 for standard
+        // brotli and at most 544 for large-window brotli.
+        distance_alphabet_size : base.u32[..= 544],
+        num_literal_htrees     : base.u32[..= 256],
+        num_dist_htrees        : base.u32[..= 256],
 
         // The C code's context_map_slice and dist_context_map_slice, as
         // offsets into decoder.context_maps, plus the context_lookup mode.
@@ -197,9 +230,71 @@ pub struct decoder? implements base.io_transformer(
         insert_length : base.u32,
         copy_length   : base.u32,
 
+        // quirk_large_window is the QUIRK_LARGE_WINDOW quirk (the C code's
+        // BROTLI_DECODER_PARAM_LARGE_WINDOW parameter). large_window is
+        // whether the stream is a large-window stream (the C code's
+        // s->large_window after DecodeWindowBits), which needs both the quirk
+        // and the large-window WBITS escape.
+        quirk_large_window : base.bool,
+        large_window       : base.bool,
+
+        // started is whether the C code's s->state would no longer be
+        // BROTLI_STATE_UNINITED. Quirks and dictionaries can only be set or
+        // added before then.
+        started : base.bool,
+
+        // dict_total is the total length of all attached dictionaries, which
+        // live at the start of the workbuf: args.workbuf[.. dict_total]. The
+        // ring buffer follows: args.workbuf[dict_total ..].
+        dict_total : base.u64[..= 0x7FFF_FFFF],
+
+        // The compound dictionary (the C code's BrotliDecoderCompoundDictionary
+        // in state.h). It has num_chunks chunks. The i'th chunk starts at
+        // args.workbuf[chunk_starts[i]] and spans compound dictionary
+        // addresses [chunk_offsets[i] .. chunk_offsets[i + 1]].
+        // chunk_offsets[num_chunks] is the C code's total_size.
+        num_chunks    : base.u32[..= 15],
+        chunk_starts  : array[15] base.u32,
+        chunk_offsets : array[16] base.u32,
+
+        // The shared dictionary's static dictionary part (the C code's
+        // BrotliSharedDictionary in shared_dictionary_internal.h). The C
+        // code's words[i] and transforms[i] are given by sd_words[i] and
+        // sd_transforms[i]: 0 means the built-in (RFC 7932) word list or
+        // transform list and (1 + j) means the j'th custom list (see the
+        // wl_etc and tl_etc fields). sd_context_based, sd_context_map and
+        // sd_num_dictionaries are the C code's context_based, context_map and
+        // num_dictionaries (except that the initial zero value means one).
+        // sd_num_word_lists and sd_num_transform_lists are the C code's
+        // num_word_lists and num_transform_lists.
+        sd_context_based       : base.bool,
+        sd_num_dictionaries    : base.u32[..= 64],
+        sd_num_word_lists      : base.u32[..= 64],
+        sd_num_transform_lists : base.u32[..= 64],
+        sd_words               : array[64] base.u8[..= 64],
+        sd_transforms          : array[64] base.u8[..= 64],
+        sd_context_map         : array[64] base.u8[..= 63],
+
+        // The prefix (LZ77 dictionary chunk) of a serialized shared
+        // dictionary, as found by parse_shared_dictionary: its position
+        // within that dictionary's bytes and its length.
+        sd_prefix_pos  : base.u64,
+        sd_prefix_size : base.u64,
+
+        // More staging fields for parse_shared_dictionary. See also the
+        // stage_etc arrays.
+        stage_num_word_lists      : base.u32[..= 64],
+        stage_num_transform_lists : base.u32[..= 64],
+        stage_num_dictionaries    : base.u32[..= 64],
+        stage_context_based       : base.bool,
+
+        // parse_pos is where parse_shared_dictionary's helper functions
+        // store the new parsing position.
+        parse_pos : base.u64,
+
         util : base.utility,
 ) + (
-        huffs : array[671890] base.u16,  // HUFFS_LEN.
+        huffs : array[678034] base.u16,  // HUFFS_LEN.
 
         context_maps  : array[17408] base.u8,  // 16384 + 1024.
         context_modes : array[256] base.u8,
@@ -221,16 +316,52 @@ pub struct decoder? implements base.io_transformer(
         dist_offset     : array[1128] base.u32,
 
         // transformed_word holds a transformed static dictionary word: a
-        // prefix (up to 8 bytes), a word (up to 24 bytes) and a suffix (up to
-        // 8 bytes).
-        transformed_word : array[64] base.u8,
+        // prefix (up to 255 bytes), a word (up to 31 bytes) and a suffix (up
+        // to 255 bytes). Built-in transforms' prefixes and suffixes are at
+        // most 8 bytes and built-in words are at most 24 bytes.
+        transformed_word : array[1024] base.u8,
+
+        // Custom word lists (the C code's BrotliDictionary words_instances).
+        // wl_data is the offset (within the workbuf) of the list's words.
+        wl_size_bits : array[64] array[32] base.u8,
+        wl_offsets   : array[64] array[32] base.u32,
+        wl_data      : array[64] base.u32,
+
+        // Custom transform lists (the C code's BrotliTransforms
+        // transforms_instances). tl_prefix_suffix, tl_transforms and
+        // tl_params are offsets (within the workbuf) of the C code's
+        // prefix_suffix, transforms and params arrays. tl_map is the C code's
+        // prefix_suffix_map.
+        tl_prefix_suffix  : array[64] base.u32,
+        tl_map            : array[64] array[256] base.u16,
+        tl_num_transforms : array[64] base.u32,
+        tl_transforms     : array[64] base.u32,
+        tl_params         : array[64] base.u32,
+
+        // Staging areas for parse_shared_dictionary. They are copied to the
+        // sd_etc fields only if the whole serialized dictionary is valid.
+        stage_words       : array[64] base.u8,
+        stage_transforms  : array[64] base.u8,
+        stage_context_map : array[64] base.u8,
 )
 
 pub func decoder.get_quirk(key: base.u32) base.u64 {
+    if (args.key == QUIRK_LARGE_WINDOW) and this.quirk_large_window {
+        return 1
+    }
     return 0
 }
 
+// set_quirk mirrors BrotliDecoderSetParameter in decode.c, which fails once
+// decoding has started.
 pub func decoder.set_quirk!(key: base.u32, value: base.u64) base.status {
+    if args.key == QUIRK_LARGE_WINDOW {
+        if this.started {
+            return base."#bad call sequence"
+        }
+        this.quirk_large_window = args.value > 0
+        return ok
+    }
     return base."#unsupported option"
 }
 
@@ -238,10 +369,19 @@ pub func decoder.dst_history_retain_length() base.optional_u63 {
     return this.util.make_optional_u63(has_value: true, value: 0)
 }
 
+// workbuf_len is the total length of the dictionaries added so far (see
+// add_dictionary) plus the largest window size (for the QUIRK_LARGE_WINDOW
+// quirk's current value) plus WORKBUF_SLACK.
 pub func decoder.workbuf_len() base.range_ii_u64 {
+    var n : base.u64[..= 0x4000_021E]
+
+    n = DECODER_WORKBUF_LEN_STANDARD
+    if this.quirk_large_window {
+        n = DECODER_WORKBUF_LEN_LARGE_WINDOW
+    }
     return this.util.make_range_ii_u64(
-            min_incl: DECODER_WORKBUF_LEN_MAX_INCL_WORST_CASE,
-            max_incl: DECODER_WORKBUF_LEN_MAX_INCL_WORST_CASE)
+            min_incl: n + this.dict_total,
+            max_incl: n + this.dict_total)
 }
 
 // transform_io wraps do_transform_io, which decodes into the ring buffer (the
@@ -252,17 +392,31 @@ pub func decoder.workbuf_len() base.range_ii_u64 {
 // write" when it needs every decoded byte flushed before it can wrap around
 // the ring buffer. If this function can flush all of them, it resumes
 // do_transform_io immediately instead of suspending.
+//
+// The first this.dict_total bytes of args.workbuf hold the attached
+// dictionaries (see add_dictionary). The ring buffer follows them.
 pub func decoder.transform_io?(dst: base.io_writer, src: base.io_reader, workbuf: slice base.u8) {
     var status : base.status
 
     while true {
-        status =? this.do_transform_io?(src: args.src, workbuf: args.workbuf)
-        this.flush!(dst: args.dst, workbuf: args.workbuf)
+        if this.dict_total > args.workbuf.length() {
+            return base."#bad workbuf length"
+        }
+        status =? this.do_transform_io?(src: args.src,
+                workbuf: args.workbuf[this.dict_total ..],
+                dictbuf: args.workbuf[.. this.dict_total])
+        if this.dict_total > args.workbuf.length() {
+            return base."#bad workbuf length"
+        }
+        this.flush!(dst: args.dst, workbuf: args.workbuf[this.dict_total ..])
 
         if status.is_ok() {
             while not this.is_fully_flushed() {
                 yield? base."$short write"
-                this.flush!(dst: args.dst, workbuf: args.workbuf)
+                if this.dict_total > args.workbuf.length() {
+                    return base."#bad workbuf length"
+                }
+                this.flush!(dst: args.dst, workbuf: args.workbuf[this.dict_total ..])
             }
             return ok
 
@@ -310,7 +464,7 @@ pri func decoder.flush!(dst: base.io_writer, workbuf: slice base.u8) {
 
 // Mirrors the BROTLI_STATE_ETC state machine in BrotliDecoderDecompressStream
 // in decode.c.
-pri func decoder.do_transform_io?(src: base.io_reader, workbuf: slice base.u8) {
+pri func decoder.do_transform_io?(src: base.io_reader, workbuf: slice base.u8, dictbuf: roslice base.u8) {
     var w       : base.u64
     var aligned : base.bool
 
@@ -358,7 +512,7 @@ pri func decoder.do_transform_io?(src: base.io_reader, workbuf: slice base.u8) {
                 // BROTLI_STATE_UNCOMPRESSED.
                 this.copy_uncompressed?(src: args.src, workbuf: args.workbuf)
             } else {
-                this.decode_compressed_metablock?(src: args.src, workbuf: args.workbuf)
+                this.decode_compressed_metablock?(src: args.src, workbuf: args.workbuf, dictbuf: args.dictbuf)
             }
         }
 
@@ -386,6 +540,7 @@ pri func decoder.initialize_codes!() {
 
     this.bits = 0
     this.n_bits = 0
+    this.large_window = false
     this.pos = 0
     this.rb_size = 0
     this.rb_flushed = 0
@@ -450,6 +605,23 @@ pri func decoder.read_bits?(src: base.io_reader, n: base.u32[..= 24]) {
     this.bits_value = bits & (((1 as base.u32) << n) - 1)
     this.bits = bits >> n
     this.n_bits = n_bits - n
+}
+
+// read_bits32 is like read_bits but args.n can be up to 32. Mirrors
+// BrotliSafeReadBits32 in bit_reader.h.
+pri func decoder.read_bits32?(src: base.io_reader, n: base.u32[..= 32]) {
+    var n  : base.u32[..= 32]
+    var lo : base.u32
+
+    n = args.n
+    if n <= 24 {
+        this.read_bits?(src: args.src, n: n)
+        return ok
+    }
+    this.read_bits?(src: args.src, n: 16)
+    lo = this.bits_value & 0xFFFF
+    this.read_bits?(src: args.src, n: n - 16)
+    this.bits_value = lo | (this.bits_value ~mod<< 16)
 }
 
 // read_symbol reads one Huffman-encoded symbol, decoded by the table at
@@ -521,9 +693,11 @@ pri func decoder.jump_to_byte_boundary!() base.bool {
     return pad == 0
 }
 
-// Mirrors DecodeWindowBits in decode.c.
+// Mirrors DecodeWindowBits in decode.c, and the BROTLI_STATE_UNINITED and
+// BROTLI_STATE_LARGE_WINDOW_BITS states of BrotliDecoderDecompressStream.
 pri func decoder.decode_window_bits?(src: base.io_reader) {
     var n : base.u32[..= 7]
+    var w : base.u32[..= 63]
 
     this.read_bits?(src: args.src, n: 1)
     if this.bits_value == 0 {
@@ -537,12 +711,30 @@ pri func decoder.decode_window_bits?(src: base.io_reader) {
             this.read_bits?(src: args.src, n: 3)
             n = this.bits_value & 7
             if n == 1 {
-                // The C code would read a "Large Window Brotli" header, if
-                // BROTLI_DECODER_PARAM_LARGE_WINDOW was set, or otherwise fail
-                // with BROTLI_DECODER_ERROR_FORMAT_WINDOW_BITS.
-                //
-                // TODO: support large-window brotli.
-                return "#unsupported large window"
+                // The "Large Window Brotli" escape. Without the
+                // QUIRK_LARGE_WINDOW quirk (the C code's
+                // BROTLI_DECODER_PARAM_LARGE_WINDOW), the C code fails with
+                // BROTLI_DECODER_ERROR_FORMAT_WINDOW_BITS.
+                if not this.quirk_large_window {
+                    return "#unsupported large window"
+                }
+                this.read_bits?(src: args.src, n: 1)
+                if this.bits_value == 1 {
+                    return "#bad window bits"
+                }
+                // The C code is now in the BROTLI_STATE_LARGE_WINDOW_BITS
+                // state.
+                this.started = true
+                this.large_window = true
+                this.read_bits?(src: args.src, n: 6)
+                w = this.bits_value & 63
+                if (w < 10) or (30 < w) {
+                    return "#bad window bits"
+                }
+                this.window_bits = w
+                this.window_size = (1 as base.u32) << w
+                this.max_backward_distance = this.window_size - 16
+                return ok
             } else if n <> 0 {
                 this.window_bits = 8 + n
             } else {
@@ -553,6 +745,8 @@ pri func decoder.decode_window_bits?(src: base.io_reader) {
     if this.window_bits < 10 {
         return "#bad window bits"
     }
+    // The C code is now in the BROTLI_STATE_INITIALIZE state.
+    this.started = true
     this.window_size = (1 as base.u32) << this.window_bits
     // Maximum distance, see section 9.1. of the spec. BROTLI_WINDOW_GAP is 16.
     this.max_backward_distance = this.window_size - 16
