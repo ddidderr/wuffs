@@ -9279,9 +9279,9 @@ typedef struct wuffs_brotli__decoder__struct wuffs_brotli__decoder;
 
 typedef struct wuffs_brotli__bit_cost__struct wuffs_brotli__bit_cost;
 
-typedef struct wuffs_brotli__encoder__struct wuffs_brotli__encoder;
-
 typedef struct wuffs_brotli__metablock_builder__struct wuffs_brotli__metablock_builder;
+
+typedef struct wuffs_brotli__encoder__struct wuffs_brotli__encoder;
 
 typedef struct wuffs_brotli__metablock_tester__struct wuffs_brotli__metablock_tester;
 
@@ -9889,6 +9889,54 @@ struct wuffs_brotli__bit_cost__struct {
 
 };  // struct wuffs_brotli__bit_cost__struct
 
+struct wuffs_brotli__metablock_builder__struct {
+  // Do not access the private_impl's or private_data's fields directly. There
+  // is no API/ABI compatibility or safety guarantee if you do so. Instead, use
+  // the wuffs_foo__bar__baz functions.
+  //
+  // It is a struct, not a struct*, so that the outermost wuffs_foo__bar struct
+  // can be stack allocated when WUFFS_IMPLEMENTATION is defined.
+
+  struct {
+    uint32_t magic;
+    uint32_t active_coroutine;
+    wuffs_base__vtable null_vtable;
+
+    uint32_t f_quality;
+    bool f_large_window;
+    bool f_disable_lcm;
+    uint32_t f_dist_postfix_bits;
+    uint32_t f_dist_num_direct_codes;
+    uint32_t f_dist_alphabet_size_max;
+    uint32_t f_dist_alphabet_size_limit;
+    uint64_t f_dist_max_distance;
+    uint64_t f_split_num_types[3];
+    uint64_t f_split_num_blocks[3];
+    uint64_t f_split_types_off[3];
+    uint64_t f_split_lengths_off[3];
+    uint64_t f_context_map_off[3];
+    uint64_t f_context_map_size[3];
+    uint64_t f_histograms_off[3];
+    uint64_t f_histograms_size[3];
+    uint64_t f_wb_len;
+    uint64_t f_wb_top;
+    uint64_t f_wb_high;
+    bool f_oom;
+    uint64_t f_num_pairs;
+    uint64_t f_dist_cost;
+  } private_impl;
+
+  struct {
+    wuffs_softfloat__arith f_sf;
+    wuffs_brotli__bit_cost f_bc;
+    uint64_t f_cost[256];
+    uint64_t f_insert_cost[35200];
+    uint16_t f_new_id[256];
+    uint8_t f_good_for_rle[704];
+  } private_data;
+
+};  // struct wuffs_brotli__metablock_builder__struct
+
 struct wuffs_brotli__encoder__struct {
   // Do not access the private_impl's or private_data's fields directly. There
   // is no API/ABI compatibility or safety guarantee if you do so. Instead, use
@@ -9995,6 +10043,7 @@ struct wuffs_brotli__encoder__struct {
   struct {
     wuffs_softfloat__arith f_sf;
     wuffs_brotli__bit_cost f_bc;
+    wuffs_brotli__metablock_builder f_mb;
     uint8_t f_tiny_buf[32];
     uint8_t f_lit_depth[256];
     uint16_t f_lit_bits[256];
@@ -10042,7 +10091,6 @@ struct wuffs_brotli__encoder__struct {
     uint64_t f_gbs_last_entropy[128];
     uint64_t f_gbs_entropy_tmp[16];
     uint64_t f_gbs_comb_entropy[32];
-    uint8_t f_good_for_rle[1024];
     uint32_t f_be_histogram_length[4];
     uint32_t f_be_num_block_types[4];
     uint64_t f_be_num_blocks[4];
@@ -10192,54 +10240,6 @@ struct wuffs_brotli__encoder__struct {
 
 #endif  // __cplusplus
 };  // struct wuffs_brotli__encoder__struct
-
-struct wuffs_brotli__metablock_builder__struct {
-  // Do not access the private_impl's or private_data's fields directly. There
-  // is no API/ABI compatibility or safety guarantee if you do so. Instead, use
-  // the wuffs_foo__bar__baz functions.
-  //
-  // It is a struct, not a struct*, so that the outermost wuffs_foo__bar struct
-  // can be stack allocated when WUFFS_IMPLEMENTATION is defined.
-
-  struct {
-    uint32_t magic;
-    uint32_t active_coroutine;
-    wuffs_base__vtable null_vtable;
-
-    uint32_t f_quality;
-    bool f_large_window;
-    bool f_disable_lcm;
-    uint32_t f_dist_postfix_bits;
-    uint32_t f_dist_num_direct_codes;
-    uint32_t f_dist_alphabet_size_max;
-    uint32_t f_dist_alphabet_size_limit;
-    uint64_t f_dist_max_distance;
-    uint64_t f_split_num_types[3];
-    uint64_t f_split_num_blocks[3];
-    uint64_t f_split_types_off[3];
-    uint64_t f_split_lengths_off[3];
-    uint64_t f_context_map_off[3];
-    uint64_t f_context_map_size[3];
-    uint64_t f_histograms_off[3];
-    uint64_t f_histograms_size[3];
-    uint64_t f_wb_len;
-    uint64_t f_wb_top;
-    uint64_t f_wb_high;
-    bool f_oom;
-    uint64_t f_num_pairs;
-    uint64_t f_dist_cost;
-  } private_impl;
-
-  struct {
-    wuffs_softfloat__arith f_sf;
-    wuffs_brotli__bit_cost f_bc;
-    uint64_t f_cost[256];
-    uint64_t f_insert_cost[35200];
-    uint16_t f_new_id[256];
-    uint8_t f_good_for_rle[704];
-  } private_data;
-
-};  // struct wuffs_brotli__metablock_builder__struct
 
 struct wuffs_brotli__metablock_tester__struct {
   // Do not access the private_impl's or private_data's fields directly. There
@@ -69029,14 +69029,6 @@ wuffs_brotli__encoder__get_length_code(
     bool a_use_last_distance);
 
 WUFFS_BASE__GENERATED_C_CODE
-static uint64_t
-wuffs_brotli__encoder__prefix_encode_copy_distance(
-    const wuffs_brotli__encoder* self,
-    uint64_t a_distance_code,
-    uint64_t a_num_direct_codes,
-    uint32_t a_postfix_bits);
-
-WUFFS_BASE__GENERATED_C_CODE
 static wuffs_base__empty_struct
 wuffs_brotli__encoder__init_command(
     wuffs_brotli__encoder* self,
@@ -71079,30 +71071,6 @@ wuffs_brotli__encoder__optimize_histograms(
     uint32_t a_num_distance_codes);
 
 WUFFS_BASE__GENERATED_C_CODE
-static wuffs_base__empty_struct
-wuffs_brotli__encoder__optimize_huffman_counts_for_rle(
-    wuffs_brotli__encoder* self,
-    wuffs_base__slice_u8 a_wb,
-    uint64_t a_off,
-    uint64_t a_length);
-
-WUFFS_BASE__GENERATED_C_CODE
-static uint32_t
-wuffs_brotli__encoder__ctr(
-    const wuffs_brotli__encoder* self,
-    wuffs_base__slice_u8 a_wb,
-    uint64_t a_off,
-    uint64_t a_i);
-
-WUFFS_BASE__GENERATED_C_CODE
-static uint64_t
-wuffs_brotli__encoder__rle_limit3(
-    const wuffs_brotli__encoder* self,
-    wuffs_base__slice_u8 a_wb,
-    uint64_t a_off,
-    uint64_t a_i);
-
-WUFFS_BASE__GENERATED_C_CODE
 static uint8_t
 wuffs_brotli__encoder__byte_at(
     const wuffs_brotli__encoder* self,
@@ -71321,87 +71289,6 @@ wuffs_brotli__bit_cost__initialize(
 }
 
 wuffs_base__status WUFFS_BASE__WARN_UNUSED_RESULT
-wuffs_brotli__encoder__initialize(
-    wuffs_brotli__encoder* self,
-    size_t sizeof_star_self,
-    uint64_t wuffs_version,
-    uint32_t options){
-  if (!self) {
-    return wuffs_base__make_status(wuffs_base__error__bad_receiver);
-  }
-  if (sizeof(*self) != sizeof_star_self) {
-    return wuffs_base__make_status(wuffs_base__error__bad_sizeof_receiver);
-  }
-  if (((wuffs_version >> 32) != WUFFS_VERSION_MAJOR) ||
-      (((wuffs_version >> 16) & 0xFFFF) > WUFFS_VERSION_MINOR)) {
-    return wuffs_base__make_status(wuffs_base__error__bad_wuffs_version);
-  }
-
-  if ((options & WUFFS_INITIALIZE__ALREADY_ZEROED) != 0) {
-    // The whole point of this if-check is to detect an uninitialized *self.
-    // We disable the warning on GCC. Clang-5.0 does not have this warning.
-#if !defined(__clang__) && defined(__GNUC__)
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
-#endif
-    if (self->private_impl.magic != 0) {
-      return wuffs_base__make_status(wuffs_base__error__initialize_falsely_claimed_already_zeroed);
-    }
-#if !defined(__clang__) && defined(__GNUC__)
-#pragma GCC diagnostic pop
-#endif
-  } else {
-    if ((options & WUFFS_INITIALIZE__LEAVE_INTERNAL_BUFFERS_UNINITIALIZED) == 0) {
-      memset(self, 0, sizeof(*self));
-      options |= WUFFS_INITIALIZE__ALREADY_ZEROED;
-    } else {
-      memset(&(self->private_impl), 0, sizeof(self->private_impl));
-    }
-  }
-
-  {
-    wuffs_base__status z = wuffs_softfloat__arith__initialize(
-        &self->private_data.f_sf, sizeof(self->private_data.f_sf), WUFFS_VERSION, options);
-    if (z.repr) {
-      return z;
-    }
-  }
-  {
-    wuffs_base__status z = wuffs_brotli__bit_cost__initialize(
-        &self->private_data.f_bc, sizeof(self->private_data.f_bc), WUFFS_VERSION, options);
-    if (z.repr) {
-      return z;
-    }
-  }
-  self->private_impl.magic = WUFFS_BASE__MAGIC;
-  self->private_impl.vtable_for__wuffs_base__io_transformer.vtable_name =
-      wuffs_base__io_transformer__vtable_name;
-  self->private_impl.vtable_for__wuffs_base__io_transformer.function_pointers =
-      (const void*)(&wuffs_brotli__encoder__func_ptrs_for__wuffs_base__io_transformer);
-  return wuffs_base__make_status(NULL);
-}
-
-wuffs_brotli__encoder*
-wuffs_brotli__encoder__alloc(void) {
-  wuffs_brotli__encoder* x =
-      (wuffs_brotli__encoder*)(calloc(1, sizeof(wuffs_brotli__encoder)));
-  if (!x) {
-    return NULL;
-  }
-  if (wuffs_brotli__encoder__initialize(
-      x, sizeof(wuffs_brotli__encoder), WUFFS_VERSION, WUFFS_INITIALIZE__ALREADY_ZEROED).repr) {
-    free(x);
-    return NULL;
-  }
-  return x;
-}
-
-size_t
-sizeof__wuffs_brotli__encoder(void) {
-  return sizeof(wuffs_brotli__encoder);
-}
-
-wuffs_base__status WUFFS_BASE__WARN_UNUSED_RESULT
 wuffs_brotli__metablock_builder__initialize(
     wuffs_brotli__metablock_builder* self,
     size_t sizeof_star_self,
@@ -71456,6 +71343,94 @@ wuffs_brotli__metablock_builder__initialize(
   }
   self->private_impl.magic = WUFFS_BASE__MAGIC;
   return wuffs_base__make_status(NULL);
+}
+
+wuffs_base__status WUFFS_BASE__WARN_UNUSED_RESULT
+wuffs_brotli__encoder__initialize(
+    wuffs_brotli__encoder* self,
+    size_t sizeof_star_self,
+    uint64_t wuffs_version,
+    uint32_t options){
+  if (!self) {
+    return wuffs_base__make_status(wuffs_base__error__bad_receiver);
+  }
+  if (sizeof(*self) != sizeof_star_self) {
+    return wuffs_base__make_status(wuffs_base__error__bad_sizeof_receiver);
+  }
+  if (((wuffs_version >> 32) != WUFFS_VERSION_MAJOR) ||
+      (((wuffs_version >> 16) & 0xFFFF) > WUFFS_VERSION_MINOR)) {
+    return wuffs_base__make_status(wuffs_base__error__bad_wuffs_version);
+  }
+
+  if ((options & WUFFS_INITIALIZE__ALREADY_ZEROED) != 0) {
+    // The whole point of this if-check is to detect an uninitialized *self.
+    // We disable the warning on GCC. Clang-5.0 does not have this warning.
+#if !defined(__clang__) && defined(__GNUC__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
+#endif
+    if (self->private_impl.magic != 0) {
+      return wuffs_base__make_status(wuffs_base__error__initialize_falsely_claimed_already_zeroed);
+    }
+#if !defined(__clang__) && defined(__GNUC__)
+#pragma GCC diagnostic pop
+#endif
+  } else {
+    if ((options & WUFFS_INITIALIZE__LEAVE_INTERNAL_BUFFERS_UNINITIALIZED) == 0) {
+      memset(self, 0, sizeof(*self));
+      options |= WUFFS_INITIALIZE__ALREADY_ZEROED;
+    } else {
+      memset(&(self->private_impl), 0, sizeof(self->private_impl));
+    }
+  }
+
+  {
+    wuffs_base__status z = wuffs_softfloat__arith__initialize(
+        &self->private_data.f_sf, sizeof(self->private_data.f_sf), WUFFS_VERSION, options);
+    if (z.repr) {
+      return z;
+    }
+  }
+  {
+    wuffs_base__status z = wuffs_brotli__bit_cost__initialize(
+        &self->private_data.f_bc, sizeof(self->private_data.f_bc), WUFFS_VERSION, options);
+    if (z.repr) {
+      return z;
+    }
+  }
+  {
+    wuffs_base__status z = wuffs_brotli__metablock_builder__initialize(
+        &self->private_data.f_mb, sizeof(self->private_data.f_mb), WUFFS_VERSION, options);
+    if (z.repr) {
+      return z;
+    }
+  }
+  self->private_impl.magic = WUFFS_BASE__MAGIC;
+  self->private_impl.vtable_for__wuffs_base__io_transformer.vtable_name =
+      wuffs_base__io_transformer__vtable_name;
+  self->private_impl.vtable_for__wuffs_base__io_transformer.function_pointers =
+      (const void*)(&wuffs_brotli__encoder__func_ptrs_for__wuffs_base__io_transformer);
+  return wuffs_base__make_status(NULL);
+}
+
+wuffs_brotli__encoder*
+wuffs_brotli__encoder__alloc(void) {
+  wuffs_brotli__encoder* x =
+      (wuffs_brotli__encoder*)(calloc(1, sizeof(wuffs_brotli__encoder)));
+  if (!x) {
+    return NULL;
+  }
+  if (wuffs_brotli__encoder__initialize(
+      x, sizeof(wuffs_brotli__encoder), WUFFS_VERSION, WUFFS_INITIALIZE__ALREADY_ZEROED).repr) {
+    free(x);
+    return NULL;
+  }
+  return x;
+}
+
+size_t
+sizeof__wuffs_brotli__encoder(void) {
+  return sizeof(wuffs_brotli__encoder);
 }
 
 wuffs_base__status WUFFS_BASE__WARN_UNUSED_RESULT
@@ -75594,40 +75569,6 @@ wuffs_brotli__encoder__get_length_code(
   return wuffs_brotli__encoder__combine_length_codes(self, wuffs_brotli__encoder__get_insert_length_code(self, a_insertlen), wuffs_brotli__encoder__get_copy_length_code(self, a_copylen), a_use_last_distance);
 }
 
-// -------- func brotli.encoder.prefix_encode_copy_distance
-
-WUFFS_BASE__GENERATED_C_CODE
-static uint64_t
-wuffs_brotli__encoder__prefix_encode_copy_distance(
-    const wuffs_brotli__encoder* self,
-    uint64_t a_distance_code,
-    uint64_t a_num_direct_codes,
-    uint32_t a_postfix_bits) {
-  uint64_t v_dist = 0;
-  uint64_t v_bucket = 0;
-  uint64_t v_postfix_mask = 0;
-  uint64_t v_postfix = 0;
-  uint64_t v_prefix = 0;
-  uint64_t v_offset = 0;
-  uint64_t v_nbits = 0;
-  uint64_t v_code = 0;
-  uint64_t v_extra = 0;
-
-  if (a_distance_code < ((uint64_t)(16u + a_num_direct_codes))) {
-    return (a_distance_code & 65535u);
-  }
-  v_dist = ((uint64_t)((((uint64_t)(1u)) << ((a_postfix_bits + 2u) & 63u)) + ((uint64_t)(((uint64_t)(a_distance_code - 16u)) - a_num_direct_codes))));
-  v_bucket = ((uint64_t)(((uint64_t)(wuffs_brotli__encoder__log2_floor_non_zero(self, v_dist))) - 1u));
-  v_postfix_mask = ((uint64_t)((((uint64_t)(1u)) << (a_postfix_bits & 63u)) - 1u));
-  v_postfix = (v_dist & v_postfix_mask);
-  v_prefix = ((v_dist >> (v_bucket & 63u)) & 1u);
-  v_offset = ((uint64_t)(((uint64_t)(2u + v_prefix)) << (v_bucket & 63u)));
-  v_nbits = ((uint64_t)(v_bucket - ((uint64_t)(a_postfix_bits))));
-  v_code = (((uint64_t)(v_nbits << 10u)) | ((uint64_t)(((uint64_t)(((uint64_t)(16u + a_num_direct_codes)) + ((uint64_t)(((uint64_t)(((uint64_t)(2u * ((uint64_t)(v_nbits - 1u)))) + v_prefix)) << (a_postfix_bits & 63u))))) + v_postfix)));
-  v_extra = ((((uint64_t)(v_dist - v_offset)) >> (a_postfix_bits & 63u)) & 4294967295u);
-  return ((v_code & 65535u) | (v_extra << 32u));
-}
-
 // -------- func brotli.encoder.init_command
 
 WUFFS_BASE__GENERATED_C_CODE
@@ -75646,7 +75587,7 @@ wuffs_brotli__encoder__init_command(
   uint16_t v_cmd_prefix = 0;
 
   v_delta = ((uint32_t)((a_copylen_code_delta & 255u)));
-  v_pe = wuffs_brotli__encoder__prefix_encode_copy_distance(self, a_distance_code, ((uint64_t)(self->private_impl.f_num_direct_distance_codes)), (self->private_impl.f_distance_postfix_bits & 3u));
+  v_pe = wuffs_brotli__metablock_builder__prefix_encode_copy_distance(&self->private_data.f_mb, a_distance_code, ((uint64_t)(self->private_impl.f_num_direct_distance_codes)), self->private_impl.f_distance_postfix_bits);
   v_dist_prefix = ((uint16_t)(v_pe));
   v_cmd_prefix = wuffs_brotli__encoder__get_length_code(self, a_insertlen, ((uint64_t)(a_copylen + a_copylen_code_delta)), (((uint16_t)(v_dist_prefix & 1023u)) == 0u));
   wuffs_brotli__encoder__set_cmd(self,
@@ -75688,29 +75629,11 @@ wuffs_brotli__encoder__cmd_restore_distance_code(
     const wuffs_brotli__encoder* self,
     wuffs_base__slice_u8 a_wb,
     uint64_t a_i) {
-  uint32_t v_dist_prefix = 0;
-  uint32_t v_dcode = 0;
-  uint32_t v_nbits = 0;
-  uint32_t v_extra = 0;
-  uint32_t v_postfix_mask = 0;
-  uint32_t v_hcode = 0;
-  uint32_t v_lcode = 0;
-  uint32_t v_offset = 0;
-  uint32_t v_npostfix = 0;
-
-  v_dist_prefix = ((uint32_t)(wuffs_brotli__encoder__cmd_dist_prefix(self, a_wb, a_i)));
-  v_npostfix = (self->private_impl.f_distance_postfix_bits & 31u);
-  if ((v_dist_prefix & 1023u) < ((uint32_t)(16u + self->private_impl.f_num_direct_distance_codes))) {
-    return (v_dist_prefix & 1023u);
-  }
-  v_dcode = (v_dist_prefix & 1023u);
-  v_nbits = (v_dist_prefix >> 10u);
-  v_extra = wuffs_brotli__encoder__cmd_dist_extra(self, a_wb, a_i);
-  v_postfix_mask = ((uint32_t)((((uint32_t)(1u)) << v_npostfix) - 1u));
-  v_hcode = (((uint32_t)(((uint32_t)(v_dcode - self->private_impl.f_num_direct_distance_codes)) - 16u)) >> v_npostfix);
-  v_lcode = (((uint32_t)(((uint32_t)(v_dcode - self->private_impl.f_num_direct_distance_codes)) - 16u)) & v_postfix_mask);
-  v_offset = ((uint32_t)(((uint32_t)(((uint32_t)(2u + (v_hcode & 1u))) << (v_nbits & 31u))) - 4u));
-  return ((uint32_t)(((uint32_t)(((uint32_t)(((uint32_t)(((uint32_t)(v_offset + v_extra)) << v_npostfix)) + v_lcode)) + self->private_impl.f_num_direct_distance_codes)) + 16u));
+  return wuffs_brotli__metablock_builder__command_restore_distance_code(&self->private_data.f_mb,
+      a_wb,
+      ((uint64_t)(self->private_impl.f_cmds_off + ((uint64_t)(a_i * 16u)))),
+      self->private_impl.f_distance_postfix_bits,
+      self->private_impl.f_num_direct_distance_codes);
 }
 
 // -------- func brotli.encoder.compute_distance_code
@@ -80663,14 +80586,10 @@ WUFFS_BASE__GENERATED_C_CODE
 static wuffs_base__empty_struct
 wuffs_brotli__encoder__init_distance_params(
     wuffs_brotli__encoder* self) {
-  uint32_t v_npostfix = 0;
-  uint32_t v_ndirect = 0;
-
-  v_npostfix = (self->private_impl.f_distance_postfix_bits & 3u);
-  v_ndirect = self->private_impl.f_num_direct_distance_codes;
-  self->private_impl.f_dist_alphabet_size_max = ((uint32_t)(((uint32_t)(16u + v_ndirect)) + (((uint32_t)(24u)) << (v_npostfix + 1u))));
-  self->private_impl.f_dist_alphabet_size_limit = self->private_impl.f_dist_alphabet_size_max;
-  self->private_impl.f_dist_max_distance = ((uint64_t)(((uint32_t)(((uint32_t)(v_ndirect + (((uint32_t)(1u)) << (24u + v_npostfix + 2u)))) - (((uint32_t)(1u)) << (v_npostfix + 2u))))));
+  wuffs_brotli__metablock_builder__init_distance_params(&self->private_data.f_mb, self->private_impl.f_distance_postfix_bits, self->private_impl.f_num_direct_distance_codes, self->private_impl.f_large_window);
+  self->private_impl.f_dist_alphabet_size_max = self->private_data.f_mb.private_impl.f_dist_alphabet_size_max;
+  self->private_impl.f_dist_alphabet_size_limit = self->private_data.f_mb.private_impl.f_dist_alphabet_size_limit;
+  self->private_impl.f_dist_max_distance = self->private_data.f_mb.private_impl.f_dist_max_distance;
   return wuffs_base__make_empty_struct();
 }
 
@@ -87108,202 +87027,20 @@ wuffs_brotli__encoder__optimize_histograms(
 
   v_i = 0u;
   while (v_i < self->private_data.f_gbs_histograms_size[0u]) {
-    wuffs_brotli__encoder__optimize_huffman_counts_for_rle(self, a_wb, wuffs_brotli__encoder__gbs_histo_off(self, 0u, v_i), 256u);
+    wuffs_brotli__metablock_builder__optimize_huffman_counts_for_rle(&self->private_data.f_mb, a_wb, wuffs_brotli__encoder__gbs_histo_off(self, 0u, v_i), 256u);
     v_i += 1u;
   }
   v_i = 0u;
   while (v_i < self->private_data.f_gbs_histograms_size[1u]) {
-    wuffs_brotli__encoder__optimize_huffman_counts_for_rle(self, a_wb, wuffs_brotli__encoder__gbs_histo_off(self, 1u, v_i), 704u);
+    wuffs_brotli__metablock_builder__optimize_huffman_counts_for_rle(&self->private_data.f_mb, a_wb, wuffs_brotli__encoder__gbs_histo_off(self, 1u, v_i), 704u);
     v_i += 1u;
   }
   v_i = 0u;
   while (v_i < self->private_data.f_gbs_histograms_size[2u]) {
-    wuffs_brotli__encoder__optimize_huffman_counts_for_rle(self, a_wb, wuffs_brotli__encoder__gbs_histo_off(self, 2u, v_i), ((uint64_t)(a_num_distance_codes)));
+    wuffs_brotli__metablock_builder__optimize_huffman_counts_for_rle(&self->private_data.f_mb, a_wb, wuffs_brotli__encoder__gbs_histo_off(self, 2u, v_i), ((uint64_t)(a_num_distance_codes)));
     v_i += 1u;
   }
   return wuffs_base__make_empty_struct();
-}
-
-// -------- func brotli.encoder.optimize_huffman_counts_for_rle
-
-WUFFS_BASE__GENERATED_C_CODE
-static wuffs_base__empty_struct
-wuffs_brotli__encoder__optimize_huffman_counts_for_rle(
-    wuffs_brotli__encoder* self,
-    wuffs_base__slice_u8 a_wb,
-    uint64_t a_off,
-    uint64_t a_length) {
-  uint64_t v_length = 0;
-  uint64_t v_nonzero_count = 0;
-  uint64_t v_stride = 0;
-  uint64_t v_limit = 0;
-  uint64_t v_sum = 0;
-  uint64_t v_i = 0;
-  uint64_t v_k = 0;
-  uint64_t v_nonzeros = 0;
-  uint32_t v_smallest_nonzero = 0;
-  uint64_t v_zeros = 0;
-  uint32_t v_symbol = 0;
-  uint64_t v_step = 0;
-  uint64_t v_count = 0;
-  uint32_t v_c = 0;
-  bool v_cond = false;
-
-  v_length = wuffs_base__u64__min(a_length, 704u);
-  v_i = 0u;
-  while (v_i < v_length) {
-    if (wuffs_brotli__encoder__ctr(self, a_wb, a_off, v_i) != 0u) {
-      v_nonzero_count += 1u;
-    }
-    v_i += 1u;
-  }
-  if (v_nonzero_count < 16u) {
-    return wuffs_base__make_empty_struct();
-  }
-  while ((v_length != 0u) && (wuffs_brotli__encoder__ctr(self, a_wb, a_off, ((uint64_t)(v_length - 1u))) == 0u)) {
-    v_length -= 1u;
-  }
-  if (v_length == 0u) {
-    return wuffs_base__make_empty_struct();
-  }
-  v_smallest_nonzero = 1073741824u;
-  v_i = 0u;
-  while (v_i < v_length) {
-    v_c = wuffs_brotli__encoder__ctr(self, a_wb, a_off, v_i);
-    if (v_c != 0u) {
-      v_nonzeros += 1u;
-      if (v_smallest_nonzero > v_c) {
-        v_smallest_nonzero = v_c;
-      }
-    }
-    v_i += 1u;
-  }
-  if (v_nonzeros < 5u) {
-    return wuffs_base__make_empty_struct();
-  }
-  if (v_smallest_nonzero < 4u) {
-    v_zeros = ((uint64_t)(v_length - v_nonzeros));
-    if (v_zeros < 6u) {
-      v_i = 1u;
-      while (((uint64_t)(v_i + 1u)) < v_length) {
-        if ((wuffs_brotli__encoder__ctr(self, a_wb, a_off, ((uint64_t)(v_i - 1u))) != 0u) && (wuffs_brotli__encoder__ctr(self, a_wb, a_off, v_i) == 0u) && (wuffs_brotli__encoder__ctr(self, a_wb, a_off, ((uint64_t)(v_i + 1u))) != 0u)) {
-          wuffs_brotli__encoder__poke_u32(self, a_wb, ((uint64_t)(a_off + ((uint64_t)(v_i * 4u)))), 1u);
-        }
-        v_i += 1u;
-      }
-    }
-  }
-  if (v_nonzeros < 28u) {
-    return wuffs_base__make_empty_struct();
-  }
-  v_i = 0u;
-  while (v_i < v_length) {
-    self->private_data.f_good_for_rle[(v_i & 1023u)] = 0u;
-    v_i += 1u;
-  }
-  v_symbol = wuffs_brotli__encoder__ctr(self, a_wb, a_off, 0u);
-  v_step = 0u;
-  v_i = 0u;
-  while (v_i <= v_length) {
-    if ((v_i == v_length) || (wuffs_brotli__encoder__ctr(self, a_wb, a_off, v_i) != v_symbol)) {
-      if (((v_symbol == 0u) && (v_step >= 5u)) || ((v_symbol != 0u) && (v_step >= 7u))) {
-        v_k = 0u;
-        while (v_k < v_step) {
-          self->private_data.f_good_for_rle[(((uint64_t)(((uint64_t)(v_i - v_k)) - 1u)) & 1023u)] = 1u;
-          v_k += 1u;
-        }
-      }
-      v_step = 1u;
-      if (v_i != v_length) {
-        v_symbol = wuffs_brotli__encoder__ctr(self, a_wb, a_off, v_i);
-      }
-    } else {
-      v_step += 1u;
-    }
-    v_i += 1u;
-  }
-  v_stride = 0u;
-  v_limit = wuffs_brotli__encoder__rle_limit3(self, a_wb, a_off, 0u);
-  v_sum = 0u;
-  v_i = 0u;
-  while (v_i <= v_length) {
-    v_cond = (v_i == v_length);
-    if ( ! v_cond) {
-      v_cond = (self->private_data.f_good_for_rle[(v_i & 1023u)] != 0u);
-    }
-    if ( ! v_cond && (v_i != 0u)) {
-      v_cond = (self->private_data.f_good_for_rle[((v_i - 1u) & 1023u)] != 0u);
-    }
-    if ( ! v_cond) {
-      v_cond = (((uint64_t)(((uint64_t)(((uint64_t)(((uint32_t)(wuffs_brotli__encoder__ctr(self, a_wb, a_off, v_i) * 256u)))) - v_limit)) + 1240u)) >= 2480u);
-    }
-    if (v_cond) {
-      if ((v_stride >= 4u) || ((v_stride >= 3u) && (v_sum == 0u))) {
-        v_count = (((uint64_t)(v_sum + (v_stride / 2u))) / wuffs_base__u64__max(v_stride, 1u));
-        if (v_count == 0u) {
-          v_count = 1u;
-        }
-        if (v_sum == 0u) {
-          v_count = 0u;
-        }
-        v_k = 0u;
-        while (v_k < v_stride) {
-          wuffs_brotli__encoder__poke_u32(self, a_wb, ((uint64_t)(a_off + ((uint64_t)(((uint64_t)(((uint64_t)(v_i - v_k)) - 1u)) * 4u)))), ((uint32_t)(v_count)));
-          v_k += 1u;
-        }
-      }
-      v_stride = 0u;
-      v_sum = 0u;
-      if (((uint64_t)(v_i + 2u)) < v_length) {
-        v_limit = wuffs_brotli__encoder__rle_limit3(self, a_wb, a_off, v_i);
-      } else if (v_i < v_length) {
-        v_limit = ((uint64_t)(((uint32_t)(wuffs_brotli__encoder__ctr(self, a_wb, a_off, v_i) * 256u))));
-      } else {
-        v_limit = 0u;
-      }
-    }
-    v_stride += 1u;
-    if (v_i != v_length) {
-      v_sum += ((uint64_t)(wuffs_brotli__encoder__ctr(self, a_wb, a_off, v_i)));
-      if (v_stride >= 4u) {
-        v_limit = (((uint64_t)(((uint64_t)(v_sum * 256u)) + (v_stride / 2u))) / wuffs_base__u64__max(v_stride, 1u));
-      }
-      if (v_stride == 4u) {
-        v_limit += 120u;
-      }
-    }
-    v_i += 1u;
-  }
-  return wuffs_base__make_empty_struct();
-}
-
-// -------- func brotli.encoder.ctr
-
-WUFFS_BASE__GENERATED_C_CODE
-static uint32_t
-wuffs_brotli__encoder__ctr(
-    const wuffs_brotli__encoder* self,
-    wuffs_base__slice_u8 a_wb,
-    uint64_t a_off,
-    uint64_t a_i) {
-  return wuffs_brotli__encoder__load32le(self, a_wb, ((uint64_t)(a_off + ((uint64_t)(a_i * 4u)))));
-}
-
-// -------- func brotli.encoder.rle_limit3
-
-WUFFS_BASE__GENERATED_C_CODE
-static uint64_t
-wuffs_brotli__encoder__rle_limit3(
-    const wuffs_brotli__encoder* self,
-    wuffs_base__slice_u8 a_wb,
-    uint64_t a_off,
-    uint64_t a_i) {
-  uint32_t v_s = 0;
-
-  v_s = wuffs_brotli__encoder__ctr(self, a_wb, a_off, a_i);
-  v_s += wuffs_brotli__encoder__ctr(self, a_wb, a_off, ((uint64_t)(a_i + 1u)));
-  v_s += wuffs_brotli__encoder__ctr(self, a_wb, a_off, ((uint64_t)(a_i + 2u)));
-  return ((uint64_t)(((uint32_t)((((uint32_t)(v_s * 256u)) / 3u) + 420u))));
 }
 
 // -------- func brotli.metablock_tester.bits_entropy

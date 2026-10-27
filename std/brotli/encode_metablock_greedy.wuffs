@@ -12,8 +12,9 @@
 
 // This file mirrors BrotliBuildMetaBlockGreedy (metablock.c and
 // metablock_inc.h), the metablock builder for qualities 4 to 9, and
-// BrotliOptimizeHistograms (metablock.c) with
-// BrotliOptimizeHuffmanCountsForRle (entropy_encode.c).
+// BrotliOptimizeHistograms (metablock.c) for its output. The latter uses
+// metablock_builder.optimize_huffman_counts_for_rle (see
+// encode_metablock.wuffs) for BrotliOptimizeHuffmanCountsForRle.
 //
 // The C code's three FN(BlockSplitter)s and its ContextBlockSplitter are one
 // greedy block splitter here (the gbs_etc functions and fields), indexed by
@@ -424,202 +425,18 @@ pri func encoder.optimize_histograms!(wb: slice base.u8, num_distance_codes: bas
 
     i = 0
     while i < this.gbs_histograms_size[0] {
-        this.optimize_huffman_counts_for_rle!(wb: args.wb, off: this.gbs_histo_off(c: 0, ix: i), length: 256)
+        this.mb.optimize_huffman_counts_for_rle!(wb: args.wb, counts: this.gbs_histo_off(c: 0, ix: i), length: 256)
         i ~mod+= 1
     }
     i = 0
     while i < this.gbs_histograms_size[1] {
-        this.optimize_huffman_counts_for_rle!(wb: args.wb, off: this.gbs_histo_off(c: 1, ix: i), length: 704)
+        this.mb.optimize_huffman_counts_for_rle!(wb: args.wb, counts: this.gbs_histo_off(c: 1, ix: i), length: 704)
         i ~mod+= 1
     }
     i = 0
     while i < this.gbs_histograms_size[2] {
-        this.optimize_huffman_counts_for_rle!(wb: args.wb, off: this.gbs_histo_off(c: 2, ix: i),
+        this.mb.optimize_huffman_counts_for_rle!(wb: args.wb, counts: this.gbs_histo_off(c: 2, ix: i),
                 length: args.num_distance_codes as base.u64)
         i ~mod+= 1
     }
-}
-
-// Mirrors BrotliOptimizeHuffmanCountsForRle in entropy_encode.c, for the
-// length u32le counts at args.wb[off ..]. The good_for_rle array is
-// this.good_for_rle.
-pri func encoder.optimize_huffman_counts_for_rle!(wb: slice base.u8, off: base.u64, length: base.u64) {
-    var length           : base.u64
-    var nonzero_count    : base.u64
-    var stride           : base.u64
-    var limit            : base.u64
-    var sum              : base.u64
-    var i                : base.u64
-    var k                : base.u64
-    var nonzeros         : base.u64
-    var smallest_nonzero : base.u32
-    var zeros            : base.u64
-    var symbol           : base.u32
-    var step             : base.u64
-    var count            : base.u64
-    var c                : base.u32
-    var cond             : base.bool
-
-    length = args.length.min(no_more_than: 704)
-    i = 0
-    while i < length {
-        if this.ctr(wb: args.wb, off: args.off, i: i) <> 0 {
-            nonzero_count ~mod+= 1
-        }
-        i ~mod+= 1
-    }
-    if nonzero_count < 16 {
-        return nothing
-    }
-    while (length <> 0) and (this.ctr(wb: args.wb, off: args.off, i: length ~mod- 1) == 0) {
-        length ~mod-= 1
-    }
-    if length == 0 {
-        return nothing  // All zeros.
-    }
-    // Now counts[0..length - 1] does not have trailing zeros.
-    smallest_nonzero = 0x4000_0000
-    i = 0
-    while i < length {
-        c = this.ctr(wb: args.wb, off: args.off, i: i)
-        if c <> 0 {
-            nonzeros ~mod+= 1
-            if smallest_nonzero > c {
-                smallest_nonzero = c
-            }
-        }
-        i ~mod+= 1
-    }
-    if nonzeros < 5 {
-        // Small histogram will model it well.
-        return nothing
-    }
-    if smallest_nonzero < 4 {
-        zeros = length ~mod- nonzeros
-        if zeros < 6 {
-            i = 1
-            while (i ~mod+ 1) < length {
-                if (this.ctr(wb: args.wb, off: args.off, i: i ~mod- 1) <> 0) and
-                        (this.ctr(wb: args.wb, off: args.off, i: i) == 0) and
-                        (this.ctr(wb: args.wb, off: args.off, i: i ~mod+ 1) <> 0) {
-                    this.poke_u32!(s: args.wb, i: args.off ~mod+ (i ~mod* 4), v: 1)
-                }
-                i ~mod+= 1
-            }
-        }
-    }
-    if nonzeros < 28 {
-        return nothing
-    }
-
-    // 2) Let's mark all population counts that already can be encoded with
-    // an RLE code.
-    i = 0
-    while i < length {
-        this.good_for_rle[i & 1023] = 0
-        i ~mod+= 1
-    }
-    // Let's not spoil any of the existing good RLE codes. Mark any seq of 0's
-    // that is longer as 5 as a good_for_rle. Mark any seq of non-0's that is
-    // longer as 7 as a good_for_rle.
-    symbol = this.ctr(wb: args.wb, off: args.off, i: 0)
-    step = 0
-    i = 0
-    while i <= length {
-        if (i == length) or (this.ctr(wb: args.wb, off: args.off, i: i) <> symbol) {
-            if ((symbol == 0) and (step >= 5)) or ((symbol <> 0) and (step >= 7)) {
-                k = 0
-                while k < step {
-                    this.good_for_rle[((i ~mod- k) ~mod- 1) & 1023] = 1
-                    k ~mod+= 1
-                }
-            }
-            step = 1
-            if i <> length {
-                symbol = this.ctr(wb: args.wb, off: args.off, i: i)
-            }
-        } else {
-            step ~mod+= 1
-        }
-        i ~mod+= 1
-    }
-
-    // 3) Let's replace those population counts that lead to more RLE codes.
-    // Math here is in 24.8 fixed point representation.
-    stride = 0
-    limit = this.rle_limit3(wb: args.wb, off: args.off, i: 0)
-    sum = 0
-    i = 0
-    while i <= length {
-        cond = (i == length)
-        if not cond {
-            cond = (this.good_for_rle[i & 1023] <> 0)
-        }
-        if (not cond) and (i <> 0) {
-            cond = (this.good_for_rle[(i - 1) & 1023] <> 0)
-        }
-        if not cond {
-            cond = ((((this.ctr(wb: args.wb, off: args.off, i: i) ~mod* 256) as base.u64) ~mod- limit) ~mod+ 1240) >= 2480
-        }
-        if cond {
-            if (stride >= 4) or ((stride >= 3) and (sum == 0)) {
-                // The stride must end, collapse what we have, if we have
-                // enough (4).
-                count = (sum ~mod+ (stride / 2)) / stride.max(no_less_than: 1)
-                if count == 0 {
-                    count = 1
-                }
-                if sum == 0 {
-                    // Don't make an all zeros stride to be upgraded to ones.
-                    count = 0
-                }
-                k = 0
-                while k < stride {
-                    // We don't want to change value at counts[i], that is
-                    // already belonging to the next stride. Thus - 1.
-                    this.poke_u32!(s: args.wb, i: args.off ~mod+ (((i ~mod- k) ~mod- 1) ~mod* 4),
-                            v: (count & 0xFFFF_FFFF) as base.u32)
-                    k ~mod+= 1
-                }
-            }
-            stride = 0
-            sum = 0
-            if (i ~mod+ 2) < length {
-                // All interesting strides have a count of at least 4, at
-                // least when non-zeros.
-                limit = this.rle_limit3(wb: args.wb, off: args.off, i: i)
-            } else if i < length {
-                limit = (this.ctr(wb: args.wb, off: args.off, i: i) ~mod* 256) as base.u64
-            } else {
-                limit = 0
-            }
-        }
-        stride ~mod+= 1
-        if i <> length {
-            sum ~mod+= this.ctr(wb: args.wb, off: args.off, i: i) as base.u64
-            if stride >= 4 {
-                limit = ((sum ~mod* 256) ~mod+ (stride / 2)) / stride.max(no_less_than: 1)
-            }
-            if stride == 4 {
-                limit ~mod+= 120
-            }
-        }
-        i ~mod+= 1
-    }
-}
-
-// ctr returns counts[i], the u32le at args.wb[off + (4 * i) ..].
-pri func encoder.ctr(wb: roslice base.u8, off: base.u64, i: base.u64) base.u32 {
-    return this.load32le(s: args.wb, i: args.off ~mod+ (args.i ~mod* 4))
-}
-
-// rle_limit3 returns the C code's (size_t)(256 * (counts[i] + counts[i + 1]
-// + counts[i + 2]) / 3 + 420), computed in uint32_t arithmetic.
-pri func encoder.rle_limit3(wb: roslice base.u8, off: base.u64, i: base.u64) base.u64 {
-    var s : base.u32
-
-    s = this.ctr(wb: args.wb, off: args.off, i: args.i)
-    s ~mod+= this.ctr(wb: args.wb, off: args.off, i: args.i ~mod+ 1)
-    s ~mod+= this.ctr(wb: args.wb, off: args.off, i: args.i ~mod+ 2)
-    return (((s ~mod* 256) / 3) ~mod+ 420) as base.u64
 }

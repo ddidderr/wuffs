@@ -276,17 +276,17 @@ pri func encoder.compute_layout!() {
     this.rb_total_size = this.rb_size ~mod+ this.rb_tail_size
 }
 
-// Mirrors BrotliInitDistanceParams in metablock.c (without large window).
+// Mirrors BrotliInitDistanceParams in metablock.c (see
+// metablock_builder.init_distance_params), for this.distance_postfix_bits and
+// this.num_direct_distance_codes.
 pri func encoder.init_distance_params!() {
-    var npostfix : base.u32
-    var ndirect  : base.u32
-
-    npostfix = this.distance_postfix_bits & 3
-    ndirect = this.num_direct_distance_codes
-    this.dist_alphabet_size_max = (16 ~mod+ ndirect) ~mod+ ((24 as base.u32) << (npostfix + 1))
-    this.dist_alphabet_size_limit = this.dist_alphabet_size_max
-    this.dist_max_distance = ((ndirect ~mod+ ((1 as base.u32) << (24 + npostfix + 2))) ~mod-
-            ((1 as base.u32) << (npostfix + 2))) as base.u64
+    this.mb.init_distance_params!(
+            npostfix: this.distance_postfix_bits,
+            ndirect: this.num_direct_distance_codes,
+            large_window: this.large_window)
+    this.dist_alphabet_size_max = this.mb.dist_alphabet_size_max
+    this.dist_alphabet_size_limit = this.mb.dist_alphabet_size_limit
+    this.dist_max_distance = this.mb.dist_max_distance
 }
 
 // Mirrors WrapPosition in encode.c.

@@ -153,37 +153,6 @@ pri func encoder.get_length_code(insertlen: base.u64, copylen: base.u64, use_las
             use_last_distance: args.use_last_distance)
 }
 
-// Mirrors PrefixEncodeCopyDistance in prefix.h. It returns the code (the C
-// code's *code, in the low 16 bits) and the extra bits (the C code's
-// *extra_bits, in the high 32 bits).
-pri func encoder.prefix_encode_copy_distance(distance_code: base.u64, num_direct_codes: base.u64, postfix_bits: base.u32[..= 3]) base.u64 {
-    var dist         : base.u64
-    var bucket       : base.u64
-    var postfix_mask : base.u64
-    var postfix      : base.u64
-    var prefix       : base.u64
-    var offset       : base.u64
-    var nbits        : base.u64
-    var code         : base.u64
-    var extra        : base.u64
-
-    if args.distance_code < (16 ~mod+ args.num_direct_codes) {
-        return args.distance_code & 0xFFFF
-    }
-    dist = ((1 as base.u64) << ((args.postfix_bits + 2) & 63)) ~mod+
-            ((args.distance_code ~mod- 16) ~mod- args.num_direct_codes)
-    bucket = (this.log2_floor_non_zero(n: dist) as base.u64) ~mod- 1
-    postfix_mask = ((1 as base.u64) << (args.postfix_bits & 63)) ~mod- 1
-    postfix = dist & postfix_mask
-    prefix = (dist >> (bucket & 63)) & 1
-    offset = (2 ~mod+ prefix) ~mod<< (bucket & 63)
-    nbits = bucket ~mod- (args.postfix_bits as base.u64)
-    code = (nbits ~mod<< 10) | (((16 ~mod+ args.num_direct_codes) ~mod+
-            (((2 ~mod* (nbits ~mod- 1)) ~mod+ prefix) ~mod<< (args.postfix_bits & 63))) ~mod+ postfix)
-    extra = ((dist ~mod- offset) >> (args.postfix_bits & 63)) & 0xFFFF_FFFF
-    return (code & 0xFFFF) | (extra << 32)
-}
-
 // Mirrors InitCommand in command.h, storing the n'th command.
 pri func encoder.init_command!(wb: slice base.u8, n: base.u64, insertlen: base.u64, copylen: base.u64, copylen_code_delta: base.u64, distance_code: base.u64) {
     var delta       : base.u32
@@ -192,10 +161,10 @@ pri func encoder.init_command!(wb: slice base.u8, n: base.u64, insertlen: base.u
     var cmd_prefix  : base.u16
 
     delta = (args.copylen_code_delta & 0xFF) as base.u32
-    pe = this.prefix_encode_copy_distance(
+    pe = this.mb.prefix_encode_copy_distance(
             distance_code: args.distance_code,
             num_direct_codes: this.num_direct_distance_codes as base.u64,
-            postfix_bits: this.distance_postfix_bits & 3)
+            postfix_bits: this.distance_postfix_bits)
     dist_prefix = (pe & 0xFFFF) as base.u16
     cmd_prefix = this.get_length_code(
             insertlen: args.insertlen,
@@ -219,31 +188,12 @@ pri func encoder.init_insert_command!(wb: slice base.u8, n: base.u64, insertlen:
             dist_prefix: 16)
 }
 
-// Mirrors CommandRestoreDistanceCode in command.h.
+// Mirrors CommandRestoreDistanceCode in command.h, for the i'th command.
 pri func encoder.cmd_restore_distance_code(wb: roslice base.u8, i: base.u64) base.u32 {
-    var dist_prefix  : base.u32
-    var dcode        : base.u32
-    var nbits        : base.u32
-    var extra        : base.u32
-    var postfix_mask : base.u32
-    var hcode        : base.u32
-    var lcode        : base.u32
-    var offset       : base.u32
-    var npostfix     : base.u32
-
-    dist_prefix = this.cmd_dist_prefix(wb: args.wb, i: args.i) as base.u32
-    npostfix = this.distance_postfix_bits & 31
-    if (dist_prefix & 0x3FF) < (16 ~mod+ this.num_direct_distance_codes) {
-        return dist_prefix & 0x3FF
-    }
-    dcode = dist_prefix & 0x3FF
-    nbits = dist_prefix >> 10
-    extra = this.cmd_dist_extra(wb: args.wb, i: args.i)
-    postfix_mask = ((1 as base.u32) << npostfix) ~mod- 1
-    hcode = ((dcode ~mod- this.num_direct_distance_codes) ~mod- 16) >> npostfix
-    lcode = ((dcode ~mod- this.num_direct_distance_codes) ~mod- 16) & postfix_mask
-    offset = ((2 ~mod+ (hcode & 1)) ~mod<< (nbits & 31)) ~mod- 4
-    return ((((offset ~mod+ extra) ~mod<< npostfix) ~mod+ lcode) ~mod+ this.num_direct_distance_codes) ~mod+ 16
+    return this.mb.command_restore_distance_code(wb: args.wb,
+            c: this.cmds_off ~mod+ (args.i ~mod* 16),
+            npostfix: this.distance_postfix_bits,
+            ndirect: this.num_direct_distance_codes)
 }
 
 // Mirrors ComputeDistanceCode in backward_references.c.

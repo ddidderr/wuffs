@@ -200,6 +200,10 @@ pub struct encoder? implements base.io_transformer(
 ) + (
         bc : bit_cost,
 
+        // mb provides some metablock.c, command.h and prefix.h functions
+        // (see encode_metablock.wuffs).
+        mb : metablock_builder,
+
         // tiny_buf is the C code's tiny_buf_ (plus slack for the 8-byte
         // stores of write_bits).
         tiny_buf : array[32] base.u8,
@@ -268,9 +272,6 @@ pub struct encoder? implements base.io_transformer(
         gbs_last_entropy      : array[128] base.u64,
         gbs_entropy_tmp       : array[16] base.u64,
         gbs_comb_entropy      : array[32] base.u64,
-
-        // BrotliOptimizeHistograms' good_for_rle.
-        good_for_rle : array[1024] base.u8,
 
         // The BrotliStoreMetaBlock block encoders' state (the C code's
         // BlockEncoder and BlockSplitCode), indexed by block category (with
