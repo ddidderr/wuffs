@@ -926,8 +926,18 @@ than 12 GiB (large-window brotli with lgwin 30 and lgblock 24). `-oneshot=W`
 checks one configuration per input and quality (lgwin W, the whole input
 in one `FINISH` step), e.g. for the 3 MiB `test/data/harvesters.bmp` at
 qualities 10 and 11 with lgwin 22 and 24, also byte-exact. At qualities 10
-and 11 the Wuffs encoder is roughly 7 times slower than libbrotlienc,
+and 11 the Wuffs encoder is roughly 6 times slower than libbrotlienc,
 so the full `-q=10-11` grid takes a few CPU hours.
+
+`script/manual-test-brotli-fuzz.c` is a differential fuzzer (see its header
+comment) that feeds the same random inputs, parameters and operation
+sequences to both libraries. On the final code it ran 1,014,752 random
+encoder configurations (5,936 of them at qualities 10 and 11), 3.76 million
+mutated decoder inputs (each decoded four ways, about 180 thousand of them
+also with `QUIRK_REPORT_METADATA`, comparing 24.9 million metadata blocks
+with libbrotlidec's callbacks) and 289,484 API edge case checks, all without
+an unexplained difference. The differences that it found are documented
+above (and in "Status Mapping"), or were fixed.
 
 
 ### Encoder Differences from the C Code
@@ -1117,9 +1127,12 @@ metablock) for as long as it needs the results.
 - `workbuf_len` is a worst case (or, at qualities 10 and 11, a practical
   bound). A future option could take the input length (like the C code's
   size hint) to give a tighter bound.
-- Speed: at qualities 10 and 11 the Wuffs encoder is several times slower
-  than libbrotlienc, mostly because of the soft float arithmetic in the
-  Zopfli cost model, the block splitter and histogram clustering.
+- Speed. Compressing the 3 MiB `test/data/harvesters.bmp` (with
+  `example/brcat` on x86-64, lgwin 22), the Wuffs encoder takes about 1.2
+  times libbrotlienc's time at quality 5, 1.7 times at quality 9 and 6 times
+  at quality 11, mostly because of the soft float arithmetic in the Zopfli
+  cost model, the block splitter and histogram clustering. Decoding takes
+  about 1.2 times libbrotlidec's time.
 - Serialized (shared) dictionaries, which only an experimental
   (`BROTLI_EXPERIMENTAL`) libbrotlienc build supports.
 - Changing parameters mid-stream.
