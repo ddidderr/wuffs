@@ -24,10 +24,9 @@
 // EncodeData, see encode_data.wuffs, with Zopfli and BrotliBuildMetaBlock at
 // qualities 10 and 11) are implemented. See README.md for the API, including
 // how the C code's FLUSH and EMIT_METADATA operations map to the
-// request_flush and request_emit_metadata methods.
-//
-// TODO: large-window brotli at qualities 3 and above and custom (prepared or
-// shared) dictionaries.
+// request_flush and request_emit_metadata methods. Large-window brotli and raw
+// (prepared) dictionaries are also implemented. Serialized (shared)
+// dictionaries are rejected, like the default (non-experimental) C build.
 
 use "std/softfloat"
 

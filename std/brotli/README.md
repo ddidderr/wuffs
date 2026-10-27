@@ -6,8 +6,9 @@ and a built-in static dictionary. It is specified by [RFC
 7932](https://www.rfc-editor.org/rfc/rfc7932). The reference implementation is
 at [github.com/google/brotli](https://github.com/google/brotli).
 
-This package (`std/brotli`) is a decoder. It aims for exact parity with the
-reference implementation's decoder (libbrotlidec), version v1.2.1, and in
+This package (`std/brotli`) has a decoder and an encoder (see the "Encoder"
+section below). The decoder aims for exact parity with the reference
+implementation's decoder (libbrotlidec), version v1.2.1, and in
 particular its `c/dec/decode.c` file: the same output for valid input and the
 same verdict (and the same error code, mapped as below) for invalid input. The
 Wuffs code mirrors the C code's logic and validation checks, function by
@@ -185,8 +186,6 @@ invariants for memory safety but Wuffs requires explicit bounds checks.
 
 ## TODO
 
-- Metadata callbacks (metadata blocks are currently skipped). See the
-  "Metadata Blocks" section below.
 - More fast paths, for example for dictionary words, for copies that wrap
   around the ring buffer and for block switches.
 
@@ -1264,7 +1263,16 @@ Differences from the C code:
 
 libbrotlidec can report metadata blocks' contents through callbacks
 (`BrotliDecoderSetMetadataCallbacks`). Wuffs code cannot call back into its
-caller, so there is no equivalent: metadata blocks are skipped (validated and
-consumed but not reported), exactly as libbrotlidec does without callbacks,
-so the decoded output is the same. A future quirk could expose metadata
-blocks, e.g. by suspending with a status when one starts.
+caller. By default, metadata blocks are skipped (validated and consumed but
+not reported), exactly as libbrotlidec does without callbacks.
+
+With the `QUIRK_REPORT_METADATA` quirk, the decoder reports them instead. At
+each metadata block (after every previously decoded byte has been written to
+`dst`), `transform_io` returns `base."@metadata reported"`, and
+`metadata_length()` returns the block's length, which can be zero (the C
+code's start callback's `size`). The next `metadata_length()` bytes that
+`transform_io` writes to `dst` (over one or more subsequent calls) are the
+block's contents (the C code's chunk callbacks' data). Decoded bytes follow as
+usual. The decoded output (the bytes outside of metadata blocks) is the same
+with or without the quirk. `test_mimic_brotli_decode_metadata` checks that the
+lengths and contents match libbrotlidec's callbacks.
