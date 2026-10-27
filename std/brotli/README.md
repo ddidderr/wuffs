@@ -829,7 +829,7 @@ than 12 GiB (large-window brotli with lgwin 30 and lgblock 24). `-oneshot=W`
 checks one configuration per input and quality (lgwin W, the whole input
 in one `FINISH` step), e.g. for the 3 MiB `test/data/harvesters.bmp` at
 qualities 10 and 11 with lgwin 22 and 24, also byte-exact. At qualities 10
-and 11 the Wuffs encoder is about 5 to 10 times slower than libbrotlienc,
+and 11 the Wuffs encoder is roughly 7 times slower than libbrotlienc,
 so the full `-q=10-11` grid takes a few CPU hours.
 
 
