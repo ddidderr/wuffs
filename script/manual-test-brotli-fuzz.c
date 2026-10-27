@@ -3088,13 +3088,21 @@ run_api(uint64_t iters, double secs) {
     uint32_t q = pick_quality();
     enc_add_param(&c, 1, q);
     enc_add_param(&c, 2, 10 + (uint32_t)rn(15));
-    if (chance(200)) {
+    bool stream_offset = chance(200);
+    if (stream_offset) {
       enc_add_param(&c, 9, (uint32_t)rn(1000));
     }
     c.dst_chunk = chance(300) ? 1 + rn(100) : 0;
     size_t n = random_steps(&c, src, cap);
+    // The zero-length dst calls are Wuffs only (run_steps_c gives every C
+    // call some dst). A Wuffs call with no dst room while the stream offset
+    // flush is pending is like a C call with avail_out == 0 there, after
+    // which the next call with input fails in both libraries (see "Encoder
+    // Operation Mapping" in std/brotli/README.md), so they are not used with
+    // a stream offset.
+    uint64_t zero_dst_rate = chance(300) ? 300 : 0;
     api_compare_steps("random steps", &c, src, n, have, want, cap,
-                      chance(300) ? 300 : 0);
+                      stream_offset ? 0 : zero_dst_rate);
     free(c.step_ops);
     free(c.step_lens);
   }
