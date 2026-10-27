@@ -790,8 +790,8 @@ by both this package's decoder and libbrotlidec.
 `script/manual-test-brotli-encoder-parity.c` runs a larger grid over every
 file in `test/data/brotli`, some larger files in `test/data` (up to about
 400 KiB) and some synthetic inputs (up to 1 MiB). Its `-q=LO-HI` and
-`-shard=K/N` options select the qualities and split the inputs over several
-processes, `-lw` runs only its large-window grid (lgwin 10 to 30 at
+`-shard=K/N` options select the qualities (0 to 11) and split the inputs
+over several processes, `-lw` runs only its large-window grid (lgwin 10 to 30 at
 qualities 2 to 9, with various chunkings, flushes, size hints and other
 parameters, each also with the shortest workbuf that should work) and `-big`
 replaces the inputs with synthetic ones of 3 to 70 MiB with repeats at
@@ -816,6 +816,21 @@ against libbrotlienc v1.2.1 on x86-64. With `-lw -big` it runs 720 more
 (on 3, 6 and 12 MiB inputs with the large-window grid and on 24, 40 and
 70 MiB inputs with one-shot and streaming large-window configurations at
 lgwin 24 to 30), also all byte-exact.
+
+At qualities 10 and 11 (which use the smaller grid for inputs longer than
+64 KiB, and the `workbuf_len` minimum, so that the practical bound is
+exercised), `-q=10-11` ran 144,036 configurations over 179 inputs before
+the large-window grid was added to the default grid, and, afterwards,
+`-q=10-11 -lw` ran 24,172 configurations (22,990 also with the shortest
+workbuf) and `-q=10-11` on a third of the inputs (shards 0, 3, 6, etc of
+60) another 55,450 (7,740 also with the shortest workbuf), all byte-exact,
+except for 474 configurations skipped because their workbuf would be more
+than 12 GiB (large-window brotli with lgwin 30 and lgblock 24). `-oneshot=W`
+checks one configuration per input and quality (lgwin W, the whole input
+in one `FINISH` step), e.g. for the 3 MiB `test/data/harvesters.bmp` at
+qualities 10 and 11 with lgwin 22 and 24, also byte-exact. At qualities 10
+and 11 the Wuffs encoder is about 5 to 10 times slower than libbrotlienc,
+so the full `-q=10-11` grid takes a few CPU hours.
 
 
 ### Encoder Differences from the C Code
