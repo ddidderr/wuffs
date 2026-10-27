@@ -397,8 +397,12 @@ pri func encoder.build_and_store_huffman_tree_fast_generic!(histogram_total: bas
                 k ~mod+= 1
             }
             i ~mod+= reps
+            // Mirrors BrotliBuildAndStoreHuffmanTreeFast's kZeroRepsDepth[reps]
+            // and kNonZeroRepsDepth[reps] (704 entries each): a run can be
+            // longer than 511, e.g. the zeros between command codes 75 and
+            // 688.
             if value == 0 {
-                this.write_bits!(n_bits: ZERO_REPS_DEPTH[reps & 511], bits: ZERO_REPS_BITS[reps & 511], s: args.s)
+                this.write_bits!(n_bits: ZERO_REPS_DEPTH[reps.min(no_more_than: 703)], bits: ZERO_REPS_BITS[reps.min(no_more_than: 703)], s: args.s)
             } else {
                 if prev_value <> value {
                     this.write_bits!(n_bits: CODE_LENGTH_DEPTH[value & 15], bits: CODE_LENGTH_BITS[value & 15], s: args.s)
@@ -411,7 +415,7 @@ pri func encoder.build_and_store_huffman_tree_fast_generic!(histogram_total: bas
                     }
                 } else {
                     reps -= 3
-                    this.write_bits!(n_bits: NON_ZERO_REPS_DEPTH[reps & 511], bits: NON_ZERO_REPS_BITS[reps & 511], s: args.s)
+                    this.write_bits!(n_bits: NON_ZERO_REPS_DEPTH[reps.min(no_more_than: 703)], bits: NON_ZERO_REPS_BITS[reps.min(no_more_than: 703)], s: args.s)
                 }
                 prev_value = value
             }

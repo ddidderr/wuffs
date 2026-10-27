@@ -1322,6 +1322,39 @@ test_wuffs_brotli_encode_round_trip_synthetic() {
   return NULL;
 }
 
+// brotli_enc_long_zero_run fills data[:9200] with 6300 pseudo-random bytes
+// followed by a copy of their first 2900 bytes, with one byte in every 21,
+// 15, 13 or 11 changed. At quality 2 (BrotliStoreMetaBlockFast with more than
+// 128 commands) that makes command codes 72 to 75 (last distance, one literal
+// and a 10 to 20 byte copy) and 688 (6300 literals and an 80 byte copy), so
+// the complex Huffman code for the commands has a run of 612 zero code
+// lengths, more than the 511 that the encoder's repetition tables once had.
+static void  //
+brotli_enc_long_zero_run(uint8_t* data) {
+  uint32_t x = 1;
+  for (int i = 0; i < 6300; i++) {
+    x ^= x << 13;
+    x ^= x >> 17;
+    x ^= x << 5;
+    data[i] = (uint8_t)x;
+  }
+  memcpy(data + 6300, data, 2900);
+  static const int steps[4] = {21, 15, 13, 11};
+  for (int i = 80, k = 0; i < 2900; i += steps[k++ & 3]) {
+    data[6300 + i] ^= 0x55;
+  }
+}
+
+const char*  //
+test_wuffs_brotli_encode_long_zero_run() {
+  CHECK_FOCUS(__func__);
+  uint8_t data[9200];
+  brotli_enc_long_zero_run(data);
+  brotli_enc_config c = make_brotli_enc_config(2, 16);
+  return do_test_brotli_encode_round_trip("long zero run", &c, data,
+                                          sizeof data);
+}
+
 const char*  //
 test_wuffs_brotli_encode_metadata_round_trip() {
   CHECK_FOCUS(__func__);
@@ -2217,6 +2250,15 @@ test_mimic_brotli_encode_parity_q10_params() {
     }
   }
   return NULL;
+}
+
+const char*  //
+test_mimic_brotli_encode_long_zero_run() {
+  CHECK_FOCUS(__func__);
+  uint8_t data[9200];
+  brotli_enc_long_zero_run(data);
+  brotli_enc_config c = make_brotli_enc_config(2, 16);
+  return do_test_mimic_brotli_encode("long zero run", &c, data, sizeof data);
 }
 
 // test_mimic_brotli_encode_metadata_stale_pointer checks a libbrotlienc bug
@@ -4618,6 +4660,7 @@ proc g_tests[] = {
     test_wuffs_brotli_encode_interface,
     test_wuffs_brotli_encode_large_window_far,
     test_wuffs_brotli_encode_large_window_files,
+    test_wuffs_brotli_encode_long_zero_run,
     test_wuffs_brotli_encode_metadata_round_trip,
     test_wuffs_brotli_encode_parameters,
     test_wuffs_brotli_encode_round_trip_corpus,
@@ -4631,6 +4674,7 @@ proc g_tests[] = {
     test_mimic_brotli_encode_dictionary_rejections,
     test_mimic_brotli_encode_large_window_far,
     test_mimic_brotli_encode_large_window_files,
+    test_mimic_brotli_encode_long_zero_run,
     test_mimic_brotli_encode_metadata_stale_pointer,
     test_mimic_brotli_encode_parity_corpus,
     test_mimic_brotli_encode_parity_grid,

@@ -85619,7 +85619,7 @@ wuffs_brotli__encoder__build_and_store_huffman_tree_fast_generic(
       }
       v_i += v_reps;
       if (v_value == 0u) {
-        wuffs_brotli__encoder__write_bits(self, WUFFS_BROTLI__ZERO_REPS_DEPTH[(v_reps & 511u)], WUFFS_BROTLI__ZERO_REPS_BITS[(v_reps & 511u)], a_s);
+        wuffs_brotli__encoder__write_bits(self, WUFFS_BROTLI__ZERO_REPS_DEPTH[wuffs_base__u32__min(v_reps, 703u)], WUFFS_BROTLI__ZERO_REPS_BITS[wuffs_base__u32__min(v_reps, 703u)], a_s);
       } else {
         if (v_prev_value != v_value) {
           wuffs_brotli__encoder__write_bits(self, WUFFS_BROTLI__CODE_LENGTH_DEPTH[(v_value & 15u)], WUFFS_BROTLI__CODE_LENGTH_BITS[(v_value & 15u)], a_s);
@@ -85632,7 +85632,7 @@ wuffs_brotli__encoder__build_and_store_huffman_tree_fast_generic(
           }
         } else {
           v_reps -= 3u;
-          wuffs_brotli__encoder__write_bits(self, WUFFS_BROTLI__NON_ZERO_REPS_DEPTH[(v_reps & 511u)], WUFFS_BROTLI__NON_ZERO_REPS_BITS[(v_reps & 511u)], a_s);
+          wuffs_brotli__encoder__write_bits(self, WUFFS_BROTLI__NON_ZERO_REPS_DEPTH[wuffs_base__u32__min(v_reps, 703u)], WUFFS_BROTLI__NON_ZERO_REPS_BITS[wuffs_base__u32__min(v_reps, 703u)], a_s);
         }
         v_prev_value = v_value;
       }
