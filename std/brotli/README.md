@@ -394,7 +394,12 @@ The exact signatures are:
   bytes. `literal_context_mode` is a `ContextType` (0 = LSB6, 1 = MSB6, 2 =
   UTF8, 3 = SIGNED). Like the C code, it rewrites the commands'
   `dist_prefix_` and `dist_extra_` fields for the chosen distance params and
-  leaves those params in the `dist_etc` fields. It returns
+  leaves those params in the `dist_etc` fields. Like the encoder's commands,
+  every command's distance code must be at most the given params'
+  `max_distance` (with larger, invalid distance codes, the C code's
+  `ComputeDistanceCost` writes past the end of its distance histogram, which
+  the Wuffs code cannot mirror: it ignores out-of-range histogram symbols
+  instead). It returns
   `"#bad workbuf length"` if `wb` is too short (the results are then invalid
   but `cmds` may already be rewritten, so retrying needs the original
   commands).
