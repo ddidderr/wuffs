@@ -22,10 +22,13 @@ Flags:
   -quality=N           the encoder's quality, 0 to 11. The default is 11.
   -fail-if-unsandboxed exit with an error if the seccomp sandbox failed.
 
-The encoder's output is byte-for-byte identical to the brotli reference
-implementation's (libbrotlienc v1.2.1) with the same quality, lgwin and large
-window parameters, on every platform. Like that reference implementation,
-qualities 10 and 11 are much slower than lower qualities.
+The encoder's output is byte-for-byte identical, on every platform, to what
+the brotli reference implementation's library (libbrotlienc v1.2.1) produces
+for the same parameters and the same sequence of calls. That output depends
+on how the input is split into calls (for example, the first call's length is
+the default size hint), so it can differ from the "brotli" command line tool's,
+which reads 512 KiB at a time and sets a size hint. Like that reference
+implementation, qualities 10 and 11 are much slower than lower qualities.
 
 To run:
 

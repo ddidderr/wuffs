@@ -132,7 +132,10 @@ static const uint8_t g_serialized_dictionary[] = {
 // at qualities 10 and 11, which are slow.
 #define ENC_MAX_INPUT 65536
 #define ENC_MAX_INPUT_HQ 4096
-#define ENC_DST_ARRAY_SIZE (2 * ENC_MAX_INPUT + 65536)
+// With 1-byte chunks and frequent flushes, each input byte can become its own
+// metablock plus a padding block (about 4 bytes per input byte at qualities 0
+// and 1), so the dst buffer is sized well above that.
+#define ENC_DST_ARRAY_SIZE (8 * ENC_MAX_INPUT + 65536)
 
 static wuffs_brotli__encoder g_encoder;
 static wuffs_brotli__decoder g_rt_decoder;
