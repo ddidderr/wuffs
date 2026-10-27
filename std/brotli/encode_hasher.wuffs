@@ -102,7 +102,7 @@ pri func encoder.fc_bank_bits() base.u32[..= 16] {
 }
 
 // Mirrors ChooseHasher in quality.h (with BROTLI_MAX_SIMD_QUALITY defined as
-// 6), for qualities 2 to 9 and lgwin up to 24.
+// 6), for qualities 2 to 9.
 pri func encoder.choose_hasher!() {
     var q : base.u32[..= 11]
 
@@ -145,6 +145,25 @@ pri func encoder.choose_hasher!() {
             this.h_num_last_distances = 4
         } else if q < 9 {
             this.h_num_last_distances = 10
+        }
+    }
+
+    this.hr_jump = 0
+    if this.lgwin > 24 {
+        // Different hashers for large window brotli: not for qualities <= 2,
+        // these are too fast for large window. Not for qualities >= 10:
+        // their hasher already works well with large window. So the changes
+        // are:
+        //   H3 --> H35: for quality 3.
+        //   H54 --> H55: for quality 4 with size hint > 1MB
+        //   H6/H68 --> H65: for qualities 5, 6, 7, 8, 9.
+        // See encode_hasher_composite.wuffs: the composite hasher's
+        // HASHER_A stays in this.hasher_type.
+        if (this.hasher_type == 3) or (this.hasher_type == 54) {
+            this.hr_jump = 4
+        } else if (this.hasher_type == 6) or (this.hasher_type == 68) {
+            this.hasher_type = 6
+            this.hr_jump = 1
         }
     }
 }
@@ -220,6 +239,9 @@ pri func encoder.hasher_setup!(wb: slice base.u8, position: base.u64, input_size
                 htype: this.hasher_type, bucket_bits: this.h_bucket_bits, block_bits: this.h_block_bits, i: 0)
         this.h_off2 = this.h_off1 ~mod+ this.hasher_alloc_size(
                 htype: this.hasher_type, bucket_bits: this.h_bucket_bits, block_bits: this.h_block_bits, i: 1)
+        // The composite hashers' HASHER_B memory follows HASHER_A's.
+        this.hr_off = this.h_off2
+        this.hr_fresh = true
         this.h_is_prepared = false
         this.h_is_setup = true
     }
@@ -305,6 +327,18 @@ pri func encoder.hasher_prepare!(wb: slice base.u8, one_shot: base.bool, input_s
             this.fc_free_slot_idx[j] = 0
             j ~mod+= 1
         }
+    }
+
+    if this.hr_jump <> 0 {
+        // The composite hasher's FN(Prepare) (in hash_composite_inc.h), for
+        // HASHER_B. HASHER_B's FN(Initialize) is deferred to the first
+        // FN(Prepare). HASHER_A's FN(Initialize) does not touch the hasher
+        // memory, so doing it earlier (in hasher_setup) is equivalent.
+        if this.hr_fresh {
+            this.hr_fresh = false
+            this.hasher_rolling_initialize!(wb: args.wb)
+        }
+        this.hasher_rolling_prepare!(wb: args.wb, input_size: args.input_size, data_off: this.rb_buf_off)
     }
 }
 
@@ -432,6 +466,10 @@ pri func encoder.hasher_stitch_to_previous_block!(wb: slice base.u8, num_bytes: 
         this.hasher_store!(wb: args.wb, ix: args.position ~mod- 3)
         this.hasher_store!(wb: args.wb, ix: args.position ~mod- 2)
         this.hasher_store!(wb: args.wb, ix: args.position ~mod- 1)
+    }
+    if this.hr_jump <> 0 {
+        // The composite hasher's HASHER_B.
+        this.hasher_rolling_stitch_to_previous_block!(wb: args.wb, num_bytes: args.num_bytes, position: args.position)
     }
 }
 
@@ -597,6 +635,11 @@ pri func encoder.find_longest_match!(wb: slice base.u8, cur_ix: base.u64, max_le
     } else {
         this.find_longest_match_forgetful!(wb: args.wb, cur_ix: args.cur_ix, max_length: args.max_length,
                 max_backward: args.max_backward, dictionary_distance: args.dictionary_distance, max_distance: args.max_distance)
+    }
+    if this.hr_jump <> 0 {
+        // The composite hasher's HASHER_B.
+        this.hasher_rolling_find_longest_match!(wb: args.wb, cur_ix: args.cur_ix, max_length: args.max_length,
+                max_backward: args.max_backward)
     }
 }
 

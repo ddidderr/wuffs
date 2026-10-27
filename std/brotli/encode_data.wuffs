@@ -90,11 +90,13 @@ pri func encoder.max_metablock_size(lgwin: base.u32[..= 30], lgblock: base.u32[.
 
 // hasher_total_size returns the sum of FN(HashMemAllocInBytes)'s
 // alloc_size[i] for the hasher that ChooseHasher picks for the given
-// quality, lgwin and size_hint.
+// quality, lgwin and size_hint (including, for lgwin above 24, the
+// large-window composite hashers' rolling hasher table).
 pri func encoder.hasher_total_size(quality: base.u32[..= 11], lgwin: base.u32[..= 30], size_hint: base.u32) base.u64 {
     var htype       : base.u32
     var bucket_bits : base.u32[..= 24]
     var block_bits  : base.u32[..= 16]
+    var rolling     : base.u64
 
     if (args.quality == 4) and (args.size_hint >= 0x10_0000) {
         htype = 54
@@ -123,9 +125,21 @@ pri func encoder.hasher_total_size(quality: base.u32[..= 11], lgwin: base.u32[..
         }
         block_bits = args.quality - 1
     }
-    return (this.hasher_alloc_size(htype: htype, bucket_bits: bucket_bits, block_bits: block_bits, i: 0) ~mod+
+    rolling = 0
+    if args.lgwin > 24 {
+        // The large-window composite hashers H35, H55 and H65 (see
+        // choose_hasher): HASHER_A plus the rolling hasher's table.
+        if (htype == 3) or (htype == 54) {
+            rolling = this.hasher_rolling_alloc_size()
+        } else if (htype == 6) or (htype == 68) {
+            htype = 6
+            rolling = this.hasher_rolling_alloc_size()
+        }
+    }
+    return ((this.hasher_alloc_size(htype: htype, bucket_bits: bucket_bits, block_bits: block_bits, i: 0) ~mod+
             this.hasher_alloc_size(htype: htype, bucket_bits: bucket_bits, block_bits: block_bits, i: 1)) ~mod+
-            this.hasher_alloc_size(htype: htype, bucket_bits: bucket_bits, block_bits: block_bits, i: 2)
+            this.hasher_alloc_size(htype: htype, bucket_bits: bucket_bits, block_bits: block_bits, i: 2)) ~mod+
+            rolling
 }
 
 // hash_region_size returns the workbuf length reserved for the hasher's

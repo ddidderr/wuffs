@@ -96,6 +96,7 @@ static uint64_t g_num_mismatches;
 
 static uint32_t g_qmin = 0;
 static uint32_t g_qmax = 9;
+static bool g_lw_only = false;
 
 typedef struct {
   uint32_t keys[MAX_PARAMS];
@@ -543,6 +544,93 @@ run_input_q01(const char* name, const uint8_t* data, size_t len, uint32_t q) {
   }
 }
 
+// run_input_lw runs the large-window (BROTLI_PARAM_LARGE_WINDOW) grid for a
+// quality from 2 to 9. At quality 2 (and below), the C code ignores the
+// large-window parameter. At qualities 3 to 9, lgwin can be up to 30 and lgwin
+// above 24 selects the composite hashers (H35, H55 and H65) instead of H3,
+// H54, H6 and H68 (and only those: H5, H58 and H40 to H42 stay as they are).
+static void  //
+run_input_lw(const char* name, const uint8_t* data, size_t len, uint32_t q) {
+  static const size_t metadata_lens[] = {0, 1, 100, 70000};
+  bool big = len > (512 << 10);
+
+  // lgwin and chunking.
+  static const uint32_t lgwins[] = {10, 18, 24, 25, 26, 27, 28, 29, 30};
+  for (size_t w = 0; w < 9; w++) {
+    if (big && (lgwins[w] != 24) && (lgwins[w] != 25) && (lgwins[w] != 28) &&
+        (lgwins[w] != 30)) {
+      continue;
+    }
+    for (uint32_t ch = 0; ch < 5; ch += 4) {
+      for (uint32_t fl = 0; fl < 3; fl += 2) {
+        if (big && (fl == 0)) {
+          continue;
+        }
+        config c = make_config(q, lgwins[w]);
+        add_param(&c, 6, 1);  // BROTLI_PARAM_LARGE_WINDOW.
+        c.chunking = ch;
+        c.flush = fl;
+        c.seed = 0x10000 | (w << 8) | (ch << 4) | fl | (q << 12);
+        check(name, &c, data, len);
+      }
+    }
+  }
+
+  // Other parameters, alone and in combination.
+  static const uint32_t extras[][6] = {
+      // Pairs of (BrotliEncoderParameter, value). A zero key ends the list.
+      {5, 1u << 20},             // BROTLI_PARAM_SIZE_HINT: H55 and H65.
+      {5, 0xFFFFFFFF},           // Replaced by the exact size.
+      {5, 1u << 30},             //
+      {3, 16},                   // BROTLI_PARAM_LGBLOCK.
+      {3, 18},                   //
+      {3, 24, 5, 1u << 21},      // ... and a big size hint.
+      {4, 1, 5, 1u << 20},       // DISABLE_LITERAL_CONTEXT_MODELING.
+      {7, 3, 8, 120},            // BROTLI_PARAM_NPOSTFIX and NDIRECT.
+      {7, 1, 8, 4, 5, 1u << 20}, //
+      {0, 2},                    // FONT mode.
+      {0, 1, 5, 1u << 22},       // TEXT mode and a big size hint.
+      {9, 1000},                 // BROTLI_PARAM_STREAM_OFFSET.
+      {9, 1u << 30, 5, 1u << 20},
+      {2, 0xFFFFFFFF},           // LGWIN (int)-1, so 10.
+      {2, 31},                   // LGWIN 31, so 30.
+  };
+  for (size_t i = 0; i < sizeof extras / sizeof extras[0]; i++) {
+    for (size_t w = 0; w < 2; w++) {
+      static const uint32_t ws[] = {25, 30};
+      if (big && (w != 0)) {
+        continue;
+      }
+      config c = make_config(q, ws[w]);
+      add_param(&c, 6, 1);  // BROTLI_PARAM_LARGE_WINDOW.
+      for (size_t k = 0; (k < 6) && ((k == 0) || extras[i][k]); k += 2) {
+        uint32_t v = extras[i][k + 1];
+        if ((extras[i][k] == 5) && (v == 0xFFFFFFFF)) {
+          v = (uint32_t)len;
+        }
+        add_param(&c, extras[i][k], v);
+      }
+      c.chunking = 4;
+      c.flush = 2;
+      c.seed = 0x20000 | i | (w << 8) | (q << 12);
+      check(name, &c, data, len);
+    }
+  }
+
+  // Metadata blocks and limited dst lengths.
+  for (size_t i = 0; i < 4; i += 3) {
+    config c = make_config(q, 26);
+    add_param(&c, 6, 1);  // BROTLI_PARAM_LARGE_WINDOW.
+    c.chunking = 4;
+    c.flush = 2;
+    c.metadata_position = 2;
+    c.metadata_len = metadata_lens[i];
+    c.dst_chunk = (len <= (32 << 10)) ? 3 : 4096;
+    c.seed = 0x30000 | i | (q << 12);
+    check(name, &c, data, len);
+  }
+}
+
 // run_input_q2 runs the grid for a quality from 2 to 9.
 static void  //
 run_input_q2(const char* name, const uint8_t* data, size_t len, uint32_t q) {
@@ -649,17 +737,7 @@ run_input_q2(const char* name, const uint8_t* data, size_t len, uint32_t q) {
       }
     }
   }
-  if (q == 2) {
-    // Large window is supported (by the Wuffs encoder) only at quality 2.
-    for (uint32_t w = 22; w <= 30; w += 4) {
-      config c = make_config(q, w);
-      add_param(&c, 6, 1);  // BROTLI_PARAM_LARGE_WINDOW.
-      c.chunking = 4;
-      c.flush = 2;
-      c.seed = w;
-      check(name, &c, data, len);
-    }
-  }
+  run_input_lw(name, data, len, q);
   if (len <= (256 << 10)) {
     static const size_t dst_chunks[] = {1, 2, 3, 7, 64, 4096};
     for (size_t i = 0; i < 6; i++) {
@@ -684,7 +762,11 @@ run_input(const char* name, const uint8_t* data, size_t len) {
   uint64_t mismatches0 = g_num_mismatches;
   time_t start = time(NULL);
   for (uint32_t q = g_qmin; q <= g_qmax; q++) {
-    if (q <= 1) {
+    if (g_lw_only) {
+      if (q >= 2) {
+        run_input_lw(name, data, len, q);
+      }
+    } else if (q <= 1) {
       run_input_q01(name, data, len, q);
     } else {
       run_input_q2(name, data, len, q);
@@ -742,6 +824,8 @@ main(int argc, char** argv) {
     if (sscanf(argv[argi], "-q=%u-%u", &a, &b) == 2) {
       g_qmin = a;
       g_qmax = (b < 9) ? b : 9;
+    } else if (strcmp(argv[argi], "-lw") == 0) {
+      g_lw_only = true;
     } else if (sscanf(argv[argi], "-shard=%u/%u", &a, &b) == 2) {
       shard_k = (int)a;
       shard_n = (b > 0) ? (int)b : 1;

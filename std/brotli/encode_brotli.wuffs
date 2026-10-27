@@ -178,6 +178,16 @@ pub struct encoder? implements base.io_transformer(
         dict_num_matches     : base.u64,
         fc_max_hops          : base.u64,
 
+        // The large-window composite hashers' rolling hasher (the C code's
+        // HashRolling). See encode_hasher_composite.wuffs. hr_jump is 0 when
+        // the hasher is not a composite one.
+        hr_jump          : base.u32[..= 4],
+        hr_fresh         : base.bool,
+        hr_state         : base.u32,
+        hr_factor_remove : base.u32,
+        hr_next_ix       : base.u64,
+        hr_off           : base.u64,
+
         // The C code's HasherSearchResult.
         sr_len            : base.u64,
         sr_distance       : base.u64,
@@ -418,7 +428,7 @@ pub func encoder.workbuf_len() base.range_ii_u64 {
     lgwin = this.sanitized_lgwin(quality: q)
     if q <= 1 {
         n = ((2 as base.u64) << lgwin) + 503 + STORAGE_SLACK
-    } else if (q <= 9) and ((q == 2) or (this.p_large_window == 0)) {
+    } else if q <= 9 {
         n = this.compute_layout_offset(quality: q, lgwin: lgwin,
                 lgblock: this.computed_lgblock(quality: q, lgwin: lgwin), idx: LAYOUT_END)
     }
@@ -801,9 +811,8 @@ pub func encoder.transform_io?(dst: base.io_writer, src: base.io_reader, workbuf
     var copy_input_size : base.u64
 
     this.ensure_initialized!()
-    if (this.quality > 9) or (this.large_window and (this.quality > 2)) {
-        // TODO: implement Zopfli (qualities 10 and 11) and large-window
-        // brotli at qualities 3 and above.
+    if this.quality > 9 {
+        // TODO: implement Zopfli (qualities 10 and 11).
         return "#unsupported encoder quality"
     } else if (this.quality >= 2) and (args.workbuf.length() < this.workbuf_end) {
         return base."#bad workbuf length"
