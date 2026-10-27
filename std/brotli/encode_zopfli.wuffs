@@ -489,8 +489,8 @@ pri func encoder.compute_minimum_copy_length(wb: roslice base.u8, start_cost: ba
     return len
 }
 
-// Mirrors ComputeDistanceShortcut in backward_references_hq.c (with a gap
-// of 0).
+// Mirrors ComputeDistanceShortcut in backward_references_hq.c. The gap is
+// this.dict_total_size.
 pri func encoder.compute_distance_shortcut(wb: roslice base.u8, block_start: base.u64, pos: base.u64, max_backward_limit: base.u64) base.u32 {
     var c_len : base.u64
     var i_len : base.u64
@@ -507,8 +507,8 @@ pri func encoder.compute_distance_shortcut(wb: roslice base.u8, block_start: bas
     // distances.
     if args.pos == 0 {
         return 0
-    } else if ((dist ~mod+ c_len) <= (args.block_start ~mod+ args.pos)) and
-            (dist <= args.max_backward_limit) and
+    } else if ((dist ~mod+ c_len) <= ((args.block_start ~mod+ args.pos) ~mod+ this.dict_total_size)) and
+            (dist <= (args.max_backward_limit ~mod+ this.dict_total_size)) and
             (this.zn_distance_code(wb: args.wb, i: args.pos) > 0) {
         return (args.pos & 0xFFFF_FFFF) as base.u32
     }
@@ -542,7 +542,8 @@ pri func encoder.compute_distance_cache!(wb: roslice base.u8, pos: base.u64) {
     }
 }
 
-// Mirrors EvaluateNode in backward_references_hq.c.
+// Mirrors EvaluateNode in backward_references_hq.c. The gap is
+// this.dict_total_size.
 pri func encoder.evaluate_node!(wb: slice base.u8, block_start: base.u64, pos: base.u64, max_backward_limit: base.u64) {
     var node_cost : base.u32
     var lc        : base.u32
@@ -562,8 +563,9 @@ pri func encoder.evaluate_node!(wb: slice base.u8, block_start: base.u64, pos: b
 }
 
 // Mirrors UpdateNodes in backward_references_hq.c. The num_matches matches
-// are at args.wb[matches_off ..]. It returns the longest copy length.
-pri func encoder.update_nodes!(wb: slice base.u8, num_bytes: base.u64, block_start: base.u64, pos: base.u64,
+// are at args.wb[matches_off ..] and args.dwb holds the dictionaries. The
+// gap is this.dict_total_size. It returns the longest copy length.
+pri func encoder.update_nodes!(wb: slice base.u8, dwb: roslice base.u8, num_bytes: base.u64, block_start: base.u64, pos: base.u64,
         max_backward_limit: base.u64, num_matches: base.u64, matches_off: base.u64) base.u64 {
     var mask                : base.u64
     var cur_ix              : base.u64
@@ -604,8 +606,10 @@ pri func encoder.update_nodes!(wb: slice base.u8, num_bytes: base.u64, block_sta
     var distnumextra        : base.u32
     var max_match_len       : base.u64
     var len_code            : base.u64
+    var gap                 : base.u64
 
     mask = this.rb_mask as base.u64
+    gap = this.dict_total_size
     cur_ix = args.block_start ~mod+ args.pos
     cur_ix_masked = cur_ix & mask
     max_distance = cur_ix.min(no_more_than: args.max_backward_limit)
@@ -656,7 +660,7 @@ pri func encoder.update_nodes!(wb: slice base.u8, num_bytes: base.u64, block_sta
             if (cur_ix_masked ~mod+ best_len) > mask {
                 break
             }
-            if backward > dictionary_start {
+            if backward > (dictionary_start ~mod+ gap) {
                 // Word dictionary -> ignore.
                 j ~mod+= 1
                 continue
@@ -677,11 +681,13 @@ pri func encoder.update_nodes!(wb: slice base.u8, num_bytes: base.u64, block_sta
                     len = this.find_match_length_with_limit(s: args.wb[this.rb_buf_off ..],
                             i1: prev_ix, i2: cur_ix_masked, limit: max_len)
                 }
+            } else if backward > dictionary_start {
+                len = this.compound_last_distance_match_len(wb: args.wb, dwb: args.dwb,
+                        cur_ix_masked: cur_ix_masked, dictionary_start: dictionary_start, backward: backward,
+                        best_len: best_len, max_len: max_len, continuation: continuation)
             } else {
                 // "Gray" area. It is addressable by decoder, but this encoder
                 // instance does not have that data -> should not touch it.
-                // (Without a compound dictionary, backward > dictionary_start
-                // was handled above.)
                 j ~mod+= 1
                 continue
             }
@@ -723,7 +729,7 @@ pri func encoder.update_nodes!(wb: slice base.u8, num_bytes: base.u64, block_sta
         while j < args.num_matches {
             moff = args.matches_off ~mod+ (j ~mod* 8)
             dist = this.bm_distance(wb: args.wb, off: moff)
-            is_dictionary_match = dist > dictionary_start
+            is_dictionary_match = dist > (dictionary_start ~mod+ gap)
             // We already tried all possible last distance matches, so we can
             // use normal distance code here.
             dist_code = dist ~mod+ 15
@@ -769,6 +775,51 @@ pri func encoder.update_nodes!(wb: slice base.u8, num_bytes: base.u64, block_sta
     return result
 }
 
+// compound_last_distance_match_len mirrors the compound dictionary branch
+// of UpdateNodes' last distance loop in backward_references_hq.c, for a
+// backward distance greater than dictionary_start (and at most
+// dictionary_start plus the gap, this.dict_total_size). It returns the C
+// code's len, or 0 where the C code continues with the next distance (which
+// is equivalent, as UpdateNodes then tries no copy lengths).
+pri func encoder.compound_last_distance_match_len(wb: roslice base.u8, dwb: roslice base.u8, cur_ix_masked: base.u64,
+        dictionary_start: base.u64, backward: base.u64, best_len: base.u64, max_len: base.u64, continuation: base.u8) base.u64 {
+    var d      : base.u32[..= 14]
+    var offset : base.u64
+    var limit  : base.u64
+    var src_lo : base.u64
+    var src_hi : base.u64
+    var source : roslice base.u8
+
+    offset = args.dictionary_start ~mod+ this.dict_total_size
+    // The C code's loop condition is only the second check below: it fails
+    // for the last chunk, as backward > dictionary_start.
+    while d < 14 {
+        if ((d + 1) >= this.dict_num_chunks) or
+                (offset < (args.backward ~mod+ this.dict_chunk_offsets[d + 1])) {
+            break
+        }
+        d += 1
+    }
+    offset = (offset ~mod- this.dict_chunk_offsets[d]) ~mod- args.backward
+    limit = (this.dict_chunk_offsets[d + 1] ~mod- this.dict_chunk_offsets[d]) ~mod- offset
+    limit = limit.min(no_more_than: args.max_len)
+    src_lo = this.dc_src_off[d]
+    src_hi = src_lo ~mod+ this.dc_size[d]
+    if (src_lo > src_hi) or (src_hi > args.dwb.length()) {
+        return 0
+    }
+    source = args.dwb[src_lo .. src_hi]
+    if (args.best_len >= limit) or
+            (args.continuation <> this.byte_at(s: source, i: offset ~mod+ args.best_len)) {
+        return 0
+    }
+    if (offset > source.length()) or ((this.rb_buf_off ~mod+ args.cur_ix_masked) > args.wb.length()) {
+        return 0
+    }
+    return this.find_match_length_2(a: source[offset ..],
+            b: args.wb[this.rb_buf_off ~mod+ args.cur_ix_masked ..], limit: limit)
+}
+
 // Mirrors ComputeShortestPathFromNodes in backward_references_hq.c.
 pri func encoder.compute_shortest_path_from_nodes!(wb: slice base.u8, num_bytes: base.u64) base.u64 {
     var index        : base.u64
@@ -797,7 +848,8 @@ pri func encoder.compute_shortest_path_from_nodes!(wb: slice base.u8, num_bytes:
 }
 
 // Mirrors BrotliZopfliCreateCommands in backward_references_hq.c. The
-// commands go to command indexes cmds_base and up.
+// commands go to command indexes cmds_base and up. The gap is
+// this.dict_total_size.
 pri func encoder.zopfli_create_commands!(wb: slice base.u8, num_bytes: base.u64, block_start: base.u64, cmds_base: base.u64) {
     var max_backward_limit : base.u64
     var pos                : base.u64
@@ -827,7 +879,7 @@ pri func encoder.zopfli_create_commands!(wb: slice base.u8, num_bytes: base.u64,
         distance = this.zn_distance(wb: args.wb, i: next) as base.u64
         len_code = this.zn_length_code(wb: args.wb, i: next)
         dictionary_start = this.min64(a: (args.block_start ~mod+ pos) ~mod+ (this.stream_offset as base.u64), b: max_backward_limit)
-        is_dictionary = distance > dictionary_start
+        is_dictionary = distance > (dictionary_start ~mod+ this.dict_total_size)
         dist_code = this.zn_distance_code(wb: args.wb, i: next)
         this.init_command!(wb: args.wb, n: args.cmds_base ~mod+ i, insertlen: insert_length,
                 copylen: copy_length, copylen_code_delta: len_code ~mod- copy_length, distance_code: dist_code)
@@ -846,7 +898,7 @@ pri func encoder.zopfli_create_commands!(wb: slice base.u8, num_bytes: base.u64,
 
 // Mirrors ZopfliIterate in backward_references_hq.c. The num_matches array
 // is at this.z_nm_off and the matches at this.z_m_off.
-pri func encoder.zopfli_iterate!(wb: slice base.u8, num_bytes: base.u64, position: base.u64) base.u64 {
+pri func encoder.zopfli_iterate!(wb: slice base.u8, dwb: roslice base.u8, num_bytes: base.u64, position: base.u64) base.u64 {
     var max_backward_limit : base.u64
     var max_zopfli_len     : base.u64
     var cur_match_pos      : base.u64
@@ -866,7 +918,7 @@ pri func encoder.zopfli_iterate!(wb: slice base.u8, num_bytes: base.u64, positio
     i = 0
     while (i ~mod+ 3) < args.num_bytes {
         nm = this.load32le(s: args.wb, i: this.z_nm_off ~mod+ (i ~mod* 4)) as base.u64
-        skip = this.update_nodes!(wb: args.wb, num_bytes: args.num_bytes, block_start: args.position, pos: i,
+        skip = this.update_nodes!(wb: args.wb, dwb: args.dwb, num_bytes: args.num_bytes, block_start: args.position, pos: i,
                 max_backward_limit: max_backward_limit, num_matches: nm,
                 matches_off: this.z_m_off ~mod+ (cur_match_pos ~mod* 8))
         if skip < BROTLI_LONG_COPY_QUICK_STEP {
@@ -929,8 +981,9 @@ pri func encoder.z_set_offsets!(wb_len: base.u64, num_bytes: base.u64) base.bool
 }
 
 // Mirrors BrotliZopfliComputeShortestPath in backward_references_hq.c. The
-// nodes were initialized by the caller.
-pri func encoder.zopfli_compute_shortest_path!(wb: slice base.u8, num_bytes: base.u64, position: base.u64) base.u64 {
+// nodes were initialized by the caller. The matches buffer (of 2 *
+// (MAX_NUM_MATCHES_H10 + 64) BackwardMatches) is at this.z_m_off.
+pri func encoder.zopfli_compute_shortest_path!(wb: slice base.u8, dwb: roslice base.u8, num_bytes: base.u64, position: base.u64) base.u64 {
     var max_backward_limit : base.u64
     var max_zopfli_len     : base.u64
     var store_end          : base.u64
@@ -941,8 +994,15 @@ pri func encoder.zopfli_compute_shortest_path!(wb: slice base.u8, num_bytes: bas
     var skip               : base.u64
     var num_matches        : base.u64
     var ml                 : base.u64
+    var lz_matches_off     : base.u64
+    var cd_matches         : base.u64
 
     max_backward_limit = ((1 as base.u64) << this.lgwin) ~mod- 16
+    // lz_matches_off is the C code's lz_matches_offset, in bytes.
+    lz_matches_off = this.z_m_off
+    if this.dict_num_chunks <> 0 {
+        lz_matches_off ~mod+= 8 * (MAX_NUM_MATCHES_H10 + 128)
+    }
     max_zopfli_len = MAX_ZOPFLI_LEN_QUALITY_10
     if this.quality > 10 {
         max_zopfli_len = MAX_ZOPFLI_LEN_QUALITY_11
@@ -962,7 +1022,18 @@ pri func encoder.zopfli_compute_shortest_path!(wb: slice base.u8, num_bytes: bas
         max_distance = pos.min(no_more_than: max_backward_limit)
         dictionary_start = this.min64(a: pos ~mod+ (this.stream_offset as base.u64), b: max_backward_limit)
         num_matches = this.h10_find_all_matches!(wb: args.wb, cur_ix: pos, max_length: args.num_bytes ~mod- i,
-                max_backward: max_distance, dictionary_distance: dictionary_start, matches_off: this.z_m_off)
+                max_backward: max_distance, dictionary_distance: dictionary_start ~mod+ this.dict_total_size,
+                matches_off: lz_matches_off)
+        if this.dict_num_chunks <> 0 {
+            cd_matches = this.lookup_all_compound_dictionary_matches!(wb: args.wb, dwb: args.dwb,
+                    cur_ix: pos, min_length: 3, max_length: args.num_bytes ~mod- i,
+                    max_ring_buffer_distance: dictionary_start, max_distance: this.dist_max_distance,
+                    matches_off: lz_matches_off ~mod- (8 * 64), match_limit: 64)
+            this.merge_matches!(wb: args.wb, dst: this.z_m_off,
+                    src1: lz_matches_off ~mod- (8 * 64), len1: cd_matches,
+                    src2: lz_matches_off, len2: num_matches)
+            num_matches ~mod+= cd_matches
+        }
         if num_matches > 0 {
             ml = this.bm_length(wb: args.wb, off: this.z_m_off ~mod+ ((num_matches ~mod- 1) ~mod* 8))
             if ml > max_zopfli_len {
@@ -970,7 +1041,7 @@ pri func encoder.zopfli_compute_shortest_path!(wb: slice base.u8, num_bytes: bas
                 num_matches = 1
             }
         }
-        skip = this.update_nodes!(wb: args.wb, num_bytes: args.num_bytes, block_start: args.position, pos: i,
+        skip = this.update_nodes!(wb: args.wb, dwb: args.dwb, num_bytes: args.num_bytes, block_start: args.position, pos: i,
                 max_backward_limit: max_backward_limit, num_matches: num_matches, matches_off: this.z_m_off)
         if skip < BROTLI_LONG_COPY_QUICK_STEP {
             skip = 0
@@ -1002,7 +1073,7 @@ pri func encoder.zopfli_compute_shortest_path!(wb: slice base.u8, num_bytes: bas
 }
 
 // Mirrors BrotliCreateZopfliBackwardReferences in backward_references_hq.c.
-pri func encoder.create_zopfli_backward_references!(wb: slice base.u8, num_bytes: base.u64, position: base.u64) base.status {
+pri func encoder.create_zopfli_backward_references!(wb: slice base.u8, dwb: roslice base.u8, num_bytes: base.u64, position: base.u64) base.status {
     var cmds_base  : base.u64
     var n          : base.u64
     var ok_offsets : base.bool
@@ -1013,7 +1084,7 @@ pri func encoder.create_zopfli_backward_references!(wb: slice base.u8, num_bytes
     }
     cmds_base = this.num_cmds
     this.init_zopfli_nodes!(wb: args.wb, length: args.num_bytes ~mod+ 1)
-    n = this.zopfli_compute_shortest_path!(wb: args.wb, num_bytes: args.num_bytes, position: args.position)
+    n = this.zopfli_compute_shortest_path!(wb: args.wb, dwb: args.dwb, num_bytes: args.num_bytes, position: args.position)
     if (cmds_base ~mod+ n) > this.cmds_cap {
         return "#internal error: inconsistent encoder state"
     }
@@ -1024,7 +1095,7 @@ pri func encoder.create_zopfli_backward_references!(wb: slice base.u8, num_bytes
 
 // Mirrors BrotliCreateHqZopfliBackwardReferences in
 // backward_references_hq.c.
-pri func encoder.create_hq_zopfli_backward_references!(wb: slice base.u8, num_bytes: base.u64, position: base.u64) base.status {
+pri func encoder.create_hq_zopfli_backward_references!(wb: slice base.u8, dwb: roslice base.u8, num_bytes: base.u64, position: base.u64) base.status {
     var max_backward_limit   : base.u64
     var store_end            : base.u64
     var cur_match_pos        : base.u64
@@ -1046,6 +1117,8 @@ pri func encoder.create_hq_zopfli_backward_references!(wb: slice base.u8, num_by
     var k                    : base.u32
     var n                    : base.u64
     var ok_offsets           : base.bool
+    var shadow_matches       : base.u64
+    var cd_matches           : base.u64
 
     ok_offsets = this.z_set_offsets!(wb_len: this.var_end.min(no_more_than: args.wb.length()), num_bytes: args.num_bytes)
     if not ok_offsets {
@@ -1056,6 +1129,9 @@ pri func encoder.create_hq_zopfli_backward_references!(wb: slice base.u8, num_by
     if args.num_bytes >= H10_MAX_TREE_COMP_LENGTH {
         store_end = ((args.position ~mod+ args.num_bytes) ~mod- H10_MAX_TREE_COMP_LENGTH) ~mod+ 1
     }
+    if this.dict_num_chunks <> 0 {
+        shadow_matches = MAX_NUM_MATCHES_H10 + 128
+    }
     i = 0
     while (i ~mod+ 3) < args.num_bytes {
         pos = args.position ~mod+ i
@@ -1063,12 +1139,23 @@ pri func encoder.create_hq_zopfli_backward_references!(wb: slice base.u8, num_by
         dictionary_start = this.min64(a: pos ~mod+ (this.stream_offset as base.u64), b: max_backward_limit)
         max_length = args.num_bytes ~mod- i
         // Ensure that we have enough free slots.
-        if (cur_match_pos ~mod+ MAX_NUM_MATCHES_H10) > this.z_m_cap {
+        if ((cur_match_pos ~mod+ MAX_NUM_MATCHES_H10) ~mod+ shadow_matches) > this.z_m_cap {
             return base."#bad workbuf length"
         }
         num_found_matches = this.h10_find_all_matches!(wb: args.wb, cur_ix: pos, max_length: max_length,
-                max_backward: max_distance, dictionary_distance: dictionary_start,
-                matches_off: this.z_m_off ~mod+ (cur_match_pos ~mod* 8))
+                max_backward: max_distance, dictionary_distance: dictionary_start ~mod+ this.dict_total_size,
+                matches_off: this.z_m_off ~mod+ ((cur_match_pos ~mod+ shadow_matches) ~mod* 8))
+        if this.dict_num_chunks <> 0 {
+            cd_matches = this.lookup_all_compound_dictionary_matches!(wb: args.wb, dwb: args.dwb,
+                    cur_ix: pos, min_length: 3, max_length: max_length,
+                    max_ring_buffer_distance: dictionary_start, max_distance: this.dist_max_distance,
+                    matches_off: this.z_m_off ~mod+ (((cur_match_pos ~mod+ shadow_matches) ~mod- 64) ~mod* 8),
+                    match_limit: 64)
+            this.merge_matches!(wb: args.wb, dst: this.z_m_off ~mod+ (cur_match_pos ~mod* 8),
+                    src1: this.z_m_off ~mod+ (((cur_match_pos ~mod+ shadow_matches) ~mod- 64) ~mod* 8), len1: cd_matches,
+                    src2: this.z_m_off ~mod+ ((cur_match_pos ~mod+ shadow_matches) ~mod* 8), len2: num_found_matches)
+            num_found_matches ~mod+= cd_matches
+        }
         cur_match_end = cur_match_pos ~mod+ num_found_matches
         this.poke_u32!(s: args.wb, i: this.z_nm_off ~mod+ (i ~mod* 4), v: (num_found_matches & 0xFFFF_FFFF) as base.u32)
         if num_found_matches > 0 {
@@ -1121,7 +1208,7 @@ pri func encoder.create_hq_zopfli_backward_references!(wb: slice base.u8, num_by
             this.dist_cache[k] = orig_dist_cache[k]
             k ~mod+= 1
         }
-        n = this.zopfli_iterate!(wb: args.wb, num_bytes: args.num_bytes, position: args.position)
+        n = this.zopfli_iterate!(wb: args.wb, dwb: args.dwb, num_bytes: args.num_bytes, position: args.position)
         if (orig_num_commands ~mod+ n) > this.cmds_cap {
             return "#internal error: inconsistent encoder state"
         }
@@ -1131,6 +1218,51 @@ pri func encoder.create_hq_zopfli_backward_references!(wb: slice base.u8, num_by
         iter ~mod+= 1
     }
     return ok
+}
+
+// Mirrors MergeMatches in backward_references_hq.c: it merges the len1
+// BackwardMatches at args.wb[src1 ..] and the len2 at args.wb[src2 ..] (each
+// sorted by length) into args.wb[dst ..].
+pri func encoder.merge_matches!(wb: slice base.u8, dst: base.u64, src1: base.u64, len1: base.u64, src2: base.u64, len2: base.u64) {
+    var dst  : base.u64
+    var src1 : base.u64
+    var len1 : base.u64
+    var src2 : base.u64
+    var len2 : base.u64
+    var l1   : base.u64
+    var l2   : base.u64
+
+    dst = args.dst
+    src1 = args.src1
+    len1 = args.len1
+    src2 = args.src2
+    len2 = args.len2
+    while (len1 > 0) and (len2 > 0) {
+        l1 = this.bm_length(wb: args.wb, off: src1)
+        l2 = this.bm_length(wb: args.wb, off: src2)
+        if (l1 < l2) or ((l1 == l2) and (this.bm_distance(wb: args.wb, off: src1) < this.bm_distance(wb: args.wb, off: src2))) {
+            this.bm_copy!(wb: args.wb, dst: dst, src: src1)
+            src1 ~mod+= 8
+            len1 -= 1
+        } else {
+            this.bm_copy!(wb: args.wb, dst: dst, src: src2)
+            src2 ~mod+= 8
+            len2 -= 1
+        }
+        dst ~mod+= 8
+    }
+    while len1 > 0 {
+        this.bm_copy!(wb: args.wb, dst: dst, src: src1)
+        src1 ~mod+= 8
+        dst ~mod+= 8
+        len1 -= 1
+    }
+    while len2 > 0 {
+        this.bm_copy!(wb: args.wb, dst: dst, src: src2)
+        src2 ~mod+= 8
+        dst ~mod+= 8
+        len2 -= 1
+    }
 }
 
 // min32_543 returns min(a, 543).

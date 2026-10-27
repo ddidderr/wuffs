@@ -169,8 +169,6 @@ invariants for memory safety but Wuffs requires explicit bounds checks.
   "Metadata Blocks" section below.
 - More fast paths, for example for dictionary words, for copies that wrap
   around the ring buffer and for block switches.
-- Compound dictionary matches at encoder qualities 10 and 11 (see the
-  "Encoder" section below).
 
 
 ## Encoder
@@ -201,10 +199,7 @@ hasher, `BrotliCreateZopfliBackwardReferences` at quality 10 and
 below) works at qualities 3 to 11 with lgwin 10 to 30. Like the C code,
 qualities 0 to 2 ignore the large-window quirk.
 Raw (LZ77 prefix) dictionaries (see "Encoder Dictionaries" below) work at
-qualities 0 to 9, and, like the C code, qualities 0 and 1 ignore them. At
-qualities 10 and 11, `transform_io` returns `"#unsupported encoder quality"`
-if a dictionary is attached (the Zopfli path's dictionary lookups are not
-implemented yet).
+all qualities, and, like the C code, qualities 0 and 1 ignore them.
 
 The source files are:
 
@@ -532,6 +527,19 @@ literals) and:
 - `M` is the `metablock_builder`'s `workbuf_len_worst_case(L, cmds_cap)`
   (`max_incl`) or `workbuf_len_practical(L, cmds_cap)` (`min_incl`).
 
+With raw dictionaries attached (see "Encoder Dictionaries" below), both
+`min_incl` and `max_incl` also include the dictionaries' `D` bytes, and, at
+quality 11, `Z` has room for 256 more `BackwardMatch`es (the C code's
+`shadow_matches` in `BrotliCreateHqZopfliBackwardReferences`: scratch space
+past the current position's matches, where the binary tree's and the
+compound dictionary's matches are found before `MergeMatches` merges them)
+and, for `max_incl`, up to 164 `BackwardMatch`es per byte (64 more, the
+C code's `match_limit`, from the compound dictionary). At quality 10, the
+C code's matches buffer (`2 * (MAX_NUM_MATCHES_H10 + 64)` entries, for one
+position) already has room for its `lz_matches_offset` of
+`MAX_NUM_MATCHES_H10 + 128`, so `Z` is unchanged. In practice `M` is the
+larger of the two, so only `D` changes the table below.
+
 `workbuf_len_practical` is `workbuf_len_worst_case` with these caps:
 `FindBlocks` makes at most `(k / 16) + 1` blocks for `k` literals, commands
 or distances (instead of one block per symbol), `ClusterBlocks`' first phase
@@ -569,7 +577,11 @@ words, at most the C code's `max_distance` check in `FindAllMatchesH10` and
 less than `(1 << 24) + (1 << 17)`, plus 15 for the distance code), which
 satisfies the `metablock_builder`'s precondition (distance codes at most the
 distance params' `max_distance`, which is at least `(1 << 26) - 4` without
-large-window brotli).
+large-window brotli). With raw dictionaries attached, the static dictionary
+words start `gap` further away and compound dictionary matches can be
+further away too, but explicit distances are still at most `max_distance`
+(`FindAllMatchesH10` and `FindAllCompoundDictionaryMatches` skip longer
+ones, and distance cache hits use short distance codes), as in the C code.
 
 
 ### Encoder Operation Mapping
@@ -740,6 +752,19 @@ The compound dictionary then affects compression like in the C code:
   that are within `params.dist.max_distance` (`BROTLI_MAX_DISTANCE`, or
   `BROTLI_MAX_ALLOWED_DISTANCE` for large-window brotli) and that do not
   cross a chunk's end.
+- At qualities 10 and 11 (`BrotliCreateZopfliBackwardReferences` and
+  `BrotliCreateHqZopfliBackwardReferences` in `backward_references_hq.c`),
+  for each position, `LookupAllCompoundDictionaryMatches` finds up to 64
+  matches (of length 4 or more, each longer than the previous one, over the
+  chunks in order) in the dictionaries, which `MergeMatches` merges (by
+  length, then distance) with the H10 binary tree's and static dictionary's
+  matches. The binary tree's static dictionary matches start at
+  `dictionary_start + gap`, and `UpdateNodes`, `EvaluateNode` (via
+  `ComputeDistanceShortcut`) and `BrotliZopfliCreateCommands` treat
+  distances up to `dictionary_start + gap` as non-static-dictionary ones
+  (which update the distance cache). `UpdateNodes` also tries the distance
+  cache's distances that land in the compound dictionary (finding the chunk
+  and matching up to its end).
 - With `QUIRK_STREAM_OFFSET`, `dictionary_start` is `min(position +
   stream_offset, max_backward_limit)`, as in the C code (whose output then
   continues another stream and can only be decoded after it).
@@ -815,7 +840,7 @@ dictionary grid (see "Encoder Dictionaries" above): for each input, seven
 sets of raw dictionaries (a prefix of the input, the whole input,
 `test/data/enwik5`, noise plus the input's middle third, 15 pieces of the
 input, tiny and empty dictionaries, and the input's swapped halves plus some
-text), with qualities 0 to 9, lgwins, chunkings, flushes, metadata blocks,
+text), with qualities 0 to 11, lgwins, chunkings, flushes, metadata blocks,
 size hints, stream offsets, large window and other parameters, plus
 dictionaries of 2 MiB to 40 MiB (every hash table size) with a 1 MiB input.
 Each dictionary configuration's output is also decoded by libbrotlidec and
@@ -824,7 +849,11 @@ stream offset, and the whole-input and big dictionaries check that the
 output is smaller than without them (at qualities 5 and above, unless it is
 already tiny). With `-dict` (and `-q=0-9`) it runs 419,802 configurations,
 all byte-exact against libbrotlienc v1.2.1 on x86-64, with 356,546 round
-trips through both decoders. With
+trips through both decoders. With `-dict -q=10-11` (which uses the
+smallest dictionary grid for inputs longer than 64 KiB), shards 0 to 47 of
+90 (except 43 and 46: 98 inputs, including all of the 2 to 40 MiB
+dictionaries) ran 39,800 configurations, also all byte-exact, with 33,814
+round trips through both decoders and 80 smaller-with-dictionary checks. With
 `-q=0-9` (the default) and without `-dict` it runs 814,706
 configurations (96,688 of them in the large-window grid), all byte-exact
 against libbrotlienc v1.2.1 on x86-64. With `-lw -big` it runs 720 more
@@ -1038,9 +1067,6 @@ metablock) for as long as it needs the results.
 - Speed: at qualities 10 and 11 the Wuffs encoder is several times slower
   than libbrotlienc, mostly because of the soft float arithmetic in the
   Zopfli cost model, the block splitter and histogram clustering.
-- Compound dictionary matches at qualities 10 and 11 (the Zopfli path's
-  `FindCompoundDictionaryMatch` lookups); attaching a dictionary at those
-  qualities currently returns `"#unsupported encoder quality"`.
 - Serialized (shared) dictionaries, which only an experimental
   (`BROTLI_EXPERIMENTAL`) libbrotlienc build supports.
 - Changing parameters mid-stream.

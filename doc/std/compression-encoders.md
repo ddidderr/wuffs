@@ -46,7 +46,7 @@ first `transform_io` call.
   `min_incl` is a smaller practical bound), but a shorter workbuf works for
   short inputs: see the README's "Encoder Workbuf Layout" section. Up to 15
   raw dictionaries can be attached (like libbrotlienc's
-  `BrotliEncoderAttachPreparedDictionary`) at qualities 0 to 9, see the
-  README's "Encoder Dictionaries" section. They live at the start of the
+  `BrotliEncoderAttachPreparedDictionary`; like the C code, qualities 0
+  and 1 ignore them), see the README's "Encoder Dictionaries" section. They live at the start of the
   workbuf, with their prepared hash tables, and `workbuf_len` grows
   accordingly.
