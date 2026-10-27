@@ -41206,14 +41206,7 @@ wuffs_softfloat__arith__f64_propagate_nan(
 
 WUFFS_BASE__GENERATED_C_CODE
 static uint64_t
-wuffs_softfloat__arith__f64_add_normal_mags(
-    const wuffs_softfloat__arith* self,
-    uint64_t a_a,
-    uint64_t a_b);
-
-WUFFS_BASE__GENERATED_C_CODE
-static uint64_t
-wuffs_softfloat__arith__f64_sub_normal_mags(
+wuffs_softfloat__arith__f64_add_normal(
     const wuffs_softfloat__arith* self,
     uint64_t a_a,
     uint64_t a_b);
@@ -41897,13 +41890,14 @@ wuffs_softfloat__arith__f64_add(
   uint64_t v_z = 0;
 
   if ((((uint64_t)(((a_a >> 52u) & 2047u) - 1u)) < 2046u) && (((uint64_t)(((a_b >> 52u) & 2047u) - 1u)) < 2046u)) {
-    if (((a_a ^ a_b) >> 63u) == 0u) {
-      return wuffs_softfloat__arith__f64_add_normal_mags(self, a_a, a_b);
-    }
-    v_z = wuffs_softfloat__arith__f64_sub_normal_mags(self, a_a, a_b);
+    v_z = wuffs_softfloat__arith__f64_add_normal(self, a_a, a_b);
     if (v_z != 18446744073709551615u) {
       return v_z;
     }
+  } else if (((a_b & 9223372036854775807u) == 0u) && (((uint64_t)((a_a & 9223372036854775807u) - 1u)) < 9218868437227405311u)) {
+    return a_a;
+  } else if (((a_a & 9223372036854775807u) == 0u) && (((uint64_t)((a_b & 9223372036854775807u) - 1u)) < 9218868437227405311u)) {
+    return a_b;
   }
   if (((a_a ^ a_b) >> 63u) == 0u) {
     return wuffs_softfloat__arith__f64_add_mags(self, a_a, a_b, (a_a & 9223372036854775808u));
@@ -41930,13 +41924,14 @@ wuffs_softfloat__arith__f64_sub(
   uint64_t v_z = 0;
 
   if ((((uint64_t)(((a_a >> 52u) & 2047u) - 1u)) < 2046u) && (((uint64_t)(((a_b >> 52u) & 2047u) - 1u)) < 2046u)) {
-    if (((a_a ^ a_b) >> 63u) != 0u) {
-      return wuffs_softfloat__arith__f64_add_normal_mags(self, a_a, a_b);
-    }
-    v_z = wuffs_softfloat__arith__f64_sub_normal_mags(self, a_a, a_b);
+    v_z = wuffs_softfloat__arith__f64_add_normal(self, a_a, (a_b ^ 9223372036854775808u));
     if (v_z != 18446744073709551615u) {
       return v_z;
     }
+  } else if (((a_b & 9223372036854775807u) == 0u) && (((uint64_t)((a_a & 9223372036854775807u) - 1u)) < 9218868437227405311u)) {
+    return a_a;
+  } else if (((a_a & 9223372036854775807u) == 0u) && (((uint64_t)((a_b & 9223372036854775807u) - 1u)) < 9218868437227405311u)) {
+    return (a_b ^ 9223372036854775808u);
   }
   if (((a_a ^ a_b) >> 63u) == 0u) {
     return wuffs_softfloat__arith__f64_sub_mags(self, a_a, a_b, (a_a & 9223372036854775808u));
@@ -41944,133 +41939,71 @@ wuffs_softfloat__arith__f64_sub(
   return wuffs_softfloat__arith__f64_add_mags(self, a_a, a_b, (a_a & 9223372036854775808u));
 }
 
-// -------- func softfloat.arith.f64_add_normal_mags
+// -------- func softfloat.arith.f64_add_normal
 
 WUFFS_BASE__GENERATED_C_CODE
 static uint64_t
-wuffs_softfloat__arith__f64_add_normal_mags(
+wuffs_softfloat__arith__f64_add_normal(
     const wuffs_softfloat__arith* self,
     uint64_t a_a,
     uint64_t a_b) {
-  uint32_t v_ea = 0;
-  uint32_t v_eb = 0;
-  uint64_t v_ma = 0;
-  uint64_t v_mb = 0;
+  uint64_t v_x = 0;
+  uint64_t v_y = 0;
+  uint32_t v_ex = 0;
   uint32_t v_d = 0;
+  uint64_t v_mx = 0;
+  uint64_t v_my = 0;
   uint64_t v_z = 0;
-  uint64_t v_rb = 0;
-
-  v_ea = ((uint32_t)(((a_a >> 52u) & 2047u)));
-  v_eb = ((uint32_t)(((a_b >> 52u) & 2047u)));
-  v_ma = (((a_a & 4503599627370495u) | 4503599627370496u) << 9u);
-  v_mb = (((a_b & 4503599627370495u) | 4503599627370496u) << 9u);
-  if (v_ea < v_eb) {
-    v_d = (((uint32_t)(v_eb - v_ea)) & 2047u);
-    v_ea = v_eb;
-    v_z = v_ma;
-    v_ma = v_mb;
-    v_mb = v_z;
-  } else {
-    v_d = (((uint32_t)(v_ea - v_eb)) & 2047u);
-  }
-  if (v_d >= 63u) {
-    v_mb = 1u;
-  } else if (v_d > 0u) {
-    if (((uint64_t)(v_mb << (64u - v_d))) != 0u) {
-      v_mb = ((v_mb >> v_d) | 1u);
-    } else {
-      v_mb = (v_mb >> v_d);
-    }
-  }
-  v_z = (v_ma + v_mb);
-  if (v_z >= 4611686018427387904u) {
-    v_ea += 1u;
-    v_z = ((v_z >> 1u) | (v_z & 1u));
-  }
-  v_rb = (v_z & 511u);
-  v_z = (((uint64_t)(v_z + 256u)) >> 9u);
-  if (v_rb == 256u) {
-    v_z &= 18446744073709551614u;
-  }
-  v_z = ((uint64_t)(((uint64_t)(((uint64_t)(((uint32_t)(v_ea - 1u)))) << 52u)) + v_z));
-  if (v_z >= 9218868437227405312u) {
-    v_z = 9218868437227405312u;
-  }
-  return ((a_a & 9223372036854775808u) | v_z);
-}
-
-// -------- func softfloat.arith.f64_sub_normal_mags
-
-WUFFS_BASE__GENERATED_C_CODE
-static uint64_t
-wuffs_softfloat__arith__f64_sub_normal_mags(
-    const wuffs_softfloat__arith* self,
-    uint64_t a_a,
-    uint64_t a_b) {
-  uint64_t v_sign = 0;
-  uint32_t v_ea = 0;
-  uint32_t v_eb = 0;
-  uint64_t v_fa = 0;
-  uint64_t v_fb = 0;
-  uint64_t v_ma = 0;
-  uint64_t v_mb = 0;
-  uint32_t v_d = 0;
   uint32_t v_s = 0;
-  uint64_t v_z = 0;
   uint64_t v_rb = 0;
 
-  v_sign = (a_a & 9223372036854775808u);
-  v_ea = ((uint32_t)(((a_a >> 52u) & 2047u)));
-  v_eb = ((uint32_t)(((a_b >> 52u) & 2047u)));
-  v_fa = (a_a & 4503599627370495u);
-  v_fb = (a_b & 4503599627370495u);
-  if (v_ea == v_eb) {
-    if (v_fa == v_fb) {
+  v_x = a_a;
+  v_y = a_b;
+  if ((v_y & 9223372036854775807u) > (v_x & 9223372036854775807u)) {
+    v_x = a_b;
+    v_y = a_a;
+  }
+  v_ex = ((uint32_t)(((v_x >> 52u) & 2047u)));
+  v_d = ((uint32_t)(v_ex - ((uint32_t)(((v_y >> 52u) & 2047u)))));
+  if (v_d > 63u) {
+    v_d = 63u;
+  }
+  v_mx = (((v_x & 4503599627370495u) | 4503599627370496u) << 10u);
+  v_my = (((v_y & 4503599627370495u) | 4503599627370496u) << 10u);
+  if ((v_my & ((uint64_t)((((uint64_t)(1u)) << (v_d & 63u)) - 1u))) != 0u) {
+    v_my = ((v_my >> (v_d & 63u)) | 1u);
+  } else {
+    v_my = (v_my >> (v_d & 63u));
+  }
+  if (((v_x ^ v_y) >> 63u) == 0u) {
+    v_z = (v_mx + v_my);
+    if (v_z >= 9223372036854775808u) {
+      v_ex += 1u;
+      v_z = ((v_z >> 1u) | (v_z & 1u));
+    }
+  } else {
+    v_z = ((uint64_t)(v_mx - v_my));
+    if (v_z == 0u) {
       return 0u;
-    } else if (v_fa < v_fb) {
-      v_sign ^= 9223372036854775808u;
-      v_z = ((uint64_t)(v_fb - v_fa));
-    } else {
-      v_z = ((uint64_t)(v_fa - v_fb));
+    } else if (v_z < 4611686018427387904u) {
+      v_s = (((uint32_t)(wuffs_softfloat__arith__clz64(self, v_z) - 1u)) & 63u);
+      if (v_s >= v_ex) {
+        return 18446744073709551615u;
+      }
+      v_ex = (((uint32_t)(v_ex - v_s)) & 2047u);
+      v_z = ((uint64_t)(v_z << v_s));
     }
-    v_s = (((uint32_t)(wuffs_softfloat__arith__clz64(self, v_z) - 11u)) & 63u);
-    if (v_s >= v_ea) {
-      return 18446744073709551615u;
-    }
-    return (v_sign | ((uint64_t)(((uint64_t)(((uint64_t)(((uint32_t)(((uint32_t)(v_ea - v_s)) - 1u)))) << 52u)) + ((uint64_t)(v_z << v_s)))));
   }
-  v_ma = ((v_fa | 4503599627370496u) << 10u);
-  v_mb = ((v_fb | 4503599627370496u) << 10u);
-  if (v_ea < v_eb) {
-    v_sign ^= 9223372036854775808u;
-    v_d = (((uint32_t)(v_eb - v_ea)) & 2047u);
-    v_ea = v_eb;
-    v_z = v_ma;
-    v_ma = v_mb;
-    v_mb = v_z;
-  } else {
-    v_d = (((uint32_t)(v_ea - v_eb)) & 2047u);
-  }
-  if (v_d >= 63u) {
-    v_mb = 1u;
-  } else if (((uint64_t)(v_mb << ((64u - v_d) & 63u))) != 0u) {
-    v_mb = ((v_mb >> v_d) | 1u);
-  } else {
-    v_mb = (v_mb >> v_d);
-  }
-  v_z = ((uint64_t)(v_ma - v_mb));
-  v_s = (((uint32_t)(wuffs_softfloat__arith__clz64(self, v_z) - 1u)) & 63u);
-  if (v_s >= v_ea) {
-    return 18446744073709551615u;
-  }
-  v_ea = (((uint32_t)(v_ea - v_s)) & 2047u);
-  v_z = ((uint64_t)(v_z << v_s));
   v_rb = (v_z & 1023u);
   v_z = (((uint64_t)(v_z + 512u)) >> 10u);
   if (v_rb == 512u) {
     v_z &= 18446744073709551614u;
   }
-  return (v_sign | ((uint64_t)(((uint64_t)(((uint64_t)(((uint32_t)(v_ea - 1u)))) << 52u)) + v_z)));
+  v_z = ((uint64_t)(((uint64_t)(((uint64_t)(((uint32_t)(v_ex - 1u)))) << 52u)) + v_z));
+  if (v_z >= 9218868437227405312u) {
+    v_z = 9218868437227405312u;
+  }
+  return ((v_x & 9223372036854775808u) | v_z);
 }
 
 // -------- func softfloat.arith.f64_add_mags
@@ -42832,6 +42765,10 @@ wuffs_softfloat__arith__f32_add(
     if (v_z != 4294967295u) {
       return v_z;
     }
+  } else if (((a_b & 2147483647u) == 0u) && (((uint32_t)((a_a & 2147483647u) - 1u)) < 2139095039u)) {
+    return a_a;
+  } else if (((a_a & 2147483647u) == 0u) && (((uint32_t)((a_b & 2147483647u) - 1u)) < 2139095039u)) {
+    return a_b;
   }
   return wuffs_softfloat__arith__slow_f32_add(self, a_a, a_b);
 }
@@ -42862,6 +42799,10 @@ wuffs_softfloat__arith__f32_sub(
     if (v_z != 4294967295u) {
       return v_z;
     }
+  } else if (((a_b & 2147483647u) == 0u) && (((uint32_t)((a_a & 2147483647u) - 1u)) < 2139095039u)) {
+    return a_a;
+  } else if (((a_a & 2147483647u) == 0u) && (((uint32_t)((a_b & 2147483647u) - 1u)) < 2139095039u)) {
+    return (a_b ^ 2147483648u);
   }
   return wuffs_softfloat__arith__slow_f32_sub(self, a_a, a_b);
 }
@@ -43334,6 +43275,16 @@ wuffs_softfloat__arith__f32_from_u32(
     return 0;
   }
 
+  uint32_t v_c = 0;
+
+  if (a_a == 0u) {
+    return 0u;
+  } else if (a_a < 16777216u) {
+    v_c = wuffs_softfloat__arith__clz32(self, a_a);
+    if (v_c >= 8u) {
+      return ((uint32_t)(((uint32_t)(((uint32_t)(157u - v_c)) << 23u)) + ((uint32_t)(a_a << (v_c - 8u)))));
+    }
+  }
   return wuffs_softfloat__arith__f64_to_f32(self, wuffs_softfloat__arith__f64_from_u32(self, a_a));
 }
 

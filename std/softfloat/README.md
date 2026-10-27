@@ -97,15 +97,18 @@ with the final remainder as the sticky bit. Leading zero counts use a 256-entry
 table.
 
 `f64_add` and `f64_sub` have a fast path for the common case where both
-operands are normal (`f64_add_normal_mags` and `f64_sub_normal_mags`): it
-skips the special-case handling, aligns the significands with a sticky bit,
-adds or subtracts them and rounds inline. Only a subtraction whose result is
-subnormal falls back to the general code (`f64_add_mags`, `f64_sub_mags`).
+operands are normal (`f64_add_normal`): it orders the operands by magnitude,
+aligns the significands with a sticky bit, adds or subtracts them and rounds
+inline. Only a result that is subnormal falls back to the general code
+(`f64_add_mags`, `f64_sub_mags`). Adding (or subtracting) a zero and a finite
+non-zero value also returns early.
 
 Likewise, `f32_add`, `f32_sub` and `f32_mul` compute the result directly in
 binary32 (with 32-bit significands for add and sub and an exact 48-bit
 product for mul) when both operands are normal and the result is normal (or,
-for add and mul, overflows to infinity). Otherwise (zeroes, subnormal
+for add and mul, overflows to infinity), and add and sub return early for a
+zero plus a finite non-zero value. `f32_from_u32` converts integers below
+`1 << 24` (which are exact) directly. Otherwise (zeroes, subnormal
 operands or results, infinities and NaNs), they, and `f32_div` always,
 convert their operands exactly to `f64`, perform the `f64` operation and then
 round to `f32`. This double rounding is innocuous: binary64's 53 bits of

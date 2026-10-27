@@ -10,18 +10,19 @@
 
 // -------- f32 (binary32) operations.
 //
-// When both operands are normal (and, for sub_mags and mul, when the result
-// is normal too), the f32 add, sub and mul functions compute the result
-// directly in binary32 (with 32-bit or 64-bit integer significands). This is
-// the common case. Otherwise (zeroes, subnormals, infinities, NaNs and
-// subnormal results), they and f32_div convert their (exactly representable)
-// operands to f64, perform the f64 operation and round the result to f32
-// (the slow_etc functions). Double rounding is innocuous here: binary64 has
-// more than (2 * 24) + 2 bits of precision, which suffices for +, -, * and /
-// (Figueroa, "When is double rounding innocuous?", 1995). This is also
-// exhaustively cross-checked against hardware by the tests. The fast paths
-// never return a NaN, so NaN results (and their payloads) always come from
-// the slow paths.
+// When both operands are normal (and, unless it overflows to infinity, the
+// result is normal too), the f32 add, sub and mul functions compute the
+// result directly in binary32 (with 32-bit or 64-bit integer significands).
+// This is the common case. Adding or subtracting a zero and a finite
+// non-zero operand is also handled directly. Otherwise (zeroes, subnormals,
+// infinities, NaNs and subnormal results), they and f32_div convert their
+// (exactly representable) operands to f64, perform the f64 operation and
+// round the result to f32 (the slow_etc functions). Double rounding is
+// innocuous here: binary64 has more than (2 * 24) + 2 bits of precision,
+// which suffices for +, -, * and / (Figueroa, "When is double rounding
+// innocuous?", 1995). This is also exhaustively cross-checked against
+// hardware by the tests. The fast paths never return a NaN, so NaN results
+// (and their payloads) always come from the slow paths.
 
 pri const F32_SIGN : base.u32 = 0x8000_0000
 pri const F32_ABS  : base.u32 = 0x7FFF_FFFF
@@ -90,6 +91,12 @@ pub func arith.f32_add(a: base.u32, b: base.u32) base.u32 {
         if z <> 0xFFFF_FFFF {
             return z
         }
+    } else if ((args.b & F32_ABS) == 0) and (((args.a & F32_ABS) ~mod- 1) < (F32_INF - 1)) {
+        // b is a zero and a is finite and non-zero, so (a + b) is a.
+        return args.a
+    } else if ((args.a & F32_ABS) == 0) and (((args.b & F32_ABS) ~mod- 1) < (F32_INF - 1)) {
+        // a is a zero and b is finite and non-zero, so (a + b) is b.
+        return args.b
     }
     return this.slow_f32_add(a: args.a, b: args.b)
 }
@@ -106,6 +113,12 @@ pub func arith.f32_sub(a: base.u32, b: base.u32) base.u32 {
         if z <> 0xFFFF_FFFF {
             return z
         }
+    } else if ((args.b & F32_ABS) == 0) and (((args.a & F32_ABS) ~mod- 1) < (F32_INF - 1)) {
+        // b is a zero and a is finite and non-zero, so (a - b) is a.
+        return args.a
+    } else if ((args.a & F32_ABS) == 0) and (((args.b & F32_ABS) ~mod- 1) < (F32_INF - 1)) {
+        // a is a zero and b is finite and non-zero, so (a - b) is -b.
+        return args.b ^ F32_SIGN
     }
     return this.slow_f32_sub(a: args.a, b: args.b)
 }
@@ -415,6 +428,18 @@ pub func arith.f32_max(a: base.u32, b: base.u32) base.u32 {
 
 // f32_from_u32 returns the f32 nearest to the integer a (C's (float)a).
 pub func arith.f32_from_u32(a: base.u32) base.u32 {
+    var c : base.u32[..= 31]
+
+    if args.a == 0 {
+        return 0
+    } else if args.a < 0x100_0000 {
+        // a is exactly representable. Shift its top bit to bit 23 (the
+        // implicit bit, which is then added to the exponent field).
+        c = this.clz32(a: args.a)
+        if c >= 8 {
+            return ((157 ~mod- c) ~mod<< 23) ~mod+ (args.a ~mod<< (c - 8))
+        }
+    }
     // The u32 to f64 conversion is exact, so there is only one rounding.
     return this.f64_to_f32(a: this.f64_from_u32(a: args.a))
 }
