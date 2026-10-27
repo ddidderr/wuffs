@@ -1100,6 +1100,7 @@ typedef struct {
 } dec_config;
 
 static uint8_t* g_dec_wb;  // big_alloc.
+static bool g_trace = false;
 #define DEC_WB_CAP (((size_t)1 << 30) + ((size_t)64 << 20))
 static wuffs_brotli__decoder* g_dec;
 
@@ -1179,6 +1180,10 @@ wuffs_decode(const dec_config* dc,
     ri = src.meta.ri;
     wi = dst.meta.wi;
     res.wuffs_status = status.repr;
+    if (g_trace) {
+      printf("wuffs call %" PRIu64 ": lin=%zu lout=%zu -> ri=%zu wi=%zu %s\n",
+             res.calls, lin, lout, ri, wi, status.repr ? status.repr : "ok");
+    }
     if (status.repr == wuffs_base__suspension__short_read) {
       if (lin < n) {
         lin += next_chunk(&in_st, ch->in_style);
@@ -1256,6 +1261,10 @@ c_decode(const dec_config* dc,
         s, &avail_in, &next_in, &avail_out, &next_out, NULL);
     ri = lin - avail_in;
     wi = lout - avail_out;
+    if (g_trace) {
+      printf("c     call %" PRIu64 ": lin=%zu lout=%zu -> ri=%zu wi=%zu r=%d\n",
+             res.calls, lin, lout, ri, wi, (int)r);
+    }
     if (r == BROTLI_DECODER_RESULT_NEEDS_MORE_INPUT) {
       if (lin < n) {
         lin += next_chunk(&in_st, ch->in_style);
@@ -1371,6 +1380,8 @@ static uint64_t g_dec_with_dicts;
 static uint64_t g_dec_gen_streams;
 static uint64_t g_dec_gen_wuffs;
 static uint64_t g_dec_wuffs_shorter_output;
+static uint64_t g_dec_known_block_length;
+static uint64_t g_dec_known_saved;
 
 static int  //
 cls_index(int cls) {
@@ -1671,6 +1682,25 @@ compare_dec(const dec_result* w, const dec_result* c, const uint8_t* wout,
   return NULL;
 }
 
+// known_block_length_deviation returns whether the results differ only in
+// the documented way (see "Status Mapping" in std/brotli/README.md): with
+// chunked input, libbrotlidec can report BROTLI_DECODER_ERROR_FORMAT_BLOCK_
+// LENGTH_1 for an overrun metablock where Wuffs reports "#bad metablock
+// length" (BLOCK_LENGTH_2), because libbrotlidec's internal input buffer
+// (BrotliDecoderState.buffer, used after it rolls back a partially read
+// command, distance or block switch) makes it run out of input, and check
+// the metablock length, at points where Wuffs does not.
+static bool  //
+known_block_length_deviation(const chunking* ch, const dec_result* w,
+                             const dec_result* c, const uint8_t* wout,
+                             const uint8_t* cout) {
+  if (ch->one_shot || (w->cls != -10) || (c->cls != -9)) {
+    return false;
+  }
+  size_t m = (w->out_n < c->out_n) ? w->out_n : c->out_n;
+  return !m || !memcmp(wout, cout, m);
+}
+
 static int  //
 run_dec(uint64_t iters, double secs) {
   load_corpus();
@@ -1836,6 +1866,18 @@ run_dec(uint64_t iters, double secs) {
         }
       } else {
         why = compare_dec(&w, &c, wout, cout, dc.out_cap);
+        if (why && known_block_length_deviation(&ch, &w, &c, wout, cout)) {
+          why = NULL;
+          g_dec_known_block_length++;
+          if (g_dec_known_saved < 20) {
+            g_dec_known_saved++;
+            char desc[4096];
+            describe_dec(desc, sizeof desc, "known BLOCK_LENGTH deviation", s,
+                         &dc, &ch, &w, &c, n);
+            save_failure("known", desc, m, n, &dc.dicts);
+            g_num_failures--;
+          }
+        }
       }
       if (why) {
         char desc[4096];
@@ -1857,6 +1899,8 @@ run_dec(uint64_t iters, double secs) {
          g_dec_gen_streams, g_dec_gen_wuffs, g_dec_lw, g_dec_with_dicts,
          g_dec_dict_rejections, g_dec_exact_wb, g_dec_bad_wb_checks,
          g_dec_wuffs_shorter_output);
+  printf("  known BLOCK_LENGTH_1/2 deviations (chunked)=%" PRIu64 "\n",
+         g_dec_known_block_length);
   static const char* names[23] = {
       "other",     "ok",          "needs-more-input", "needs-more-output",
       "-1",        "-2",          "-3",               "-4",
@@ -1876,9 +1920,76 @@ run_dec(uint64_t iters, double secs) {
   return g_num_failures ? 1 : 0;
 }
 
+// replay_dec re-runs a saved decoder failure (see save_failure), printing
+// every transform_io and BrotliDecoderDecompressStream call.
+static int  //
+replay_dec(const char* path) {
+  g_dec_wb = big_alloc(DEC_WB_CAP);
+  g_dec = (wuffs_brotli__decoder*)xmalloc(sizeof__wuffs_brotli__decoder());
+  size_t n = 0;
+  uint8_t* m = read_file(path, &n, 64 << 20);
+  char tpath[1100];
+  snprintf(tpath, sizeof tpath, "%s.txt", path);
+  size_t tn = 0;
+  char* t = (char*)read_file(tpath, &tn, 1 << 20);
+  if (!m || !t) {
+    fprintf(stderr, "could not read %s or its .txt\n", path);
+    return 2;
+  }
+  t[tn] = 0;
+  dec_config dc;
+  memset(&dc, 0, sizeof dc);
+  chunking ch;
+  memset(&ch, 0, sizeof ch);
+  int lw = 0, ebw = 0, un = 0, os = 0;
+  char* q = strstr(t, " lw=");
+  if (!q || (sscanf(q, " lw=%d", &lw) != 1)) {
+    return 2;
+  }
+  q = strstr(t, " wb_len=");
+  if (!q || (sscanf(q,
+                    " wb_len=%" SCNu64 " expect_bad_wb=%d uninit=%d out_cap=%zu "
+                    "one_shot=%d in_seed=0x%" SCNx64 " in_style=%d out_seed=0x%" SCNx64
+                    " out_style=%d",
+                    &dc.wb_len, &ebw, &un, &dc.out_cap, &os, &ch.in_seed,
+                    &ch.in_style, &ch.out_seed, &ch.out_style) != 9)) {
+    fprintf(stderr, "could not parse %s\n", tpath);
+    return 2;
+  }
+  dc.large_window = lw;
+  dc.expect_bad_wb = ebw;
+  dc.uninit = un;
+  ch.one_shot = os;
+  for (size_t i = 0; i < MAX_DICTS; i++) {
+    for (uint32_t type = 0; type < 2; type++) {
+      char dpath[1200];
+      snprintf(dpath, sizeof dpath, "%s.dict%zu.%s", path, i,
+               type ? "sd" : "raw");
+      size_t dn = 0;
+      uint8_t* d = read_file(dpath, &dn, 1 << 30);
+      if (d) {
+        dict_set_add(&dc.dicts, type, d, dn, false);
+      }
+    }
+  }
+  uint8_t* wout = xmalloc(dc.out_cap + 1);
+  uint8_t* cout = xmalloc(dc.out_cap + 1);
+  g_trace = true;
+  size_t att = 0;
+  dec_result w = wuffs_decode(&dc, &ch, m, n, wout);
+  dec_result c = c_decode(&dc, &ch, m, n, cout, &att);
+  printf("wuffs: cls=%d status=%s out=%zu in=%zu\nc:     cls=%d out=%zu in=%zu\n",
+         w.cls, w.wuffs_status ? w.wuffs_status : "ok", w.out_n, w.in_used,
+         c.cls, c.out_n, c.in_used);
+  const char* why = compare_dec(&w, &c, wout, cout, dc.out_cap);
+  printf("verdict: %s\n", why ? why : "agree");
+  return why ? 1 : 0;
+}
+
 // ---------------- Encoder campaign
 
 static int run_enc(uint64_t iters, double secs);
+static int run_api(uint64_t iters, double secs);
 
 int  //
 main(int argc, char** argv) {
@@ -1923,10 +2034,14 @@ main(int argc, char** argv) {
   }
   g_seed = seed;
   g_rng_state = seed * 0x9E3779B97F4A7C15ull;
-  if (!strcmp(argv[1], "-dec")) {
+  if (!strncmp(argv[1], "-replay=", 8)) {
+    return replay_dec(argv[1] + 8);
+  } else if (!strcmp(argv[1], "-dec")) {
     return run_dec(iters, secs);
   } else if (!strcmp(argv[1], "-enc")) {
     return run_enc(iters, secs);
+  } else if (!strcmp(argv[1], "-api")) {
+    return run_api(iters, secs);
   }
   fprintf(stderr, "unknown mode %s\n", argv[1]);
   return 2;
@@ -2409,5 +2524,562 @@ run_enc(uint64_t iters, double secs) {
          g_enc_short_checks);
   printf("  seconds: C encoder %.1f, Wuffs encoder %.1f, round trips %.1f\n",
          g_enc_time[0], g_enc_time[1], g_enc_time[2]);
+  return g_num_failures ? 1 : 0;
+}
+
+// ---------------- API edge cases
+
+// run_steps_c and run_steps_wuffs run an arbitrary sequence of steps (unlike
+// a plan, a FINISH step can be anywhere and be followed by other steps) and
+// return the index of the first step that fails (or num_steps). A C step
+// fails if BrotliEncoderCompressStream returns BROTLI_FALSE, a Wuffs step if
+// request_flush, request_emit_metadata or transform_io returns an error.
+static size_t  //
+run_steps_c(const enc_config* c, const uint8_t* src, uint8_t* out,
+            size_t out_cap, size_t* out_len) {
+  *out_len = 0;
+  BrotliEncoderState* state = BrotliEncoderCreateInstance(NULL, NULL, NULL);
+  for (size_t j = 0; j < c->num_params; j++) {
+    BrotliEncoderSetParameter(state, (BrotliEncoderParameter)(c->keys[j]),
+                              c->values[j]);
+  }
+  const uint8_t* next_in = src;
+  size_t i = 0;
+  for (; i < c->num_steps; i++) {
+    size_t avail_in = c->step_lens[i];
+    BrotliEncoderOperation op = (BrotliEncoderOperation)(c->step_ops[i]);
+    bool failed = false;
+    while (true) {
+      size_t avail_out = out_cap - *out_len;
+      if (c->dst_chunk && (avail_out > c->dst_chunk)) {
+        avail_out = c->dst_chunk;
+      }
+      size_t avail_out0 = avail_out;
+      uint8_t* next_out = out + *out_len;
+      if (!BrotliEncoderCompressStream(state, op, &avail_in, &next_in,
+                                       &avail_out, &next_out, NULL)) {
+        failed = true;
+        break;
+      }
+      *out_len += avail_out0 - avail_out;
+      if (op == BROTLI_OPERATION_FINISH) {
+        if (BrotliEncoderIsFinished(state)) {
+          break;
+        }
+      } else if ((avail_in == 0) && !BrotliEncoderHasMoreOutput(state)) {
+        break;
+      }
+    }
+    if (failed) {
+      break;
+    }
+    next_in += avail_in;  // Skip any unconsumed input (there is none).
+  }
+  BrotliEncoderDestroyInstance(state);
+  return i;
+}
+
+static const char* g_steps_wuffs_err;
+
+static size_t  //
+run_steps_wuffs(const enc_config* c, const uint8_t* src_ptr, size_t src_len,
+                uint8_t* out, size_t out_cap, size_t* out_len,
+                uint64_t zero_dst_rate) {
+  *out_len = 0;
+  g_steps_wuffs_err = NULL;
+  wuffs_brotli__encoder* enc = wuffs_brotli__encoder__alloc();
+  for (size_t j = 0; j < c->num_params; j++) {
+    wuffs_brotli__encoder__set_quirk(enc, quirk_key(c->keys[j]), c->values[j]);
+  }
+  uint64_t wlen = wuffs_brotli__encoder__workbuf_len(enc).min_incl;
+  if (wlen > ENC_WB_CAP) {
+    free(enc);
+    g_steps_wuffs_err = g_too_large;
+    return 0;
+  }
+  if (wlen > g_enc_wb_touched) {
+    g_enc_wb_touched = wlen;
+  }
+  wuffs_base__slice_u8 workbuf = wuffs_base__make_slice_u8(g_enc_wb, wlen);
+  wuffs_base__io_buffer dst = wuffs_base__ptr_u8__writer(out, out_cap);
+  wuffs_base__io_buffer src =
+      wuffs_base__ptr_u8__reader((uint8_t*)src_ptr, src_len, false);
+  src.meta.wi = 0;
+  size_t end = 0;
+  size_t i = 0;
+  for (; i < c->num_steps; i++) {
+    end += c->step_lens[i];
+    uint32_t op = c->step_ops[i];
+    wuffs_base__status status = wuffs_base__make_status(NULL);
+    if (op == OP_FLUSH) {
+      status = wuffs_brotli__encoder__request_flush(enc);
+    } else if (op == OP_EMIT_METADATA) {
+      status = wuffs_brotli__encoder__request_emit_metadata(enc,
+                                                            c->step_lens[i]);
+    }
+    if (status.repr) {
+      g_steps_wuffs_err = status.repr;
+      break;
+    }
+    bool failed = false;
+    for (uint64_t calls = 0;; calls++) {
+      if (calls > (out_cap + src_len + 1000)) {
+        g_steps_wuffs_err = "too many transform_io calls";
+        failed = true;
+        break;
+      }
+      wuffs_base__io_buffer d = dst;
+      if (c->dst_chunk && ((d.data.len - d.meta.wi) > c->dst_chunk)) {
+        d.data.len = d.meta.wi + c->dst_chunk;
+      }
+      if (zero_dst_rate && chance(zero_dst_rate)) {
+        d.data.len = d.meta.wi;
+      }
+      wuffs_base__io_buffer s = src;
+      s.meta.wi = end;
+      s.meta.closed = (op == OP_FINISH);
+      status = wuffs_brotli__encoder__transform_io(enc, &d, &s, workbuf);
+      dst.meta.wi = d.meta.wi;
+      src.meta.ri = s.meta.ri;
+      if (status.repr == NULL) {
+        break;
+      } else if (status.repr == wuffs_base__suspension__short_write) {
+        continue;
+      } else if ((status.repr == wuffs_base__suspension__short_read) &&
+                 (op != OP_FINISH) && (src.meta.ri == end)) {
+        break;
+      }
+      g_steps_wuffs_err = status.repr;
+      failed = true;
+      break;
+    }
+    if (failed) {
+      break;
+    }
+    src.meta.ri = end;
+  }
+  *out_len = dst.meta.wi;
+  free(enc);
+  return i;
+}
+
+static uint64_t g_api_checks;
+static uint64_t g_api_both_failed_meta;  // Too-long metadata.
+static uint64_t g_api_both_failed_seq;   // Bad call sequence.
+
+static void  //
+api_fail(const char* fmt, const char* a, uint64_t x, uint64_t y) {
+  char desc[1024];
+  snprintf(desc, sizeof desc, fmt, a, x, y);
+  strncat(desc, "\n", sizeof desc - strlen(desc) - 1);
+  save_failure("api", desc, NULL, 0, NULL);
+}
+
+// api_param_acceptance compares set_quirk's and BrotliEncoderSetParameter's
+// acceptance of every parameter value (and of setting a parameter after the
+// first call).
+static void  //
+api_param_acceptance(void) {
+  static const uint32_t values[] = {0,          1,          2,          3,
+                                    4,          9,          10,         11,
+                                    12,         15,         16,         24,
+                                    25,         30,         31,         120,
+                                    121,        255,        1u << 24,   1u << 30,
+                                    (1u << 30) + 1, 0x7FFFFFFF, 0x80000000,
+                                    0xFFFFFFFE, 0xFFFFFFFF};
+  for (uint32_t param = 0; param <= 9; param++) {
+    for (size_t k = 0; k < sizeof values / sizeof values[0]; k++) {
+      g_api_checks++;
+      BrotliEncoderState* st = BrotliEncoderCreateInstance(NULL, NULL, NULL);
+      bool c_ok = BrotliEncoderSetParameter(st, (BrotliEncoderParameter)param,
+                                            values[k]);
+      BrotliEncoderDestroyInstance(st);
+      wuffs_brotli__encoder* enc = wuffs_brotli__encoder__alloc();
+      wuffs_base__status status =
+          wuffs_brotli__encoder__set_quirk(enc, quirk_key(param), values[k]);
+      bool w_ok = status.repr == NULL;
+      if (!w_ok && (status.repr != wuffs_base__error__bad_argument)) {
+        api_fail("set_quirk(param %s%" PRIu64 ", %" PRIu64 "): unexpected status",
+                 "", param, values[k]);
+      }
+      if (c_ok != w_ok) {
+        api_fail("set_quirk(param %s%" PRIu64 ", %" PRIu64 "): acceptance differs",
+                 "", param, values[k]);
+      }
+      // Values that do not fit in a u32.
+      status = wuffs_brotli__encoder__set_quirk(
+          enc, quirk_key(param), ((uint64_t)1 << 32) + values[k]);
+      if (status.repr != wuffs_base__error__bad_argument) {
+        api_fail("set_quirk(param %s%" PRIu64 ", (1<<32) + %" PRIu64
+                 "): not rejected", "", param, values[k]);
+      }
+      free(enc);
+    }
+    // After the first call.
+    g_api_checks++;
+    BrotliEncoderState* st = BrotliEncoderCreateInstance(NULL, NULL, NULL);
+    size_t ai = 0, ao = 0;
+    const uint8_t* ni = NULL;
+    uint8_t* no = NULL;
+    BrotliEncoderCompressStream(st, BROTLI_OPERATION_PROCESS, &ai, &ni, &ao,
+                                &no, NULL);
+    bool c_ok = BrotliEncoderSetParameter(st, (BrotliEncoderParameter)param, 0);
+    BrotliEncoderDestroyInstance(st);
+    wuffs_brotli__encoder* enc = wuffs_brotli__encoder__alloc();
+    wuffs_brotli__encoder__set_quirk(enc, WUFFS_BROTLI__QUIRK_ENCODER_QUALITY,
+                                     5);
+    wuffs_brotli__encoder__set_quirk(enc, WUFFS_BROTLI__QUIRK_LGWIN, 10);
+    uint64_t wlen = wuffs_brotli__encoder__workbuf_len(enc).max_incl;
+    uint8_t one = 0;
+    wuffs_base__io_buffer d = wuffs_base__ptr_u8__writer(&one, 0);
+    wuffs_base__io_buffer s = wuffs_base__ptr_u8__reader(&one, 0, false);
+    wuffs_brotli__encoder__transform_io(enc, &d, &s,
+                                        wuffs_base__make_slice_u8(g_enc_wb, wlen));
+    wuffs_base__status status =
+        wuffs_brotli__encoder__set_quirk(enc, quirk_key(param), 0);
+    if (c_ok || (status.repr != wuffs_base__error__bad_call_sequence)) {
+      api_fail("set_quirk after the first call (param %s%" PRIu64
+               "): C %" PRIu64 ", Wuffs differs", "", param, c_ok);
+    }
+    free(enc);
+  }
+  // An unknown parameter.
+  g_api_checks++;
+  BrotliEncoderState* st = BrotliEncoderCreateInstance(NULL, NULL, NULL);
+  bool c_ok = BrotliEncoderSetParameter(st, (BrotliEncoderParameter)10, 0);
+  BrotliEncoderDestroyInstance(st);
+  wuffs_brotli__encoder* enc = wuffs_brotli__encoder__alloc();
+  wuffs_base__status status = wuffs_brotli__encoder__set_quirk(
+      enc, WUFFS_BROTLI__QUIRK_STREAM_OFFSET + 1, 0);
+  if (c_ok || (status.repr != wuffs_base__error__unsupported_option)) {
+    api_fail("unknown parameter: %sC %" PRIu64 " %" PRIu64, "", c_ok, 0);
+  }
+  free(enc);
+}
+
+// api_compare_steps runs c's steps with both libraries and compares the
+// failing step and the output before it.
+static void  //
+api_compare_steps(const char* what, const enc_config* c, const uint8_t* src,
+                  size_t src_len, uint8_t* have, uint8_t* want, size_t cap,
+                  uint64_t zero_dst_rate) {
+  g_api_checks++;
+  size_t want_len = 0;
+  size_t have_len = 0;
+  size_t cf = run_steps_c(c, src, want, cap, &want_len);
+  size_t wf = run_steps_wuffs(c, src, src_len, have, cap, &have_len,
+                              zero_dst_rate);
+  if (g_steps_wuffs_err == g_too_large) {
+    return;
+  }
+  bool bad = (cf != wf);
+  if (!bad && (cf < c->num_steps)) {
+    // Which error Wuffs returns.
+    uint32_t op = c->step_ops[cf];
+    const char* e = g_steps_wuffs_err;
+    bool meta_too_long = (op == OP_EMIT_METADATA) &&
+                         (c->step_lens[cf] > (1u << 24));
+    if (meta_too_long) {
+      g_api_both_failed_meta++;
+    } else {
+      g_api_both_failed_seq++;
+    }
+    if (meta_too_long ? (e != wuffs_base__error__bad_argument)
+                      : (e != wuffs_base__error__bad_call_sequence)) {
+      bad = true;
+    }
+  }
+  if (!bad) {
+    // C's output on failure is whatever it wrote before the failing call.
+    if ((have_len != want_len) || memcmp(have, want, have_len)) {
+      bad = true;
+    }
+  }
+  if (bad) {
+    static char desc[1 << 16];
+    char what2[512];
+    snprintf(what2, sizeof what2,
+             "%s: failing step C %zu, Wuffs %zu (%s); output lengths C %zu, "
+             "Wuffs %zu",
+             what, cf, wf, g_steps_wuffs_err ? g_steps_wuffs_err : "",
+             want_len, have_len);
+    dict_set ds = {0};
+    describe_enc(desc, sizeof desc, what2, c, &ds, 0, src_len);
+    save_failure("api", desc, src, src_len < (1 << 20) ? src_len : 0, NULL);
+  }
+}
+
+// api_metadata checks metadata blocks of 0, 1, (1 << 24) - 1, 1 << 24 and
+// (1 << 24) + 1 bytes (the last must be rejected), at the start, after some
+// data, after a flush and after the end of the stream.
+static void  //
+api_metadata(uint8_t* src, uint8_t* have, uint8_t* want, size_t cap) {
+  static const size_t lens[] = {0, 1, (1u << 24) - 1, 1u << 24,
+                                (1u << 24) + 1};
+  static const uint32_t qs[] = {0, 1, 2, 4, 5, 9, 10, 11};
+  for (size_t qi = 0; qi < sizeof qs / sizeof qs[0]; qi++) {
+    for (size_t li = 0; li < 5; li++) {
+      for (int where = 0; where < 4; where++) {
+        enc_config c;
+        memset(&c, 0, sizeof c);
+        enc_add_param(&c, 1, qs[qi]);
+        enc_add_param(&c, 2, 16);
+        size_t n = 0;
+        size_t data = 3000;
+        gen_segment(src, data, 0, 3);
+        n += data;
+        if (where == 0) {
+          enc_add_step(&c, OP_EMIT_METADATA, lens[li]);
+          enc_add_step(&c, OP_FINISH, data);
+        } else if (where == 1) {
+          enc_add_step(&c, OP_PROCESS, data);
+          enc_add_step(&c, OP_EMIT_METADATA, lens[li]);
+          enc_add_step(&c, OP_FINISH, 0);
+        } else if (where == 2) {
+          enc_add_step(&c, OP_FLUSH, data);
+          enc_add_step(&c, OP_EMIT_METADATA, lens[li]);
+          enc_add_step(&c, OP_FINISH, 0);
+        } else {
+          enc_add_step(&c, OP_FINISH, data);
+          enc_add_step(&c, OP_EMIT_METADATA, lens[li]);
+        }
+        size_t at = (where == 0) ? 0 : data;
+        memmove(src + at + lens[li], src + at, n - at);
+        memset(src + at, 0xA5, lens[li]);
+        n += lens[li];
+        char what[128];
+        snprintf(what, sizeof what, "metadata q=%u len=%zu where=%d", qs[qi],
+                 lens[li], where);
+        api_compare_steps(what, &c, src, n, have, want, cap, 0);
+        free(c.step_ops);
+        free(c.step_lens);
+      }
+    }
+  }
+}
+
+// api_dictionaries checks add_dictionary's edge cases against
+// BrotliEncoderPrepareDictionary and BrotliEncoderAttachPreparedDictionary.
+static void  //
+api_dictionaries(void) {
+  static const uint8_t bytes[] = "some dictionary bytes, some dictionary bytes";
+  // Up to 16 dictionaries (the 16th must be rejected by both), of various
+  // types.
+  for (uint32_t type = 0; type < 4; type++) {
+    g_api_checks++;
+    BrotliEncoderState* st = BrotliEncoderCreateInstance(NULL, NULL, NULL);
+    wuffs_brotli__encoder* enc = wuffs_brotli__encoder__alloc();
+    BrotliEncoderPreparedDictionary* pd[17] = {0};
+    for (int k = 0; k < 17; k++) {
+      size_t len = (k * 7) % (sizeof bytes);
+      uint32_t t = (k == 3) ? type : 0;
+      pd[k] = BrotliEncoderPrepareDictionary((BrotliSharedDictionaryType)t,
+                                             len, bytes, 11, NULL, NULL, NULL);
+      bool c_ok = pd[k] && BrotliEncoderAttachPreparedDictionary(st, pd[k]);
+      uint64_t wl =
+          wuffs_brotli__encoder__add_dictionary_workbuf_len(enc, len);
+      wuffs_base__status status = wuffs_brotli__encoder__add_dictionary(
+          enc, t, wuffs_base__make_slice_u8((uint8_t*)bytes, len),
+          wuffs_base__make_slice_u8(g_enc_wb, wl));
+      const char* want_status =
+          c_ok              ? NULL
+          : (t == 1)        ? wuffs_brotli__error__unsupported_serialized_encoder_dictionary
+          : (t > 1)         ? wuffs_base__error__bad_argument
+                            : wuffs_brotli__error__too_many_compound_dictionaries;
+      if (status.repr != want_status) {
+        api_fail("add_dictionary #%s%" PRIu64 " (type %" PRIu64 "): differs", "",
+                 (uint64_t)k, t);
+      }
+      if (wl > g_enc_wb_touched) {
+        g_enc_wb_touched = wl;
+      }
+    }
+    // A too-short workbuf.
+    {
+      wuffs_brotli__encoder* e2 = wuffs_brotli__encoder__alloc();
+      uint64_t wl = wuffs_brotli__encoder__add_dictionary_workbuf_len(e2, 10);
+      wuffs_base__status status = wuffs_brotli__encoder__add_dictionary(
+          e2, 0, wuffs_base__make_slice_u8((uint8_t*)bytes, 10),
+          wuffs_base__make_slice_u8(g_enc_wb, wl - 1));
+      if (status.repr != wuffs_base__error__bad_workbuf_length) {
+        api_fail("add_dictionary with a short workbuf: %s%" PRIu64 "%" PRIu64,
+                 status.repr ? status.repr : "ok", 0, 0);
+      }
+      free(e2);
+    }
+    BrotliEncoderDestroyInstance(st);
+    for (int k = 0; k < 17; k++) {
+      if (pd[k]) {
+        BrotliEncoderDestroyPreparedDictionary(pd[k]);
+      }
+    }
+    free(enc);
+  }
+  // A transform_io workbuf shorter than the dictionaries.
+  g_api_checks++;
+  {
+    wuffs_brotli__encoder* enc = wuffs_brotli__encoder__alloc();
+    uint64_t wl = wuffs_brotli__encoder__add_dictionary_workbuf_len(enc, 40);
+    wuffs_brotli__encoder__add_dictionary(
+        enc, 0, wuffs_base__make_slice_u8((uint8_t*)bytes, 40),
+        wuffs_base__make_slice_u8(g_enc_wb, wl));
+    uint64_t d_end = wuffs_brotli__encoder__workbuf_len(enc).min_incl;
+    uint8_t one = 0;
+    wuffs_base__io_buffer d = wuffs_base__ptr_u8__writer(&one, 1);
+    wuffs_base__io_buffer s = wuffs_base__ptr_u8__reader(&one, 0, true);
+    (void)d_end;
+    wuffs_base__status status = wuffs_brotli__encoder__transform_io(
+        enc, &d, &s, wuffs_base__make_slice_u8(g_enc_wb, 50));
+    if (status.repr != wuffs_base__error__bad_workbuf_length) {
+      api_fail("transform_io with a workbuf shorter than the dictionaries: %s%" PRIu64
+               "%" PRIu64, status.repr ? status.repr : "ok", 0, 0);
+    }
+    // add_dictionary after transform_io (the C code accepts this, see the
+    // README).
+    status = wuffs_brotli__encoder__add_dictionary(
+        enc, 0, wuffs_base__make_slice_u8((uint8_t*)bytes, 4),
+        wuffs_base__make_slice_u8(g_enc_wb, wl * 2));
+    if (status.repr != NULL) {
+      // The failed transform_io did not start compressing.
+    }
+    free(enc);
+  }
+}
+
+// api_short_workbuf_q01 checks that, at qualities 0 and 1, an input block of
+// n bytes needs exactly (2 * n) + 519 bytes of workbuf.
+static void  //
+api_short_workbuf_q01(uint8_t* src, uint8_t* out, size_t cap) {
+  static const size_t ns[] = {0, 1, 2, 100, 1000, 65536, 100000};
+  for (uint32_t q = 0; q <= 1; q++) {
+    for (size_t k = 0; k < sizeof ns / sizeof ns[0]; k++) {
+      size_t n = ns[k];
+      gen_segment(src, n, 0, 3);
+      for (int delta = -1; delta <= 0; delta++) {
+        g_api_checks++;
+        wuffs_brotli__encoder* enc = wuffs_brotli__encoder__alloc();
+        wuffs_brotli__encoder__set_quirk(enc, WUFFS_BROTLI__QUIRK_ENCODER_QUALITY,
+                                         q);
+        uint64_t wl = (2 * n) + 519 + delta;
+        wuffs_base__io_buffer d = wuffs_base__ptr_u8__writer(out, cap);
+        wuffs_base__io_buffer s = wuffs_base__ptr_u8__reader(src, n, true);
+        wuffs_base__status status = wuffs_base__make_status(NULL);
+        for (int calls = 0; calls < 100; calls++) {
+          status = wuffs_brotli__encoder__transform_io(
+              enc, &d, &s, wuffs_base__make_slice_u8(g_enc_wb, wl));
+          if (status.repr != wuffs_base__suspension__short_write) {
+            break;
+          }
+        }
+        bool want_ok = delta == 0;
+        if (want_ok ? (status.repr != NULL)
+                    : (status.repr != wuffs_base__error__bad_workbuf_length)) {
+          api_fail("q0/1 workbuf for a block of n bytes: %s (n=%" PRIu64
+                   " delta=%" PRIu64 ")",
+                   status.repr ? status.repr : "ok", n, (uint64_t)(-delta));
+        }
+        free(enc);
+      }
+    }
+  }
+}
+
+// random_steps makes a random sequence of steps, where FINISH can be
+// anywhere and metadata can be of odd lengths.
+static size_t  //
+random_steps(enc_config* c, uint8_t* src, size_t cap) {
+  size_t n = 0;
+  size_t k = 1 + rn(chance(800) ? 6 : 30);
+  for (size_t i = 0; i < k; i++) {
+    uint32_t op = (uint32_t)rn(4);
+    size_t len = 0;
+    if (op == OP_EMIT_METADATA) {
+      uint64_t r = rn(1000);
+      len = (r < 300) ? 0 : (r < 500) ? 1 : (r < 990) ? rn(300)
+                                                       : ((1 << 24) - 1 + rn(3));
+    } else if (!chance(300)) {
+      len = rn(chance(900) ? 200 : 70000);
+    }
+    if ((n + len) > cap) {
+      len = 0;
+    }
+    gen_input(src + n, len);
+    n += len;
+    enc_add_step(c, op, len);
+  }
+  return n;
+}
+
+static int  //
+run_api(uint64_t iters, double secs) {
+  load_corpus();
+  g_enc_wb = big_alloc(ENC_WB_CAP);
+  const size_t cap = (48 << 20);
+  uint8_t* src = xmalloc(cap);
+  uint8_t* have = xmalloc(cap + (1 << 20));
+  uint8_t* want = xmalloc(cap + (1 << 20));
+
+  api_param_acceptance();
+  api_dictionaries();
+  api_short_workbuf_q01(src, have, cap);
+  api_metadata(src, have, want, cap);
+  uint64_t fixed = g_api_checks;
+
+  // Empty input (an immediately closed src) at every quality and some
+  // lgwins, with and without large window.
+  for (uint32_t q = 0; q <= 11; q++) {
+    for (uint32_t lgwin = 10; lgwin <= 30; lgwin += 4) {
+      for (uint32_t lw = 0; lw <= 1; lw++) {
+        enc_config c;
+        memset(&c, 0, sizeof c);
+        enc_add_param(&c, 1, q);
+        enc_add_param(&c, 2, lgwin);
+        enc_add_param(&c, 6, lw);
+        enc_add_step(&c, OP_FINISH, 0);
+        api_compare_steps("empty input", &c, src, 0, have, want, cap, 300);
+        free(c.step_ops);
+        free(c.step_lens);
+      }
+    }
+  }
+
+  // Random sequences of steps.
+  struct timespec t0;
+  clock_gettime(CLOCK_MONOTONIC, &t0);
+  uint64_t it = 0;
+  for (; it < iters; it++) {
+    if ((it & 15) == 0) {
+      struct timespec t1;
+      clock_gettime(CLOCK_MONOTONIC, &t1);
+      if ((secs > 0) && (((double)(t1.tv_sec - t0.tv_sec)) > secs)) {
+        break;
+      }
+    }
+    if (g_enc_wb_touched > ((size_t)512 << 20)) {
+      big_release(g_enc_wb, ENC_WB_CAP);
+      g_enc_wb_touched = 0;
+    }
+    enc_config c;
+    memset(&c, 0, sizeof c);
+    uint32_t q = pick_quality();
+    enc_add_param(&c, 1, q);
+    enc_add_param(&c, 2, 10 + (uint32_t)rn(15));
+    if (chance(200)) {
+      enc_add_param(&c, 9, (uint32_t)rn(1000));
+    }
+    c.dst_chunk = chance(300) ? 1 + rn(100) : 0;
+    size_t n = random_steps(&c, src, cap);
+    api_compare_steps("random steps", &c, src, n, have, want, cap,
+                      chance(300) ? 300 : 0);
+    free(c.step_ops);
+    free(c.step_lens);
+  }
+  printf("api campaign: seed=%" PRIu64 " fixed checks=%" PRIu64
+         " random step sequences=%" PRIu64 " total checks=%" PRIu64
+         " failures=%" PRIu64 "\n",
+         g_seed, fixed, it, g_api_checks, g_num_failures);
+  printf("  both rejected: too-long metadata=%" PRIu64
+         ", bad call sequence=%" PRIu64 "\n",
+         g_api_both_failed_meta, g_api_both_failed_seq);
   return g_num_failures ? 1 : 0;
 }
