@@ -36,6 +36,8 @@
 //   -q=LO-HI   only check qualities LO to HI (default 0-9, at most 0-11).
 //   -shard=K/N only check the inputs whose index i satisfies (i % N) == K,
 //              so that N processes can split the work.
+//   -oneshot=W instead of the grid, only check one configuration per input
+//              and quality: lgwin W, the whole input in one FINISH step.
 //
 // The test/c/std/brotli.c test program (run by "wuffs test -mimic
 // std/brotli") checks a subset of this grid.
@@ -97,6 +99,7 @@ static uint64_t g_num_mismatches;
 
 static uint32_t g_qmin = 0;
 static uint32_t g_qmax = 9;
+static uint32_t g_oneshot_lgwin = 0;
 
 typedef struct {
   uint32_t keys[MAX_PARAMS];
@@ -689,7 +692,10 @@ run_input(const char* name, const uint8_t* data, size_t len) {
   uint64_t mismatches0 = g_num_mismatches;
   time_t start = time(NULL);
   for (uint32_t q = g_qmin; q <= g_qmax; q++) {
-    if (q <= 1) {
+    if (g_oneshot_lgwin) {
+      config c = make_config(q, g_oneshot_lgwin);
+      check(name, &c, data, len);
+    } else if (q <= 1) {
       run_input_q01(name, data, len, q);
     } else {
       run_input_q2(name, data, len, q);
@@ -747,6 +753,8 @@ main(int argc, char** argv) {
     if (sscanf(argv[argi], "-q=%u-%u", &a, &b) == 2) {
       g_qmin = a;
       g_qmax = (b < 11) ? b : 11;
+    } else if (sscanf(argv[argi], "-oneshot=%u", &a) == 1) {
+      g_oneshot_lgwin = a;
     } else if (sscanf(argv[argi], "-shard=%u/%u", &a, &b) == 2) {
       shard_k = (int)a;
       shard_n = (b > 0) ? (int)b : 1;
