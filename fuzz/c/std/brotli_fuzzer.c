@@ -129,8 +129,8 @@ static const uint8_t g_serialized_dictionary[] = {
 
 // The encoder's input is capped (a prefix of the fuzz input), as is the input
 // at qualities 10 and 11, which are slow.
-#define ENC_MAX_INPUT 262144
-#define ENC_MAX_INPUT_HQ 32768
+#define ENC_MAX_INPUT 65536
+#define ENC_MAX_INPUT_HQ 4096
 #define ENC_DST_ARRAY_SIZE (2 * ENC_MAX_INPUT + 65536)
 
 static wuffs_brotli__encoder g_encoder;
