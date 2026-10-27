@@ -38,6 +38,18 @@ pri const CONTEXT_SIGNED : base.u32 = 3
 pri const HQ_MATCHES_PER_BYTE_BUDGET : base.u64 = 16
 pri const HQ_MATCHES_PER_BYTE_MAX    : base.u64 = 100
 
+// HQ_MATCHES_PER_BYTE_MAX_DICT is HQ_MATCHES_PER_BYTE_MAX plus up to 64 (the
+// C code's match_limit) compound dictionary matches, when a dictionary is
+// attached. HQ_SHADOW_MATCHES is the C code's shadow_matches (in
+// BrotliCreateHqZopfliBackwardReferences): with a dictionary attached, that
+// many more BackwardMatches past the current position's are scratch space
+// for the binary tree's and the compound dictionaries' matches before
+// MergeMatches. Quality 10's lz_matches_offset (in
+// BrotliZopfliComputeShortestPath) has the same value but fits in its
+// matches buffer of 2 * (MAX_NUM_MATCHES_H10 + 64) BackwardMatches.
+pri const HQ_MATCHES_PER_BYTE_MAX_DICT : base.u64 = 164
+pri const HQ_SHADOW_MATCHES            : base.u64 = 256
+
 // hq_max_literals returns an upper bound on the number of literals in a
 // metablock at qualities 10 and 11: EncodeData merges another input block
 // only while there are fewer than (max_len / 8) literals.
@@ -50,16 +62,21 @@ pri func encoder.hq_max_literals(lgwin: base.u32[..= 30], lgblock: base.u32[..= 
 
 // hq_zopfli_len returns how much of the variable region the Zopfli backward
 // references need, for an input block of (1 << lgblock) bytes, with (at
-// quality 11) matches_per_byte BackwardMatches per byte.
+// quality 11) matches_per_byte BackwardMatches per byte (plus, if a
+// dictionary is attached, HQ_SHADOW_MATCHES).
 pri func encoder.hq_zopfli_len(quality: base.u32[..= 11], lgblock: base.u32[..= 30], matches_per_byte: base.u64) base.u64 {
-    var n : base.u64
+    var n      : base.u64
+    var shadow : base.u64
 
     n = (1 as base.u64) << args.lgblock
     if args.quality <= 10 {
         return ((16 * (n + 1)) + (4 * (n + 2))) + (8 * 2 * (MAX_NUM_MATCHES_H10 + 64))
     }
+    if this.dict_num_chunks > 0 {
+        shadow = HQ_SHADOW_MATCHES
+    }
     return (((16 * (n + 1)) + (4 * (n + 2))) + (4 * n)) ~sat+
-            (8 ~mod* ((args.matches_per_byte ~mod* n) ~sat+ MAX_NUM_MATCHES_H10))
+            (8 ~mod* (((args.matches_per_byte ~mod* n) ~sat+ MAX_NUM_MATCHES_H10) ~sat+ shadow))
 }
 
 // hq_var_len returns the minimum (if not worst_case) or the worst case (if
@@ -69,7 +86,11 @@ pri func encoder.hq_var_len(quality: base.u32[..= 11], lgwin: base.u32[..= 30], 
     var m : base.u64
 
     if args.worst_case {
-        z = this.hq_zopfli_len(quality: args.quality, lgblock: args.lgblock, matches_per_byte: HQ_MATCHES_PER_BYTE_MAX)
+        if this.dict_num_chunks > 0 {
+            z = this.hq_zopfli_len(quality: args.quality, lgblock: args.lgblock, matches_per_byte: HQ_MATCHES_PER_BYTE_MAX_DICT)
+        } else {
+            z = this.hq_zopfli_len(quality: args.quality, lgblock: args.lgblock, matches_per_byte: HQ_MATCHES_PER_BYTE_MAX)
+        }
         m = this.mb.workbuf_len_worst_case(
                 num_literals: this.hq_max_literals(lgwin: args.lgwin, lgblock: args.lgblock),
                 num_commands: this.commands_capacity(quality: args.quality, lgwin: args.lgwin, lgblock: args.lgblock))

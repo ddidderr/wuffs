@@ -1388,7 +1388,10 @@ run_input_dict(const char* name, const uint8_t* data, size_t len) {
       continue;
     }
     for (uint32_t q = g_qmin; q <= g_qmax; q++) {
-      run_dict_configs(name, data, len, q, level);
+      // Qualities 10 and 11 (which are much slower) use the smallest grid
+      // for inputs longer than 64 KiB.
+      run_dict_configs(name, data, len, q,
+                       ((q >= 10) && (len > (64 << 10))) ? 2 : level);
       if ((set == 1) && (len >= 1000) && (q >= 5)) {
         check_smaller(name, data, len, q);
       }
