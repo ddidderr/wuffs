@@ -455,6 +455,14 @@ static size_t  //
 random_distance(block_t* b) {
   uint32_t r = rng_below(16);
   size_t max = b->large_window ? 0x7FFFFFFC : ((1u << 24) - 16);
+  // Keep the distance codes (distance + 15) at most the distance params'
+  // max_distance (which is less than 0x7FFFFFFC for some large-window
+  // params), as the encoder does. Larger distances are invalid for those
+  // params and make the C code's ComputeDistanceCost write past the end of
+  // its distance histogram.
+  if (max > (b->dist.max_distance - 15)) {
+    max = b->dist.max_distance - 15;
+  }
   if ((g_dist_style == 1) && (r < 12)) {
     // Distances with a fixed residue modulo (1 << g_dist_shift), which
     // favors npostfix > 0.
