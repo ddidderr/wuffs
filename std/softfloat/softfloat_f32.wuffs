@@ -10,12 +10,19 @@
 
 // -------- f32 (binary32) operations.
 //
-// The f32 add, sub, mul and div functions convert their (exactly
-// representable) operands to f64, perform the f64 operation and round the
-// result to f32. Double rounding is innocuous here: binary64 has more than
-// (2 * 24) + 2 bits of precision, which suffices for +, -, * and / (Figueroa,
-// "When is double rounding innocuous?", 1995). This is also exhaustively
-// cross-checked against hardware by the tests.
+// When both operands are normal (and, unless it overflows to infinity, the
+// result is normal too), the f32 add, sub and mul functions compute the
+// result directly in binary32 (with 32-bit or 64-bit integer significands).
+// This is the common case. Adding or subtracting a zero and a finite
+// non-zero operand is also handled directly. Otherwise (zeroes, subnormals,
+// infinities, NaNs and subnormal results), they and f32_div convert their
+// (exactly representable) operands to f64, perform the f64 operation and
+// round the result to f32 (the slow_etc functions). Double rounding is
+// innocuous here: binary64 has more than (2 * 24) + 2 bits of precision,
+// which suffices for +, -, * and / (Figueroa, "When is double rounding
+// innocuous?", 1995). This is also exhaustively cross-checked against
+// hardware by the tests. The fast paths never return a NaN, so NaN results
+// (and their payloads) always come from the slow paths.
 
 pri const F32_SIGN : base.u32 = 0x8000_0000
 pri const F32_ABS  : base.u32 = 0x7FFF_FFFF
@@ -74,20 +81,244 @@ pub func arith.f32_abs(a: base.u32) base.u32 {
 
 // f32_add returns (a + b).
 pub func arith.f32_add(a: base.u32, b: base.u32) base.u32 {
+    var z : base.u32
+
+    if ((((args.a >> 23) & 0xFF) ~mod- 1) < 0xFE) and ((((args.b >> 23) & 0xFF) ~mod- 1) < 0xFE) {
+        if ((args.a ^ args.b) >> 31) == 0 {
+            return this.f32_add_mags(a: args.a, b: args.b)
+        }
+        z = this.f32_sub_mags(a: args.a, b: args.b)
+        if z <> 0xFFFF_FFFF {
+            return z
+        }
+    } else if ((args.b & F32_ABS) == 0) and (((args.a & F32_ABS) ~mod- 1) < (F32_INF - 1)) {
+        // b is a zero and a is finite and non-zero, so (a + b) is a.
+        return args.a
+    } else if ((args.a & F32_ABS) == 0) and (((args.b & F32_ABS) ~mod- 1) < (F32_INF - 1)) {
+        // a is a zero and b is finite and non-zero, so (a + b) is b.
+        return args.b
+    }
+    return this.slow_f32_add(a: args.a, b: args.b)
+}
+
+// f32_sub returns (a - b).
+pub func arith.f32_sub(a: base.u32, b: base.u32) base.u32 {
+    var z : base.u32
+
+    if ((((args.a >> 23) & 0xFF) ~mod- 1) < 0xFE) and ((((args.b >> 23) & 0xFF) ~mod- 1) < 0xFE) {
+        if ((args.a ^ args.b) >> 31) <> 0 {
+            return this.f32_add_mags(a: args.a, b: args.b)
+        }
+        z = this.f32_sub_mags(a: args.a, b: args.b)
+        if z <> 0xFFFF_FFFF {
+            return z
+        }
+    } else if ((args.b & F32_ABS) == 0) and (((args.a & F32_ABS) ~mod- 1) < (F32_INF - 1)) {
+        // b is a zero and a is finite and non-zero, so (a - b) is a.
+        return args.a
+    } else if ((args.a & F32_ABS) == 0) and (((args.b & F32_ABS) ~mod- 1) < (F32_INF - 1)) {
+        // a is a zero and b is finite and non-zero, so (a - b) is -b.
+        return args.b ^ F32_SIGN
+    }
+    return this.slow_f32_sub(a: args.a, b: args.b)
+}
+
+// f32_mul returns (a * b).
+pub func arith.f32_mul(a: base.u32, b: base.u32) base.u32 {
+    var ea : base.u32[..= 0xFF]
+    var eb : base.u32[..= 0xFF]
+    var e  : base.u32[..= 0x1FF]
+    var p  : base.u64
+    var m  : base.u32
+    var r  : base.u32
+    var z  : base.u32
+
+    ea = (args.a >> 23) & 0xFF
+    eb = (args.b >> 23) & 0xFF
+    if ((ea ~mod- 1) < 0xFE) and ((eb ~mod- 1) < 0xFE) {
+        // Both operands are normal. The exact product of the two 24-bit
+        // significands, p, is in [1 << 46, 1 << 48). The biased exponent of
+        // the result, e, is (ea + eb - 127) (plus 1 if p >= (1 << 47)).
+        p = (((args.a & 0x7F_FFFF) | 0x80_0000) as base.u64) *
+                (((args.b & 0x7F_FFFF) | 0x80_0000) as base.u64)
+        e = ea + eb
+        if p >= 0x8000_0000_0000 {
+            e += 1
+            m = ((p >> 24) & 0xFF_FFFF) as base.u32
+            r = ((p & 0xFF_FFFF) as base.u32) ~mod- 0x80_0000
+        } else {
+            m = ((p >> 23) & 0xFF_FFFF) as base.u32
+            r = ((p & 0x7F_FFFF) as base.u32) ~mod- 0x40_0000
+        }
+        // r is the remainder minus half an ULP, as a two's complement
+        // integer. Round to nearest, ties to even.
+        if (r <> 0) and (r < 0x8000_0000) {
+            m ~mod+= 1
+        } else if r == 0 {
+            m ~mod+= m & 1
+        }
+        if (e >= 128) and (e <= 381) {
+            // Adding m (whose bit 23 is the implicit bit) carries any
+            // rounding overflow into the exponent field.
+            z = ((e - 128) << 23) ~mod+ m
+            if z >= F32_INF {
+                z = F32_INF
+            }
+            return ((args.a ^ args.b) & F32_SIGN) | z
+        }
+    }
+    return this.slow_f32_mul(a: args.a, b: args.b)
+}
+
+// f32_add_mags returns (sign(a) * (|a| + |b|)), for normal a and b.
+pri func arith.f32_add_mags(a: base.u32, b: base.u32) base.u32 {
+    var ea : base.u32[..= 0x100]
+    var eb : base.u32[..= 0xFF]
+    var ma : base.u32[..= 0x3FFF_FFC0]
+    var mb : base.u32[..= 0x3FFF_FFC0]
+    var d  : base.u32[..= 0xFF]
+    var z  : base.u32
+    var rb : base.u32
+
+    ea = (args.a >> 23) & 0xFF
+    eb = (args.b >> 23) & 0xFF
+    // The significands, with their implicit bit at bit 29 and 6 extra bits
+    // of precision at the bottom.
+    ma = ((args.a & 0x7F_FFFF) | 0x80_0000) << 6
+    mb = ((args.b & 0x7F_FFFF) | 0x80_0000) << 6
+    if ea < eb {
+        d = (eb ~mod- ea) & 0xFF
+        ea = eb
+        z = ma
+        ma = mb
+        mb = z
+    } else {
+        d = (ea ~mod- eb) & 0xFF
+    }
+    if d >= 31 {
+        mb = 1
+    } else if d > 0 {
+        if (mb ~mod<< (32 - d)) <> 0 {
+            mb = (mb >> d) | 1
+        } else {
+            mb = mb >> d
+        }
+    }
+    z = (ma & 0x3FFF_FFFF) + (mb & 0x3FFF_FFFF)
+    if z >= 0x4000_0000 {
+        ea += 1
+        z = (z >> 1) | (z & 1)
+    }
+    rb = z & 0x3F
+    z = (z ~mod+ 0x20) >> 6
+    if rb == 0x20 {
+        z &= 0xFFFF_FFFE
+    }
+    // ea is in [1 ..= 255] and z is in [1 << 23 ..= 1 << 24].
+    z = ((ea ~mod- 1) ~mod<< 23) ~mod+ z
+    if z >= F32_INF {
+        z = F32_INF
+    }
+    return (args.a & F32_SIGN) | z
+}
+
+// f32_sub_mags returns (sign(a) * (|a| - |b|)), for normal a and b, unless
+// the result is subnormal, in which case it returns 0xFFFF_FFFF (a NaN, which
+// it never otherwise returns) and the caller must take its slow path.
+pri func arith.f32_sub_mags(a: base.u32, b: base.u32) base.u32 {
+    var sign : base.u32
+    var ea   : base.u32[..= 0xFF]
+    var eb   : base.u32[..= 0xFF]
+    var fa   : base.u32[..= 0x7F_FFFF]
+    var fb   : base.u32[..= 0x7F_FFFF]
+    var ma   : base.u32
+    var mb   : base.u32
+    var d    : base.u32[..= 0xFF]
+    var s    : base.u32[..= 31]
+    var z    : base.u32
+    var rb   : base.u32
+
+    sign = args.a & F32_SIGN
+    ea = (args.a >> 23) & 0xFF
+    eb = (args.b >> 23) & 0xFF
+    fa = args.a & 0x7F_FFFF
+    fb = args.b & 0x7F_FFFF
+
+    if ea == eb {
+        // The difference is exact.
+        if fa == fb {
+            // Exact cancellation gives +0 when rounding to nearest.
+            return 0
+        } else if fa < fb {
+            sign ^= F32_SIGN
+            z = fb ~mod- fa
+        } else {
+            z = fa ~mod- fb
+        }
+        // z is in [1 ..= 0x7F_FFFF]. Shift its top bit to bit 23.
+        s = (this.clz32(a: z) ~mod- 8) & 31
+        if s >= ea {
+            return 0xFFFF_FFFF
+        }
+        return sign | ((((ea ~mod- s) ~mod- 1) ~mod<< 23) ~mod+ (z ~mod<< s))
+    }
+
+    // The significands, with their implicit bit at bit 30 and 7 extra bits
+    // of precision at the bottom.
+    ma = (fa | 0x80_0000) << 7
+    mb = (fb | 0x80_0000) << 7
+    if ea < eb {
+        sign ^= F32_SIGN
+        d = (eb ~mod- ea) & 0xFF
+        ea = eb
+        z = ma
+        ma = mb
+        mb = z
+    } else {
+        d = (ea ~mod- eb) & 0xFF
+    }
+    if d >= 31 {
+        mb = 1
+    } else if (mb ~mod<< ((32 - d) & 31)) <> 0 {
+        mb = (mb >> d) | 1
+    } else {
+        mb = mb >> d
+    }
+    // ma > mb, so z is non-zero. If (d >= 2) then z >= (1 << 29) and the
+    // normalization shift is at most 1. Otherwise, no bits were shifted out.
+    z = ma ~mod- mb
+    s = (this.clz32(a: z) ~mod- 1) & 31
+    if s >= ea {
+        return 0xFFFF_FFFF
+    }
+    ea = (ea ~mod- s) & 0xFF
+    z = z ~mod<< s
+    rb = z & 0x7F
+    z = (z ~mod+ 0x40) >> 7
+    if rb == 0x40 {
+        z &= 0xFFFF_FFFE
+    }
+    // ea is in [1 ..= 254] and z is in [1 << 23 ..= 1 << 24], so this does
+    // not overflow.
+    return sign | (((ea ~mod- 1) ~mod<< 23) ~mod+ z)
+}
+
+// slow_f32_add returns (a + b), computed via f64.
+pri func arith.slow_f32_add(a: base.u32, b: base.u32) base.u32 {
     return this.f64_to_f32(a: this.f64_add(
             a: this.f32_to_f64(a: args.a),
             b: this.f32_to_f64(a: args.b)))
 }
 
-// f32_sub returns (a - b).
-pub func arith.f32_sub(a: base.u32, b: base.u32) base.u32 {
+// slow_f32_sub returns (a - b), computed via f64.
+pri func arith.slow_f32_sub(a: base.u32, b: base.u32) base.u32 {
     return this.f64_to_f32(a: this.f64_sub(
             a: this.f32_to_f64(a: args.a),
             b: this.f32_to_f64(a: args.b)))
 }
 
-// f32_mul returns (a * b).
-pub func arith.f32_mul(a: base.u32, b: base.u32) base.u32 {
+// slow_f32_mul returns (a * b), computed via f64.
+pri func arith.slow_f32_mul(a: base.u32, b: base.u32) base.u32 {
     return this.f64_to_f32(a: this.f64_mul(
             a: this.f32_to_f64(a: args.a),
             b: this.f32_to_f64(a: args.b)))
@@ -103,6 +334,21 @@ pub func arith.f32_div(a: base.u32, b: base.u32) base.u32 {
 // f32_cmp compares a and b, returning 0 if (a < b), 1 if (a == b), 2 if (a
 // > b) and 3 if they are unordered (either is a NaN). -0 and +0 compare equal.
 pub func arith.f32_cmp(a: base.u32, b: base.u32) base.u32 {
+    if (args.a | args.b) <= F32_INF {
+        // Fast path: neither is negative (the sign bits are clear) or a NaN
+        // (both are at most +inf), so the bit patterns sort like the values.
+        if args.a < args.b {
+            return 0
+        } else if args.a == args.b {
+            return 1
+        }
+        return 2
+    }
+    return this.f32_cmp_slow(a: args.a, b: args.b)
+}
+
+// f32_cmp_slow is f32_cmp without the fast path.
+pri func arith.f32_cmp_slow(a: base.u32, b: base.u32) base.u32 {
     var ka : base.u32
     var kb : base.u32
 
@@ -133,35 +379,65 @@ pub func arith.f32_cmp(a: base.u32, b: base.u32) base.u32 {
 // true), and -0 equals +0.
 
 pub func arith.f32_eq(a: base.u32, b: base.u32) base.u32 {
-    if this.f32_cmp(a: args.a, b: args.b) == 1 {
+    if (args.a | args.b) <= F32_INF {
+        if args.a == args.b {
+            return 1
+        }
+        return 0
+    }
+    if this.f32_cmp_slow(a: args.a, b: args.b) == 1 {
         return 1
     }
     return 0
 }
 
 pub func arith.f32_ne(a: base.u32, b: base.u32) base.u32 {
-    if this.f32_cmp(a: args.a, b: args.b) == 1 {
+    if (args.a | args.b) <= F32_INF {
+        if args.a <> args.b {
+            return 1
+        }
+        return 0
+    }
+    if this.f32_cmp_slow(a: args.a, b: args.b) == 1 {
         return 0
     }
     return 1
 }
 
 pub func arith.f32_lt(a: base.u32, b: base.u32) base.u32 {
-    if this.f32_cmp(a: args.a, b: args.b) == 0 {
+    if (args.a | args.b) <= F32_INF {
+        if args.a < args.b {
+            return 1
+        }
+        return 0
+    }
+    if this.f32_cmp_slow(a: args.a, b: args.b) == 0 {
         return 1
     }
     return 0
 }
 
 pub func arith.f32_le(a: base.u32, b: base.u32) base.u32 {
-    if this.f32_cmp(a: args.a, b: args.b) <= 1 {
+    if (args.a | args.b) <= F32_INF {
+        if args.a <= args.b {
+            return 1
+        }
+        return 0
+    }
+    if this.f32_cmp_slow(a: args.a, b: args.b) <= 1 {
         return 1
     }
     return 0
 }
 
 pub func arith.f32_gt(a: base.u32, b: base.u32) base.u32 {
-    if this.f32_cmp(a: args.a, b: args.b) == 2 {
+    if (args.a | args.b) <= F32_INF {
+        if args.a > args.b {
+            return 1
+        }
+        return 0
+    }
+    if this.f32_cmp_slow(a: args.a, b: args.b) == 2 {
         return 1
     }
     return 0
@@ -170,7 +446,13 @@ pub func arith.f32_gt(a: base.u32, b: base.u32) base.u32 {
 pub func arith.f32_ge(a: base.u32, b: base.u32) base.u32 {
     var c : base.u32
 
-    c = this.f32_cmp(a: args.a, b: args.b)
+    if (args.a | args.b) <= F32_INF {
+        if args.a >= args.b {
+            return 1
+        }
+        return 0
+    }
+    c = this.f32_cmp_slow(a: args.a, b: args.b)
     if (c == 1) or (c == 2) {
         return 1
     }
@@ -181,7 +463,13 @@ pub func arith.f32_ge(a: base.u32, b: base.u32) base.u32 {
 // Note that this is not IEEE 754 minNum: f32_min(NaN, x) and f32_min(x, NaN)
 // both return the second argument, and f32_min(-0, +0) returns +0.
 pub func arith.f32_min(a: base.u32, b: base.u32) base.u32 {
-    if this.f32_cmp(a: args.a, b: args.b) == 0 {
+    if (args.a | args.b) <= F32_INF {
+        if args.a < args.b {
+            return args.a
+        }
+        return args.b
+    }
+    if this.f32_cmp_slow(a: args.a, b: args.b) == 0 {
         return args.a
     }
     return args.b
@@ -189,7 +477,13 @@ pub func arith.f32_min(a: base.u32, b: base.u32) base.u32 {
 
 // f32_max returns ((a > b) ? a : b), like brotli's BROTLI_MAX(float, a, b).
 pub func arith.f32_max(a: base.u32, b: base.u32) base.u32 {
-    if this.f32_cmp(a: args.a, b: args.b) == 2 {
+    if (args.a | args.b) <= F32_INF {
+        if args.a > args.b {
+            return args.a
+        }
+        return args.b
+    }
+    if this.f32_cmp_slow(a: args.a, b: args.b) == 2 {
         return args.a
     }
     return args.b
@@ -197,6 +491,18 @@ pub func arith.f32_max(a: base.u32, b: base.u32) base.u32 {
 
 // f32_from_u32 returns the f32 nearest to the integer a (C's (float)a).
 pub func arith.f32_from_u32(a: base.u32) base.u32 {
+    var c : base.u32[..= 31]
+
+    if args.a == 0 {
+        return 0
+    } else if args.a < 0x100_0000 {
+        // a is exactly representable. Shift its top bit to bit 23 (the
+        // implicit bit, which is then added to the exponent field).
+        c = this.clz32(a: args.a)
+        if c >= 8 {
+            return ((157 ~mod- c) ~mod<< 23) ~mod+ (args.a ~mod<< (c - 8))
+        }
+    }
     // The u32 to f64 conversion is exact, so there is only one rounding.
     return this.f64_to_f32(a: this.f64_from_u32(a: args.a))
 }

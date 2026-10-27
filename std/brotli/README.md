@@ -55,8 +55,9 @@ Without the large-window quirk and without attached dictionaries (see the
 window size plus some slack. The slack
 mirrors the C code's `kRingBufferWriteAheadSlack`, which its fast paths use to
 write (and discard) a few bytes past the ring buffer's end. This
-implementation does not yet have such fast paths, but it still reserves the
-slack, so that adding them later will not change the `workbuf_len` API. A
+implementation's fast paths (see below) do not write past the ring buffer's
+end, but it still reserves the slack, so that adding such fast paths later
+will not change the `workbuf_len` API. A
 workbuf shorter than the stream's window size plus 542 bytes is rejected with
 `base."#bad workbuf length"`.
 
@@ -158,12 +159,25 @@ invariants for memory safety but Wuffs requires explicit bounds checks.
 
 - The bit reader reads input bytes only when it needs them (like the C code's
   "safe" `BrotliSafeReadBits` and `SafeReadSymbol` functions), so that
-  `transform_io` can suspend at any point. There is no "fast path" (like the C
-  code's `ProcessCommands`, as opposed to `SafeProcessCommands`). Both paths
-  produce the same output and errors.
-- LZ77 copies and dictionary words are written to the ring buffer one byte at
-  a time, with ring buffer events (the C code's `WriteRingBuffer` and
-  `WrapRingBuffer` calls) at the same positions as the C code.
+  `transform_io` can suspend at any point. Between reads, fewer than 8 bits
+  are buffered. The fast path, `process_commands_fast` (like the C code's
+  `ProcessCommands`, as opposed to `SafeProcessCommands`), is not a coroutine.
+  It reads ahead (up to 8 bytes at a time) into a 64-bit bit buffer while the
+  input has enough bytes, and when it returns to `process_commands` (at a
+  block switch, a ring buffer event, a dictionary reference or when the input
+  runs low), it gives back the whole bytes left in that buffer, which restores
+  the "fewer than 8 bits" state exactly. `process_commands` tracks where it is
+  within a command (`cmd_state`), so that either can pick up where the other
+  left off. Within `process_commands`, `read_symbol_fast` and `read_bits_fast`
+  (which are not coroutines either) read the same bytes at the same times as
+  the coroutines `read_symbol` and `read_bits`, which finish the job when the
+  input runs out. All paths produce the same output and errors.
+- Dictionary words, and LZ77 copies that wrap around the physical ring buffer
+  or reach the C code's (virtual) ring buffer size, are written to the ring
+  buffer one byte at a time, with ring buffer events (the C code's
+  `WriteRingBuffer` and `WrapRingBuffer` calls) at the same positions as the
+  C code. Other LZ77 copies are written in chunks of at most the copy distance
+  (so that each chunk's source bytes are final), which is equivalent.
 - On error, the Wuffs decoder may have already written more output to `dst`
   than libbrotlidec would have (libbrotlidec does not flush on error), but
   what both have written agrees.
@@ -173,7 +187,8 @@ invariants for memory safety but Wuffs requires explicit bounds checks.
 
 - Metadata callbacks (metadata blocks are currently skipped). See the
   "Metadata Blocks" section below.
-- Fast paths.
+- More fast paths, for example for dictionary words, for copies that wrap
+  around the ring buffer and for block switches.
 
 
 ## Encoder
@@ -969,7 +984,12 @@ uses it at qualities 10 and 11 (and its smaller helpers at lower
 qualities). Its
 fixed-size state (about 0.8 MiB: FindBlocks' cost arrays and a 64Ki-entry
 FastLog2 cache in its `bit_cost`) lives in the struct; everything that the C
-code allocates on the heap lives in a caller-supplied workbuf.
+code allocates on the heap lives in a caller-supplied workbuf. The FastLog2
+cache (like the encoder's own `bit_cost` one) is filled lazily, one entry at
+a time, when `fast_log2_memo` first needs that entry (a bitmap, zeroed when the
+struct is initialized, records which entries are valid): typically only a few
+thousand of the 65536 entries are ever used, and each one costs a (slow, exact)
+software `log2`.
 
 Data formats (all little-endian, matching the C structs' memory layout on a
 64-bit little-endian machine, so that results can be compared with `memcmp`):

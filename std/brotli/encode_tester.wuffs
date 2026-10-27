@@ -29,8 +29,11 @@ pub struct metablock_tester?(
 )
 
 // bits_entropy mirrors BrotliBitsEntropy. population holds size u32le values.
-pub func metablock_tester.bits_entropy(population: roslice base.u8, size: base.u64) base.u64 {
-    return this.bc.bits_entropy(population: args.population, size: args.size)
+pub func metablock_tester.bits_entropy!(population: roslice base.u8, size: base.u64) base.u64 {
+    var c : base.u64
+
+    c = this.bc.bits_entropy!(population: args.population, size: args.size)
+    return c
 }
 
 // population_cost mirrors BrotliPopulationCostLiteral (data_size 256),
@@ -38,13 +41,18 @@ pub func metablock_tester.bits_entropy(population: roslice base.u8, size: base.u
 // histogram has the C struct's layout: data_size u32le counts, then the
 // total_count_ u64le (and then the bit_cost_, which is ignored). It returns 0
 // for any other data_size.
-pub func metablock_tester.population_cost(histogram: roslice base.u8, data_size: base.u32) base.u64 {
+pub func metablock_tester.population_cost!(histogram: roslice base.u8, data_size: base.u32) base.u64 {
+    var c : base.u64
+
     if args.data_size == 256 {
-        return this.bc.population_cost(histogram: args.histogram, data_size: 256)
+        c = this.bc.population_cost!(histogram: args.histogram, data_size: 256)
+        return c
     } else if args.data_size == 704 {
-        return this.bc.population_cost(histogram: args.histogram, data_size: 704)
+        c = this.bc.population_cost!(histogram: args.histogram, data_size: 704)
+        return c
     } else if args.data_size == 544 {
-        return this.bc.population_cost(histogram: args.histogram, data_size: 544)
+        c = this.bc.population_cost!(histogram: args.histogram, data_size: 544)
+        return c
     }
     return 0
 }
@@ -62,7 +70,6 @@ pub func metablock_tester.split_block!(cmds: roslice base.u8, num_commands: base
         data: roslice base.u8, pos: base.u64, mask: base.u64, quality: base.u32, workbuf: slice base.u8) base.status {
     this.mb.set_params!(quality: args.quality, large_window: false, disable_literal_context_modeling: false)
     this.mb.reset_arena!(wb_len: args.workbuf.length())
-    this.mb.bc.init_log2_cache!()
     this.mb.alloc_block_splits!(cmds: args.cmds, num_commands: args.num_commands)
     if this.mb.oom {
         return base."#bad workbuf length"
@@ -102,7 +109,6 @@ pub func metablock_tester.cluster_histograms!(data_size: base.u32, in_histos: ro
         return 0xFFFF_FFFF_FFFF_FFFF
     }
     hs = this.mb.hsize(ds: ds)
-    this.mb.bc.init_log2_cache!()
     this.mb.reset_arena!(wb_len: args.workbuf.length())
     n = args.in_size ~mod* hs
     in_off = this.mb.alloc!(n: n)

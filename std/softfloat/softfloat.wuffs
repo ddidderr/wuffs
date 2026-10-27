@@ -61,6 +61,24 @@ pri func arith.clz64(a: base.u64) base.u32[..= 63] {
     return (n32 + n16 + n8 + ((CLZ8[x >> 56] as base.u32) & 7)) & 63
 }
 
+// clz32 returns the number of leading zero bits of a, which must be non-zero.
+pri func arith.clz32(a: base.u32) base.u32[..= 31] {
+    var x   : base.u32
+    var n16 : base.u32[..= 16]
+    var n8  : base.u32[..= 8]
+
+    x = args.a
+    if (x >> 16) == 0 {
+        x = x ~mod<< 16
+        n16 = 16
+    }
+    if (x >> 24) == 0 {
+        x = x ~mod<< 8
+        n8 = 8
+    }
+    return (n16 + n8 + ((CLZ8[x >> 24] as base.u32) & 7)) & 31
+}
+
 // shift_right_jam64 returns (a >> dist), except that if any non-zero bits
 // were shifted out then the least significant bit of the result is set. This
 // "sticky bit" is needed to round correctly.
@@ -247,6 +265,21 @@ pub func arith.f64_abs(a: base.u64) base.u64 {
 // f64_cmp compares a and b, returning 0 if (a < b), 1 if (a == b), 2 if (a
 // > b) and 3 if they are unordered (either is a NaN). -0 and +0 compare equal.
 pub func arith.f64_cmp(a: base.u64, b: base.u64) base.u32 {
+    if (args.a | args.b) <= F64_INF {
+        // Fast path: neither is negative (the sign bits are clear) or a NaN
+        // (both are at most +inf), so the bit patterns sort like the values.
+        if args.a < args.b {
+            return 0
+        } else if args.a == args.b {
+            return 1
+        }
+        return 2
+    }
+    return this.f64_cmp_slow(a: args.a, b: args.b)
+}
+
+// f64_cmp_slow is f64_cmp without the fast path.
+pri func arith.f64_cmp_slow(a: base.u64, b: base.u64) base.u32 {
     var ka : base.u64
     var kb : base.u64
 
@@ -279,35 +312,65 @@ pub func arith.f64_cmp(a: base.u64, b: base.u64) base.u32 {
 // true), and -0 equals +0.
 
 pub func arith.f64_eq(a: base.u64, b: base.u64) base.u32 {
-    if this.f64_cmp(a: args.a, b: args.b) == 1 {
+    if (args.a | args.b) <= F64_INF {
+        if args.a == args.b {
+            return 1
+        }
+        return 0
+    }
+    if this.f64_cmp_slow(a: args.a, b: args.b) == 1 {
         return 1
     }
     return 0
 }
 
 pub func arith.f64_ne(a: base.u64, b: base.u64) base.u32 {
-    if this.f64_cmp(a: args.a, b: args.b) == 1 {
+    if (args.a | args.b) <= F64_INF {
+        if args.a <> args.b {
+            return 1
+        }
+        return 0
+    }
+    if this.f64_cmp_slow(a: args.a, b: args.b) == 1 {
         return 0
     }
     return 1
 }
 
 pub func arith.f64_lt(a: base.u64, b: base.u64) base.u32 {
-    if this.f64_cmp(a: args.a, b: args.b) == 0 {
+    if (args.a | args.b) <= F64_INF {
+        if args.a < args.b {
+            return 1
+        }
+        return 0
+    }
+    if this.f64_cmp_slow(a: args.a, b: args.b) == 0 {
         return 1
     }
     return 0
 }
 
 pub func arith.f64_le(a: base.u64, b: base.u64) base.u32 {
-    if this.f64_cmp(a: args.a, b: args.b) <= 1 {
+    if (args.a | args.b) <= F64_INF {
+        if args.a <= args.b {
+            return 1
+        }
+        return 0
+    }
+    if this.f64_cmp_slow(a: args.a, b: args.b) <= 1 {
         return 1
     }
     return 0
 }
 
 pub func arith.f64_gt(a: base.u64, b: base.u64) base.u32 {
-    if this.f64_cmp(a: args.a, b: args.b) == 2 {
+    if (args.a | args.b) <= F64_INF {
+        if args.a > args.b {
+            return 1
+        }
+        return 0
+    }
+    if this.f64_cmp_slow(a: args.a, b: args.b) == 2 {
         return 1
     }
     return 0
@@ -316,7 +379,13 @@ pub func arith.f64_gt(a: base.u64, b: base.u64) base.u32 {
 pub func arith.f64_ge(a: base.u64, b: base.u64) base.u32 {
     var c : base.u32
 
-    c = this.f64_cmp(a: args.a, b: args.b)
+    if (args.a | args.b) <= F64_INF {
+        if args.a >= args.b {
+            return 1
+        }
+        return 0
+    }
+    c = this.f64_cmp_slow(a: args.a, b: args.b)
     if (c == 1) or (c == 2) {
         return 1
     }
@@ -327,7 +396,13 @@ pub func arith.f64_ge(a: base.u64, b: base.u64) base.u32 {
 // Note that this is not IEEE 754 minNum: f64_min(NaN, x) and f64_min(x, NaN)
 // both return the second argument, and f64_min(-0, +0) returns +0.
 pub func arith.f64_min(a: base.u64, b: base.u64) base.u64 {
-    if this.f64_cmp(a: args.a, b: args.b) == 0 {
+    if (args.a | args.b) <= F64_INF {
+        if args.a < args.b {
+            return args.a
+        }
+        return args.b
+    }
+    if this.f64_cmp_slow(a: args.a, b: args.b) == 0 {
         return args.a
     }
     return args.b
@@ -335,7 +410,13 @@ pub func arith.f64_min(a: base.u64, b: base.u64) base.u64 {
 
 // f64_max returns ((a > b) ? a : b), like brotli's BROTLI_MAX(double, a, b).
 pub func arith.f64_max(a: base.u64, b: base.u64) base.u64 {
-    if this.f64_cmp(a: args.a, b: args.b) == 2 {
+    if (args.a | args.b) <= F64_INF {
+        if args.a > args.b {
+            return args.a
+        }
+        return args.b
+    }
+    if this.f64_cmp_slow(a: args.a, b: args.b) == 2 {
         return args.a
     }
     return args.b
@@ -345,6 +426,21 @@ pub func arith.f64_max(a: base.u64, b: base.u64) base.u64 {
 
 // f64_add returns (a + b).
 pub func arith.f64_add(a: base.u64, b: base.u64) base.u64 {
+    var z : base.u64
+
+    if ((((args.a >> 52) & 0x7FF) ~mod- 1) < 0x7FE) and ((((args.b >> 52) & 0x7FF) ~mod- 1) < 0x7FE) {
+        // Both operands are normal: take the fast path.
+        z = this.f64_add_normal(a: args.a, b: args.b)
+        if z <> 0xFFFF_FFFF_FFFF_FFFF {
+            return z
+        }
+    } else if ((args.b & F64_ABS) == 0) and (((args.a & F64_ABS) ~mod- 1) < (F64_INF - 1)) {
+        // b is a zero and a is finite and non-zero, so (a + b) is a.
+        return args.a
+    } else if ((args.a & F64_ABS) == 0) and (((args.b & F64_ABS) ~mod- 1) < (F64_INF - 1)) {
+        // a is a zero and b is finite and non-zero, so (a + b) is b.
+        return args.b
+    }
     if ((args.a ^ args.b) >> 63) == 0 {
         return this.f64_add_mags(a: args.a, b: args.b, sign: args.a & F64_SIGN)
     }
@@ -353,10 +449,103 @@ pub func arith.f64_add(a: base.u64, b: base.u64) base.u64 {
 
 // f64_sub returns (a - b).
 pub func arith.f64_sub(a: base.u64, b: base.u64) base.u64 {
+    var z : base.u64
+
+    if ((((args.a >> 52) & 0x7FF) ~mod- 1) < 0x7FE) and ((((args.b >> 52) & 0x7FF) ~mod- 1) < 0x7FE) {
+        // Both operands are normal: take the fast path. For non-NaN
+        // operands, (a - b) is exactly (a + -b), including the sign of a
+        // zero result.
+        z = this.f64_add_normal(a: args.a, b: args.b ^ F64_SIGN)
+        if z <> 0xFFFF_FFFF_FFFF_FFFF {
+            return z
+        }
+    } else if ((args.b & F64_ABS) == 0) and (((args.a & F64_ABS) ~mod- 1) < (F64_INF - 1)) {
+        // b is a zero and a is finite and non-zero, so (a - b) is a.
+        return args.a
+    } else if ((args.a & F64_ABS) == 0) and (((args.b & F64_ABS) ~mod- 1) < (F64_INF - 1)) {
+        // a is a zero and b is finite and non-zero, so (a - b) is -b.
+        return args.b ^ F64_SIGN
+    }
     if ((args.a ^ args.b) >> 63) == 0 {
         return this.f64_sub_mags(a: args.a, b: args.b, sign: args.a & F64_SIGN)
     }
     return this.f64_add_mags(a: args.a, b: args.b, sign: args.a & F64_SIGN)
+}
+
+// f64_add_normal returns (a + b), for normal a and b, unless the result is
+// subnormal, in which case it returns 0xFFFF_FFFF_FFFF_FFFF (a NaN, which it
+// never otherwise returns) and the caller must take its slow path. It is a
+// faster (but less general) version of f64_add_mags and f64_sub_mags.
+pri func arith.f64_add_normal(a: base.u64, b: base.u64) base.u64 {
+    var x  : base.u64
+    var y  : base.u64
+    var ex : base.u32[..= 0x800]
+    var d  : base.u32
+    var mx : base.u64[..= 0x7FFF_FFFF_FFFF_FFFF]
+    var my : base.u64[..= 0x7FFF_FFFF_FFFF_FFFF]
+    var z  : base.u64
+    var s  : base.u32[..= 63]
+    var rb : base.u64
+
+    // Order the operands so that |x| >= |y|. The result has x's sign.
+    x = args.a
+    y = args.b
+    if (y & F64_ABS) > (x & F64_ABS) {
+        x = args.b
+        y = args.a
+    }
+    ex = ((x >> 52) & 0x7FF) as base.u32
+    d = ex ~mod- (((y >> 52) & 0x7FF) as base.u32)
+    if d > 63 {
+        d = 63
+    }
+    // The significands, with their implicit bit at bit 62 and 10 extra bits
+    // of precision at the bottom. Align my with mx, keeping a sticky bit.
+    mx = ((x & F64_FRAC) | F64_HIDDEN) << 10
+    my = ((y & F64_FRAC) | F64_HIDDEN) << 10
+    if (my & (((1 as base.u64) << (d & 63)) ~mod- 1)) <> 0 {
+        my = (my >> (d & 63)) | 1
+    } else {
+        my = my >> (d & 63)
+    }
+
+    if ((x ^ y) >> 63) == 0 {
+        z = mx + my
+        if z >= 0x8000_0000_0000_0000 {
+            ex += 1
+            z = (z >> 1) | (z & 1)
+        }
+    } else {
+        // mx >= my, since |x| >= |y|.
+        z = mx ~mod- my
+        if z == 0 {
+            // Exact cancellation gives +0 when rounding to nearest.
+            return 0
+        } else if z < 0x4000_0000_0000_0000 {
+            // If (d >= 2) then z >= (1 << 61) and the normalization shift
+            // is 1. Otherwise, no bits were shifted out of my.
+            s = (this.clz64(a: z) ~mod- 1) & 63
+            if s >= ex {
+                return 0xFFFF_FFFF_FFFF_FFFF
+            }
+            ex = (ex ~mod- s) & 0x7FF
+            z = z ~mod<< s
+        }
+    }
+
+    // Round to nearest, ties to even. z is now in [1 << 52 ..= 1 << 53] and
+    // ex in [1 ..= 0x7FF]. Adding z (whose bit 52 is the implicit bit) to the
+    // shifted exponent carries any rounding overflow into the exponent field.
+    rb = z & 0x3FF
+    z = (z ~mod+ 0x200) >> 10
+    if rb == 0x200 {
+        z &= 0xFFFF_FFFF_FFFF_FFFE
+    }
+    z = (((ex ~mod- 1) as base.u64) ~mod<< 52) ~mod+ z
+    if z >= F64_INF {
+        z = F64_INF
+    }
+    return (x & F64_SIGN) | z
 }
 
 // f64_add_mags returns (sign * (|a| + |b|)).
