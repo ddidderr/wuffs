@@ -86517,6 +86517,8 @@ wuffs_brotli__metablock_builder__workbuf_len_worst_case(
     uint64_t a_num_commands) {
   uint64_t v_l = 0;
   uint64_t v_c = 0;
+  uint64_t v_tl = 0;
+  uint64_t v_tc = 0;
   uint64_t v_n = 0;
   uint64_t v_split = 0;
 
@@ -86539,9 +86541,15 @@ wuffs_brotli__metablock_builder__workbuf_len_worst_case(
       544u,
       50u)));
   wuffs_private_impl__u64__sat_add_indirect(&v_n, wuffs_base__u64__max(v_split, 2192u));
-  wuffs_private_impl__u64__sat_add_indirect(&v_n, 20078592u);
-  wuffs_private_impl__u64__sat_add_indirect(&v_n, 19283968u);
-  wuffs_private_impl__u64__sat_add_indirect(&v_n, wuffs_base__u64__max(wuffs_brotli__metablock_builder__cluster_scratch_len(self, 16384u, 1040u), wuffs_brotli__metablock_builder__cluster_scratch_len(self, 1024u, 2192u)));
+  v_tl = wuffs_base__u64__min(wuffs_base__u64__max(v_l, 1u), 256u);
+  v_tc = wuffs_base__u64__min(wuffs_base__u64__max(v_c, 1u), 256u);
+  wuffs_private_impl__u64__sat_add_indirect(&v_n, ((v_tc * 2832u) +
+      (v_tl * 64u * 4u) +
+      (v_tl * 64u * 1040u) +
+      (v_tc * 4u * 4u) +
+      (v_tc * 4u * 2192u)));
+  wuffs_private_impl__u64__sat_add_indirect(&v_n, ((v_tl * 64u * 1040u) + (v_tc * 4u * 2192u)));
+  wuffs_private_impl__u64__sat_add_indirect(&v_n, wuffs_base__u64__max(wuffs_brotli__metablock_builder__cluster_scratch_len(self, (v_tl * 64u), 1040u), wuffs_brotli__metablock_builder__cluster_scratch_len(self, (v_tc * 4u), 2192u)));
   return v_n;
 }
 

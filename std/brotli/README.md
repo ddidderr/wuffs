@@ -225,13 +225,19 @@ The source files are:
   greedy block splitters, `metablock_inc.h`) and `BrotliOptimizeHistograms`
   for its output.
 - `encode_util.wuffs`: little-endian workbuf accessors.
-- `encode_block_splitter.wuffs`, `encode_cluster.wuffs` and
-  `encode_metablock.wuffs`: the `metablock_builder` struct, with
-  `block_splitter.c`, `cluster.c` and `BrotliBuildMetaBlock` (which only
-  quality 10 and above use, and so the encoder does not call it yet). The
-  encoder uses some of its smaller functions (`BrotliInitDistanceParams`,
-  `PrefixEncodeCopyDistance`, `CommandRestoreDistanceCode` and
-  `BrotliOptimizeHuffmanCountsForRle`).
+- `encode_block_splitter.wuffs`: `block_splitter.c` and
+  `block_splitter_inc.h` (`BrotliSplitBlock`), as methods of the
+  `metablock_builder` struct.
+- `encode_cluster.wuffs`: `cluster.c` and `cluster_inc.h`
+  (`BrotliClusterHistograms` and its helpers), also as `metablock_builder`
+  methods.
+- `encode_metablock.wuffs`: the `metablock_builder` struct and `metablock.c`
+  (`BrotliInitDistanceParams`, `BrotliBuildMetaBlock`,
+  `BrotliOptimizeHistograms`). See "Encoder Metablock Builder" below.
+  Only quality 10 and above use `BrotliBuildMetaBlock`, so the encoder does
+  not call it yet, but it uses some of the smaller functions
+  (`BrotliInitDistanceParams`, `PrefixEncodeCopyDistance`,
+  `CommandRestoreDistanceCode` and `BrotliOptimizeHuffmanCountsForRle`).
 - `encode_tester.wuffs`: TEST ONLY. The `metablock_tester` struct exposes
   the internal functions above to C test programs. It is not part of the
   encoder API.
@@ -466,6 +472,120 @@ and for qualities 2 to 9 several hundred thousand, all byte-exact.
   encoder's arrays instead of a slice.
 - Like the C code, there is no fallback to an uncompressed stream (that is
   only in the C code's one-shot `BrotliEncoderCompress`).
+
+
+### Encoder Metablock Builder
+
+The `metablock_builder` struct (a `pri struct`, embeddable in the encoder
+with one field, e.g. `mb : metablock_builder` in the private data section)
+implements the quality 10 and 11 metablock construction (`BrotliBuildMetaBlock`)
+and `BrotliOptimizeHistograms`. The encoder has one (its `mb` field) but
+only calls its smaller helpers so far (see the source file list above). Its
+fixed-size state (about 0.8 MiB: FindBlocks' cost arrays and a 64Ki-entry
+FastLog2 cache in its `bit_cost`) lives in the struct; everything that the C
+code allocates on the heap lives in a caller-supplied workbuf.
+
+Data formats (all little-endian, matching the C structs' memory layout on a
+64-bit little-endian machine, so that results can be compared with `memcmp`):
+
+- A command is 16 bytes: `insert_len_` (u32), `copy_len_` (u32), `dist_extra_`
+  (u32), `cmd_prefix_` (u16), `dist_prefix_` (u16), as built by `command.h`'s
+  `InitCommand` / `InitInsertCommand`.
+- A histogram is `(4 * data_size) + 16` bytes: `data_size` u32 counts, the
+  u64 `total_count_` and the binary64 bits of `bit_cost_`. `data_size` is 256
+  (literals, 1040 bytes), 704 (commands, 2832 bytes) or 544 (distances, 2192
+  bytes).
+- A BlockSplit's types are u8s and its lengths u32s. Context maps are u32s.
+- Doubles are binary64 bit patterns (u64), computed with `std/softfloat` in
+  the C code's operation order.
+
+Usage, mirroring the C code's `WriteMetaBlockInternal` for quality >= 10:
+
+```
+// Once per metablock. The params are the C code's block_params, a copy of
+// the encoder's params: init_distance_params must be called each time,
+// because build_meta_block overwrites the dist_etc fields with the chosen
+// distance params.
+this.mb.set_params!(quality: q, large_window: lw,
+        disable_literal_context_modeling: dlcm)
+this.mb.init_distance_params!(npostfix: np, ndirect: nd, large_window: lw)
+status = this.mb.build_meta_block!(wb: workbuf, ringbuffer: rb, pos: pos,
+        mask: mask, prev_byte: pb, prev_byte2: pb2, cmds: cmds,
+        num_commands: n, literal_context_mode: mode)
+// Optional (quality >= 4): ndc is min(this.mb.dist_alphabet_size_limit, 544).
+this.mb.optimize_histograms!(wb: workbuf, num_distance_codes: ndc)
+```
+
+The exact signatures are:
+
+- `set_params!(quality: u32, large_window: bool,
+  disable_literal_context_modeling: bool)`.
+- `init_distance_params!(npostfix: u32, ndirect: u32, large_window: bool)`
+  (`BrotliInitDistanceParams`; sets `dist_postfix_bits`,
+  `dist_num_direct_codes`, `dist_alphabet_size_max`,
+  `dist_alphabet_size_limit` and `dist_max_distance`).
+- `build_meta_block!(wb: slice u8, ringbuffer: roslice u8, pos: u64, mask:
+  u64, prev_byte: u8, prev_byte2: u8, cmds: slice u8, num_commands: u64,
+  literal_context_mode: u32) status`. `ringbuffer` must be at least `mask + 1`
+  bytes. `literal_context_mode` is a `ContextType` (0 = LSB6, 1 = MSB6, 2 =
+  UTF8, 3 = SIGNED). Like the C code, it rewrites the commands'
+  `dist_prefix_` and `dist_extra_` fields for the chosen distance params and
+  leaves those params in the `dist_etc` fields. It returns
+  `"#bad workbuf length"` if `wb` is too short (the results are then invalid
+  but `cmds` may already be rewritten, so retrying needs the original
+  commands).
+- `optimize_histograms!(wb: slice u8, num_distance_codes: u32)` works on the
+  MetaBlockSplit described by the fields below, whether `build_meta_block`
+  or the caller (e.g. a greedy builder) filled them in.
+- `workbuf_len_worst_case(num_literals: u64, num_commands: u64) u64` is an
+  upper bound on the workbuf length that `build_meta_block` needs, where
+  `num_literals` is the sum of the commands' insert lengths. It assumes the
+  worst case for every run-time-sized allocation (one `FindBlocks` block per
+  symbol, 256 block types with 64 literal contexts each, full histogram pair
+  queues), so it is far larger than what real inputs need: about 76 MiB for
+  a 1 KiB metablock, 2.6 GiB for 1 MiB of literals and 128 Ki commands, and
+  41 GiB for 16 MiB of literals and 4 Mi commands. These are the C code's
+  own worst cases (`ClusterBlocks` and `BrotliClusterHistograms` size their
+  histogram pair queues by the number of blocks and clusters), not artifacts
+  of the port. `wb_high` records what a call actually used: over the parity
+  harness's inputs, at most about 42 MB (for 1.3 MiB of literals split into
+  256 literal block types).
+
+The MetaBlockSplit result is described by these fields, indexed by category
+(0 = literal, 1 = command, 2 = distance), with offsets into `wb`:
+
+| Field                  | C code                                          |
+| ---------------------- | ----------------------------------------------- |
+| `split_num_types[c]`   | `{literal,command,distance}_split.num_types`    |
+| `split_num_blocks[c]`  | `..._split.num_blocks`                          |
+| `split_types_off[c]`   | `..._split.types` (u8 array)                    |
+| `split_lengths_off[c]` | `..._split.lengths` (u32 array)                 |
+| `context_map_off[c]`   | `{literal,distance}_context_map` (u32 array; none for commands) |
+| `context_map_size[c]`  | `{literal,distance}_context_map_size`           |
+| `histograms_off[c]`    | `{literal,command,distance}_histograms`         |
+| `histograms_size[c]`   | `..._histograms_size`                           |
+
+Workbuf layout during `build_meta_block` (a bump allocator, `wb_top`, carves
+regions out of `wb` in this order; "scratch" regions are released when the
+C code frees them, so later regions reuse their bytes):
+
+1. Scratch: one distance histogram for the distance parameter search.
+2. The three BlockSplits' types and lengths arrays, sized for one block per
+   symbol (`max(1, n)` entries, where n is the number of literals, commands
+   or distance codes).
+3. Scratch: `BrotliSplitBlock`'s literal / command code / distance code
+   arrays and `SplitByteVector`'s histograms, block ids, bitmaps and
+   `ClusterBlocks` state.
+4. The command histograms, literal context map, literal histograms (room for
+   `64 * num_literal_types`), distance context map and distance histograms
+   (room for `4 * num_distance_types`).
+5. Scratch: the per-context literal and distance histograms that are then
+   clustered, and `BrotliClusterHistograms`' state (cluster sizes, histogram
+   pairs, etc).
+
+After `build_meta_block` returns, the results (regions 2 and 4) are below
+`wb_top`, and `wb[wb_top ..]` is free for the caller (e.g. for storing the
+metablock) for as long as it needs the results.
 
 
 ### Encoder TODO

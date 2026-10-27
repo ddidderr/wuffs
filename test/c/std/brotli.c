@@ -1907,6 +1907,383 @@ bench_mimic_brotli_encode_alice29_q9() {
 
 #endif  // WUFFS_MIMIC
 
+// ---------------- Metablock Builder Tests
+
+// These tests check the encoder's metablock builder (the ports of
+// libbrotlienc's bit_cost.c, histogram.c, block_splitter.c, cluster.c and
+// metablock.c, exposed through the test-only metablock_tester struct)
+// against golden values computed with libbrotlienc v1.2.1. The much larger
+// script/manual-test-brotli-metablock-parity.c compares them with the C
+// functions directly.
+
+static uint32_t  //
+mbt_log2_floor(uint64_t x) {
+  uint32_t n = 0;
+  while (x >>= 1) {
+    n++;
+  }
+  return n;
+}
+
+static uint64_t  //
+mbt_fnv(uint64_t h, const uint8_t* p, size_t n) {
+  size_t i;
+  for (i = 0; i < n; i++) {
+    h = (h ^ p[i]) * 0x100000001B3ull;
+  }
+  return h;
+}
+
+static uint64_t  //
+mbt_fnv_u64(uint64_t h, uint64_t v) {
+  uint8_t b[8];
+  int i;
+  for (i = 0; i < 8; i++) {
+    b[i] = (uint8_t)(v >> (8 * i));
+  }
+  return mbt_fnv(h, b, 8);
+}
+
+static void  //
+mbt_put_u32le(uint8_t* p, uint32_t v) {
+  p[0] = (uint8_t)(v >> 0);
+  p[1] = (uint8_t)(v >> 8);
+  p[2] = (uint8_t)(v >> 16);
+  p[3] = (uint8_t)(v >> 24);
+}
+
+// mbt_make_cmds writes the 16-byte commands (as command.h's InitCommand and
+// InitInsertCommand would, for the given npostfix and ndirect) of a
+// pseudo-random parse of total bytes to dst and returns how many there are.
+// dst must have room for total + 1 commands.
+static size_t  //
+mbt_make_cmds(uint8_t* dst, size_t total, uint32_t npostfix, uint32_t ndirect,
+              uint32_t seed) {
+  size_t n = 0;
+  size_t pos = 0;
+  uint32_t r = seed;
+  while (pos < total) {
+    size_t ins, copy, dcode, rem;
+    uint32_t inscode, copycode, dist_extra = 0;
+    uint16_t dist_prefix, cmd_prefix;
+    int use_last;
+    int insert_only = 0;
+    r = (r * 1103515245u) + 12345u;
+    ins = (r >> 16) % ((r & 0x300) ? 12 : 300);
+    r = (r * 1103515245u) + 12345u;
+    copy = 2 + ((r >> 16) % ((r & 0x700) ? 14 : 200));
+    rem = total - pos;
+    if (ins > rem) {
+      ins = rem;
+    }
+    if ((rem - ins) < copy) {
+      ins = rem;
+      copy = 0;
+    }
+    if (copy == 0) {
+      // InitInsertCommand.
+      insert_only = 1;
+      dist_prefix = 16;
+      copy = 4;
+      use_last = 0;
+    } else {
+      r = (r * 1103515245u) + 12345u;
+      if ((r & 0x30000) == 0) {
+        dcode = (r >> 18) & 15;
+      } else {
+        size_t max = pos + ins;
+        dcode = 16 + (((r >> 8) % (max ? max : 1)) % 3000);
+      }
+      // PrefixEncodeCopyDistance.
+      if (dcode < 16 + ndirect) {
+        dist_prefix = (uint16_t)dcode;
+      } else {
+        size_t d = ((size_t)1 << (npostfix + 2)) + (dcode - 16 - ndirect);
+        size_t bucket = mbt_log2_floor(d) - 1;
+        size_t postfix = d & ((1u << npostfix) - 1);
+        size_t prefix = (d >> bucket) & 1;
+        size_t offset = (2 + prefix) << bucket;
+        size_t nbits = bucket - npostfix;
+        dist_prefix = (uint16_t)((nbits << 10) |
+                                 (16 + ndirect +
+                                  ((2 * (nbits - 1) + prefix) << npostfix) +
+                                  postfix));
+        dist_extra = (uint32_t)((d - offset) >> npostfix);
+      }
+      use_last = (dist_prefix & 0x3FF) == 0;
+    }
+    // GetInsertLengthCode.
+    if (ins < 6) {
+      inscode = (uint32_t)ins;
+    } else if (ins < 130) {
+      uint32_t nb = mbt_log2_floor(ins - 2) - 1;
+      inscode = (nb << 1) + (uint32_t)((ins - 2) >> nb) + 2;
+    } else if (ins < 2114) {
+      inscode = mbt_log2_floor(ins - 66) + 10;
+    } else if (ins < 6210) {
+      inscode = 21;
+    } else if (ins < 22594) {
+      inscode = 22;
+    } else {
+      inscode = 23;
+    }
+    // GetCopyLengthCode.
+    if (copy < 10) {
+      copycode = (uint32_t)(copy - 2);
+    } else if (copy < 134) {
+      uint32_t nb = mbt_log2_floor(copy - 6) - 1;
+      copycode = (nb << 1) + (uint32_t)((copy - 6) >> nb) + 4;
+    } else if (copy < 2118) {
+      copycode = mbt_log2_floor(copy - 70) + 12;
+    } else {
+      copycode = 23;
+    }
+    // CombineLengthCodes.
+    {
+      uint32_t bits64 = (copycode & 7) | ((inscode & 7) << 3);
+      if (use_last && (inscode < 8) && (copycode < 16)) {
+        cmd_prefix = (uint16_t)((copycode < 8) ? bits64 : (bits64 | 64));
+      } else {
+        uint32_t off = 2 * ((copycode >> 3) + 3 * (inscode >> 3));
+        off = (off << 5) + 0x40 + ((0x520D40u >> off) & 0xC0);
+        cmd_prefix = (uint16_t)(off | bits64);
+      }
+    }
+    mbt_put_u32le(dst + 16 * n + 0, (uint32_t)ins);
+    mbt_put_u32le(dst + 16 * n + 4, insert_only ? (4u << 25) : (uint32_t)copy);
+    mbt_put_u32le(dst + 16 * n + 8, dist_extra);
+    dst[16 * n + 12] = (uint8_t)cmd_prefix;
+    dst[16 * n + 13] = (uint8_t)(cmd_prefix >> 8);
+    dst[16 * n + 14] = (uint8_t)dist_prefix;
+    dst[16 * n + 15] = (uint8_t)(dist_prefix >> 8);
+    n++;
+    pos += ins + (insert_only ? 0 : copy);
+  }
+  return n;
+}
+
+typedef struct {
+  const char* filename;  // NULL means the synthetic input.
+  uint32_t quality;
+  uint32_t mode;
+  uint32_t nolcm;
+  uint32_t npostfix;
+  uint32_t ndirect;
+  uint32_t large_window;
+  uint32_t seed;
+  uint64_t want_hash;
+} mbt_case;
+
+static const mbt_case g_mbt_cases[] = {
+    {"test/data/romeo.txt", 11, 2, 0, 0, 0, 0, 0x12345678,
+     0x91BCDB702326DA68},
+    {"test/data/midsummer.txt", 10, 3, 1, 1, 4, 0, 0x9ABCDEF0,
+     0xC1BC25672AFFE52C},
+    {NULL, 11, 0, 0, 2, 8, 1, 0x0BADF00D, 0x106C079EF30D8335},
+    {NULL, 10, 1, 0, 3, 120, 0, 0x00C0FFEE, 0x1CE5AB9FFAB4CEDB},
+    {"test/data/pi.txt", 11, 2, 0, 1, 2, 0, 0x31415926, 0x4434059D684D4F0E},
+    {"", 11, 2, 0, 0, 0, 0, 0x00000001, 0xAE70E50382B8388F},
+};
+
+const char*  //
+test_wuffs_brotli_metablock_build_meta_block() {
+  CHECK_FOCUS(__func__);
+  wuffs_brotli__metablock_tester* t = wuffs_brotli__metablock_tester__alloc();
+  if (!t) {
+    RETURN_FAIL("alloc failed");
+  }
+  const char* ret = NULL;
+  uint8_t* rb = NULL;
+  uint8_t* cmds = NULL;
+  uint8_t* wb = NULL;
+  size_t wb_len = 1 << 20;
+  size_t i;
+  for (i = 0; i < WUFFS_TESTLIB_ARRAY_SIZE(g_mbt_cases); i++) {
+    const mbt_case* tc = &g_mbt_cases[i];
+    size_t total = 0;
+    size_t rb_size = 1024;
+    size_t n, k;
+    int c;
+    uint64_t h = 0xCBF29CE484222325ull;
+    wuffs_base__status status;
+    wuffs_base__io_buffer src = ((wuffs_base__io_buffer){
+        .data = g_have_slice_u8,
+    });
+    if (!tc->filename) {
+      // A byte distribution that shifts every 700 bytes, 48 KiB.
+      uint32_t r = 1;
+      total = 49152;
+      for (k = 0; k < total; k++) {
+        r = (r * 1103515245u) + 12345u;
+        src.data.ptr[k] = (uint8_t)(((k / 700) * 37) +
+                                    ((r >> 16) % (1 + (k / 700) % 23)));
+      }
+    } else if (*tc->filename) {
+      ret = read_file(&src, tc->filename);
+      if (ret) {
+        goto done;
+      }
+      total = src.meta.wi;
+    }
+    while (rb_size < total) {
+      rb_size *= 2;
+    }
+    free(rb);
+    free(cmds);
+    rb = calloc(rb_size, 1);
+    cmds = malloc(16 * (total + 1));
+    if (!rb || !cmds) {
+      ret = "out of memory";
+      goto done;
+    }
+    if (total) {
+      memcpy(rb, src.data.ptr, total);
+    }
+    n = mbt_make_cmds(cmds, total, tc->npostfix, tc->ndirect, tc->seed);
+    while (true) {
+      if (!wb) {
+        wb = malloc(wb_len);
+        if (!wb) {
+          ret = "out of memory";
+          goto done;
+        }
+      }
+      status = wuffs_brotli__metablock_tester__build_meta_block(
+          t, wuffs_base__make_slice_u8(wb, wb_len),
+          wuffs_base__make_slice_u8(rb, rb_size), 0, rb_size - 1, 0, 0,
+          wuffs_base__make_slice_u8(cmds, 16 * n), n, tc->mode, tc->quality,
+          tc->large_window, tc->nolcm, tc->npostfix, tc->ndirect);
+      if (status.repr != wuffs_base__error__bad_workbuf_length) {
+        break;
+      }
+      // The commands were rewritten, so regenerate them.
+      n = mbt_make_cmds(cmds, total, tc->npostfix, tc->ndirect, tc->seed);
+      free(wb);
+      wb = NULL;
+      wb_len *= 2;
+    }
+    if (status.repr) {
+      ret = status.repr;
+      goto done;
+    }
+    {
+      uint64_t ndc = wuffs_brotli__metablock_tester__get(t, 27);
+      wuffs_brotli__metablock_tester__optimize_histograms(
+          t, wuffs_base__make_slice_u8(wb, wb_len),
+          (uint32_t)((ndc < 544) ? ndc : 544));
+    }
+    for (c = 0; c < 3; c++) {
+      uint64_t num_blocks = wuffs_brotli__metablock_tester__get(t, 4 * c + 1);
+      uint64_t types = wuffs_brotli__metablock_tester__get(t, 4 * c + 2);
+      uint64_t lengths = wuffs_brotli__metablock_tester__get(t, 4 * c + 3);
+      h = mbt_fnv_u64(h, wuffs_brotli__metablock_tester__get(t, 4 * c + 0));
+      h = mbt_fnv_u64(h, num_blocks);
+      h = mbt_fnv(h, wb + types, num_blocks);
+      h = mbt_fnv(h, wb + lengths, 4 * num_blocks);
+    }
+    for (c = 0; c < 3; c += 2) {
+      uint64_t size = wuffs_brotli__metablock_tester__get(t, 15 + c);
+      h = mbt_fnv_u64(h, size);
+      h = mbt_fnv(h, wb + wuffs_brotli__metablock_tester__get(t, 12 + c),
+                  4 * size);
+    }
+    for (c = 0; c < 3; c++) {
+      static const size_t hsizes[3] = {1040, 2832, 2192};
+      uint64_t size = wuffs_brotli__metablock_tester__get(t, 21 + c);
+      h = mbt_fnv_u64(h, size);
+      h = mbt_fnv(h, wb + wuffs_brotli__metablock_tester__get(t, 18 + c),
+                  hsizes[c] * size);
+    }
+    for (c = 24; c < 29; c++) {
+      h = mbt_fnv_u64(h, wuffs_brotli__metablock_tester__get(t, c));
+    }
+    h = mbt_fnv(h, cmds, 16 * n);
+    if (h != tc->want_hash) {
+      RETURN_FAIL("case %zu: hash: have 0x%016" PRIX64 ", want 0x%016" PRIX64,
+                  i, h, tc->want_hash);
+    }
+    if (wuffs_brotli__metablock_tester__get(t, 29) >
+        wuffs_brotli__metablock_tester__get(t, 30)) {
+      RETURN_FAIL("case %zu: workbuf used exceeds the worst case", i);
+    }
+  }
+done:
+  free(rb);
+  free(cmds);
+  free(wb);
+  free(t);
+  return ret;
+}
+
+const char*  //
+test_wuffs_brotli_metablock_bit_cost() {
+  CHECK_FOCUS(__func__);
+  wuffs_brotli__metablock_tester* t = wuffs_brotli__metablock_tester__alloc();
+  if (!t) {
+    RETURN_FAIL("alloc failed");
+  }
+  // The C code's BrotliBitsEntropy and BrotliPopulationCost{Literal,Command,
+  // Distance} results, as binary64 bit patterns.
+  static const uint64_t want_pop[6][3] = {
+      {0x4028000000000000, 0x4028000000000000, 0x4028000000000000},
+      {0x4028000000000000, 0x4028000000000000, 0x4028000000000000},
+      {0x4055800000000000, 0x4055800000000000, 0x4055800000000000},
+      {0x4055800000000000, 0x406AC00000000000, 0x406AC00000000000},
+      {0x4055800000000000, 0x4076300000000000, 0x4076300000000000},
+      {0x40F842EE8C1F42B3, 0x4113DB811CA8812F, 0x410D76A1EA720A2C},
+  };
+  static const uint32_t data_sizes[3] = {256, 704, 544};
+  // Each histogram is data_size u32le counts, a u64le total_count_ and a
+  // binary64 bit_cost_.
+  uint8_t pop[4 * 704];
+  uint8_t histo[(4 * 704) + 16];
+  uint32_t counts[704];
+  size_t i;
+  int k, c;
+  for (i = 0; i < 704; i++) {
+    counts[i] = (uint32_t)((i * i * 7 + 3) % 101);
+    mbt_put_u32le(pop + 4 * i, counts[i]);
+  }
+  {
+    uint64_t have = wuffs_brotli__metablock_tester__bits_entropy(
+        t, wuffs_base__make_slice_u8(pop, sizeof(pop)), 256);
+    if (have != 0x40F79A0C92B03A26ull) {
+      free(t);
+      RETURN_FAIL("bits_entropy: have 0x%016" PRIX64, have);
+    }
+  }
+  for (k = 0; k < 6; k++) {
+    static const int nz[6] = {0, 1, 2, 3, 4, 300};
+    for (c = 0; c < 3; c++) {
+      uint64_t total = 0;
+      uint64_t have;
+      memset(histo, 0, sizeof(histo));
+      for (i = 0; i < data_sizes[c]; i++) {
+        int on = (nz[k] >= 300) ? (counts[i] != 0)
+                                : (((i % 151) == 7) && ((int)(i / 151) < nz[k]));
+        if (on) {
+          mbt_put_u32le(histo + 4 * i, counts[i] + 1);
+          total += counts[i] + 1;
+        }
+      }
+      for (i = 0; i < 8; i++) {
+        histo[(4 * data_sizes[c]) + i] = (uint8_t)(total >> (8 * i));
+      }
+      have = wuffs_brotli__metablock_tester__population_cost(
+          t, wuffs_base__make_slice_u8(histo, (4 * data_sizes[c]) + 16),
+          data_sizes[c]);
+      if (have != want_pop[k][c]) {
+        free(t);
+        RETURN_FAIL("population_cost(k=%d, c=%d): have 0x%016" PRIX64
+                    ", want 0x%016" PRIX64,
+                    k, c, have, want_pop[k][c]);
+      }
+    }
+  }
+  free(t);
+  return NULL;
+}
+
 // ---------------- Large Window and Dictionary Tests
 
 // See test/data/brotli/README.md for where the large-window (lw), raw
@@ -2804,6 +3181,10 @@ proc g_tests[] = {
     test_wuffs_brotli_decode_ext_malformed,
     test_wuffs_brotli_decode_large_window_far,
     test_wuffs_brotli_decode_large_window_quirk,
+
+    // Metablock builder tests.
+    test_wuffs_brotli_metablock_bit_cost,
+    test_wuffs_brotli_metablock_build_meta_block,
 
 #ifdef WUFFS_MIMIC
 
