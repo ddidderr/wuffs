@@ -516,15 +516,25 @@ truncated for windows up to `1 << 30`. The rolling hashers' table holds
 `wuffs test -mimic std/brotli` checks byte-exact parity with libbrotlienc
 over a grid of qualities (0 to 9), lgwins, modes, input chunkings, flushes,
 metadata blocks, size hints and other parameters (lgblock, npostfix, ndirect,
-disabling literal context modeling, stream offset, large window at quality 2),
-as well as round trips through the decoder.
+disabling literal context modeling, stream offset, large window), as well as
+round trips through the decoder. Its large-window tests cover qualities 3 to
+9 with lgwin 18 to 30 (and the H35, H55 and H65 hashers) on small files and
+on a 46 MiB input with repeats at distances of about 20 and 40 MiB, decoded
+by both this package's decoder and libbrotlidec.
 `script/manual-test-brotli-encoder-parity.c` runs a larger grid over every
 file in `test/data/brotli`, some larger files in `test/data` (up to about
 400 KiB) and some synthetic inputs (up to 1 MiB). Its `-q=LO-HI` and
 `-shard=K/N` options select the qualities and split the inputs over several
-processes. With `-q=0-9` (the default) it runs 718,555 configurations
-(about 86 thousand of them at qualities 0 and 1), all byte-exact against
-libbrotlienc v1.2.1 on x86-64.
+processes, `-lw` runs only its large-window grid (lgwin 10 to 30 at
+qualities 2 to 9, with various chunkings, flushes, size hints and other
+parameters, each also with the shortest workbuf that should work) and `-big`
+replaces the inputs with synthetic ones of 3 to 70 MiB with repeats at
+distances of up to 40 MiB. With `-q=0-9` (the default) it runs 814,706
+configurations (96,688 of them in the large-window grid), all byte-exact
+against libbrotlienc v1.2.1 on x86-64. With `-lw -big` it runs 720 more
+(on 3, 6 and 12 MiB inputs with the large-window grid and on 24, 40 and
+70 MiB inputs with one-shot and streaming large-window configurations at
+lgwin 24 to 30), also all byte-exact.
 
 
 ### Encoder Differences from the C Code
