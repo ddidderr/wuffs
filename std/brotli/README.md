@@ -660,7 +660,8 @@ Differences from the C code:
 
 ### Encoder Testing
 
-`wuffs test -mimic std/brotli` checks byte-exact parity with libbrotlienc
+`wuffs test -mimic std/brotli` (including its encoder dictionary tests)
+checks byte-exact parity with libbrotlienc
 over a grid of qualities (0 to 9), lgwins, modes, input chunkings, flushes,
 metadata blocks, size hints and other parameters (lgblock, npostfix, ndirect,
 disabling literal context modeling, stream offset, large window), as well as
@@ -687,7 +688,10 @@ dictionaries of 2 MiB to 40 MiB (every hash table size) with a 1 MiB input.
 Each dictionary configuration's output is also decoded by libbrotlidec and
 by this package's decoder (with the same dictionaries), except with a
 stream offset, and the whole-input and big dictionaries check that the
-output is smaller than without them (at qualities 5 and above). With
+output is smaller than without them (at qualities 5 and above, unless it is
+already tiny). With `-dict` (and `-q=0-9`) it runs 419,802 configurations,
+all byte-exact against libbrotlienc v1.2.1 on x86-64, with 356,546 round
+trips through both decoders. With
 `-q=0-9` (the default) and without `-dict` it runs 814,706
 configurations (96,688 of them in the large-window grid), all byte-exact
 against libbrotlienc v1.2.1 on x86-64. With `-lw -big` it runs 720 more
