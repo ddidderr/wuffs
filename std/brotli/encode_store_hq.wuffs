@@ -62,18 +62,6 @@ pri func encoder.hq_zopfli_len(quality: base.u32[..= 11], lgblock: base.u32[..= 
             (8 ~mod* ((args.matches_per_byte ~mod* n) ~sat+ MAX_NUM_MATCHES_H10))
 }
 
-// hq_metablock_budget returns the variable region length that the minimum
-// workbuf length reserves for the metablock_builder: room for its block
-// split arrays and BrotliSplitBlock's per-symbol scratch arrays at the
-// largest metablock size, plus a fixed allowance for the histograms and
-// clustering state. It is not a worst case (see README.md).
-pri func encoder.hq_metablock_budget(lgwin: base.u32[..= 30], lgblock: base.u32[..= 30]) base.u64 {
-    var l : base.u64
-
-    l = this.hq_max_literals(lgwin: args.lgwin, lgblock: args.lgblock)
-    return (24 ~mod* l) ~sat+ 0x400_0000
-}
-
 // hq_var_len returns the minimum (if not worst_case) or the worst case (if
 // worst_case) length of the variable region, at qualities 10 and 11.
 pri func encoder.hq_var_len(quality: base.u32[..= 11], lgwin: base.u32[..= 30], lgblock: base.u32[..= 30], worst_case: base.bool) base.u64 {
@@ -87,7 +75,9 @@ pri func encoder.hq_var_len(quality: base.u32[..= 11], lgwin: base.u32[..= 30], 
                 num_commands: this.commands_capacity(quality: args.quality, lgwin: args.lgwin, lgblock: args.lgblock))
     } else {
         z = this.hq_zopfli_len(quality: args.quality, lgblock: args.lgblock, matches_per_byte: HQ_MATCHES_PER_BYTE_BUDGET)
-        m = this.hq_metablock_budget(lgwin: args.lgwin, lgblock: args.lgblock)
+        m = this.mb.workbuf_len_practical(
+                num_literals: this.hq_max_literals(lgwin: args.lgwin, lgblock: args.lgblock),
+                num_commands: this.commands_capacity(quality: args.quality, lgwin: args.lgwin, lgblock: args.lgblock))
     }
     return z.max(no_less_than: m)
 }

@@ -896,7 +896,7 @@ wuffs_brotli_encode_plan(wuffs_base__io_buffer* dst,
   wuffs_base__slice_u8 workbuf = g_work_slice_u8;
   // Use the minimum, so that the qualities 10 and 11 practical bound (see
   // the README) is exercised. At other qualities, min_incl == max_incl.
-  if (workbuf_len.min_incl > (1ull << 31)) {
+  if (workbuf_len.min_incl > (1ull << 32)) {
     ret = "workbuf_len is too large";
     goto cleanup;
   } else if (workbuf_len.min_incl > g_work_slice_u8.len) {
@@ -1126,7 +1126,7 @@ const char*  //
 do_test_brotli_encode_round_trip_file(const char* name,
                                       const uint8_t* data,
                                       size_t len) {
-  for (uint32_t q = 0; q <= 9; q++) {
+  for (uint32_t q = 0; q <= 11; q++) {
     for (int k = (q <= 1) ? 0 : 1; k < 3; k++) {
       brotli_enc_config c = make_brotli_enc_config(q, (k == 0) ? 10 : 22);
       if (k == 2) {
@@ -1191,7 +1191,7 @@ test_wuffs_brotli_encode_metadata_round_trip() {
   });
   CHECK_STRING(read_file(&data, "test/data/romeo.txt"));
   static const size_t lens[] = {0, 1, 100, 70000};
-  for (uint32_t q = 0; q <= 9; q++) {
+  for (uint32_t q = 0; q <= 11; q++) {
     for (size_t i = 0; i < WUFFS_TESTLIB_ARRAY_SIZE(lens); i++) {
       for (uint32_t pos = 1; pos <= 3; pos++) {
         brotli_enc_config c = make_brotli_enc_config(q, 18);
@@ -1334,6 +1334,48 @@ test_wuffs_brotli_encode_parameters() {
         wuffs_base__make_slice_u8(g_work_slice_u8.ptr, (size_t)(wlen - 1)));
     BROTLI_ENC_CHECK(status.repr == wuffs_base__error__bad_workbuf_length,
                      "short workbuf at quality 2..9");
+  }
+  src = make_io_buffer_from_string("", 0);
+  dst.meta.wi = 0;
+
+  // At qualities 10 and 11, workbuf_len is a range (see the README's
+  // "Qualities 10 and 11 workbuf length" section).
+  for (uint32_t q = 10; q <= 12; q++) {
+    static const struct {
+      uint32_t lgwin;
+      uint64_t min_incl;
+      uint64_t max_incl;
+    } want[] = {
+        {16, 96686024ull, 302507168ull},
+        {22, 422539208ull, 5364573344ull},
+        {24, 813133768ull, 10148177056ull},
+    };
+    for (size_t i = 0; i < WUFFS_TESTLIB_ARRAY_SIZE(want); i++) {
+      free(enc);
+      enc = wuffs_brotli__encoder__alloc();
+      if (!enc) {
+        RETURN_FAIL("alloc failed");
+      }
+      wuffs_brotli__encoder__set_quirk(
+          enc, WUFFS_BROTLI__QUIRK_ENCODER_QUALITY, q);
+      wuffs_brotli__encoder__set_quirk(enc, WUFFS_BROTLI__QUIRK_LGWIN,
+                                       want[i].lgwin);
+      wuffs_base__range_ii_u64 r = wuffs_brotli__encoder__workbuf_len(enc);
+      if ((r.min_incl != want[i].min_incl) ||
+          (r.max_incl != want[i].max_incl)) {
+        RETURN_FAIL("workbuf_len at q=%u lgwin=%u: have %" PRIu64
+                    "..%" PRIu64 ", want %" PRIu64 "..%" PRIu64,
+                    q, want[i].lgwin, r.min_incl, r.max_incl,
+                    want[i].min_incl, want[i].max_incl);
+      }
+    }
+    // A workbuf shorter than the minimum is rejected up front.
+    src = make_io_buffer_from_string("abc", 3);
+    dst.meta.wi = 0;
+    status = wuffs_brotli__encoder__transform_io(
+        enc, &dst, &src, wuffs_base__make_slice_u8(g_work_slice_u8.ptr, 1000));
+    BROTLI_ENC_CHECK(status.repr == wuffs_base__error__bad_workbuf_length,
+                     "short workbuf at quality 10..11");
   }
   src = make_io_buffer_from_string("", 0);
   dst.meta.wi = 0;
@@ -1765,11 +1807,168 @@ test_mimic_brotli_encode_parity_q2_params() {
   return NULL;
 }
 
+// test_mimic_brotli_encode_parity_q10_grid is like
+// test_mimic_brotli_encode_parity_q2_grid but for qualities 10 and 11, with
+// shorter inputs (to keep it fast).
+const char*  //
+test_mimic_brotli_encode_parity_q10_grid() {
+  CHECK_FOCUS(__func__);
+  static const uint32_t lgwins[] = {10, 24};
+  static const uint32_t chunkings[] = {
+      BROTLI_ENC_CHUNK_SINGLE,
+      BROTLI_ENC_CHUNK_7,
+      BROTLI_ENC_CHUNK_RANDOM,
+  };
+  wuffs_base__io_buffer data = ((wuffs_base__io_buffer){
+      .data = g_mimiclib_scratch_slice_u8,
+  });
+  for (size_t f = 0; f < WUFFS_TESTLIB_ARRAY_SIZE(brotli_enc_parity_filenames);
+       f++) {
+    data.meta.ri = 0;
+    data.meta.wi = 0;
+    data.meta.closed = false;
+    CHECK_STRING(read_file(&data, brotli_enc_parity_filenames[f]));
+    for (uint32_t q = 10; q <= 11; q++) {
+      for (size_t w = 0; w < WUFFS_TESTLIB_ARRAY_SIZE(lgwins); w++) {
+        for (uint32_t mode = 0; mode <= 2; mode++) {
+          for (size_t k = 0; k < WUFFS_TESTLIB_ARRAY_SIZE(chunkings); k++) {
+            uint32_t ch = chunkings[k];
+            for (uint32_t fl = 0; fl < BROTLI_ENC_NUM_FLUSHES; fl++) {
+              brotli_enc_config c = make_brotli_enc_config(q, lgwins[w]);
+              brotli_enc_config__add_param(&c, BROTLI_ENC_PARAM_MODE, mode);
+              c.chunking = ch;
+              c.flush = fl;
+              c.seed = (f << 16) | (w << 8) | (mode << 4) | fl | (q << 20);
+              // Use the first 4 KiB (7-byte chunks) or 24 KiB (otherwise)
+              // of the input.
+              size_t n = data.meta.wi;
+              if ((ch == BROTLI_ENC_CHUNK_7) && (n > 4096)) {
+                n = 4096;
+              } else if (n > 24576) {
+                n = 24576;
+              }
+              char s[256];
+              snprintf(s, sizeof s,
+                       "%s: q=%u lgwin=%u mode=%u chunking=%u flush=%u",
+                       brotli_enc_parity_filenames[f], q, lgwins[w], mode, ch,
+                       fl);
+              CHECK_STRING(
+                  do_test_mimic_brotli_encode(s, &c, data.data.ptr, n));
+            }
+          }
+        }
+      }
+    }
+  }
+  return NULL;
+}
+
+const char*  //
+test_mimic_brotli_encode_parity_q10_metadata() {
+  CHECK_FOCUS(__func__);
+  static const size_t lens[] = {0, 1, 100, 70000};
+  wuffs_base__io_buffer data = ((wuffs_base__io_buffer){
+      .data = g_mimiclib_scratch_slice_u8,
+  });
+  CHECK_STRING(read_file(&data, "test/data/romeo.txt"));
+  for (uint32_t q = 10; q <= 11; q++) {
+    for (size_t i = 0; i < WUFFS_TESTLIB_ARRAY_SIZE(lens); i++) {
+      for (uint32_t pos = 1; pos <= 3; pos++) {
+        for (uint32_t fl = 0; fl < BROTLI_ENC_NUM_FLUSHES; fl++) {
+          for (size_t dc = 0; dc < 2; dc++) {
+            brotli_enc_config c = make_brotli_enc_config(q, 16);
+            c.chunking = dc ? BROTLI_ENC_CHUNK_RANDOM : BROTLI_ENC_CHUNK_7;
+            c.flush = fl;
+            c.metadata_position = pos;
+            c.metadata_len = lens[i];
+            c.dst_chunk = dc ? 5 : 0;
+            c.seed = (i << 8) | pos | (q << 12);
+            char s[256];
+            snprintf(s, sizeof s,
+                     "q=%u metadata_len=%zu pos=%u flush=%u dst_chunk=%zu", q,
+                     lens[i], pos, fl, c.dst_chunk);
+            CHECK_STRING(do_test_mimic_brotli_encode(s, &c, data.data.ptr,
+                                                     data.meta.wi));
+          }
+        }
+      }
+    }
+  }
+  return NULL;
+}
+
+const char*  //
+test_mimic_brotli_encode_parity_q10_params() {
+  CHECK_FOCUS(__func__);
+  wuffs_base__io_buffer data = ((wuffs_base__io_buffer){
+      .data = g_mimiclib_scratch_slice_u8,
+  });
+  CHECK_STRING(read_file(&data, "test/data/brotli/alice29.txt"));
+  // Use the first 40 KiB, to keep it fast.
+  uint32_t n = (uint32_t)data.meta.wi;
+  if (n > 40960) {
+    n = 40960;
+  }
+  // Each row is up to three (BrotliEncoderParameter, value) pairs. A zero key
+  // (other than in the first pair) ends the row.
+  static const uint32_t extras[][6] = {
+      {BROTLI_ENC_PARAM_SIZE_HINT, 0xFFFFFFFF},  // Replaced by the exact size.
+      {BROTLI_ENC_PARAM_SIZE_HINT, 1},
+      {BROTLI_ENC_PARAM_SIZE_HINT, 1u << 30},
+      {BROTLI_ENC_PARAM_LGBLOCK, 16},
+      {BROTLI_ENC_PARAM_LGBLOCK, 17},
+      {BROTLI_ENC_PARAM_LGBLOCK, 24},
+      {BROTLI_ENC_PARAM_DISABLE_LITERAL_CONTEXT_MODELING, 1},
+      {BROTLI_ENC_PARAM_DISABLE_LITERAL_CONTEXT_MODELING, 1,  //
+       BROTLI_ENC_PARAM_MODE, 1},
+      {BROTLI_ENC_PARAM_MODE, 1},
+      {BROTLI_ENC_PARAM_MODE, 2},
+      {BROTLI_ENC_PARAM_NPOSTFIX, 1},
+      {BROTLI_ENC_PARAM_NPOSTFIX, 2, BROTLI_ENC_PARAM_NDIRECT, 12},
+      {BROTLI_ENC_PARAM_NPOSTFIX, 3, BROTLI_ENC_PARAM_NDIRECT, 120},
+      {BROTLI_ENC_PARAM_NPOSTFIX, 0, BROTLI_ENC_PARAM_NDIRECT, 15},
+      {BROTLI_ENC_PARAM_MODE, 2, BROTLI_ENC_PARAM_NPOSTFIX, 3,
+       BROTLI_ENC_PARAM_NDIRECT, 30},
+      {BROTLI_ENC_PARAM_STREAM_OFFSET, 1},
+      {BROTLI_ENC_PARAM_STREAM_OFFSET, 1000},
+      {BROTLI_ENC_PARAM_STREAM_OFFSET, 1u << 30},
+      {BROTLI_ENC_PARAM_LGWIN, 0xFFFFFFFF},  // (int)-1.
+      {BROTLI_ENC_PARAM_SIZE_HINT, 1u << 21,  //
+       BROTLI_ENC_PARAM_LGBLOCK, 18},
+  };
+  for (uint32_t q = 10; q <= 11; q++) {
+    for (size_t i = 0; i < WUFFS_TESTLIB_ARRAY_SIZE(extras); i++) {
+      for (uint32_t ch = 0; ch < BROTLI_ENC_NUM_CHUNKINGS; ch += 4) {
+        brotli_enc_config c = make_brotli_enc_config(q, 22);
+        char s[256];
+        int k = snprintf(s, sizeof s, "q=%u chunking=%u", q, ch);
+        for (size_t j = 0; (j < 6) && ((j == 0) || extras[i][j]); j += 2) {
+          uint32_t v = extras[i][j + 1];
+          if ((extras[i][j] == BROTLI_ENC_PARAM_SIZE_HINT) &&
+              (v == 0xFFFFFFFF)) {
+            v = n;
+          }
+          brotli_enc_config__add_param(&c, extras[i][j], v);
+          if ((k > 0) && ((size_t)k < sizeof s)) {
+            k += snprintf(s + k, sizeof s - (size_t)k, " param[%u]=%u",
+                          extras[i][j], v);
+          }
+        }
+        c.chunking = ch;
+        c.flush = BROTLI_ENC_FLUSH_MIDDLE;
+        c.seed = i | (q << 8);
+        CHECK_STRING(do_test_mimic_brotli_encode(s, &c, data.data.ptr, n));
+      }
+    }
+  }
+  return NULL;
+}
+
 const char*  //
 do_test_mimic_brotli_encode_file(const char* name,
                                  const uint8_t* data,
                                  size_t len) {
-  for (uint32_t q = 0; q <= 9; q++) {
+  for (uint32_t q = 0; q <= 11; q++) {
     for (uint32_t w = 10; w <= 24; w += 14) {
       brotli_enc_config c = make_brotli_enc_config(q, w);
       c.chunking = (w == 10) ? BROTLI_ENC_CHUNK_SINGLE : BROTLI_ENC_CHUNK_RANDOM;
@@ -3220,6 +3419,9 @@ proc g_tests[] = {
     test_mimic_brotli_encode_parity_q2_grid,
     test_mimic_brotli_encode_parity_q2_metadata,
     test_mimic_brotli_encode_parity_q2_params,
+    test_mimic_brotli_encode_parity_q10_grid,
+    test_mimic_brotli_encode_parity_q10_metadata,
+    test_mimic_brotli_encode_parity_q10_params,
 
 #endif  // WUFFS_MIMIC
 

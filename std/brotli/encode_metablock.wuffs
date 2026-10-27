@@ -974,12 +974,17 @@ pri func metablock_builder.optimize_huffman_counts_for_rle!(wb: slice base.u8, c
 
 // sbv_scratch_len is an upper bound on how much workbuf (beyond the split
 // arrays) split_byte_vector uses, for length symbols with the given
-// histogram size, symbols_per_histogram and max_histograms.
-pri func metablock_builder.sbv_scratch_len(length: base.u64, hs: base.u64, symbols_per_histogram: base.u64, max_histograms: base.u64) base.u64 {
+// histogram size, symbols_per_histogram and max_histograms, when FindBlocks
+// makes at most max_blocks blocks and ClusterBlocks' first phase makes at
+// most max_clusters clusters (both at most length).
+pri func metablock_builder.sbv_scratch_len(length: base.u64, hs: base.u64, symbols_per_histogram: base.u64, max_histograms: base.u64,
+        max_blocks: base.u64, max_clusters: base.u64) base.u64 {
     var nh : base.u64
     var a  : base.u64
     var b  : base.u64
     var nb : base.u64
+    var nc : base.u64
+    var np : base.u64
 
     if args.length < 128 {
         return 0
@@ -988,14 +993,15 @@ pri func metablock_builder.sbv_scratch_len(length: base.u64, hs: base.u64, symbo
     nh = nh.min(no_more_than: args.max_histograms)
     // The histograms and the switch signal bitmaps.
     a = ((nh ~sat+ 1) ~mod* args.hs) ~sat+ (args.length ~mod* ((nh ~sat+ 7) >> 3))
-    // cluster_blocks, with num_blocks (and num_clusters) at most length.
-    nb = args.length
+    // cluster_blocks, with num_blocks at most nb and num_clusters at most nc.
+    nb = args.max_blocks.min(no_more_than: args.length)
+    nc = args.max_clusters.min(no_more_than: nb)
     b = (nb ~mod* (args.hs ~sat+ 24)) ~sat+ 1024
     b ~sat+= (nb.min(no_more_than: 64)) ~mod* args.hs
     b ~sat+= (2049 * HISTOGRAM_PAIR_SIZE) ~sat+ (2 ~mod* args.hs)
-    nb = 64 ~mod* args.length
-    nb = nb.min(no_more_than: (args.length / 2) ~mod* args.length)
-    b ~sat+= (nb ~sat+ 1) ~mod* HISTOGRAM_PAIR_SIZE
+    np = 64 ~mod* nc
+    np = np.min(no_more_than: (nc / 2) ~mod* nc)
+    b ~sat+= (np ~sat+ 1) ~mod* HISTOGRAM_PAIR_SIZE
     return args.length ~sat+ a.max(no_less_than: b)
 }
 
@@ -1019,8 +1025,31 @@ pri func metablock_builder.cluster_scratch_len(in_size: base.u64, hs: base.u64) 
 // time (e.g. one FindBlocks block per symbol), so it is much larger than what
 // typical inputs need. The wb_high field records the actual high water mark.
 pri func metablock_builder.workbuf_len_worst_case(num_literals: base.u64, num_commands: base.u64) base.u64 {
+    return this.workbuf_len_bounded(num_literals: args.num_literals, num_commands: args.num_commands, practical: false)
+}
+
+// workbuf_len_practical is like workbuf_len_worst_case but it assumes these
+// caps (see README.md, "Qualities 10 and 11 workbuf length"):
+//  - FindBlocks makes at most (n / 16) + 1 literal blocks and at most
+//    (n / 16) + 1 command (or distance) blocks, for n symbols of that
+//    category, and
+//  - ClusterBlocks' first phase makes at most (n / 64) + 64 clusters,
+// which hold, with a wide margin, for every input that the C code was
+// measured on. An input that breaks a cap may still fit (the caps are
+// applied independently), but it may also need more than this.
+pri func metablock_builder.workbuf_len_practical(num_literals: base.u64, num_commands: base.u64) base.u64 {
+    return this.workbuf_len_bounded(num_literals: args.num_literals, num_commands: args.num_commands, practical: true)
+}
+
+// workbuf_len_bounded implements workbuf_len_worst_case (if not practical)
+// and workbuf_len_practical (if practical).
+pri func metablock_builder.workbuf_len_bounded(num_literals: base.u64, num_commands: base.u64, practical: base.bool) base.u64 {
     var l     : base.u64
     var c     : base.u64
+    var bl    : base.u64
+    var bc    : base.u64
+    var cl    : base.u64
+    var cc    : base.u64
     var tl    : base.u64
     var tc    : base.u64
     var n     : base.u64
@@ -1030,21 +1059,37 @@ pri func metablock_builder.workbuf_len_worst_case(num_literals: base.u64, num_co
     // keep the arithmetic below from overflowing) change nothing.
     l = args.num_literals.min(no_more_than: 0xFFFF_FFFF)
     c = args.num_commands.min(no_more_than: 0xFFFF_FFFF)
+    // The number of blocks (bl and bc) and of first phase clusters (cl and
+    // cc) for the literals and for the commands (there are at most as many
+    // distances as commands).
+    bl = l
+    bc = c
+    cl = l
+    cc = c
+    if args.practical {
+        bl = (l / 16) + 1
+        bc = (c / 16) + 1
+        cl = (l / 64) + 64
+        cc = (c / 64) + 64
+    }
     // The split arrays (types and lengths) for the three categories.
     n = (5 ~mod* l.max(no_less_than: 1)) ~sat+ (10 ~mod* c.max(no_less_than: 1))
     // split_block's scratch.
-    split = l ~sat+ this.sbv_scratch_len(length: l, hs: HISTOGRAM_LITERAL_SIZE, symbols_per_histogram: 544, max_histograms: 100)
+    split = l ~sat+ this.sbv_scratch_len(length: l, hs: HISTOGRAM_LITERAL_SIZE, symbols_per_histogram: 544, max_histograms: 100,
+            max_blocks: bl, max_clusters: cl)
     split = split.max(no_less_than: (2 ~mod* c) ~sat+
-            this.sbv_scratch_len(length: c, hs: HISTOGRAM_COMMAND_SIZE, symbols_per_histogram: 530, max_histograms: 50))
+            this.sbv_scratch_len(length: c, hs: HISTOGRAM_COMMAND_SIZE, symbols_per_histogram: 530, max_histograms: 50,
+            max_blocks: bc, max_clusters: cc))
     split = split.max(no_less_than: (2 ~mod* c) ~sat+
-            this.sbv_scratch_len(length: c, hs: HISTOGRAM_DISTANCE_SIZE, symbols_per_histogram: 544, max_histograms: 50))
+            this.sbv_scratch_len(length: c, hs: HISTOGRAM_DISTANCE_SIZE, symbols_per_histogram: 544, max_histograms: 50,
+            max_blocks: bc, max_clusters: cc))
     n ~sat+= split.max(no_less_than: HISTOGRAM_DISTANCE_SIZE)
     // The number of block types is at most 256 (MAX_NUMBER_OF_HISTOGRAMS)
-    // and at most the number of symbols (but at least 1). tl bounds the
-    // literal block types and tc bounds both the command and the distance
-    // block types (there are at most as many distances as commands).
-    tl = l.max(no_less_than: 1).min(no_more_than: 256)
-    tc = c.max(no_less_than: 1).min(no_more_than: 256)
+    // and at most the number of first phase clusters (but at least 1). tl
+    // bounds the literal block types and tc bounds both the command and the
+    // distance block types.
+    tl = cl.min(no_more_than: l).max(no_less_than: 1).min(no_more_than: 256)
+    tc = cc.min(no_more_than: c).max(no_less_than: 1).min(no_more_than: 256)
     // The MetaBlockSplit's histograms and context maps, plus the input
     // histograms for clustering.
     n ~sat+= (tc * HISTOGRAM_COMMAND_SIZE) + (tl * 64 * 4) + (tl * 64 * HISTOGRAM_LITERAL_SIZE) +

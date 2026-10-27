@@ -79288,7 +79288,9 @@ wuffs_brotli__metablock_builder__sbv_scratch_len(
     uint64_t a_length,
     uint64_t a_hs,
     uint64_t a_symbols_per_histogram,
-    uint64_t a_max_histograms);
+    uint64_t a_max_histograms,
+    uint64_t a_max_blocks,
+    uint64_t a_max_clusters);
 
 WUFFS_BASE__GENERATED_C_CODE
 static uint64_t
@@ -79303,6 +79305,21 @@ wuffs_brotli__metablock_builder__workbuf_len_worst_case(
     const wuffs_brotli__metablock_builder* self,
     uint64_t a_num_literals,
     uint64_t a_num_commands);
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint64_t
+wuffs_brotli__metablock_builder__workbuf_len_practical(
+    const wuffs_brotli__metablock_builder* self,
+    uint64_t a_num_literals,
+    uint64_t a_num_commands);
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint64_t
+wuffs_brotli__metablock_builder__workbuf_len_bounded(
+    const wuffs_brotli__metablock_builder* self,
+    uint64_t a_num_literals,
+    uint64_t a_num_commands,
+    bool a_practical);
 
 WUFFS_BASE__GENERATED_C_CODE
 static uint64_t
@@ -79463,13 +79480,6 @@ wuffs_brotli__encoder__hq_zopfli_len(
     uint32_t a_quality,
     uint32_t a_lgblock,
     uint64_t a_matches_per_byte);
-
-WUFFS_BASE__GENERATED_C_CODE
-static uint64_t
-wuffs_brotli__encoder__hq_metablock_budget(
-    const wuffs_brotli__encoder* self,
-    uint32_t a_lgwin,
-    uint32_t a_lgblock);
 
 WUFFS_BASE__GENERATED_C_CODE
 static uint64_t
@@ -96060,11 +96070,15 @@ wuffs_brotli__metablock_builder__sbv_scratch_len(
     uint64_t a_length,
     uint64_t a_hs,
     uint64_t a_symbols_per_histogram,
-    uint64_t a_max_histograms) {
+    uint64_t a_max_histograms,
+    uint64_t a_max_blocks,
+    uint64_t a_max_clusters) {
   uint64_t v_nh = 0;
   uint64_t v_a = 0;
   uint64_t v_b = 0;
   uint64_t v_nb = 0;
+  uint64_t v_nc = 0;
+  uint64_t v_np = 0;
 
   if (a_length < 128u) {
     return 0u;
@@ -96072,13 +96086,14 @@ wuffs_brotli__metablock_builder__sbv_scratch_len(
   v_nh = wuffs_base__u64__sat_add((a_length / wuffs_base__u64__max(a_symbols_per_histogram, 1u)), 1u);
   v_nh = wuffs_base__u64__min(v_nh, a_max_histograms);
   v_a = wuffs_base__u64__sat_add(((uint64_t)(wuffs_base__u64__sat_add(v_nh, 1u) * a_hs)), ((uint64_t)(a_length * (wuffs_base__u64__sat_add(v_nh, 7u) >> 3u))));
-  v_nb = a_length;
+  v_nb = wuffs_base__u64__min(a_max_blocks, a_length);
+  v_nc = wuffs_base__u64__min(a_max_clusters, v_nb);
   v_b = wuffs_base__u64__sat_add(((uint64_t)(v_nb * wuffs_base__u64__sat_add(a_hs, 24u))), 1024u);
   wuffs_private_impl__u64__sat_add_indirect(&v_b, ((uint64_t)(wuffs_base__u64__min(v_nb, 64u) * a_hs)));
   wuffs_private_impl__u64__sat_add_indirect(&v_b, wuffs_base__u64__sat_add(49176u, ((uint64_t)(2u * a_hs))));
-  v_nb = ((uint64_t)(64u * a_length));
-  v_nb = wuffs_base__u64__min(v_nb, ((uint64_t)((a_length / 2u) * a_length)));
-  wuffs_private_impl__u64__sat_add_indirect(&v_b, ((uint64_t)(wuffs_base__u64__sat_add(v_nb, 1u) * 24u)));
+  v_np = ((uint64_t)(64u * v_nc));
+  v_np = wuffs_base__u64__min(v_np, ((uint64_t)((v_nc / 2u) * v_nc)));
+  wuffs_private_impl__u64__sat_add_indirect(&v_b, ((uint64_t)(wuffs_base__u64__sat_add(v_np, 1u) * 24u)));
   return wuffs_base__u64__sat_add(a_length, wuffs_base__u64__max(v_a, v_b));
 }
 
@@ -96108,8 +96123,35 @@ wuffs_brotli__metablock_builder__workbuf_len_worst_case(
     const wuffs_brotli__metablock_builder* self,
     uint64_t a_num_literals,
     uint64_t a_num_commands) {
+  return wuffs_brotli__metablock_builder__workbuf_len_bounded(self, a_num_literals, a_num_commands, false);
+}
+
+// -------- func brotli.metablock_builder.workbuf_len_practical
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint64_t
+wuffs_brotli__metablock_builder__workbuf_len_practical(
+    const wuffs_brotli__metablock_builder* self,
+    uint64_t a_num_literals,
+    uint64_t a_num_commands) {
+  return wuffs_brotli__metablock_builder__workbuf_len_bounded(self, a_num_literals, a_num_commands, true);
+}
+
+// -------- func brotli.metablock_builder.workbuf_len_bounded
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint64_t
+wuffs_brotli__metablock_builder__workbuf_len_bounded(
+    const wuffs_brotli__metablock_builder* self,
+    uint64_t a_num_literals,
+    uint64_t a_num_commands,
+    bool a_practical) {
   uint64_t v_l = 0;
   uint64_t v_c = 0;
+  uint64_t v_bl = 0;
+  uint64_t v_bc = 0;
+  uint64_t v_cl = 0;
+  uint64_t v_cc = 0;
   uint64_t v_tl = 0;
   uint64_t v_tc = 0;
   uint64_t v_n = 0;
@@ -96117,25 +96159,41 @@ wuffs_brotli__metablock_builder__workbuf_len_worst_case(
 
   v_l = wuffs_base__u64__min(a_num_literals, 4294967295u);
   v_c = wuffs_base__u64__min(a_num_commands, 4294967295u);
+  v_bl = v_l;
+  v_bc = v_c;
+  v_cl = v_l;
+  v_cc = v_c;
+  if (a_practical) {
+    v_bl = ((v_l / 16u) + 1u);
+    v_bc = ((v_c / 16u) + 1u);
+    v_cl = ((v_l / 64u) + 64u);
+    v_cc = ((v_c / 64u) + 64u);
+  }
   v_n = wuffs_base__u64__sat_add(((uint64_t)(5u * wuffs_base__u64__max(v_l, 1u))), ((uint64_t)(10u * wuffs_base__u64__max(v_c, 1u))));
   v_split = wuffs_base__u64__sat_add(v_l, wuffs_brotli__metablock_builder__sbv_scratch_len(self,
       v_l,
       1040u,
       544u,
-      100u));
+      100u,
+      v_bl,
+      v_cl));
   v_split = wuffs_base__u64__max(v_split, wuffs_base__u64__sat_add(((uint64_t)(2u * v_c)), wuffs_brotli__metablock_builder__sbv_scratch_len(self,
       v_c,
       2832u,
       530u,
-      50u)));
+      50u,
+      v_bc,
+      v_cc)));
   v_split = wuffs_base__u64__max(v_split, wuffs_base__u64__sat_add(((uint64_t)(2u * v_c)), wuffs_brotli__metablock_builder__sbv_scratch_len(self,
       v_c,
       2192u,
       544u,
-      50u)));
+      50u,
+      v_bc,
+      v_cc)));
   wuffs_private_impl__u64__sat_add_indirect(&v_n, wuffs_base__u64__max(v_split, 2192u));
-  v_tl = wuffs_base__u64__min(wuffs_base__u64__max(v_l, 1u), 256u);
-  v_tc = wuffs_base__u64__min(wuffs_base__u64__max(v_c, 1u), 256u);
+  v_tl = wuffs_base__u64__min(wuffs_base__u64__max(wuffs_base__u64__min(v_cl, v_l), 1u), 256u);
+  v_tc = wuffs_base__u64__min(wuffs_base__u64__max(wuffs_base__u64__min(v_cc, v_c), 1u), 256u);
   wuffs_private_impl__u64__sat_add_indirect(&v_n, ((v_tc * 2832u) +
       (v_tl * 64u * 4u) +
       (v_tl * 64u * 1040u) +
@@ -97390,20 +97448,6 @@ wuffs_brotli__encoder__hq_zopfli_len(
   return wuffs_base__u64__sat_add((((16u * (v_n + 1u)) + (4u * (v_n + 2u))) + (4u * v_n)), ((uint64_t)(8u * wuffs_base__u64__sat_add(((uint64_t)(a_matches_per_byte * v_n)), 128u))));
 }
 
-// -------- func brotli.encoder.hq_metablock_budget
-
-WUFFS_BASE__GENERATED_C_CODE
-static uint64_t
-wuffs_brotli__encoder__hq_metablock_budget(
-    const wuffs_brotli__encoder* self,
-    uint32_t a_lgwin,
-    uint32_t a_lgblock) {
-  uint64_t v_l = 0;
-
-  v_l = wuffs_brotli__encoder__hq_max_literals(self, a_lgwin, a_lgblock);
-  return wuffs_base__u64__sat_add(((uint64_t)(24u * v_l)), 67108864u);
-}
-
 // -------- func brotli.encoder.hq_var_len
 
 WUFFS_BASE__GENERATED_C_CODE
@@ -97422,7 +97466,7 @@ wuffs_brotli__encoder__hq_var_len(
     v_m = wuffs_brotli__metablock_builder__workbuf_len_worst_case(&self->private_data.f_mb, wuffs_brotli__encoder__hq_max_literals(self, a_lgwin, a_lgblock), wuffs_brotli__encoder__commands_capacity(self, a_quality, a_lgwin, a_lgblock));
   } else {
     v_z = wuffs_brotli__encoder__hq_zopfli_len(self, a_quality, a_lgblock, 16u);
-    v_m = wuffs_brotli__encoder__hq_metablock_budget(self, a_lgwin, a_lgblock);
+    v_m = wuffs_brotli__metablock_builder__workbuf_len_practical(&self->private_data.f_mb, wuffs_brotli__encoder__hq_max_literals(self, a_lgwin, a_lgblock), wuffs_brotli__encoder__commands_capacity(self, a_quality, a_lgwin, a_lgblock));
   }
   return wuffs_base__u64__max(v_z, v_m);
 }
