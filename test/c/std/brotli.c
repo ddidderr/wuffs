@@ -1527,30 +1527,54 @@ test_wuffs_brotli_encode_parameters() {
     BROTLI_ENC_CHECK(status.repr == wuffs_base__error__bad_workbuf_length,
                      "short workbuf at quality 10..11");
   }
-  // Compound dictionaries are not supported (yet) at qualities 10 and 11.
-  {
+  // Compound dictionaries at qualities 10 and 11. The want bytes are
+  // libbrotlienc's output (with the dictionary prepared and attached, lgwin
+  // 16 and BROTLI_OPERATION_FINISH), which is the same at both qualities.
+  for (uint32_t q = 10; q <= 11; q++) {
     free(enc);
     enc = wuffs_brotli__encoder__alloc();
     if (!enc) {
       RETURN_FAIL("alloc failed");
     }
+    wuffs_brotli__encoder__set_quirk(enc, WUFFS_BROTLI__QUIRK_ENCODER_QUALITY,
+                                     q);
     wuffs_brotli__encoder__set_quirk(enc, WUFFS_BROTLI__QUIRK_LGWIN, 16);
     static const char dict_bytes[] = "a raw dictionary, for quality 11";
+    static const char input[] = "for quality 10 or 11, a raw dictionary";
+    static const uint8_t want[] = {
+        0xA2, 0x04, 0x00, 0xBF, 0x34, 0x08, 0x0B, 0x4C, 0x8C, 0x8C,
+        0x20, 0x18, 0x71, 0xEA, 0x81, 0x22, 0x4A, 0xEC, 0x4B,
+    };
     wuffs_base__slice_u8 d = wuffs_base__make_slice_u8(
         (uint8_t*)dict_bytes, sizeof dict_bytes - 1);
+    // The workbuf (whose prefix holds the prepared dictionary) is longer
+    // than g_work_slice_u8, so it is malloc'ed and then realloc'ed.
     uint64_t n = wuffs_brotli__encoder__add_dictionary_workbuf_len(enc, d.len);
-    BROTLI_ENC_CHECK(n <= g_work_slice_u8.len, "add_dictionary_workbuf_len");
+    uint8_t* p = malloc((size_t)n);
+    BROTLI_ENC_CHECK(p, "malloc failed");
     status = wuffs_brotli__encoder__add_dictionary(
         enc, WUFFS_BROTLI__DICTIONARY_TYPE_RAW, d,
-        wuffs_base__make_slice_u8(g_work_slice_u8.ptr, (size_t)n));
-    BROTLI_ENC_CHECK(!status.repr, "add_dictionary at quality 11");
-    src = make_io_buffer_from_string("abc", 3);
+        wuffs_base__make_slice_u8(p, (size_t)n));
+    if (status.repr) {
+      free(p);
+    }
+    BROTLI_ENC_CHECK(!status.repr, "add_dictionary at quality 10..11");
+    n = wuffs_brotli__encoder__workbuf_len(enc).min_incl;
+    uint8_t* p2 = realloc(p, (size_t)n);
+    if (!p2) {
+      free(p);
+    }
+    BROTLI_ENC_CHECK(p2, "realloc failed");
+    src = make_io_buffer_from_string(input, sizeof input - 1);
+    src.meta.closed = true;
     dst.meta.wi = 0;
-    status = wuffs_brotli__encoder__transform_io(enc, &dst, &src,
-                                                 g_work_slice_u8);
-    BROTLI_ENC_CHECK(
-        status.repr == wuffs_brotli__error__unsupported_encoder_quality,
-        "dictionary at quality 11");
+    status = wuffs_brotli__encoder__transform_io(
+        enc, &dst, &src, wuffs_base__make_slice_u8(p2, (size_t)n));
+    free(p2);
+    BROTLI_ENC_CHECK(!status.repr, "dictionary at quality 10..11");
+    BROTLI_ENC_CHECK((dst.meta.wi == sizeof want) &&
+                         !memcmp(dst.data.ptr, want, sizeof want),
+                     "dictionary at quality 10..11: output bytes");
   }
   src = make_io_buffer_from_string("", 0);
   dst.meta.wi = 0;
@@ -4109,10 +4133,15 @@ do_test_brotli_encode_dictionary_grid(bool mimic) {
                                            r_len);
     const uint8_t* data = (set == 4) ? r : (a + (a_len / 2));
     size_t data_len = (set == 4) ? r_len : (a_len - (a_len / 2));
-    for (uint32_t q = 0; (q <= 9) && !ret; q++) {
+    for (uint32_t q = 0; (q <= 11) && !ret; q++) {
       for (size_t i = 0; (i < WUFFS_TESTLIB_ARRAY_SIZE(configs)) && !ret;
            i++) {
         if (!mimic && (i >= 2) && (q & 1)) {
+          continue;
+        } else if ((q >= 10) &&
+                   ((i == 2) || (i == 7) || (!mimic && (i != 0)) ||
+                    ((q == 11) && (i & 1)))) {
+          // Qualities 10 and 11 are slow, so they skip some configs.
           continue;
         }
         brotli_enc_config c = make_brotli_enc_config(q, configs[i][0]);
@@ -4186,10 +4215,17 @@ do_test_brotli_encode_dictionary_big(bool mimic) {
         wuffs_base__make_slice_u8(dict, dlen),
         wuffs_base__make_slice_u8(data + (len - 1000), 1000),
     };
-    static const uint32_t qs[] = {2, 4, 5, 9};
+    static const uint32_t qs[] = {2, 4, 5, 9, 10, 11};
     for (size_t i = 0; (i < WUFFS_TESTLIB_ARRAY_SIZE(qs)) && !ret; i++) {
-      // Without mimic, and for the largest dictionary, a smaller grid.
-      if ((!mimic && ((k & 1) == 0)) || ((!mimic || (k == 3)) && (i != 2))) {
+      // Without mimic, and for the largest dictionary, a smaller grid. The
+      // slow qualities 10 and 11 only run with mimic, for one dictionary
+      // each.
+      if (qs[i] >= 10) {
+        if (!mimic || (k != ((qs[i] == 10) ? 3 : 1))) {
+          continue;
+        }
+      } else if ((!mimic && ((k & 1) == 0)) ||
+                 ((!mimic || (k == 3)) && (i != 2))) {
         continue;
       }
       brotli_enc_config c = make_brotli_enc_config(qs[i], 24);
@@ -4202,13 +4238,17 @@ do_test_brotli_encode_dictionary_big(bool mimic) {
       char s[256];
       snprintf(s, sizeof s, "dictionary of %zu bytes: q=%u", dlen, qs[i]);
       size_t have_len = 0;
-      ret = do_test_brotli_encode_dictionary(s, &c, data, len, 2, dicts,
-                                             mimic, &have_len);
+      // At qualities 10 and 11, only the first 128 KiB of the input (which
+      // has the first piece) is encoded.
+      ret = do_test_brotli_encode_dictionary(
+          s, &c, data, (qs[i] >= 10) ? (128 << 10) : len, 2, dicts, mimic,
+          &have_len);
       // The three 64 KiB pieces (of 3.7 bits of entropy per byte) should be
       // found at quality 5 and above, even when they are more than 16 MiB
-      // (lgwin 24's window) into the dictionary.
+      // (lgwin 24's window) into the dictionary. (At the slow qualities 10
+      // and 11, this is left to the parity check.)
       size_t want_max = 0;
-      if (!ret && (qs[i] >= 5)) {
+      if (!ret && (qs[i] >= 5) && (qs[i] <= 9)) {
         c = make_brotli_enc_config(qs[i], 24);
         ret = do_test_brotli_encode_dictionary(s, &c, data, len, 0, NULL,
                                                false, &want_max);
@@ -4282,47 +4322,51 @@ test_mimic_brotli_encode_dictionary_rejections() {
       {1, WUFFS_BROTLI__DICTIONARY_TYPE_RAW, 0, NULL, NULL},
       {3, WUFFS_BROTLI__DICTIONARY_TYPE_RAW, 0, NULL, NULL},
   };
-  for (size_t i = 0; i < WUFFS_TESTLIB_ARRAY_SIZE(cases); i++) {
-    uint32_t dict_types[16];
-    wuffs_base__slice_u8 dicts[16];
-    for (size_t j = 0; j < cases[i].num_dicts; j++) {
-      dict_types[j] = WUFFS_BROTLI__DICTIONARY_TYPE_RAW;
-      dicts[j] = wuffs_base__make_slice_u8((uint8_t*)text + j, 20);
-    }
-    size_t last = cases[i].num_dicts - 1;
-    dict_types[last] = cases[i].type;
-    dicts[last] = wuffs_base__make_slice_u8(
-        (uint8_t*)((cases[i].type == WUFFS_BROTLI__DICTIONARY_TYPE_RAW)
-                       ? text
-                       : serialized),
-        cases[i].len);
-
-    brotli_enc_config c = make_brotli_enc_config(5, 22);
-    wuffs_base__io_buffer src = ((wuffs_base__io_buffer){
-        .data = g_src_slice_u8,
-    });
-    CHECK_STRING(make_brotli_enc_plan(&src, &c, text, sizeof text - 1));
-    wuffs_base__io_buffer dsts[2] = {
-        ((wuffs_base__io_buffer){.data = g_have_slice_u8}),
-        ((wuffs_base__io_buffer){.data = g_want_slice_u8}),
-    };
-    for (int k = 0; k < 2; k++) {
-      wuffs_base__io_buffer src1 = src;
-      const char* have =
-          (k ? mimic_brotli_encode_with_dictionaries
-             : wuffs_brotli_encode_plan_with_dictionaries)(
-              &dsts[k], &src1, c.param_keys, c.param_values, c.num_params,
-              cases[i].num_dicts, dict_types, dicts, g_brotli_enc_step_ops,
-              g_brotli_enc_step_lens, g_brotli_enc_num_steps, c.dst_chunk);
-      const char* want = k ? cases[i].want_mimic : cases[i].want_wuffs;
-      if (have != want) {
-        RETURN_FAIL("cases[%zu] (%s): have \"%s\", want \"%s\"", i,
-                    k ? "mimic" : "wuffs", have ? have : "",
-                    want ? want : "");
+  // Quality 5 and the Zopfli qualities 10 and 11.
+  static const uint32_t qs[] = {5, 10, 11};
+  for (size_t iq = 0; iq < WUFFS_TESTLIB_ARRAY_SIZE(qs); iq++) {
+    for (size_t i = 0; i < WUFFS_TESTLIB_ARRAY_SIZE(cases); i++) {
+      uint32_t dict_types[16];
+      wuffs_base__slice_u8 dicts[16];
+      for (size_t j = 0; j < cases[i].num_dicts; j++) {
+        dict_types[j] = WUFFS_BROTLI__DICTIONARY_TYPE_RAW;
+        dicts[j] = wuffs_base__make_slice_u8((uint8_t*)text + j, 20);
       }
-    }
-    if (!cases[i].want_wuffs) {
-      CHECK_STRING(check_io_buffers_equal("", &dsts[0], &dsts[1]));
+      size_t last = cases[i].num_dicts - 1;
+      dict_types[last] = cases[i].type;
+      dicts[last] = wuffs_base__make_slice_u8(
+          (uint8_t*)((cases[i].type == WUFFS_BROTLI__DICTIONARY_TYPE_RAW)
+                         ? text
+                         : serialized),
+          cases[i].len);
+
+      brotli_enc_config c = make_brotli_enc_config(qs[iq], 22);
+      wuffs_base__io_buffer src = ((wuffs_base__io_buffer){
+          .data = g_src_slice_u8,
+      });
+      CHECK_STRING(make_brotli_enc_plan(&src, &c, text, sizeof text - 1));
+      wuffs_base__io_buffer dsts[2] = {
+          ((wuffs_base__io_buffer){.data = g_have_slice_u8}),
+          ((wuffs_base__io_buffer){.data = g_want_slice_u8}),
+      };
+      for (int k = 0; k < 2; k++) {
+        wuffs_base__io_buffer src1 = src;
+        const char* have =
+            (k ? mimic_brotli_encode_with_dictionaries
+               : wuffs_brotli_encode_plan_with_dictionaries)(
+                &dsts[k], &src1, c.param_keys, c.param_values, c.num_params,
+                cases[i].num_dicts, dict_types, dicts, g_brotli_enc_step_ops,
+                g_brotli_enc_step_lens, g_brotli_enc_num_steps, c.dst_chunk);
+        const char* want = k ? cases[i].want_mimic : cases[i].want_wuffs;
+        if (have != want) {
+          RETURN_FAIL("q=%u cases[%zu] (%s): have \"%s\", want \"%s\"",
+                      qs[iq], i, k ? "mimic" : "wuffs", have ? have : "",
+                      want ? want : "");
+        }
+      }
+      if (!cases[i].want_wuffs) {
+        CHECK_STRING(check_io_buffers_equal("", &dsts[0], &dsts[1]));
+      }
     }
   }
   return NULL;

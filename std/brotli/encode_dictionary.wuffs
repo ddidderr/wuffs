@@ -474,6 +474,144 @@ pri func encoder.find_compound_dictionary_match!(data: roslice base.u8, dwb: ros
     }
 }
 
+// Mirrors LookupAllCompoundDictionaryMatches in hash.h (for qualities 10 and
+// 11). args.wb[this.rb_buf_off ..] is the ring buffer (the C code's data),
+// args.dwb holds the dictionaries and the matches go to
+// args.wb[matches_off ..]. It returns how many matches it found.
+pri func encoder.lookup_all_compound_dictionary_matches!(wb: slice base.u8, dwb: roslice base.u8, cur_ix: base.u64, min_length: base.u64, max_length: base.u64,
+        max_ring_buffer_distance: base.u64, max_distance: base.u64, matches_off: base.u64, match_limit: base.u64) base.u64 {
+    var base_offset : base.u64
+    var min_length  : base.u64
+    var total_found : base.u64
+    var d           : base.u32
+
+    base_offset = args.max_ring_buffer_distance ~mod+ this.dict_total_size
+    min_length = args.min_length
+    d = 0
+    while d < this.dict_num_chunks {
+        assert d < 15 via "a < b: a < c; c <= b"(c: this.dict_num_chunks)
+        total_found ~mod+= this.find_all_compound_dictionary_matches!(wb: args.wb, dwb: args.dwb, d: d,
+                cur_ix: args.cur_ix, min_length: min_length, max_length: args.max_length,
+                distance_offset: base_offset ~mod- this.dict_chunk_offsets[d],
+                max_distance: args.max_distance,
+                matches_off: args.matches_off ~mod+ (total_found ~mod* 8),
+                match_limit: args.match_limit ~mod- total_found)
+        if total_found == args.match_limit {
+            break
+        }
+        if total_found > 0 {
+            min_length = this.bm_length(wb: args.wb, off: args.matches_off ~mod+ ((total_found ~mod- 1) ~mod* 8))
+        }
+        d += 1
+    }
+    return total_found
+}
+
+// Mirrors FindAllCompoundDictionaryMatches in hash.h, for the d'th chunk.
+// args.wb[this.rb_buf_off ..] is the ring buffer (the C code's data) and
+// the matches go to args.wb[matches_off ..]. It returns how many matches it
+// found.
+pri func encoder.find_all_compound_dictionary_matches!(wb: slice base.u8, dwb: roslice base.u8, d: base.u32[..= 14], cur_ix: base.u64,
+        min_length: base.u64, max_length: base.u64, distance_offset: base.u64, max_distance: base.u64,
+        matches_off: base.u64, match_limit: base.u64) base.u64 {
+    var source_size   : base.u64
+    var src_off       : base.u64
+    var slot_off      : base.u64
+    var heads_off     : base.u64
+    var items_off     : base.u64
+    var source        : roslice base.u8
+    var data          : roslice base.u8
+    var cur           : roslice base.u8
+    var cur_ix_masked : base.u64
+    var mask          : base.u64
+    var best_len      : base.u64
+    var h             : base.u64
+    var key           : base.u64
+    var slot          : base.u64
+    var head          : base.u64
+    var chain         : base.u64
+    var item          : base.u32
+    var distance      : base.u64
+    var offset        : base.u64
+    var limit         : base.u64
+    var len           : base.u64
+    var found         : base.u64
+    var num_items     : base.u64
+    var bb            : base.u32[..= 22]
+    var sb            : base.u32[..= 12]
+
+    bb = this.dc_bucket_bits[args.d].min(no_more_than: 22)
+    sb = this.dc_slot_bits[args.d].min(no_more_than: 12)
+    num_items = this.dc_num_items[args.d]
+    source_size = this.dc_size[args.d]
+    src_off = this.dc_src_off[args.d]
+    slot_off = src_off ~mod+ source_size
+    heads_off = slot_off ~mod+ ((4 as base.u64) << sb)
+    items_off = heads_off ~mod+ ((2 as base.u64) << bb)
+    if (src_off > slot_off) or (slot_off > args.dwb.length()) {
+        return 0
+    }
+    source = args.dwb[src_off .. slot_off]
+    if this.rb_buf_off > args.wb.length() {
+        return 0
+    }
+    data = args.wb[this.rb_buf_off ..]
+
+    mask = this.rb_mask as base.u64
+    cur_ix_masked = args.cur_ix & mask
+    if cur_ix_masked > data.length() {
+        return 0
+    }
+    cur = data[cur_ix_masked ..]
+    best_len = args.min_length
+    h = (this.load64le(s: data, i: cur_ix_masked) & 0xFF_FFFF_FFFF) ~mod*
+            PREPARED_DICTIONARY_HASH_MUL_64_LONG
+    key = (h >> 32) >> (32 - bb)
+    slot = key & (((1 as base.u64) << sb) - 1)
+    head = this.peek_u16(s: args.dwb, i: heads_off ~mod+ (2 ~mod* key)) as base.u64
+    chain = (this.load32le(s: args.dwb, i: slot_off ~mod+ (4 ~mod* slot)) as base.u64) ~mod+ head
+    item = 0
+    if head == 0xFFFF {
+        item = 1
+    }
+
+    while item == 0 {
+        if chain >= num_items {
+            // Unreachable: every chain ends with a 0x8000_0000 bit.
+            break
+        }
+        item = this.load32le(s: args.dwb, i: items_off ~mod+ (4 ~mod* chain))
+        chain ~mod+= 1
+        offset = (item & 0x7FFF_FFFF) as base.u64
+        item &= 0x8000_0000
+        distance = args.distance_offset ~mod- offset
+        limit = source_size ~mod- offset
+        limit = limit.min(no_more_than: args.max_length)
+        if distance > args.max_distance {
+            continue
+        }
+        if ((cur_ix_masked ~mod+ best_len) > mask) or (best_len >= limit) or
+                (this.byte_at(s: data, i: cur_ix_masked ~mod+ best_len) <>
+                this.byte_at(s: source, i: offset ~mod+ best_len)) {
+            continue
+        }
+        len = 0
+        if offset <= source.length() {
+            len = this.find_match_length_2(a: source[offset ..], b: cur, limit: limit)
+        }
+        if len > best_len {
+            best_len = len
+            this.set_backward_match!(wb: args.wb, off: args.matches_off ~mod+ (found ~mod* 8),
+                    distance: distance, length_and_code: len ~mod* 32)
+            found ~mod+= 1
+            if found == args.match_limit {
+                break
+            }
+        }
+    }
+    return found
+}
+
 // find_match_length_2 mirrors FindMatchLengthWithLimit in
 // find_match_length.h: the length of the common prefix of a and b, up to
 // limit bytes.

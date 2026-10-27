@@ -31,8 +31,6 @@
 
 use "std/softfloat"
 
-pub status "#unsupported encoder quality"
-
 pri status "#internal error: inconsistent encoder state"
 
 pub const ENCODER_DST_HISTORY_RETAIN_LENGTH_MAX_INCL_WORST_CASE : base.u64 = 0
@@ -916,11 +914,6 @@ pri func encoder.do_transform_io?(dst: base.io_writer, src: base.io_reader, work
     var total           : base.u64
 
     this.ensure_initialized!()
-    if (this.quality >= 10) and (this.dict_num_chunks > 0) {
-        // TODO: compound dictionaries at qualities 10 and 11 (the Zopfli
-        // path's dictionary lookups).
-        return "#unsupported encoder quality"
-    }
     this.hq_extend_var_region!(wb_len: args.workbuf.length())
     if (this.quality >= 2) and (args.workbuf.length() < this.workbuf_end) {
         // A workbuf shorter than workbuf_len works if it is long enough for

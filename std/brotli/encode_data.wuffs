@@ -954,9 +954,9 @@ pri func encoder.encode_data!(wb: slice base.u8, dwb: roslice base.u8, is_last: 
     }
 
     if this.quality == 10 {
-        status = this.create_zopfli_backward_references!(wb: args.wb, num_bytes: bytes, position: wrapped_last_processed_pos)
+        status = this.create_zopfli_backward_references!(wb: args.wb, dwb: args.dwb, num_bytes: bytes, position: wrapped_last_processed_pos)
     } else if this.quality == 11 {
-        status = this.create_hq_zopfli_backward_references!(wb: args.wb, num_bytes: bytes, position: wrapped_last_processed_pos)
+        status = this.create_hq_zopfli_backward_references!(wb: args.wb, dwb: args.dwb, num_bytes: bytes, position: wrapped_last_processed_pos)
     } else {
         status = this.create_backward_references!(wb: args.wb, dwb: args.dwb, num_bytes: bytes, position: wrapped_last_processed_pos)
     }
