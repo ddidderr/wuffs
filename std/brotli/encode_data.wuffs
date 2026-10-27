@@ -17,29 +17,36 @@
 // The workbuf holds, in this order (see README.md's "Encoder Workbuf Layout"
 // section, which compute_layout_offset mirrors):
 //  - the storage (the C code's GetBrotliStorage) for one metablock,
-//  - the ring buffer (the C code's RingBuffer.data_),
 //  - the hasher's memory (the C code's common->extra),
-//  - the commands (16 bytes each), and
+//  - the commands (16 bytes each),
 //  - at qualities 4 and above, the metablock split (see
 //    encode_metablock_greedy.wuffs), the literal context map, the
-//    EncodeContextMap symbols and the block encoders' depths and bits.
+//    EncodeContextMap symbols and the block encoders' depths and bits, and
+//  - the ring buffer (the C code's RingBuffer.data_).
 
 // The workbuf layout's region indexes. LAYOUT_END's offset is the total
 // length.
+// The ring buffer is last, so that a workbuf shorter than workbuf_len works
+// for short inputs (see transform_io's rb_short_workbuf check).
 pri const LAYOUT_STORAGE    : base.u32 = 0
-pri const LAYOUT_RB         : base.u32 = 1
-pri const LAYOUT_HASH       : base.u32 = 2
-pri const LAYOUT_CMDS       : base.u32 = 3
-pri const LAYOUT_TYPES_0    : base.u32 = 4
-pri const LAYOUT_LENGTHS_0  : base.u32 = 7
-pri const LAYOUT_HISTO_0    : base.u32 = 10
-pri const LAYOUT_COMB       : base.u32 = 13
-pri const LAYOUT_CMAP       : base.u32 = 14
-pri const LAYOUT_RLE        : base.u32 = 15
-pri const LAYOUT_BE_DEPTH_0 : base.u32 = 16
-pri const LAYOUT_BE_BITS_0  : base.u32 = 19
-pri const LAYOUT_VAR        : base.u32 = 22
+pri const LAYOUT_HASH       : base.u32 = 1
+pri const LAYOUT_CMDS       : base.u32 = 2
+pri const LAYOUT_TYPES_0    : base.u32 = 3
+pri const LAYOUT_LENGTHS_0  : base.u32 = 6
+pri const LAYOUT_HISTO_0    : base.u32 = 9
+pri const LAYOUT_COMB       : base.u32 = 12
+pri const LAYOUT_CMAP       : base.u32 = 13
+pri const LAYOUT_RLE        : base.u32 = 14
+pri const LAYOUT_BE_DEPTH_0 : base.u32 = 15
+pri const LAYOUT_BE_BITS_0  : base.u32 = 18
+pri const LAYOUT_VAR        : base.u32 = 21
+pri const LAYOUT_RB         : base.u32 = 22
 pri const LAYOUT_END        : base.u32 = 23
+
+// RB_SHORT_SLACK is how many bytes past the input's end (in the ring buffer)
+// a short workbuf must have: the C code reads at most 7 bytes past the
+// input's end (its kSlackForEightByteHashingEverywhere), rounded up.
+pri const RB_SHORT_SLACK : base.u64 = 16
 
 // The C code's MAX_NUM_DELAYED_SYMBOLS (in quality.h).
 pri const MAX_NUM_DELAYED_SYMBOLS : base.u64 = 0x2FFF
@@ -91,11 +98,13 @@ pri func encoder.max_metablock_size(lgwin: base.u32[..= 30], lgblock: base.u32[.
 
 // hasher_total_size returns the sum of FN(HashMemAllocInBytes)'s
 // alloc_size[i] for the hasher that ChooseHasher picks for the given
-// quality, lgwin and size_hint.
+// quality, lgwin and size_hint (including, for lgwin above 24, the
+// large-window composite hashers' rolling hasher table).
 pri func encoder.hasher_total_size(quality: base.u32[..= 11], lgwin: base.u32[..= 30], size_hint: base.u32) base.u64 {
     var htype       : base.u32
     var bucket_bits : base.u32[..= 24]
     var block_bits  : base.u32[..= 16]
+    var rolling     : base.u64
 
     if args.quality >= 10 {
         return (4 * H10_BUCKET_SIZE) + this.h10_alloc_size_1(lgwin: args.lgwin)
@@ -126,9 +135,21 @@ pri func encoder.hasher_total_size(quality: base.u32[..= 11], lgwin: base.u32[..
         }
         block_bits = args.quality - 1
     }
-    return (this.hasher_alloc_size(htype: htype, bucket_bits: bucket_bits, block_bits: block_bits, i: 0) ~mod+
+    rolling = 0
+    if args.lgwin > 24 {
+        // The large-window composite hashers H35, H55 and H65 (see
+        // choose_hasher): HASHER_A plus the rolling hasher's table.
+        if (htype == 3) or (htype == 54) {
+            rolling = this.hasher_rolling_alloc_size()
+        } else if (htype == 6) or (htype == 68) {
+            htype = 6
+            rolling = this.hasher_rolling_alloc_size()
+        }
+    }
+    return ((this.hasher_alloc_size(htype: htype, bucket_bits: bucket_bits, block_bits: block_bits, i: 0) ~mod+
             this.hasher_alloc_size(htype: htype, bucket_bits: bucket_bits, block_bits: block_bits, i: 1)) ~mod+
-            this.hasher_alloc_size(htype: htype, bucket_bits: bucket_bits, block_bits: block_bits, i: 2)
+            this.hasher_alloc_size(htype: htype, bucket_bits: bucket_bits, block_bits: block_bits, i: 2)) ~mod+
+            rolling
 }
 
 // hash_region_size returns the workbuf length reserved for the hasher's
@@ -279,6 +300,7 @@ pri func encoder.compute_layout!() {
     this.mb_cmap_off = this.compute_layout_offset(quality: q, lgwin: lw, lgblock: lb, idx: LAYOUT_CMAP)
     this.mb_rle_off = this.compute_layout_offset(quality: q, lgwin: lw, lgblock: lb, idx: LAYOUT_RLE)
     this.var_off = this.compute_layout_offset(quality: q, lgwin: lw, lgblock: lb, idx: LAYOUT_VAR)
+    this.var_end = this.rb_off
     this.workbuf_end = this.compute_layout_offset(quality: q, lgwin: lw, lgblock: lb, idx: LAYOUT_END)
 
     // RingBufferSetup.

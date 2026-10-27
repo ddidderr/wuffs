@@ -157,6 +157,12 @@ pub struct encoder? implements base.io_transformer(
         rb_cur_size   : base.u32,
         rb_pos        : base.u32,
 
+        // rb_short_workbuf is whether any transform_io call (at qualities 2
+        // to 9) had a workbuf shorter than workbuf_len. If so, the ring
+        // buffer's tail may be incomplete, so the input must stay short
+        // enough for the ring buffer never to wrap.
+        rb_short_workbuf : base.bool,
+
         // The C code's BrotliDistanceParams fields (other than
         // distance_postfix_bits and num_direct_distance_codes).
         dist_alphabet_size_max   : base.u32,
@@ -177,6 +183,16 @@ pub struct encoder? implements base.io_transformer(
         dict_num_lookups     : base.u64,
         dict_num_matches     : base.u64,
         fc_max_hops          : base.u64,
+
+        // The large-window composite hashers' rolling hasher (the C code's
+        // HashRolling). See encode_hasher_composite.wuffs. hr_jump is 0 when
+        // the hasher is not a composite one.
+        hr_jump          : base.u32[..= 4],
+        hr_fresh         : base.bool,
+        hr_state         : base.u32,
+        hr_factor_remove : base.u32,
+        hr_next_ix       : base.u64,
+        hr_off           : base.u64,
 
         // The C code's HasherSearchResult.
         sr_len            : base.u64,
@@ -205,6 +221,8 @@ pub struct encoder? implements base.io_transformer(
         // and the StartPosQueue's idx_ and the PosData being pushed.
         literal_context_mode : base.u32,
         var_off              : base.u64,
+        var_end              : base.u64,
+        hq_layout_fixed      : base.bool,
         hq_insufficient      : base.bool,
         hq_wb_high           : base.u64,
         h10_window_mask      : base.u64,
@@ -464,10 +482,10 @@ pub func encoder.workbuf_len() base.range_ii_u64 {
     lgwin = this.sanitized_lgwin(quality: q)
     if q <= 1 {
         n = ((2 as base.u64) << lgwin) + 503 + STORAGE_SLACK
-    } else if (q <= 9) and ((q == 2) or (this.p_large_window == 0)) {
+    } else if q <= 9 {
         n = this.compute_layout_offset(quality: q, lgwin: lgwin,
                 lgblock: this.computed_lgblock(quality: q, lgwin: lgwin), idx: LAYOUT_END)
-    } else if (q >= 10) and (this.p_large_window == 0) {
+    } else {
         return this.workbuf_len_hq(quality: q, lgwin: lgwin)
     }
     return this.util.make_range_ii_u64(min_incl: n, max_incl: n)
@@ -847,13 +865,18 @@ pub func encoder.transform_io?(dst: base.io_writer, src: base.io_reader, workbuf
     var injected    : base.bool
 
     var copy_input_size : base.u64
+    var total           : base.u64
 
     this.ensure_initialized!()
-    if this.large_window and (this.quality > 2) {
-        // TODO: implement large-window brotli at qualities 3 and above.
-        return "#unsupported encoder quality"
-    } else if (this.quality >= 2) and (args.workbuf.length() < this.workbuf_end) {
-        return base."#bad workbuf length"
+    this.hq_extend_var_region!(wb_len: args.workbuf.length())
+    if (this.quality >= 2) and (args.workbuf.length() < this.workbuf_end) {
+        // A workbuf shorter than workbuf_len works if it is long enough for
+        // the input so far (see the rb_short_workbuf check below), as long
+        // as the ring buffer never wraps.
+        this.rb_short_workbuf = true
+        if args.workbuf.length() < (this.rb_buf_off ~mod+ RB_SHORT_SLACK) {
+            return base."#bad workbuf length"
+        }
     }
 
     while true {
@@ -953,6 +976,16 @@ pub func encoder.transform_io?(dst: base.io_writer, src: base.io_reader, workbuf
 
             if (remaining <> 0) and (args.src.length() > 0) {
                 copy_input_size = remaining.min(no_more_than: args.src.length())
+                if this.rb_short_workbuf {
+                    // The ring buffer must not wrap (or reach its tail) and
+                    // the workbuf must hold the input so far plus some
+                    // slack.
+                    total = (this.input_pos ~mod+ copy_input_size) ~mod+ RB_SHORT_SLACK
+                    if (total > (this.rb_size as base.u64)) or
+                            ((this.rb_buf_off ~mod+ total) > args.workbuf.length()) {
+                        return base."#bad workbuf length"
+                    }
+                }
                 mark = args.src.mark()
                 args.src.skip?(n: copy_input_size)
                 this.copy_input_to_ring_buffer!(wb: args.workbuf, bytes: args.src.since(mark: mark))

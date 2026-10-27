@@ -38,6 +38,13 @@
 //              so that N processes can split the work.
 //   -oneshot=W instead of the grid, only check one configuration per input
 //              and quality: lgwin W, the whole input in one FINISH step.
+//   -lw        only run the large-window grid (BROTLI_PARAM_LARGE_WINDOW
+//              with lgwin 10 to 30, see run_input_lw), at qualities 2 and
+//              above.
+//   -big       instead of the usual inputs, check synthetic inputs of 3 to
+//              12 MiB (with the usual or, with -lw, the large-window grid)
+//              and of 24 to 70 MiB (with a few large-window configurations
+//              each), with repeats at distances of up to 40 MiB.
 //
 // The test/c/std/brotli.c test program (run by "wuffs test -mimic
 // std/brotli") checks a subset of this grid.
@@ -80,8 +87,8 @@
 
 #define MAX_STEPS (1 << 22)
 #define MAX_PARAMS 16
-#define MAX_INPUT (16 << 20)
-#define MAX_OUTPUT (64 << 20)
+#define MAX_INPUT (80 << 20)
+#define MAX_OUTPUT (96 << 20)
 
 static uint32_t g_step_ops[MAX_STEPS];
 static size_t g_step_lens[MAX_STEPS];
@@ -95,11 +102,17 @@ static uint8_t* g_workbuf;  // Wuffs' workbuf.
 static size_t g_workbuf_len;
 
 static uint64_t g_num_configs;
+static uint64_t g_num_short_checks;
+static uint64_t g_num_skipped;
+static const char g_too_large[] = "workbuf_len is too large";
+static size_t g_short_workbuf_len;  // 0 means use workbuf_len.
+static size_t g_last_want_len;
 static uint64_t g_num_mismatches;
 
 static uint32_t g_qmin = 0;
 static uint32_t g_qmax = 9;
 static uint32_t g_oneshot_lgwin = 0;
+static bool g_lw_only = false;
 
 typedef struct {
   uint32_t keys[MAX_PARAMS];
@@ -111,6 +124,9 @@ typedef struct {
   size_t metadata_len;
   size_t dst_chunk;  // 0 means unlimited.
   uint64_t seed;
+  // try_short is whether to also check (at qualities 2 to 11) Wuffs' output
+  // with the shortest workbuf that should work: see short_workbuf_len.
+  bool try_short;
 } config;
 
 static void  //
@@ -136,6 +152,77 @@ fill_random(uint8_t* p, size_t n, uint64_t seed) {
   uint64_t state = seed;
   for (size_t i = 0; i < n; i++) {
     p[i] = (uint8_t)(rand64(&state) >> 56);
+  }
+}
+
+// fill_mixed fills p[0 .. n] with a mixture of text (from a small
+// vocabulary, so that there are many matches), runs and binary noise.
+static void  //
+fill_mixed(uint8_t* p, size_t n_max, uint64_t seed) {
+  static const char* words[] = {"the ",    "brotli ", "wuffs ", "of ",
+                                "and ",    "data\n",  "time ",  "<a>",
+                                "encoder", ", ",       "zebra ", "1234"};
+  uint64_t state = seed;
+  size_t n = 0;
+  while (n < n_max) {
+    uint64_t r = rand64(&state);
+    if ((r & 0xFF) < 200) {
+      const char* w = words[(r >> 8) % 12];
+      size_t k = strlen(w);
+      while (k-- && (n < n_max)) {
+        p[n++] = (uint8_t)(*w++);
+      }
+    } else if ((r & 0xFF) < 230) {
+      size_t k = (size_t)((r >> 8) % 300);
+      while (k-- && (n < n_max)) {
+        p[n++] = (uint8_t)(r >> 40);
+      }
+    } else {
+      size_t k = (size_t)((r >> 8) % 2000);
+      while (k-- && (n < n_max)) {
+        p[n++] = (uint8_t)(rand64(&state) >> 56);
+      }
+    }
+  }
+}
+
+// fill_far_repeats fills p[0 .. n] with 1 MiB blocks: most are fresh
+// pseudo-random bytes or fill_mixed data (with a per-block seed), but some
+// repeat (with sparse changes) the block that is near or far
+// (near_mib or far_mib MiB) before them, so that encoders with a large
+// enough window find matches at those distances. When far_mib is a multiple
+// of 4 and near_mib is not 2 modulo 4, the far copies' sources are fresh
+// blocks that are not also copied (or copies) nearer by.
+static void  //
+fill_far_repeats(uint8_t* p, size_t n, size_t near_mib, size_t far_mib,
+                 uint64_t seed) {
+  const size_t mib = 1 << 20;
+  for (size_t b = 0; (b * mib) < n; b++) {
+    uint8_t* q = p + (b * mib);
+    size_t k = ((n - (b * mib)) < mib) ? (n - (b * mib)) : mib;
+    size_t from = SIZE_MAX;
+    if ((b >= near_mib) && ((b % 4) == 1)) {
+      from = b - near_mib;
+    } else if ((b >= far_mib) && ((b % 4) == 3)) {
+      from = b - far_mib;
+    }
+    if (from != SIZE_MAX) {
+      // A shifted copy: the distance is not a multiple of 1 MiB (but, for
+      // odd b, it is a multiple of 4, which the HROLLING_FAST hasher, used
+      // by H35 and H55, needs to find it).
+      size_t shift = (size_t)(seed % 250) + (b * 7);
+      if (b & 1) {
+        shift *= 4;
+      }
+      memcpy(q, p + (from * mib) + shift, k);
+      for (size_t i = 4093; i < k; i += 65521) {
+        q[i] ^= 0x55;
+      }
+    } else if ((b % 3) == 0) {
+      fill_random(q, k, seed + b);
+    } else {
+      fill_mixed(q, k, seed + b);
+    }
   }
 }
 
@@ -285,8 +372,11 @@ encode_wuffs(const config* c, size_t* have_len) {
   // Use the minimum, so that the qualities 10 and 11 practical bound is
   // exercised (at other qualities, min_incl == max_incl).
   uint64_t wlen = wuffs_brotli__encoder__workbuf_len(enc).min_incl;
-  if (wlen > ((uint64_t)1 << 32)) {
-    ret = "workbuf_len is too large";
+  // Large-window brotli at qualities 10 and 11 with lgwin 30 needs about
+  // 10.6 GiB (8 GiB of it for the H10 hasher's forest, as in the C code).
+  // The memory is only touched as needed.
+  if (wlen > ((uint64_t)12 << 30)) {
+    ret = g_too_large;
     goto cleanup;
   } else if (wlen > g_workbuf_len) {
     free(g_workbuf);
@@ -296,6 +386,9 @@ encode_wuffs(const config* c, size_t* have_len) {
       ret = "malloc failed";
       goto cleanup;
     }
+  }
+  if ((g_short_workbuf_len > 0) && (g_short_workbuf_len < wlen)) {
+    wlen = g_short_workbuf_len;
   }
   wuffs_base__slice_u8 workbuf =
       wuffs_base__make_slice_u8(g_workbuf, (size_t)wlen);
@@ -418,6 +511,63 @@ describe(char* buf, size_t n, const char* name, const config* c) {
   }
 }
 
+// short_workbuf_len returns the shortest workbuf (at qualities 2 to 9) that
+// should work for the config c and an input of len bytes, given that
+// workbuf_len is wlen, or 0 if it is not shorter than wlen. The ring buffer
+// is the workbuf's last region, of (2 + (1 << rb_bits) + (1 << lgblock) + 7)
+// bytes, and a shorter workbuf works if it holds (2 + len + 16) bytes of it
+// and (len + 16) is at most (1 << rb_bits). This mirrors SanitizeParams,
+// ComputeLgBlock and ComputeRbBits in quality.h.
+static size_t  //
+short_workbuf_len(const config* c, size_t len, uint64_t wlen) {
+  int32_t quality = 11;
+  int32_t lgwin = 22;
+  int32_t lgblock = 0;
+  bool large_window = false;
+  for (size_t j = 0; j < c->num_params; j++) {
+    int32_t v = (int32_t)(c->values[j]);
+    switch (c->keys[j]) {
+      case 1:
+        quality = v;
+        break;
+      case 2:
+        lgwin = v;
+        break;
+      case 3:
+        lgblock = v;
+        break;
+      case 6:
+        large_window = v != 0;
+        break;
+    }
+  }
+  quality = (quality < 0) ? 0 : (quality > 11) ? 11 : quality;
+  if (quality < 2) {
+    return 0;
+  }
+  large_window = large_window && (quality > 2);
+  int32_t max_lgwin = large_window ? 30 : 24;
+  lgwin = (lgwin < 10) ? 10 : (lgwin > max_lgwin) ? max_lgwin : lgwin;
+  if (quality < 4) {
+    lgblock = 14;
+  } else if (lgblock == 0) {
+    lgblock = 16;
+    if ((quality >= 9) && (lgwin > lgblock)) {
+      lgblock = (lgwin < 18) ? lgwin : 18;
+    }
+  } else {
+    lgblock = (lgblock < 16) ? 16 : (lgblock > 24) ? 24 : lgblock;
+  }
+  int32_t rb_bits = 1 + ((lgwin > lgblock) ? lgwin : lgblock);
+  uint64_t rb_size = (uint64_t)1 << rb_bits;
+  uint64_t rb_region = 2 + rb_size + ((uint64_t)1 << lgblock) + 7;
+  if (((len + 16) > rb_size) || (rb_region > wlen)) {
+    return 0;
+  }
+  uint64_t n = wlen - rb_region + 2 + len + 16;
+  return (n < wlen) ? (size_t)n : 0;
+}
+
 static void  //
 check(const char* name, const config* c, const uint8_t* data, size_t len) {
   char desc[512];
@@ -432,6 +582,50 @@ check(const char* name, const config* c, const uint8_t* data, size_t len) {
   size_t want_len = 0;
   const char* have_err = encode_wuffs(c, &have_len);
   const char* want_err = encode_mimic(c, &want_len);
+  if (have_err == g_too_large) {
+    // Only large-window brotli at qualities 10 and 11 with lgwin 30 and
+    // lgblock 24 needs that much.
+    g_num_skipped++;
+    describe(desc, sizeof desc, name, c);
+    printf("SKIP %s: %s\n", desc, have_err);
+    return;
+  }
+  g_last_want_len = want_len;
+  if (c->try_short && !have_err && !want_err) {
+    // Also check the shortest workbuf that should work, and that one byte
+    // less fails.
+    wuffs_brotli__encoder* enc = wuffs_brotli__encoder__alloc();
+    uint64_t wlen = 0;
+    if (enc) {
+      for (size_t j = 0; j < c->num_params; j++) {
+        wuffs_brotli__encoder__set_quirk(enc, brotli_enc_quirk_key(c->keys[j]),
+                                         c->values[j]);
+      }
+      wlen = wuffs_brotli__encoder__workbuf_len(enc).min_incl;
+      free(enc);
+    }
+    size_t short_len = short_workbuf_len(c, len, wlen);
+    if (short_len > 0) {
+      g_num_short_checks++;
+      g_short_workbuf_len = short_len - 1;
+      size_t too_short_len = 0;
+      const char* too_short_err = encode_wuffs(c, &too_short_len);
+      g_short_workbuf_len = short_len;
+      have_err = encode_wuffs(c, &have_len);
+      g_short_workbuf_len = 0;
+      if (!too_short_err ||
+          (too_short_err != wuffs_base__error__bad_workbuf_length)) {
+        g_num_mismatches++;
+        describe(desc, sizeof desc, name, c);
+        printf("MISMATCH %s: a workbuf of %zu bytes did not fail: %s\n",
+               desc, short_len - 1, too_short_err ? too_short_err : "ok");
+        fflush(stdout);
+        return;
+      } else if (have_err) {
+        have_err = "short workbuf failed";
+      }
+    }
+  }
   if (have_err || want_err) {
     g_num_mismatches++;
     describe(desc, sizeof desc, name, c);
@@ -549,6 +743,95 @@ run_input_q01(const char* name, const uint8_t* data, size_t len, uint32_t q) {
   }
 }
 
+// run_input_lw runs the large-window (BROTLI_PARAM_LARGE_WINDOW) grid for a
+// quality from 2 to 11. At quality 2 (and below), the C code ignores the
+// large-window parameter. At qualities 3 to 9, lgwin can be up to 30 and lgwin
+// above 24 selects the composite hashers (H35, H55 and H65) instead of H3,
+// H54, H6 and H68 (and only those: H5, H58 and H40 to H42 stay as they are).
+static void  //
+run_input_lw(const char* name, const uint8_t* data, size_t len, uint32_t q) {
+  static const size_t metadata_lens[] = {0, 1, 100, 70000};
+  bool big = len > (512 << 10);
+
+  // lgwin and chunking.
+  static const uint32_t lgwins[] = {10, 18, 24, 25, 26, 27, 28, 29, 30};
+  for (size_t w = 0; w < 9; w++) {
+    if (big && (lgwins[w] != 24) && (lgwins[w] != 25) && (lgwins[w] != 28) &&
+        (lgwins[w] != 30)) {
+      continue;
+    }
+    for (uint32_t ch = 0; ch < 5; ch += 4) {
+      for (uint32_t fl = 0; fl < 3; fl += 2) {
+        if (big && (fl == 0)) {
+          continue;
+        }
+        config c = make_config(q, lgwins[w]);
+        add_param(&c, 6, 1);  // BROTLI_PARAM_LARGE_WINDOW.
+        c.chunking = ch;
+        c.flush = fl;
+        c.seed = 0x10000 | (w << 8) | (ch << 4) | fl | (q << 12);
+        c.try_short = true;
+        check(name, &c, data, len);
+      }
+    }
+  }
+
+  // Other parameters, alone and in combination.
+  static const uint32_t extras[][6] = {
+      // Pairs of (BrotliEncoderParameter, value). A zero key ends the list.
+      {5, 1u << 20},             // BROTLI_PARAM_SIZE_HINT: H55 and H65.
+      {5, 0xFFFFFFFF},           // Replaced by the exact size.
+      {5, 1u << 30},             //
+      {3, 16},                   // BROTLI_PARAM_LGBLOCK.
+      {3, 18},                   //
+      {3, 24, 5, 1u << 21},      // ... and a big size hint.
+      {4, 1, 5, 1u << 20},       // DISABLE_LITERAL_CONTEXT_MODELING.
+      {7, 3, 8, 120},            // BROTLI_PARAM_NPOSTFIX and NDIRECT.
+      {7, 1, 8, 4, 5, 1u << 20}, //
+      {0, 2},                    // FONT mode.
+      {0, 1, 5, 1u << 22},       // TEXT mode and a big size hint.
+      {9, 1000},                 // BROTLI_PARAM_STREAM_OFFSET.
+      {9, 1u << 30, 5, 1u << 20},
+      {2, 0xFFFFFFFF},           // LGWIN (int)-1, so 10.
+      {2, 31},                   // LGWIN 31, so 30.
+  };
+  for (size_t i = 0; i < sizeof extras / sizeof extras[0]; i++) {
+    for (size_t w = 0; w < 2; w++) {
+      static const uint32_t ws[] = {25, 30};
+      if (big && (w != 0)) {
+        continue;
+      }
+      config c = make_config(q, ws[w]);
+      add_param(&c, 6, 1);  // BROTLI_PARAM_LARGE_WINDOW.
+      for (size_t k = 0; (k < 6) && ((k == 0) || extras[i][k]); k += 2) {
+        uint32_t v = extras[i][k + 1];
+        if ((extras[i][k] == 5) && (v == 0xFFFFFFFF)) {
+          v = (uint32_t)len;
+        }
+        add_param(&c, extras[i][k], v);
+      }
+      c.chunking = 4;
+      c.flush = 2;
+      c.seed = 0x20000 | i | (w << 8) | (q << 12);
+      c.try_short = true;
+      check(name, &c, data, len);
+    }
+  }
+
+  // Metadata blocks and limited dst lengths.
+  for (size_t i = 0; i < 4; i += 3) {
+    config c = make_config(q, 26);
+    add_param(&c, 6, 1);  // BROTLI_PARAM_LARGE_WINDOW.
+    c.chunking = 4;
+    c.flush = 2;
+    c.metadata_position = 2;
+    c.metadata_len = metadata_lens[i];
+    c.dst_chunk = (len <= (32 << 10)) ? 3 : 4096;
+    c.seed = 0x30000 | i | (q << 12);
+    check(name, &c, data, len);
+  }
+}
+
 // run_input_q2 runs the grid for a quality from 2 to 11.
 static void  //
 run_input_q2(const char* name, const uint8_t* data, size_t len, uint32_t q) {
@@ -657,17 +940,7 @@ run_input_q2(const char* name, const uint8_t* data, size_t len, uint32_t q) {
       }
     }
   }
-  if (q == 2) {
-    // Large window is supported (by the Wuffs encoder) only at quality 2.
-    for (uint32_t w = 22; w <= 30; w += 4) {
-      config c = make_config(q, w);
-      add_param(&c, 6, 1);  // BROTLI_PARAM_LARGE_WINDOW.
-      c.chunking = 4;
-      c.flush = 2;
-      c.seed = w;
-      check(name, &c, data, len);
-    }
-  }
+  run_input_lw(name, data, len, q);
   if (len <= (256 << 10)) {
     static const size_t dst_chunks[] = {1, 2, 3, 7, 64, 4096};
     for (size_t i = 0; i < 6; i++) {
@@ -695,11 +968,50 @@ run_input(const char* name, const uint8_t* data, size_t len) {
     if (g_oneshot_lgwin) {
       config c = make_config(q, g_oneshot_lgwin);
       check(name, &c, data, len);
+    } else if (g_lw_only) {
+      if (q >= 2) {
+        run_input_lw(name, data, len, q);
+      }
     } else if (q <= 1) {
       run_input_q01(name, data, len, q);
     } else {
       run_input_q2(name, data, len, q);
     }
+  }
+  printf("%-50s %8zu bytes: %6" PRIu64 " configs, %" PRIu64
+         " mismatches (%lds)\n",
+         name, len, g_num_configs - configs0, g_num_mismatches - mismatches0,
+         (long)(time(NULL) - start));
+  fflush(stdout);
+}
+
+// run_input_far checks a few large-window configurations (one-shot and
+// streaming) for a very long input.
+static void  //
+run_input_far(const char* name, const uint8_t* data, size_t len) {
+  uint64_t configs0 = g_num_configs;
+  uint64_t mismatches0 = g_num_mismatches;
+  time_t start = time(NULL);
+  for (uint32_t q = (g_qmin > 2) ? g_qmin : 2; q <= g_qmax; q++) {
+    static const uint32_t lgwins[] = {24, 25, 26, 30};
+    for (size_t w = 0; w < 4; w++) {
+      config c = make_config(q, lgwins[w]);
+      add_param(&c, 6, 1);  // BROTLI_PARAM_LARGE_WINDOW.
+      c.seed = 0x40000 | (w << 8) | (q << 12);
+      c.try_short = true;
+      check(name, &c, data, len);
+      printf("  q=%u lgwin=%u: %zu compressed bytes\n", q, lgwins[w],
+             g_last_want_len);
+    }
+    // Streaming, with a flush and a size hint below 1 MiB (so H35 at
+    // quality 3 and H58 or H5 at qualities 5 to 9, but H3 at quality 4).
+    config c = make_config(q, 30);
+    add_param(&c, 6, 1);       // BROTLI_PARAM_LARGE_WINDOW.
+    add_param(&c, 5, 12345);  // BROTLI_PARAM_SIZE_HINT.
+    c.chunking = 4;
+    c.flush = 2;
+    c.seed = 0x50000 | (q << 12);
+    check(name, &c, data, len);
   }
   printf("%-50s %8zu bytes: %6" PRIu64 " configs, %" PRIu64
          " mismatches (%lds)\n",
@@ -746,6 +1058,7 @@ main(int argc, char** argv) {
 
   int shard_k = 0;
   int shard_n = 1;
+  bool big = false;
   int argi = 1;
   for (; argi < argc; argi++) {
     unsigned a = 0;
@@ -755,6 +1068,10 @@ main(int argc, char** argv) {
       g_qmax = (b < 11) ? b : 11;
     } else if (sscanf(argv[argi], "-oneshot=%u", &a) == 1) {
       g_oneshot_lgwin = a;
+    } else if (strcmp(argv[argi], "-lw") == 0) {
+      g_lw_only = true;
+    } else if (strcmp(argv[argi], "-big") == 0) {
+      big = true;
     } else if (sscanf(argv[argi], "-shard=%u/%u", &a, &b) == 2) {
       shard_k = (int)a;
       shard_n = (b > 0) ? (int)b : 1;
@@ -799,6 +1116,42 @@ main(int argc, char** argv) {
   }
 
   int input_index = 0;
+  if (big) {
+    // Synthetic inputs of several MiB (with the usual grid) and of 24 to 70
+    // MiB (with run_input_far's configurations), with repeats at distances
+    // above 16 MiB (1 << 24, the largest non-large-window window).
+    num_names = 0;
+    uint8_t* p = malloc(70 << 20);
+    if (!p) {
+      return 1;
+    }
+    static const struct {
+      size_t mib;
+      size_t near_mib;
+      size_t far_mib;
+      bool far;
+    } bigs[] = {
+        {3, 2, 2, false},     {6, 2, 5, false},    {12, 3, 10, false},
+        {24, 3, 20, true},    {40, 3, 32, true},   {70, 5, 40, true},
+    };
+    for (size_t j = 0; j < sizeof bigs / sizeof bigs[0]; j++) {
+      if (((input_index++) % shard_n) != shard_k) {
+        continue;
+      }
+      size_t n = (bigs[j].mib << 20) - 12345;
+      fill_far_repeats(p, n, bigs[j].near_mib, bigs[j].far_mib, 0x777 + j);
+      char name[96];
+      snprintf(name, sizeof name,
+               "synthetic: %zu MiB with repeats at %zu and %zu MiB",
+               bigs[j].mib, bigs[j].near_mib, bigs[j].far_mib);
+      if (bigs[j].far) {
+        run_input_far(name, p, n);
+      } else {
+        run_input(name, p, n);
+      }
+    }
+    free(p);
+  }
   for (int i = 0; i < num_names; i++) {
     if (((input_index++) % shard_n) != shard_k) {
       continue;
@@ -813,7 +1166,7 @@ main(int argc, char** argv) {
     free(data);
   }
 
-  if (argi >= argc) {
+  if ((argi >= argc) && !big) {
     // Synthetic inputs.
     uint8_t* p = malloc(1 << 20);
     if (!p) {
@@ -836,34 +1189,8 @@ main(int argc, char** argv) {
       run_input("synthetic: a repeated 100-byte pattern", p, 64 << 10);
     }
     if (((input_index++) % shard_n) == shard_k) {
-      // A mixture of text (from a small vocabulary, so that there are many
-      // matches), runs and binary noise.
-      static const char* words[] = {"the ",    "brotli ", "wuffs ", "of ",
-                                    "and ",    "data\n",  "time ",  "<a>",
-                                    "encoder", ", ",       "zebra ", "1234"};
-      uint64_t state = 0xABCD;
-      size_t n = 0;
-      while (n < (600 << 10)) {
-        uint64_t r = rand64(&state);
-        if ((r & 0xFF) < 200) {
-          const char* w = words[(r >> 8) % 12];
-          size_t k = strlen(w);
-          while (k-- && (n < (600 << 10))) {
-            p[n++] = (uint8_t)(*w++);
-          }
-        } else if ((r & 0xFF) < 230) {
-          size_t k = (size_t)((r >> 8) % 300);
-          while (k-- && (n < (600 << 10))) {
-            p[n++] = (uint8_t)(r >> 40);
-          }
-        } else {
-          size_t k = (size_t)((r >> 8) % 2000);
-          while (k-- && (n < (600 << 10))) {
-            p[n++] = (uint8_t)(rand64(&state) >> 56);
-          }
-        }
-      }
-      run_input("synthetic: 600 KiB of mixed text and binary", p, n);
+      fill_mixed(p, 600 << 10, 0xABCD);
+      run_input("synthetic: 600 KiB of mixed text and binary", p, 600 << 10);
     }
     for (size_t n = 0; n <= 40; n++) {
       if (((input_index++) % shard_n) != shard_k) {
@@ -877,7 +1204,9 @@ main(int argc, char** argv) {
     free(p);
   }
 
-  printf("TOTAL: %" PRIu64 " configs, %" PRIu64 " mismatches\n", g_num_configs,
-         g_num_mismatches);
+  printf("TOTAL: %" PRIu64 " configs (%" PRIu64
+         " also with a short workbuf, %" PRIu64
+         " skipped as too large), %" PRIu64 " mismatches\n",
+         g_num_configs, g_num_short_checks, g_num_skipped, g_num_mismatches);
   return g_num_mismatches ? 1 : 0;
 }

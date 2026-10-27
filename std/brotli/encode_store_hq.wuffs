@@ -105,9 +105,11 @@ pri func encoder.write_meta_block_hq!(wb: slice base.u8, wrapped_last_flush_pos:
     var cmds_hi : base.u64
     var c       : base.u32
     var ds      : base.u32[..= 704]
+    var var_hi  : base.u64
 
     cmds_hi = this.cmds_off ~mod+ (this.num_cmds ~mod* 16)
-    if (this.var_off > args.wb.length()) or (this.rb_buf_off > args.wb.length()) or
+    var_hi = this.var_end.min(no_more_than: args.wb.length())
+    if (this.var_off > var_hi) or (this.rb_buf_off > args.wb.length()) or
             (this.cmds_off > cmds_hi) or (cmds_hi > args.wb.length()) {
         this.hq_insufficient = true
         return nothing
@@ -117,7 +119,7 @@ pri func encoder.write_meta_block_hq!(wb: slice base.u8, wrapped_last_flush_pos:
             disable_literal_context_modeling: this.p_disable_lcm <> 0)
     this.mb.init_distance_params!(npostfix: this.distance_postfix_bits,
             ndirect: this.num_direct_distance_codes, large_window: this.large_window)
-    status = this.mb.build_meta_block!(wb: args.wb[this.var_off ..], ringbuffer: args.wb[this.rb_buf_off ..],
+    status = this.mb.build_meta_block!(wb: args.wb[this.var_off .. var_hi], ringbuffer: args.wb[this.rb_buf_off ..],
             pos: args.wrapped_last_flush_pos, mask: this.rb_mask as base.u64,
             prev_byte: args.prev_byte, prev_byte2: args.prev_byte2,
             cmds: args.wb[this.cmds_off .. cmds_hi], num_commands: this.num_cmds,
@@ -131,7 +133,7 @@ pri func encoder.write_meta_block_hq!(wb: slice base.u8, wrapped_last_flush_pos:
     }
     // MIN_QUALITY_FOR_OPTIMIZE_HISTOGRAMS is 4. The number of distance
     // symbols effectively used for distance histograms.
-    this.mb.optimize_histograms!(wb: args.wb[this.var_off ..], num_distance_codes: this.mb.dist_alphabet_size_limit)
+    this.mb.optimize_histograms!(wb: args.wb[this.var_off .. var_hi], num_distance_codes: this.mb.dist_alphabet_size_limit)
 
     // Point the block encoders' inputs (the gbs_etc fields, which
     // build_meta_block_greedy sets at qualities 4 to 9) at the
@@ -328,11 +330,51 @@ pri func encoder.store_meta_block_hq!(wb: slice base.u8, start_pos: base.u64, le
 // fixed regions plus the minimum or the worst case variable region.
 pri func encoder.workbuf_len_hq(quality: base.u32[..= 11], lgwin: base.u32[..= 30]) base.range_ii_u64 {
     var lgblock : base.u32[..= 30]
-    var off     : base.u64
+    var n       : base.u64
 
     lgblock = this.computed_lgblock(quality: args.quality, lgwin: args.lgwin)
-    off = this.compute_layout_offset(quality: args.quality, lgwin: args.lgwin, lgblock: lgblock, idx: LAYOUT_VAR)
+    n = this.compute_layout_offset(quality: args.quality, lgwin: args.lgwin, lgblock: lgblock, idx: LAYOUT_END)
     return this.util.make_range_ii_u64(
-            min_incl: off ~sat+ this.hq_var_len(quality: args.quality, lgwin: args.lgwin, lgblock: lgblock, worst_case: false),
-            max_incl: off ~sat+ this.hq_var_len(quality: args.quality, lgwin: args.lgwin, lgblock: lgblock, worst_case: true))
+            min_incl: n,
+            max_incl: n ~sat+ this.hq_var_extra_max(quality: args.quality, lgwin: args.lgwin, lgblock: lgblock))
+}
+
+// hq_var_extra_max returns how much longer than its minimum length (the
+// LAYOUT_VAR region's length) the variable region can usefully be: the
+// difference between its worst case and minimum lengths.
+pri func encoder.hq_var_extra_max(quality: base.u32[..= 11], lgwin: base.u32[..= 30], lgblock: base.u32[..= 30]) base.u64 {
+    var lo : base.u64
+    var hi : base.u64
+
+    lo = this.hq_var_len(quality: args.quality, lgwin: args.lgwin, lgblock: args.lgblock, worst_case: false)
+    hi = this.hq_var_len(quality: args.quality, lgwin: args.lgwin, lgblock: args.lgblock, worst_case: true)
+    if hi <= lo {
+        return 0
+    }
+    return hi - lo
+}
+
+// hq_extend_var_region grows the variable region (and moves the ring buffer,
+// which is the last region, along with this.workbuf_end) to use as much of a
+// workbuf of wb_len bytes as the worst case can need. It only does this
+// once, at the first transform_io call (before the ring buffer is used), at
+// qualities 10 and 11. Later calls should pass a workbuf of the same length
+// (a shorter one is handled like any short workbuf, and the variable region
+// is then cut short).
+pri func encoder.hq_extend_var_region!(wb_len: base.u64) {
+    var extra : base.u64
+
+    if (this.quality < 10) or this.hq_layout_fixed {
+        return nothing
+    }
+    this.hq_layout_fixed = true
+    if args.wb_len <= this.workbuf_end {
+        return nothing
+    }
+    extra = this.hq_var_extra_max(quality: this.quality, lgwin: this.lgwin, lgblock: this.lgblock)
+    extra = extra.min(no_more_than: args.wb_len - this.workbuf_end)
+    this.var_end ~mod+= extra
+    this.rb_off ~mod+= extra
+    this.rb_buf_off ~mod+= extra
+    this.workbuf_end ~mod+= extra
 }

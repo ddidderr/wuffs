@@ -896,7 +896,9 @@ wuffs_brotli_encode_plan(wuffs_base__io_buffer* dst,
   wuffs_base__slice_u8 workbuf = g_work_slice_u8;
   // Use the minimum, so that the qualities 10 and 11 practical bound (see
   // the README) is exercised. At other qualities, min_incl == max_incl.
-  if (workbuf_len.min_incl > (1ull << 32)) {
+  // Large-window brotli at lgwin 30 needs more than 2 GiB.
+  if ((workbuf_len.min_incl > (3ull << 30)) ||
+      (workbuf_len.min_incl > SIZE_MAX)) {
     ret = "workbuf_len is too large";
     goto cleanup;
   } else if (workbuf_len.min_incl > g_work_slice_u8.len) {
@@ -1331,15 +1333,103 @@ test_wuffs_brotli_encode_parameters() {
     dst.meta.wi = 0;
     status = wuffs_brotli__encoder__transform_io(
         enc, &dst, &src,
-        wuffs_base__make_slice_u8(g_work_slice_u8.ptr, (size_t)(wlen - 1)));
+        wuffs_base__make_slice_u8(g_work_slice_u8.ptr, (size_t)(wlen / 2)));
     BROTLI_ENC_CHECK(status.repr == wuffs_base__error__bad_workbuf_length,
                      "short workbuf at quality 2..9");
   }
   src = make_io_buffer_from_string("", 0);
   dst.meta.wi = 0;
 
+  // With the large-window quirk, lgwin can be up to 30 (instead of 24) at
+  // qualities 3 and above. Like the C code, quality 2 and below ignore the
+  // quirk. Above lgwin 24, the ring buffer is (2 << lgwin) bytes and, at
+  // quality 3, the H35 hasher has a 64 MiB rolling hash table on top of
+  // H3's 256 KiB.
+  for (uint32_t q = 2; q <= 3; q++) {
+    uint64_t wlens[3] = {0};
+    for (int k = 0; k < 3; k++) {
+      free(enc);
+      enc = wuffs_brotli__encoder__alloc();
+      if (!enc) {
+        RETURN_FAIL("alloc failed");
+      }
+      wuffs_brotli__encoder__set_quirk(
+          enc, WUFFS_BROTLI__QUIRK_ENCODER_QUALITY, q);
+      wuffs_brotli__encoder__set_quirk(enc, WUFFS_BROTLI__QUIRK_LGWIN,
+                                       (k == 0) ? 24 : 30);
+      if (k > 0) {
+        wuffs_brotli__encoder__set_quirk(
+            enc, WUFFS_BROTLI__QUIRK_LARGE_WINDOW, (k == 2) ? 1 : 0);
+      }
+      wlens[k] = wuffs_brotli__encoder__workbuf_len(enc).max_incl;
+    }
+    BROTLI_ENC_CHECK(wlens[0] == wlens[1],
+                     "lgwin 30 without large window is lgwin 24");
+    if (q == 2) {
+      BROTLI_ENC_CHECK(wlens[0] == wlens[2],
+                       "large window is ignored at quality 2");
+    } else {
+      BROTLI_ENC_CHECK(
+          wlens[2] == (wlens[0] + (2ull << 30) - (2ull << 24) + (64 << 20)),
+          "workbuf_len at q3w30 with large window");
+    }
+  }
+
+  // At qualities 2 to 9, the ring buffer is the workbuf's last region (of
+  // (2 + (1 << rb_bits) + (1 << lgblock) + 7) bytes) and a shorter workbuf
+  // works if it holds (2 + input_length + 16) bytes of it (and the input is
+  // short enough for the ring buffer never to wrap).
+  {
+    free(enc);
+    enc = wuffs_brotli__encoder__alloc();
+    if (!enc) {
+      RETURN_FAIL("alloc failed");
+    }
+    wuffs_brotli__encoder__set_quirk(enc, WUFFS_BROTLI__QUIRK_ENCODER_QUALITY,
+                                     3);
+    wuffs_brotli__encoder__set_quirk(enc, WUFFS_BROTLI__QUIRK_LGWIN, 30);
+    wuffs_brotli__encoder__set_quirk(enc, WUFFS_BROTLI__QUIRK_LARGE_WINDOW, 1);
+    uint64_t wlen = wuffs_brotli__encoder__workbuf_len(enc).max_incl;
+    uint64_t rb_region = 2 + (2ull << 30) + (1 << 14) + 7;
+    BROTLI_ENC_CHECK(wlen > rb_region, "workbuf_len at q3w30");
+    size_t short_len = (size_t)(wlen - rb_region + 2 + 3 + 16);
+    uint8_t* short_workbuf = malloc(short_len);
+    if (!short_workbuf) {
+      RETURN_FAIL("malloc failed");
+    }
+    for (int k = 0; k < 2; k++) {
+      wuffs_brotli__encoder* e = wuffs_brotli__encoder__alloc();
+      if (!e) {
+        free(short_workbuf);
+        RETURN_FAIL("alloc failed");
+      }
+      wuffs_brotli__encoder__set_quirk(e, WUFFS_BROTLI__QUIRK_ENCODER_QUALITY,
+                                       3);
+      wuffs_brotli__encoder__set_quirk(e, WUFFS_BROTLI__QUIRK_LGWIN, 30);
+      wuffs_brotli__encoder__set_quirk(e, WUFFS_BROTLI__QUIRK_LARGE_WINDOW,
+                                       1);
+      wuffs_base__io_buffer s = make_io_buffer_from_string("abc", 3);
+      s.meta.closed = true;
+      dst.meta.wi = 0;
+      status = wuffs_brotli__encoder__transform_io(
+          e, &dst, &s,
+          wuffs_base__make_slice_u8(short_workbuf, short_len - (k ? 0 : 1)));
+      free(e);
+      if (k == 0) {
+        if (status.repr != wuffs_base__error__bad_workbuf_length) {
+          free(short_workbuf);
+          RETURN_FAIL("too short workbuf at q3w30: %s", status.repr);
+        }
+      } else if (status.repr) {
+        free(short_workbuf);
+        RETURN_FAIL("short workbuf at q3w30: %s", status.repr);
+      }
+    }
+    free(short_workbuf);
+  }
+
   // At qualities 10 and 11, workbuf_len is a range (see the README's
-  // "Qualities 10 and 11 workbuf length" section).
+  // "Qualities 10 and 11 Workbuf Length" section).
   for (uint32_t q = 10; q <= 12; q++) {
     static const struct {
       uint32_t lgwin;
@@ -1369,7 +1459,7 @@ test_wuffs_brotli_encode_parameters() {
                     want[i].min_incl, want[i].max_incl);
       }
     }
-    // A workbuf shorter than the minimum is rejected up front.
+    // A workbuf that does not even reach the ring buffer is rejected.
     src = make_io_buffer_from_string("abc", 3);
     dst.meta.wi = 0;
     status = wuffs_brotli__encoder__transform_io(
@@ -1379,29 +1469,6 @@ test_wuffs_brotli_encode_parameters() {
   }
   src = make_io_buffer_from_string("", 0);
   dst.meta.wi = 0;
-
-  // Large-window brotli at qualities 3 to 9 is unsupported.
-  for (uint32_t q = 3; q <= 9; q++) {
-    bool large_window = true;
-    free(enc);
-    enc = wuffs_brotli__encoder__alloc();
-    if (!enc) {
-      RETURN_FAIL("alloc failed");
-    }
-    wuffs_brotli__encoder__set_quirk(enc, WUFFS_BROTLI__QUIRK_ENCODER_QUALITY,
-                                     q);
-    if (large_window) {
-      wuffs_brotli__encoder__set_quirk(enc, WUFFS_BROTLI__QUIRK_LARGE_WINDOW,
-                                       1);
-    }
-    BROTLI_ENC_CHECK(wuffs_brotli__encoder__workbuf_len(enc).max_incl == 0,
-                     "workbuf_len for an unsupported quality");
-    status = wuffs_brotli__encoder__transform_io(enc, &dst, &src,
-                                                 g_work_slice_u8);
-    BROTLI_ENC_CHECK(
-        status.repr == wuffs_brotli__error__unsupported_encoder_quality,
-        large_window ? "large window at quality 3..9" : "quality 10..11");
-  }
 
   // Requests.
   free(enc);
@@ -3333,6 +3400,245 @@ test_mimic_brotli_decode_large_window_far() {
 
 #endif  // WUFFS_MIMIC
 
+// ---------------- Brotli Large Window Encoder Tests
+
+// do_test_brotli_encode_large_window encodes data[:data_len] with the plan's
+// config c (which should set the large-window quirk) and checks that
+// decoding the result (with Wuffs' std/brotli decoder with the large-window
+// quirk set, and, if mimic is true, with libbrotlidec) gives back the
+// original data. If mimic is true, it also checks that libbrotlienc's output
+// is the same. If max_compressed_len is non-zero, it checks that the
+// compressed length is at most that. The decoded data goes in g_want.
+const char*  //
+do_test_brotli_encode_large_window(const char* name,
+                                   const brotli_enc_config* c,
+                                   const uint8_t* data,
+                                   size_t data_len,
+                                   bool mimic,
+                                   size_t max_compressed_len) {
+  wuffs_base__io_buffer src = ((wuffs_base__io_buffer){
+      .data = g_src_slice_u8,
+  });
+  CHECK_STRING(make_brotli_enc_plan(&src, c, data, data_len));
+  wuffs_base__io_buffer have = ((wuffs_base__io_buffer){
+      .data = g_have_slice_u8,
+  });
+  wuffs_base__io_buffer src0 = src;
+  const char* status = wuffs_brotli_encode_plan(
+      &have, &src0, c->param_keys, c->param_values, c->num_params,
+      g_brotli_enc_step_ops, g_brotli_enc_step_lens, g_brotli_enc_num_steps,
+      c->dst_chunk);
+  if (status) {
+    RETURN_FAIL("%s: wuffs encode: %s", name, status);
+  } else if (max_compressed_len && (have.meta.wi > max_compressed_len)) {
+    RETURN_FAIL("%s: compressed length: have %zu, want at most %zu", name,
+                have.meta.wi, max_compressed_len);
+  }
+  have.meta.closed = true;
+
+  for (int decoder = 0; decoder < (mimic ? 3 : 1); decoder++) {
+    wuffs_base__io_buffer want = ((wuffs_base__io_buffer){
+        .data = g_want_slice_u8,
+    });
+    wuffs_base__io_buffer have1 = have;
+    if (decoder == 0) {
+      status = wuffs_brotli_decode_with_options(
+          &want, &have1, UINT64_MAX, UINT64_MAX, true, BROTLI_DICT_SET_NONE);
+#ifdef WUFFS_MIMIC
+    } else if (decoder == 1) {
+      status = mimic_brotli_decode_large_window(
+          &want, &have1, UINT64_MAX, UINT64_MAX, true, BROTLI_DICT_SET_NONE);
+    } else {
+      wuffs_base__io_buffer src1 = src;
+      status = mimic_brotli_encode(
+          &want, &src1, c->param_keys, c->param_values, c->num_params,
+          g_brotli_enc_step_ops, g_brotli_enc_step_lens,
+          g_brotli_enc_num_steps, c->dst_chunk);
+      if (status) {
+        RETURN_FAIL("%s: mimic encode: %s", name, status);
+      }
+      status = check_io_buffers_equal("", &have, &want);
+      if (status) {
+        RETURN_FAIL("%s: %s", name, status);
+      }
+      continue;
+#endif  // WUFFS_MIMIC
+    }
+    const char* which = (decoder == 0) ? "wuffs" : "mimic";
+    if (status) {
+      RETURN_FAIL("%s: %s decode: %s", name, which, status);
+    } else if (have1.meta.ri != have1.meta.wi) {
+      RETURN_FAIL("%s: %s decode: trailing data", name, which);
+    } else if (want.meta.wi != data_len) {
+      RETURN_FAIL("%s: %s decoded length: have %zu, want %zu", name, which,
+                  want.meta.wi, data_len);
+    } else if (memcmp(want.data.ptr, data, data_len)) {
+      RETURN_FAIL("%s: %s decoded bytes differ", name, which);
+    }
+  }
+  return NULL;
+}
+
+// do_test_brotli_encode_large_window_files runs a grid of large-window
+// configurations (qualities 3 to 9, lgwin 18 to 30) over a few small files.
+const char*  //
+do_test_brotli_encode_large_window_files(bool mimic) {
+  static const char* filenames[] = {
+      "test/data/romeo.txt",
+      "test/data/brotli/alice29.txt",
+      "test/data/brotli/random_org_10k.bin",
+      "test/data/brotli/quickfox_repeated",
+  };
+  static const uint32_t lgwins[] = {18, 25, 26, 28, 30};
+  wuffs_base__io_buffer data = ((wuffs_base__io_buffer){
+      .data = g_work_slice_u8,
+  });
+  for (size_t f = 0; f < WUFFS_TESTLIB_ARRAY_SIZE(filenames); f++) {
+    // g_work is free to use for the input: each config's workbuf (of more
+    // than 64 MiB) is malloc'ed.
+    data.meta.wi = 0;
+    data.meta.ri = 0;
+    data.meta.closed = false;
+    CHECK_STRING(read_file(&data, filenames[f]));
+    uint8_t* copy = malloc(data.meta.wi ? data.meta.wi : 1);
+    if (!copy) {
+      return "malloc failed";
+    }
+    memcpy(copy, data.data.ptr, data.meta.wi);
+    const char* ret = NULL;
+    for (uint32_t q = 3; (q <= 9) && !ret; q++) {
+      for (size_t w = 0; (w < 5) && !ret; w++) {
+        for (int k = 0; (k < 2) && !ret; k++) {
+          if ((k == 1) && (lgwins[w] != 26)) {
+            continue;
+          }
+          brotli_enc_config c = make_brotli_enc_config(q, lgwins[w]);
+          brotli_enc_config__add_param(&c, BROTLI_ENC_PARAM_LARGE_WINDOW, 1);
+          if (k == 1) {
+            // A big size hint selects H55 (at quality 4) and H65 (at
+            // qualities 5 to 9).
+            brotli_enc_config__add_param(&c, BROTLI_ENC_PARAM_SIZE_HINT,
+                                         1 << 20);
+          }
+          c.chunking = (w & 1) ? BROTLI_ENC_CHUNK_SINGLE
+                               : BROTLI_ENC_CHUNK_RANDOM;
+          c.flush = (w & 1) ? BROTLI_ENC_FLUSH_NONE : BROTLI_ENC_FLUSH_MIDDLE;
+          c.seed = (q << 8) | w;
+          char s[256];
+          snprintf(s, sizeof s, "%s: q=%u lgwin=%u size_hint=%s",
+                   filenames[f], q, lgwins[w], k ? "1<<20" : "0");
+          ret = do_test_brotli_encode_large_window(s, &c, copy, data.meta.wi,
+                                                   mimic, 0);
+        }
+      }
+    }
+    free(copy);
+    if (ret) {
+      return ret;
+    }
+  }
+  return NULL;
+}
+
+// make_brotli_enc_far_data returns a malloc'ed buffer of pseudo-random bytes
+// with two 2 MiB repeats at distances of (20 MiB + 64) and (40 MiB - 4096).
+// The repeats' sources are not repeated elsewhere, so only an encoder with a
+// large enough window (lgwin 25 or more for the first, 26 or more for the
+// second) can compress it.
+uint8_t*  //
+make_brotli_enc_far_data(size_t* len) {
+  const size_t mib = 1 << 20;
+  const size_t n = (46 * mib) + 12345;
+  uint8_t* p = malloc(n);
+  if (!p) {
+    return NULL;
+  }
+  brotli_enc_fill_random(p, n, 0xFA12);
+  memcpy(p + (21 * mib) + 64, p + (1 * mib), 2 * mib);
+  memcpy(p + (44 * mib) - 4096, p + (4 * mib), 2 * mib);
+  *len = n;
+  return p;
+}
+
+const char*  //
+do_test_brotli_encode_large_window_far(bool mimic) {
+  size_t len = 0;
+  uint8_t* data = make_brotli_enc_far_data(&len);
+  if (!data) {
+    return "malloc failed";
+  }
+  static const struct {
+    uint32_t quality;
+    uint32_t lgwin;
+    uint32_t size_hint;
+    uint32_t chunking;
+    size_t num_repeats;
+  } configs[] = {
+      // H35.
+      {3, 25, 0, BROTLI_ENC_CHUNK_SINGLE, 1},
+      {3, 30, 0, BROTLI_ENC_CHUNK_RANDOM, 2},
+      // H55.
+      {4, 26, 1 << 30, BROTLI_ENC_CHUNK_SINGLE, 2},
+      // H65.
+      {5, 30, 1 << 30, BROTLI_ENC_CHUNK_RANDOM, 2},
+      {7, 28, 0, BROTLI_ENC_CHUNK_SINGLE, 2},
+      {9, 26, 0, BROTLI_ENC_CHUNK_SINGLE, 2},
+  };
+  const char* ret = NULL;
+  for (size_t i = 0; (i < WUFFS_TESTLIB_ARRAY_SIZE(configs)) && !ret; i++) {
+    brotli_enc_config c =
+        make_brotli_enc_config(configs[i].quality, configs[i].lgwin);
+    brotli_enc_config__add_param(&c, BROTLI_ENC_PARAM_LARGE_WINDOW, 1);
+    if (configs[i].size_hint) {
+      brotli_enc_config__add_param(&c, BROTLI_ENC_PARAM_SIZE_HINT,
+                                   configs[i].size_hint);
+    }
+    c.chunking = configs[i].chunking;
+    c.flush = (configs[i].chunking == BROTLI_ENC_CHUNK_RANDOM)
+                  ? BROTLI_ENC_FLUSH_MIDDLE
+                  : BROTLI_ENC_FLUSH_NONE;
+    c.seed = i;
+    char s[256];
+    snprintf(s, sizeof s, "far data: q=%u lgwin=%u", configs[i].quality,
+             configs[i].lgwin);
+    // Pseudo-random data is incompressible, except for the repeats (of
+    // 2 MiB each), which must be found (mostly) to meet this limit.
+    size_t max_compressed_len = len - (configs[i].num_repeats * (3 << 19));
+    ret = do_test_brotli_encode_large_window(s, &c, data, len, mimic,
+                                             max_compressed_len);
+  }
+  free(data);
+  return ret;
+}
+
+const char*  //
+test_wuffs_brotli_encode_large_window_files() {
+  CHECK_FOCUS(__func__);
+  return do_test_brotli_encode_large_window_files(false);
+}
+
+const char*  //
+test_wuffs_brotli_encode_large_window_far() {
+  CHECK_FOCUS(__func__);
+  return do_test_brotli_encode_large_window_far(false);
+}
+
+#ifdef WUFFS_MIMIC
+
+const char*  //
+test_mimic_brotli_encode_large_window_files() {
+  CHECK_FOCUS(__func__);
+  return do_test_brotli_encode_large_window_files(true);
+}
+
+const char*  //
+test_mimic_brotli_encode_large_window_far() {
+  CHECK_FOCUS(__func__);
+  return do_test_brotli_encode_large_window_far(true);
+}
+
+#endif  // WUFFS_MIMIC
+
 // ---------------- Brotli Benches
 
 const char*  //
@@ -3404,6 +3710,8 @@ proc g_tests[] = {
     // Encoder tests.
 
     test_wuffs_brotli_encode_interface,
+    test_wuffs_brotli_encode_large_window_far,
+    test_wuffs_brotli_encode_large_window_files,
     test_wuffs_brotli_encode_metadata_round_trip,
     test_wuffs_brotli_encode_parameters,
     test_wuffs_brotli_encode_round_trip_corpus,
@@ -3412,6 +3720,8 @@ proc g_tests[] = {
 
 #ifdef WUFFS_MIMIC
 
+    test_mimic_brotli_encode_large_window_far,
+    test_mimic_brotli_encode_large_window_files,
     test_mimic_brotli_encode_parity_corpus,
     test_mimic_brotli_encode_parity_grid,
     test_mimic_brotli_encode_parity_metadata,

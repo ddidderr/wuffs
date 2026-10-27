@@ -154,8 +154,7 @@ invariants for memory safety but Wuffs requires explicit bounds checks.
 - Metadata callbacks (metadata blocks are currently skipped). See the
   "Metadata Blocks" section below.
 - Fast paths.
-- Encoder dictionaries and large-window encoding at qualities 3 and above
-  (see the "Encoder" section below).
+- Encoder dictionaries (see the "Encoder" section below).
 
 
 ## Encoder
@@ -182,11 +181,9 @@ literal context modeling heuristics, `BrotliBuildMetaBlockGreedy`,
 hasher, `BrotliCreateZopfliBackwardReferences` at quality 10 and
 `BrotliCreateHqZopfliBackwardReferences` at quality 11, and then
 `ChooseContextMode`, `BrotliBuildMetaBlock`, `BrotliOptimizeHistograms` and
-`BrotliStoreMetaBlock`). For large-window brotli at qualities 3 and above,
-`transform_io` returns `"#unsupported encoder quality"` (and `workbuf_len`
-is 0). Large-window
-brotli works at quality 2 (and is ignored at qualities 0 and 1, like the C
-code).
+`BrotliStoreMetaBlock`). Large-window brotli (see "Encoder Large Window"
+below) works at qualities 3 to 11 with lgwin 10 to 30. Like the C code,
+qualities 0 to 2 ignore the large-window quirk.
 
 The source files are:
 
@@ -217,6 +214,10 @@ The source files are:
   H54, H5, H6, H58, H68, H40, H41 and H42) and `SearchInStaticDictionary`
   (with `static_dict.c`'s matching), as one set of functions selected by the
   hasher type at run time.
+- `encode_hasher_composite.wuffs`: the large-window hashers:
+  `hash_composite_inc.h` (H35, H55 and H65, which combine H3, H54 or H6 with
+  a rolling hasher) and `hash_rolling_inc.h` (`HROLLING_FAST` and
+  `HROLLING`).
 - `encode_backward_references.wuffs`: `backward_references.c` and
   `backward_references_inc.h` (`BrotliCreateBackwardReferences`),
   `command.h` and `ComputeDistanceCode`.
@@ -306,7 +307,7 @@ first `transform_io` call, after which `set_quirk` returns
 | `QUIRK_MODE`                             | `BROTLI_PARAM_MODE`                            |
 | `QUIRK_DISABLE_LITERAL_CONTEXT_MODELING` | `BROTLI_PARAM_DISABLE_LITERAL_CONTEXT_MODELING` (0 or 1) |
 | `QUIRK_SIZE_HINT`                        | `BROTLI_PARAM_SIZE_HINT`                       |
-| `QUIRK_LARGE_WINDOW` (shared with the decoder) | `BROTLI_PARAM_LARGE_WINDOW`              |
+| `QUIRK_LARGE_WINDOW` (shared with the decoder) | `BROTLI_PARAM_LARGE_WINDOW` (0 or 1)     |
 | `QUIRK_NPOSTFIX`                         | `BROTLI_PARAM_NPOSTFIX`                        |
 | `QUIRK_NDIRECT`                          | `BROTLI_PARAM_NDIRECT`                         |
 | `QUIRK_STREAM_OFFSET`                    | `BROTLI_PARAM_STREAM_OFFSET` (at most `1 << 30`) |
@@ -316,7 +317,8 @@ with `base.QUIRK_QUALITY`. At qualities 0 and 1, only the quality, lgwin and
 stream offset affect the output (lgblock, mode, size hint, large window,
 npostfix, ndirect and literal context modeling are stored, sanitized and then
 ignored, as in the C code). At qualities 2 to 9, they have the same effect as
-in the C code: lgblock (at qualities 4 and above; the C code's
+in the C code: large window (see "Encoder Large Window" below), lgblock (at
+qualities 4 and above; the C code's
 `ComputeLgBlock` fixes it to 14 below that), npostfix, ndirect and the mode
 (only `BROTLI_MODE_FONT` matters, through `ChooseDistanceParams`, at
 qualities 4 and above), disabling literal context modeling (at qualities 5
@@ -342,17 +344,15 @@ code's `ComputeRbBits`), `max_len` is `1 << min(rb_bits, 24)` (the C code's
 
 1. The metablock storage: `(2 * max_len) + 503 + 16` bytes, like at
    qualities 0 and 1 but for the largest metablock.
-2. The ring buffer (the C code's `RingBuffer.buffer_`): `2 + (1 << rb_bits) +
-   (1 << lgblock) + 7` bytes. The first 2 bytes are the copy of the last two
-   bytes that precede `data_`, the tail (`1 << lgblock` bytes) mirrors the
-   start of the buffer and the 7 trailing bytes are the C code's slack for
-   8-byte loads.
-3. The hasher's memory (the C code's `common->extra[0 .. 3]`): the sum of
+2. The hasher's memory (the C code's `common->extra[0 .. 3]`): the sum of
    `FN(HashMemAllocInBytes)` for the hasher that `ChooseHasher` picks. When
    the size hint quirk is unset (zero), that choice depends on the input's
    length (through `UpdateSizeHint`), so this is the larger of the two
-   possible choices (for a size hint below or at least 1 MiB).
-4. The commands: `16 * cmds_cap` bytes, in the C struct order: `insert_len_`
+   possible choices (for a size hint below or at least 1 MiB). With lgwin
+   above 24 (large window), the composite hashers H35, H55 and H65 add their
+   rolling hasher's table (`(1 << 24)` u32le values, 64 MiB) after H3's,
+   H54's or H6's memory.
+3. The commands: `16 * cmds_cap` bytes, in the C struct order: `insert_len_`
    (u32le), `copy_len_` (u32le, the copy length in the low 25 bits and
    `copy_code - copy_len` in the high 7 bits), `dist_extra_` (u32le),
    `cmd_prefix_` (u16le) and `dist_prefix_` (u16le). `cmds_cap` is
@@ -362,7 +362,7 @@ code's `ComputeRbBits`), `max_len` is `1 << min(rb_bits, 24)` (the C code's
    input block) fewer than that many commands and, like the C code's
    `num_commands_ + bytes / 2 + 1` allocation, each input block of `n` bytes
    adds at most `(n / 2) + 1` commands.
-5. At qualities 4 and above, `BrotliBuildMetaBlockGreedy`'s `MetaBlockSplit`
+4. At qualities 4 and above, `BrotliBuildMetaBlockGreedy`'s `MetaBlockSplit`
    and `BrotliStoreMetaBlock`'s scratch space:
    - the block types (u8) and then the block lengths (u32le) of the literal,
      command and distance block splits, with room for `(max_len / 512) + 1`,
@@ -378,13 +378,39 @@ code's `ComputeRbBits`), `max_len` is `1 << min(rb_bits, 24)` (the C code's
    - `EncodeContextMap`'s `rle_symbols` (256 * 64 u32le values) and
    - the block encoders' depths (u8) and then bits (u16le) for up to 256
      histograms per category.
+5. The ring buffer (the C code's `RingBuffer.buffer_`): `2 + (1 << rb_bits) +
+   (1 << lgblock) + 7` bytes. The first 2 bytes are the copy of the last two
+   bytes that precede `data_`, the tail (`1 << lgblock` bytes) mirrors the
+   start of the buffer and the 7 trailing bytes are the C code's slack for
+   8-byte loads.
 
-Unlike the C code, which allocates its storage and command buffers as it
-goes (for the actual metablock and block sizes), `workbuf_len` is the worst
-case for the sanitized parameters, so that one workbuf works for any input.
-At qualities 2 to 9, `transform_io` returns `"#bad workbuf length"` if the
-workbuf is shorter than that. Some examples (in MiB, with the default
-lgblock and an unset size hint):
+Unlike the C code, which allocates its storage, ring buffer and command
+buffers as it goes (for the actual metablock and block sizes, and the actual
+input length), `workbuf_len` is the worst case for the sanitized parameters,
+so that one workbuf works for any input. A shorter workbuf still works for
+short inputs, because the ring buffer is the last region and the encoder
+only touches its first `2 + n + 7` bytes for an input of `n` bytes, as long
+as the ring buffer never wraps around. Precisely, at qualities 2 to 11
+(where, at qualities 10 and 11, `workbuf_len` means its `min_incl`):
+
+- `transform_io` returns `"#bad workbuf length"` if the workbuf is shorter
+  than `workbuf_len - R + 18`, where `R` is the ring buffer region's length
+  (`2 + (1 << rb_bits) + (1 << lgblock) + 7`), i.e. if it does not reach 16
+  bytes into the ring buffer's data.
+- If any `transform_io` call gets a workbuf shorter than `workbuf_len`, then
+  from then on (for the rest of the stream), before copying input into the
+  ring buffer, `transform_io` returns `"#bad workbuf length"` (without
+  consuming that input) if the total input so far (not counting metadata)
+  would be `n` bytes with `n + 16 > (1 << rb_bits)` (the ring buffer would
+  wrap, or its tail would be needed) or with the workbuf shorter than
+  `workbuf_len - R + 2 + n + 16`.
+
+So, for a total input of `n` bytes with `n + 16 <= (1 << rb_bits)`, a
+workbuf of `workbuf_len - R + n + 18` bytes produces the same output as one
+of `workbuf_len` bytes. The parity test checks this with exactly that length
+(and that one byte less fails). This matters most for large-window brotli,
+whose ring buffer is up to 2 GiB. Some examples of `workbuf_len` (in MiB,
+with the default lgblock and an unset size hint):
 
 | quality | lgwin 10 | lgwin 16 | lgwin 18 | lgwin 22 | lgwin 24 |
 | ------- | -------- | -------- | -------- | -------- | -------- |
@@ -394,6 +420,21 @@ lgblock and an unset size hint):
 | 5       | 4.4      | 4.4      | 7.0      | 45.9     | 102.0    |
 | 7       | 4.4      | 4.4      | 13.8     | 51.4     | 107.5    |
 | 9       | 5.1      | 5.1      | 39.5     | 77.1     | 133.2    |
+
+With the large-window quirk (at qualities 3 and above; lgwin up to 24 gives
+the same numbers as without it), larger lgwin values double the ring buffer
+for each extra bit, and lgwin above 24 adds the composite hashers' 64 MiB
+rolling hash table (at quality 4 and at qualities 5 to 9 with lgwin of at
+least 19, only for a size hint of at least 1 MiB, or an unset one, as
+`ChooseHasher` otherwise keeps H3, H5 or H58):
+
+| quality | lgwin 25 | lgwin 26 | lgwin 28 | lgwin 30 |
+| ------- | -------- | -------- | -------- | -------- |
+| 3       | 160.6    | 224.6    | 608.6    | 2144.6   |
+| 4       | 199.4    | 263.4    | 647.4    | 2183.4   |
+| 5       | 197.5    | 261.5    | 645.5    | 2181.5   |
+| 7       | 203.5    | 267.5    | 651.5    | 2187.5   |
+| 9       | 229.2    | 293.2    | 677.2    | 2213.2   |
 
 At qualities 10 and 11, `workbuf_len` is a range instead (see the next
 section).
@@ -413,11 +454,19 @@ copied into the ring buffer.
 At qualities 10 and 11, the workbuf has the same regions as at quality 9
 (with `cmds_cap` computed the same way), except that:
 
-- region 3 is the H10 hasher: `4 << 17` bytes of buckets (u32le) and then
-  the binary tree forest (`8 << lgwin` bytes, u32le), and
-- region 5 keeps only the literal context map, `rle_symbols` and the block
-  encoders' depths and bits, followed by a variable region, which runs from
-  there to the end of the workbuf (however long that is).
+- region 2 is the H10 hasher: `4 << 17` bytes of buckets (u32le) and then
+  the binary tree forest (`8 << lgwin` bytes, u32le),
+- region 4 keeps only the literal context map, `rle_symbols` and the block
+  encoders' depths and bits, followed by a variable region, and
+- the ring buffer (region 5) is still the last region, after the variable
+  region.
+
+The variable region's length is set at the first `transform_io` call: it is
+its minimum length (see below) plus however much of the workbuf beyond
+`workbuf_len().min_incl` there is (up to the worst case), and the ring
+buffer moves along with it. Later `transform_io` calls should pass a
+workbuf of the same length. A workbuf shorter than `min_incl` follows the
+short workbuf rules above (with the minimum variable region).
 
 The variable region holds, at different times, the Zopfli scratch space
 (while `EncodeData` computes the backward references: `(n + 1)` 16-byte
@@ -431,8 +480,8 @@ The C code allocates these as it goes, for the actual input, and their worst
 cases are huge (see `workbuf_len_worst_case` below), so `workbuf_len` returns
 a range whose `max_incl` is the C code's worst case for the sanitized
 parameters (saturating at `0xFFFF_FFFF_FFFF_FFFF`) and whose `min_incl` is a
-practical bound. Both have the same fixed regions, followed by a variable
-region of `max(Z, M)` bytes, where `L` is the most literals that a metablock
+practical bound. Both have the same fixed regions, with a variable region of
+`max(Z, M)` bytes, where `L` is the most literals that a metablock
 can hold (`min(max_len, (max_len / 8) + (1 << lgblock))`, since `EncodeData`
 merges another input block only while there are fewer than `max_len / 8`
 literals) and:
@@ -531,20 +580,73 @@ encoder makes the same `EncodeData` calls, at the same points. One
 emitting the flint, and its callers then call it again.
 
 
+### Encoder Large Window
+
+The `QUIRK_LARGE_WINDOW` quirk mirrors `BROTLI_PARAM_LARGE_WINDOW`
+(large-window brotli is an incompatible extension of RFC 7932, decodable by
+this package's decoder with the same quirk, see "Large Window" above, and by
+libbrotlidec with `BROTLI_DECODER_PARAM_LARGE_WINDOW`). Like the C code's
+`SanitizeParams`, `EnsureInitialized` and `ChooseHasher`:
+
+- At qualities 0 to 2 (the C code's `MAX_QUALITY_FOR_STATIC_ENTROPY_CODES`
+  and below), the quirk is ignored: lgwin is clamped to 24 and the output is
+  standard brotli.
+- At qualities 3 and above, lgwin is clamped to `[10 ..= 30]` (instead of
+  `[10 ..= 24]`) and the stream starts with the 14-bit large-window header
+  (`EncodeWindowBits`), even for lgwin 24 and below. The distance parameters
+  (`BrotliInitDistanceParams` with `large_window`) allow distances up to
+  `BROTLI_MAX_ALLOWED_DISTANCE` with an alphabet of up to
+  `BROTLI_LARGE_MAX_DISTANCE_BITS` (62) distance bits, so the distance
+  Huffman codes are stored with a larger alphabet size than without the
+  quirk, even when no distance is large. Backward distances are at most
+  `(1 << lgwin) - 16`, so their extra bits (at most 30) fit in a command's
+  32-bit `dist_extra_`, as in the C code.
+- lgwin above 24 changes the hasher (only at qualities 3 to 9; the C code's
+  qualities 10 and 11 use H10 regardless): H3 becomes H35 (H3 plus
+  `HROLLING_FAST`), H54 becomes H55 (H54 plus `HROLLING_FAST`) and H6 and
+  H68 become H65 (H6, not H68, plus `HROLLING`). H5, H58 and H40 to H42 stay
+  as they are, so qualities 5 to 9 only use H65 when the size hint (set or
+  estimated by `UpdateSizeHint`) is at least 1 MiB (and lgwin is at least 19,
+  which it is). The rolling hashers find matches of at least 32 bytes at any
+  distance in the window (`HROLLING_FAST` only at positions and distances
+  that are multiples of 4) and do not search the static dictionary.
+- lgblock is unaffected (it is at most 24), but `rb_bits` (and so the ring
+  buffer) grows with lgwin. Metablocks are still at most `1 << 24` bytes.
+- At qualities 10 and 11, the H10 hasher's binary tree forest grows with
+  lgwin (`8 << lgwin` bytes, so 8 GiB at lgwin 30, as in the C code, which
+  allocates the same), and the Zopfli and static dictionary distance limits
+  use the large-window `max_distance`.
+
+Positions (the C code's `size_t` and the `WrapPosition`'ed `uint32_t`
+values) and distances are `base.u64` throughout the encoder, so nothing is
+truncated for windows up to `1 << 30`. The rolling hashers' table holds
+32-bit positions, like the C code's.
+
+
 ### Encoder Testing
 
 `wuffs test -mimic std/brotli` checks byte-exact parity with libbrotlienc
 over a grid of qualities (0 to 11), lgwins, modes, input chunkings, flushes,
 metadata blocks, size hints and other parameters (lgblock, npostfix, ndirect,
-disabling literal context modeling, stream offset, large window at quality 2),
-as well as round trips through the decoder.
+disabling literal context modeling, stream offset, large window), as well as
+round trips through the decoder. Its large-window tests cover qualities 3 to
+9 with lgwin 18 to 30 (and the H35, H55 and H65 hashers) on small files and
+on a 46 MiB input with repeats at distances of about 20 and 40 MiB, decoded
+by both this package's decoder and libbrotlidec.
 `script/manual-test-brotli-encoder-parity.c` runs a larger grid over every
 file in `test/data/brotli`, some larger files in `test/data` (up to about
 400 KiB) and some synthetic inputs (up to 1 MiB). Its `-q=LO-HI` and
 `-shard=K/N` options select the qualities and split the inputs over several
-processes. With `-q=0-9` (the default) it runs 718,555 configurations
-(about 86 thousand of them at qualities 0 and 1), all byte-exact against
-libbrotlienc v1.2.1 on x86-64.
+processes, `-lw` runs only its large-window grid (lgwin 10 to 30 at
+qualities 2 to 9, with various chunkings, flushes, size hints and other
+parameters, each also with the shortest workbuf that should work) and `-big`
+replaces the inputs with synthetic ones of 3 to 70 MiB with repeats at
+distances of up to 40 MiB. With `-q=0-9` (the default) it runs 814,706
+configurations (96,688 of them in the large-window grid), all byte-exact
+against libbrotlienc v1.2.1 on x86-64. With `-lw -big` it runs 720 more
+(on 3, 6 and 12 MiB inputs with the large-window grid and on 24, 40 and
+70 MiB inputs with one-shot and streaming large-window configurations at
+lgwin 24 to 30), also all byte-exact.
 
 
 ### Encoder Differences from the C Code
@@ -564,6 +666,22 @@ libbrotlienc v1.2.1 on x86-64.
   `BROTLI_MAX_SIMD_QUALITY` is undefined (no 64-bit count-trailing-zeros
   builtin) or 7 (MSVC on x86-64) choose differently and so produce
   different (but valid) output at those qualities.
+- The composite hashers (H35, H55 and H65) are not separate hasher types
+  here: `hasher_type` is their first hasher (H3, H54 or H6) and a non-zero
+  `hr_jump` (4 for `HROLLING_FAST`, 1 for `HROLLING`) adds the rolling
+  hasher, whose functions run after the first hasher's, like the C code's
+  composite `FN(Prepare)`, `FN(StitchToPreviousBlock)` and
+  `FN(FindLongestMatch)`. The C code's composite hasher defers its inner
+  hashers' `FN(Initialize)` to its first `FN(Prepare)`. Here, the first
+  hasher's `FN(Initialize)` runs in `hasher_setup` (it does not touch the
+  hasher's memory, so this is equivalent) and the rolling hasher's at the
+  first `hasher_prepare`. The C code's composite gives its first hasher a
+  copy of its `HasherCommon` (with zeroed static dictionary statistics);
+  here, the first hasher uses the encoder's statistics, which the composite
+  itself never uses, so the result is the same.
+- The workbuf's regions are in a different order than the C code's
+  allocations and the ring buffer is fully reserved from the start (see the
+  workbuf layout above). This does not change the output.
 - `BrotliBuildMetaBlockGreedy`'s two kinds of block splitter (one for a
   single histogram per block type, `metablock_inc.h`, and one for several
   literal contexts, `ContextBlockSplitter` in `metablock.c`) are one

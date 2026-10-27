@@ -1007,7 +1007,7 @@ pri func encoder.create_zopfli_backward_references!(wb: slice base.u8, num_bytes
     var n          : base.u64
     var ok_offsets : base.bool
 
-    ok_offsets = this.z_set_offsets!(wb_len: args.wb.length(), num_bytes: args.num_bytes)
+    ok_offsets = this.z_set_offsets!(wb_len: this.var_end.min(no_more_than: args.wb.length()), num_bytes: args.num_bytes)
     if not ok_offsets {
         return base."#bad workbuf length"
     }
@@ -1047,7 +1047,7 @@ pri func encoder.create_hq_zopfli_backward_references!(wb: slice base.u8, num_by
     var n                    : base.u64
     var ok_offsets           : base.bool
 
-    ok_offsets = this.z_set_offsets!(wb_len: args.wb.length(), num_bytes: args.num_bytes)
+    ok_offsets = this.z_set_offsets!(wb_len: this.var_end.min(no_more_than: args.wb.length()), num_bytes: args.num_bytes)
     if not ok_offsets {
         return base."#bad workbuf length"
     }
