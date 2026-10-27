@@ -41134,6 +41134,12 @@ wuffs_softfloat__arith__clz64(
     uint64_t a_a);
 
 WUFFS_BASE__GENERATED_C_CODE
+static uint32_t
+wuffs_softfloat__arith__clz32(
+    const wuffs_softfloat__arith* self,
+    uint32_t a_a);
+
+WUFFS_BASE__GENERATED_C_CODE
 static uint64_t
 wuffs_softfloat__arith__shift_right_jam64(
     const wuffs_softfloat__arith* self,
@@ -41200,6 +41206,20 @@ wuffs_softfloat__arith__f64_propagate_nan(
 
 WUFFS_BASE__GENERATED_C_CODE
 static uint64_t
+wuffs_softfloat__arith__f64_add_normal_mags(
+    const wuffs_softfloat__arith* self,
+    uint64_t a_a,
+    uint64_t a_b);
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint64_t
+wuffs_softfloat__arith__f64_sub_normal_mags(
+    const wuffs_softfloat__arith* self,
+    uint64_t a_a,
+    uint64_t a_b);
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint64_t
 wuffs_softfloat__arith__f64_add_mags(
     const wuffs_softfloat__arith* self,
     uint64_t a_a,
@@ -41221,6 +41241,41 @@ wuffs_softfloat__arith__round_pack_f32(
     uint32_t a_sign,
     uint32_t a_exp,
     uint32_t a_sig);
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint32_t
+wuffs_softfloat__arith__f32_add_mags(
+    const wuffs_softfloat__arith* self,
+    uint32_t a_a,
+    uint32_t a_b);
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint32_t
+wuffs_softfloat__arith__f32_sub_mags(
+    const wuffs_softfloat__arith* self,
+    uint32_t a_a,
+    uint32_t a_b);
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint32_t
+wuffs_softfloat__arith__slow_f32_add(
+    const wuffs_softfloat__arith* self,
+    uint32_t a_a,
+    uint32_t a_b);
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint32_t
+wuffs_softfloat__arith__slow_f32_sub(
+    const wuffs_softfloat__arith* self,
+    uint32_t a_a,
+    uint32_t a_b);
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint32_t
+wuffs_softfloat__arith__slow_f32_mul(
+    const wuffs_softfloat__arith* self,
+    uint32_t a_a,
+    uint32_t a_b);
 
 // ---------------- VTables
 
@@ -41320,6 +41375,29 @@ wuffs_softfloat__arith__clz64(
       v_n16 +
       v_n8 +
       (((uint32_t)(WUFFS_SOFTFLOAT__CLZ8[(v_x >> 56u)])) & 7u)) & 63u);
+}
+
+// -------- func softfloat.arith.clz32
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint32_t
+wuffs_softfloat__arith__clz32(
+    const wuffs_softfloat__arith* self,
+    uint32_t a_a) {
+  uint32_t v_x = 0;
+  uint32_t v_n16 = 0;
+  uint32_t v_n8 = 0;
+
+  v_x = a_a;
+  if ((v_x >> 16u) == 0u) {
+    v_x = ((uint32_t)(v_x << 16u));
+    v_n16 = 16u;
+  }
+  if ((v_x >> 24u) == 0u) {
+    v_x = ((uint32_t)(v_x << 8u));
+    v_n8 = 8u;
+  }
+  return ((v_n16 + v_n8 + (((uint32_t)(WUFFS_SOFTFLOAT__CLZ8[(v_x >> 24u)])) & 7u)) & 31u);
 }
 
 // -------- func softfloat.arith.shift_right_jam64
@@ -41816,6 +41894,17 @@ wuffs_softfloat__arith__f64_add(
     return 0;
   }
 
+  uint64_t v_z = 0;
+
+  if ((((uint64_t)(((a_a >> 52u) & 2047u) - 1u)) < 2046u) && (((uint64_t)(((a_b >> 52u) & 2047u) - 1u)) < 2046u)) {
+    if (((a_a ^ a_b) >> 63u) == 0u) {
+      return wuffs_softfloat__arith__f64_add_normal_mags(self, a_a, a_b);
+    }
+    v_z = wuffs_softfloat__arith__f64_sub_normal_mags(self, a_a, a_b);
+    if (v_z != 18446744073709551615u) {
+      return v_z;
+    }
+  }
   if (((a_a ^ a_b) >> 63u) == 0u) {
     return wuffs_softfloat__arith__f64_add_mags(self, a_a, a_b, (a_a & 9223372036854775808u));
   }
@@ -41838,10 +41927,150 @@ wuffs_softfloat__arith__f64_sub(
     return 0;
   }
 
+  uint64_t v_z = 0;
+
+  if ((((uint64_t)(((a_a >> 52u) & 2047u) - 1u)) < 2046u) && (((uint64_t)(((a_b >> 52u) & 2047u) - 1u)) < 2046u)) {
+    if (((a_a ^ a_b) >> 63u) != 0u) {
+      return wuffs_softfloat__arith__f64_add_normal_mags(self, a_a, a_b);
+    }
+    v_z = wuffs_softfloat__arith__f64_sub_normal_mags(self, a_a, a_b);
+    if (v_z != 18446744073709551615u) {
+      return v_z;
+    }
+  }
   if (((a_a ^ a_b) >> 63u) == 0u) {
     return wuffs_softfloat__arith__f64_sub_mags(self, a_a, a_b, (a_a & 9223372036854775808u));
   }
   return wuffs_softfloat__arith__f64_add_mags(self, a_a, a_b, (a_a & 9223372036854775808u));
+}
+
+// -------- func softfloat.arith.f64_add_normal_mags
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint64_t
+wuffs_softfloat__arith__f64_add_normal_mags(
+    const wuffs_softfloat__arith* self,
+    uint64_t a_a,
+    uint64_t a_b) {
+  uint32_t v_ea = 0;
+  uint32_t v_eb = 0;
+  uint64_t v_ma = 0;
+  uint64_t v_mb = 0;
+  uint32_t v_d = 0;
+  uint64_t v_z = 0;
+  uint64_t v_rb = 0;
+
+  v_ea = ((uint32_t)(((a_a >> 52u) & 2047u)));
+  v_eb = ((uint32_t)(((a_b >> 52u) & 2047u)));
+  v_ma = (((a_a & 4503599627370495u) | 4503599627370496u) << 9u);
+  v_mb = (((a_b & 4503599627370495u) | 4503599627370496u) << 9u);
+  if (v_ea < v_eb) {
+    v_d = (((uint32_t)(v_eb - v_ea)) & 2047u);
+    v_ea = v_eb;
+    v_z = v_ma;
+    v_ma = v_mb;
+    v_mb = v_z;
+  } else {
+    v_d = (((uint32_t)(v_ea - v_eb)) & 2047u);
+  }
+  if (v_d >= 63u) {
+    v_mb = 1u;
+  } else if (v_d > 0u) {
+    if (((uint64_t)(v_mb << (64u - v_d))) != 0u) {
+      v_mb = ((v_mb >> v_d) | 1u);
+    } else {
+      v_mb = (v_mb >> v_d);
+    }
+  }
+  v_z = (v_ma + v_mb);
+  if (v_z >= 4611686018427387904u) {
+    v_ea += 1u;
+    v_z = ((v_z >> 1u) | (v_z & 1u));
+  }
+  v_rb = (v_z & 511u);
+  v_z = (((uint64_t)(v_z + 256u)) >> 9u);
+  if (v_rb == 256u) {
+    v_z &= 18446744073709551614u;
+  }
+  v_z = ((uint64_t)(((uint64_t)(((uint64_t)(((uint32_t)(v_ea - 1u)))) << 52u)) + v_z));
+  if (v_z >= 9218868437227405312u) {
+    v_z = 9218868437227405312u;
+  }
+  return ((a_a & 9223372036854775808u) | v_z);
+}
+
+// -------- func softfloat.arith.f64_sub_normal_mags
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint64_t
+wuffs_softfloat__arith__f64_sub_normal_mags(
+    const wuffs_softfloat__arith* self,
+    uint64_t a_a,
+    uint64_t a_b) {
+  uint64_t v_sign = 0;
+  uint32_t v_ea = 0;
+  uint32_t v_eb = 0;
+  uint64_t v_fa = 0;
+  uint64_t v_fb = 0;
+  uint64_t v_ma = 0;
+  uint64_t v_mb = 0;
+  uint32_t v_d = 0;
+  uint32_t v_s = 0;
+  uint64_t v_z = 0;
+  uint64_t v_rb = 0;
+
+  v_sign = (a_a & 9223372036854775808u);
+  v_ea = ((uint32_t)(((a_a >> 52u) & 2047u)));
+  v_eb = ((uint32_t)(((a_b >> 52u) & 2047u)));
+  v_fa = (a_a & 4503599627370495u);
+  v_fb = (a_b & 4503599627370495u);
+  if (v_ea == v_eb) {
+    if (v_fa == v_fb) {
+      return 0u;
+    } else if (v_fa < v_fb) {
+      v_sign ^= 9223372036854775808u;
+      v_z = ((uint64_t)(v_fb - v_fa));
+    } else {
+      v_z = ((uint64_t)(v_fa - v_fb));
+    }
+    v_s = (((uint32_t)(wuffs_softfloat__arith__clz64(self, v_z) - 11u)) & 63u);
+    if (v_s >= v_ea) {
+      return 18446744073709551615u;
+    }
+    return (v_sign | ((uint64_t)(((uint64_t)(((uint64_t)(((uint32_t)(((uint32_t)(v_ea - v_s)) - 1u)))) << 52u)) + ((uint64_t)(v_z << v_s)))));
+  }
+  v_ma = ((v_fa | 4503599627370496u) << 10u);
+  v_mb = ((v_fb | 4503599627370496u) << 10u);
+  if (v_ea < v_eb) {
+    v_sign ^= 9223372036854775808u;
+    v_d = (((uint32_t)(v_eb - v_ea)) & 2047u);
+    v_ea = v_eb;
+    v_z = v_ma;
+    v_ma = v_mb;
+    v_mb = v_z;
+  } else {
+    v_d = (((uint32_t)(v_ea - v_eb)) & 2047u);
+  }
+  if (v_d >= 63u) {
+    v_mb = 1u;
+  } else if (((uint64_t)(v_mb << ((64u - v_d) & 63u))) != 0u) {
+    v_mb = ((v_mb >> v_d) | 1u);
+  } else {
+    v_mb = (v_mb >> v_d);
+  }
+  v_z = ((uint64_t)(v_ma - v_mb));
+  v_s = (((uint32_t)(wuffs_softfloat__arith__clz64(self, v_z) - 1u)) & 63u);
+  if (v_s >= v_ea) {
+    return 18446744073709551615u;
+  }
+  v_ea = (((uint32_t)(v_ea - v_s)) & 2047u);
+  v_z = ((uint64_t)(v_z << v_s));
+  v_rb = (v_z & 1023u);
+  v_z = (((uint64_t)(v_z + 512u)) >> 10u);
+  if (v_rb == 512u) {
+    v_z &= 18446744073709551614u;
+  }
+  return (v_sign | ((uint64_t)(((uint64_t)(((uint64_t)(((uint32_t)(v_ea - 1u)))) << 52u)) + v_z)));
 }
 
 // -------- func softfloat.arith.f64_add_mags
@@ -42593,7 +42822,18 @@ wuffs_softfloat__arith__f32_add(
     return 0;
   }
 
-  return wuffs_softfloat__arith__f64_to_f32(self, wuffs_softfloat__arith__f64_add(self, wuffs_softfloat__arith__f32_to_f64(self, a_a), wuffs_softfloat__arith__f32_to_f64(self, a_b)));
+  uint32_t v_z = 0;
+
+  if ((((uint32_t)(((a_a >> 23u) & 255u) - 1u)) < 254u) && (((uint32_t)(((a_b >> 23u) & 255u) - 1u)) < 254u)) {
+    if (((a_a ^ a_b) >> 31u) == 0u) {
+      return wuffs_softfloat__arith__f32_add_mags(self, a_a, a_b);
+    }
+    v_z = wuffs_softfloat__arith__f32_sub_mags(self, a_a, a_b);
+    if (v_z != 4294967295u) {
+      return v_z;
+    }
+  }
+  return wuffs_softfloat__arith__slow_f32_add(self, a_a, a_b);
 }
 
 // -------- func softfloat.arith.f32_sub
@@ -42612,7 +42852,18 @@ wuffs_softfloat__arith__f32_sub(
     return 0;
   }
 
-  return wuffs_softfloat__arith__f64_to_f32(self, wuffs_softfloat__arith__f64_sub(self, wuffs_softfloat__arith__f32_to_f64(self, a_a), wuffs_softfloat__arith__f32_to_f64(self, a_b)));
+  uint32_t v_z = 0;
+
+  if ((((uint32_t)(((a_a >> 23u) & 255u) - 1u)) < 254u) && (((uint32_t)(((a_b >> 23u) & 255u) - 1u)) < 254u)) {
+    if (((a_a ^ a_b) >> 31u) != 0u) {
+      return wuffs_softfloat__arith__f32_add_mags(self, a_a, a_b);
+    }
+    v_z = wuffs_softfloat__arith__f32_sub_mags(self, a_a, a_b);
+    if (v_z != 4294967295u) {
+      return v_z;
+    }
+  }
+  return wuffs_softfloat__arith__slow_f32_sub(self, a_a, a_b);
 }
 
 // -------- func softfloat.arith.f32_mul
@@ -42631,6 +42882,202 @@ wuffs_softfloat__arith__f32_mul(
     return 0;
   }
 
+  uint32_t v_ea = 0;
+  uint32_t v_eb = 0;
+  uint32_t v_e = 0;
+  uint64_t v_p = 0;
+  uint32_t v_m = 0;
+  uint32_t v_r = 0;
+  uint32_t v_z = 0;
+
+  v_ea = ((a_a >> 23u) & 255u);
+  v_eb = ((a_b >> 23u) & 255u);
+  if ((((uint32_t)(v_ea - 1u)) < 254u) && (((uint32_t)(v_eb - 1u)) < 254u)) {
+    v_p = (((uint64_t)(((a_a & 8388607u) | 8388608u))) * ((uint64_t)(((a_b & 8388607u) | 8388608u))));
+    v_e = (v_ea + v_eb);
+    if (v_p >= 140737488355328u) {
+      v_e += 1u;
+      v_m = ((uint32_t)(((v_p >> 24u) & 16777215u)));
+      v_r = ((uint32_t)(((uint32_t)((v_p & 16777215u))) - 8388608u));
+    } else {
+      v_m = ((uint32_t)(((v_p >> 23u) & 16777215u)));
+      v_r = ((uint32_t)(((uint32_t)((v_p & 8388607u))) - 4194304u));
+    }
+    if ((v_r != 0u) && (v_r < 2147483648u)) {
+      v_m += 1u;
+    } else if (v_r == 0u) {
+      v_m += (v_m & 1u);
+    }
+    if ((v_e >= 128u) && (v_e <= 381u)) {
+      v_z = ((uint32_t)(((v_e - 128u) << 23u) + v_m));
+      if (v_z >= 2139095040u) {
+        v_z = 2139095040u;
+      }
+      return (((a_a ^ a_b) & 2147483648u) | v_z);
+    }
+  }
+  return wuffs_softfloat__arith__slow_f32_mul(self, a_a, a_b);
+}
+
+// -------- func softfloat.arith.f32_add_mags
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint32_t
+wuffs_softfloat__arith__f32_add_mags(
+    const wuffs_softfloat__arith* self,
+    uint32_t a_a,
+    uint32_t a_b) {
+  uint32_t v_ea = 0;
+  uint32_t v_eb = 0;
+  uint32_t v_ma = 0;
+  uint32_t v_mb = 0;
+  uint32_t v_d = 0;
+  uint32_t v_z = 0;
+  uint32_t v_rb = 0;
+
+  v_ea = ((a_a >> 23u) & 255u);
+  v_eb = ((a_b >> 23u) & 255u);
+  v_ma = (((a_a & 8388607u) | 8388608u) << 6u);
+  v_mb = (((a_b & 8388607u) | 8388608u) << 6u);
+  if (v_ea < v_eb) {
+    v_d = (((uint32_t)(v_eb - v_ea)) & 255u);
+    v_ea = v_eb;
+    v_z = v_ma;
+    v_ma = v_mb;
+    v_mb = v_z;
+  } else {
+    v_d = (((uint32_t)(v_ea - v_eb)) & 255u);
+  }
+  if (v_d >= 31u) {
+    v_mb = 1u;
+  } else if (v_d > 0u) {
+    if (((uint32_t)(v_mb << (32u - v_d))) != 0u) {
+      v_mb = ((v_mb >> v_d) | 1u);
+    } else {
+      v_mb = (v_mb >> v_d);
+    }
+  }
+  v_z = ((v_ma & 1073741823u) + (v_mb & 1073741823u));
+  if (v_z >= 1073741824u) {
+    v_ea += 1u;
+    v_z = ((v_z >> 1u) | (v_z & 1u));
+  }
+  v_rb = (v_z & 63u);
+  v_z = (((uint32_t)(v_z + 32u)) >> 6u);
+  if (v_rb == 32u) {
+    v_z &= 4294967294u;
+  }
+  v_z = ((uint32_t)(((uint32_t)(((uint32_t)(v_ea - 1u)) << 23u)) + v_z));
+  if (v_z >= 2139095040u) {
+    v_z = 2139095040u;
+  }
+  return ((a_a & 2147483648u) | v_z);
+}
+
+// -------- func softfloat.arith.f32_sub_mags
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint32_t
+wuffs_softfloat__arith__f32_sub_mags(
+    const wuffs_softfloat__arith* self,
+    uint32_t a_a,
+    uint32_t a_b) {
+  uint32_t v_sign = 0;
+  uint32_t v_ea = 0;
+  uint32_t v_eb = 0;
+  uint32_t v_fa = 0;
+  uint32_t v_fb = 0;
+  uint32_t v_ma = 0;
+  uint32_t v_mb = 0;
+  uint32_t v_d = 0;
+  uint32_t v_s = 0;
+  uint32_t v_z = 0;
+  uint32_t v_rb = 0;
+
+  v_sign = (a_a & 2147483648u);
+  v_ea = ((a_a >> 23u) & 255u);
+  v_eb = ((a_b >> 23u) & 255u);
+  v_fa = (a_a & 8388607u);
+  v_fb = (a_b & 8388607u);
+  if (v_ea == v_eb) {
+    if (v_fa == v_fb) {
+      return 0u;
+    } else if (v_fa < v_fb) {
+      v_sign ^= 2147483648u;
+      v_z = ((uint32_t)(v_fb - v_fa));
+    } else {
+      v_z = ((uint32_t)(v_fa - v_fb));
+    }
+    v_s = (((uint32_t)(wuffs_softfloat__arith__clz32(self, v_z) - 8u)) & 31u);
+    if (v_s >= v_ea) {
+      return 4294967295u;
+    }
+    return (v_sign | ((uint32_t)(((uint32_t)(((uint32_t)(((uint32_t)(v_ea - v_s)) - 1u)) << 23u)) + ((uint32_t)(v_z << v_s)))));
+  }
+  v_ma = ((v_fa | 8388608u) << 7u);
+  v_mb = ((v_fb | 8388608u) << 7u);
+  if (v_ea < v_eb) {
+    v_sign ^= 2147483648u;
+    v_d = (((uint32_t)(v_eb - v_ea)) & 255u);
+    v_ea = v_eb;
+    v_z = v_ma;
+    v_ma = v_mb;
+    v_mb = v_z;
+  } else {
+    v_d = (((uint32_t)(v_ea - v_eb)) & 255u);
+  }
+  if (v_d >= 31u) {
+    v_mb = 1u;
+  } else if (((uint32_t)(v_mb << ((32u - v_d) & 31u))) != 0u) {
+    v_mb = ((v_mb >> v_d) | 1u);
+  } else {
+    v_mb = (v_mb >> v_d);
+  }
+  v_z = ((uint32_t)(v_ma - v_mb));
+  v_s = (((uint32_t)(wuffs_softfloat__arith__clz32(self, v_z) - 1u)) & 31u);
+  if (v_s >= v_ea) {
+    return 4294967295u;
+  }
+  v_ea = (((uint32_t)(v_ea - v_s)) & 255u);
+  v_z = ((uint32_t)(v_z << v_s));
+  v_rb = (v_z & 127u);
+  v_z = (((uint32_t)(v_z + 64u)) >> 7u);
+  if (v_rb == 64u) {
+    v_z &= 4294967294u;
+  }
+  return (v_sign | ((uint32_t)(((uint32_t)(((uint32_t)(v_ea - 1u)) << 23u)) + v_z)));
+}
+
+// -------- func softfloat.arith.slow_f32_add
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint32_t
+wuffs_softfloat__arith__slow_f32_add(
+    const wuffs_softfloat__arith* self,
+    uint32_t a_a,
+    uint32_t a_b) {
+  return wuffs_softfloat__arith__f64_to_f32(self, wuffs_softfloat__arith__f64_add(self, wuffs_softfloat__arith__f32_to_f64(self, a_a), wuffs_softfloat__arith__f32_to_f64(self, a_b)));
+}
+
+// -------- func softfloat.arith.slow_f32_sub
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint32_t
+wuffs_softfloat__arith__slow_f32_sub(
+    const wuffs_softfloat__arith* self,
+    uint32_t a_a,
+    uint32_t a_b) {
+  return wuffs_softfloat__arith__f64_to_f32(self, wuffs_softfloat__arith__f64_sub(self, wuffs_softfloat__arith__f32_to_f64(self, a_a), wuffs_softfloat__arith__f32_to_f64(self, a_b)));
+}
+
+// -------- func softfloat.arith.slow_f32_mul
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint32_t
+wuffs_softfloat__arith__slow_f32_mul(
+    const wuffs_softfloat__arith* self,
+    uint32_t a_a,
+    uint32_t a_b) {
   return wuffs_softfloat__arith__f64_to_f32(self, wuffs_softfloat__arith__f64_mul(self, wuffs_softfloat__arith__f32_to_f64(self, a_a), wuffs_softfloat__arith__f32_to_f64(self, a_b)));
 }
 

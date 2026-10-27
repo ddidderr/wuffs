@@ -96,12 +96,24 @@ integer long division, 11 quotient bits per (64-bit integer) division step,
 with the final remainder as the sticky bit. Leading zero counts use a 256-entry
 table.
 
-The `f32` add, sub, mul and div operations convert their operands exactly to
-`f64`, perform the `f64` operation and then round to `f32`. This double
-rounding is innocuous: binary64's 53 bits of precision are more than `(2 * 24)
-+ 2`, which suffices for `+`, `-`, `*` and `/` (S. A. Figueroa, "When is double
-rounding innocuous?", ACM SIGNUM Newsletter, 1995). The tests confirm this
-against hardware, including for subnormal `f32` results.
+`f64_add` and `f64_sub` have a fast path for the common case where both
+operands are normal (`f64_add_normal_mags` and `f64_sub_normal_mags`): it
+skips the special-case handling, aligns the significands with a sticky bit,
+adds or subtracts them and rounds inline. Only a subtraction whose result is
+subnormal falls back to the general code (`f64_add_mags`, `f64_sub_mags`).
+
+Likewise, `f32_add`, `f32_sub` and `f32_mul` compute the result directly in
+binary32 (with 32-bit significands for add and sub and an exact 48-bit
+product for mul) when both operands are normal and the result is normal (or,
+for add and mul, overflows to infinity). Otherwise (zeroes, subnormal
+operands or results, infinities and NaNs), they, and `f32_div` always,
+convert their operands exactly to `f64`, perform the `f64` operation and then
+round to `f32`. This double rounding is innocuous: binary64's 53 bits of
+precision are more than `(2 * 24) + 2`, which suffices for `+`, `-`, `*` and
+`/` (S. A. Figueroa, "When is double rounding innocuous?", ACM SIGNUM
+Newsletter, 1995). The tests confirm this against hardware, including for
+subnormal `f32` results. The fast paths never produce a NaN, so NaN results
+(and their payloads) are exactly those of the "via `f64`" computation.
 
 
 ## log2
@@ -187,3 +199,32 @@ threads):
     (6 minutes 20 seconds wall clock in total)
 
 No exception table is needed.
+
+`script/manual-test-softfloat-sweep.c` systematically checks the `f32` add,
+sub, mul and div operations over every pair of operand exponents (`[0 ..=
+255]` squared), both signs and 40 x 40 mantissa patterns (exact results, ties,
+carries, cancellation, subnormal results, overflow, NaN payloads): each result
+must equal the hardware's (any NaN matching any NaN) and, bit-for-bit
+including NaNs, the "via `f64`" composition `f64_to_f32(f64_op(f32_to_f64(a),
+f32_to_f64(b)))`. It does the same for the `f64` add, sub, mul and div
+operations (every pair of exponents in `[0 ..= 2047]`, 9 x 9 mantissa
+patterns, NaN results checked bit-for-bit against the NaN rule above), and
+checks `f64_to_f32` (326 exponents times 2²⁰ fraction patterns times both
+signs), `f32_to_f64` (every `f32`), `f32_from_u32` and `f32_from_i32` (every
+32-bit integer) and `f32_from_u64` (2³² structured values). Result (x86-64,
+gcc 13 `-O2`, 4 threads):
+
+    f32_add            419430400 operand pairs,        0 mismatches
+    f32_sub            419430400 operand pairs,        0 mismatches
+    f32_mul            419430400 operand pairs,        0 mismatches
+    f32_div            419430400 operand pairs,        0 mismatches
+    f64_add           1358954496 operand pairs,        0 mismatches
+    f64_sub           1358954496 operand pairs,        0 mismatches
+    f64_mul           1358954496 operand pairs,        0 mismatches
+    f64_div           1358954496 operand pairs,        0 mismatches
+    f64_to_f32         341835776 operands,             0 mismatches
+    f32_to_f64        4294967296 operands,             0 mismatches
+    f32_from_u32      4294967296 operands,             0 mismatches
+    f32_from_i32      4294967296 operands,             0 mismatches
+    f32_from_u64      4294967296 operands,             0 mismatches
+    PASS: 0 mismatches in total
