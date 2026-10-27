@@ -278,7 +278,9 @@ encode_wuffs(const config* c, size_t* have_len) {
       goto cleanup;
     }
   }
-  uint64_t wlen = wuffs_brotli__encoder__workbuf_len(enc).max_incl;
+  // Use the minimum, so that the qualities 10 and 11 practical bound is
+  // exercised (at other qualities, min_incl == max_incl).
+  uint64_t wlen = wuffs_brotli__encoder__workbuf_len(enc).min_incl;
   if (wlen > ((uint64_t)1 << 32)) {
     ret = "workbuf_len is too large";
     goto cleanup;
@@ -741,7 +743,7 @@ main(int argc, char** argv) {
     unsigned b = 0;
     if (sscanf(argv[argi], "-q=%u-%u", &a, &b) == 2) {
       g_qmin = a;
-      g_qmax = (b < 9) ? b : 9;
+      g_qmax = (b < 11) ? b : 11;
     } else if (sscanf(argv[argi], "-shard=%u/%u", &a, &b) == 2) {
       shard_k = (int)a;
       shard_n = (b > 0) ? (int)b : 1;

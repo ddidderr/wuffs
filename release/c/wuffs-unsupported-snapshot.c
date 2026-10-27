@@ -98854,6 +98854,7 @@ wuffs_brotli__encoder__compute_distance_cache(
     wuffs_base__slice_u8 a_wb,
     uint64_t a_pos) {
   uint32_t v_idx = 0;
+  uint32_t v_sdc = 0;
   uint64_t v_p = 0;
   uint64_t v_i_len = 0;
   uint64_t v_c_len = 0;
@@ -98867,9 +98868,11 @@ wuffs_brotli__encoder__compute_distance_cache(
     v_idx += 1u;
     v_p = ((uint64_t)(wuffs_brotli__encoder__zn_u(self, a_wb, ((uint64_t)(((uint64_t)(v_p - v_c_len)) - v_i_len)))));
   }
+  v_sdc = 0u;
   while (v_idx < 4u) {
-    self->private_data.f_zp_dc[v_idx] = self->private_impl.f_dist_cache[v_idx];
+    self->private_data.f_zp_dc[v_idx] = self->private_impl.f_dist_cache[(v_sdc & 3u)];
     v_idx += 1u;
+    v_sdc += 1u;
   }
   return wuffs_base__make_empty_struct();
 }

@@ -521,6 +521,7 @@ pri func encoder.compute_distance_shortcut(wb: roslice base.u8, block_start: bas
 // zp_dc field. The starting distance cache is this.dist_cache.
 pri func encoder.compute_distance_cache!(wb: roslice base.u8, pos: base.u64) {
     var idx   : base.u32
+    var sdc   : base.u32
     var p     : base.u64
     var i_len : base.u64
     var c_len : base.u64
@@ -535,9 +536,11 @@ pri func encoder.compute_distance_cache!(wb: roslice base.u8, pos: base.u64) {
         // Because of prerequisite, p >= c_len + i_len >= 2.
         p = this.zn_u(wb: args.wb, i: (p ~mod- c_len) ~mod- i_len) as base.u64
     }
+    sdc = 0
     while idx < 4 {
-        this.zp_dc[idx] = this.dist_cache[idx]
+        this.zp_dc[idx] = this.dist_cache[sdc & 3]
         idx ~mod+= 1
+        sdc ~mod+= 1
     }
 }
 
