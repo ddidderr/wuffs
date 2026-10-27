@@ -9475,14 +9475,14 @@ wuffs_brotli__encoder__add_dictionary_workbuf_len(
 WUFFS_BASE__GENERATED_C_CODE
 WUFFS_BASE__MAYBE_STATIC uint64_t
 wuffs_brotli__metablock_tester__bits_entropy(
-    const wuffs_brotli__metablock_tester* self,
+    wuffs_brotli__metablock_tester* self,
     wuffs_base__slice_u8 a_population,
     uint64_t a_size);
 
 WUFFS_BASE__GENERATED_C_CODE
 WUFFS_BASE__MAYBE_STATIC uint64_t
 wuffs_brotli__metablock_tester__population_cost(
-    const wuffs_brotli__metablock_tester* self,
+    wuffs_brotli__metablock_tester* self,
     wuffs_base__slice_u8 a_histogram,
     uint32_t a_data_size);
 
@@ -9894,7 +9894,7 @@ struct wuffs_brotli__bit_cost__struct {
     uint32_t active_coroutine;
     wuffs_base__vtable null_vtable;
 
-    bool f_log2_cache_ready;
+    uint64_t f_log2_valid[1024];
   } private_impl;
 
   struct {
@@ -10400,14 +10400,14 @@ struct wuffs_brotli__metablock_tester__struct {
   inline uint64_t
   bits_entropy(
       wuffs_base__slice_u8 a_population,
-      uint64_t a_size) const {
+      uint64_t a_size) {
     return wuffs_brotli__metablock_tester__bits_entropy(this, a_population, a_size);
   }
 
   inline uint64_t
   population_cost(
       wuffs_base__slice_u8 a_histogram,
-      uint32_t a_data_size) const {
+      uint32_t a_data_size) {
     return wuffs_brotli__metablock_tester__population_cost(this, a_histogram, a_data_size);
   }
 
@@ -77048,8 +77048,6 @@ WUFFS_BROTLI__DICTIONARY[122784] WUFFS_BASE__POTENTIALLY_UNUSED = {
 
 #define WUFFS_BROTLI__F64_1E99 6088095589093318446u
 
-#define WUFFS_BROTLI__LOG2_CACHE_SIZE 65536u
-
 #define WUFFS_BROTLI__LITERAL_BLOCK_SWITCH_COST 4628602664527698330u
 
 #define WUFFS_BROTLI__COMMAND_BLOCK_SWITCH_COST 4623789442425946112u
@@ -77753,11 +77751,6 @@ wuffs_brotli__encoder__create_backward_references(
     uint64_t a_position);
 
 WUFFS_BASE__GENERATED_C_CODE
-static wuffs_base__empty_struct
-wuffs_brotli__bit_cost__init_log2_cache(
-    wuffs_brotli__bit_cost* self);
-
-WUFFS_BASE__GENERATED_C_CODE
 static uint32_t
 wuffs_brotli__bit_cost__ld32(
     const wuffs_brotli__bit_cost* self,
@@ -77795,15 +77788,21 @@ wuffs_brotli__bit_cost__fast_log2(
 
 WUFFS_BASE__GENERATED_C_CODE
 static uint64_t
+wuffs_brotli__bit_cost__fast_log2_memo(
+    wuffs_brotli__bit_cost* self,
+    uint64_t a_v);
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint64_t
 wuffs_brotli__bit_cost__bits_entropy(
-    const wuffs_brotli__bit_cost* self,
+    wuffs_brotli__bit_cost* self,
     wuffs_base__slice_u8 a_population,
     uint64_t a_size);
 
 WUFFS_BASE__GENERATED_C_CODE
 static uint64_t
 wuffs_brotli__bit_cost__population_cost(
-    const wuffs_brotli__bit_cost* self,
+    wuffs_brotli__bit_cost* self,
     wuffs_base__slice_u8 a_histogram,
     uint32_t a_data_size);
 
@@ -78116,7 +78115,7 @@ wuffs_brotli__encoder__find_match_length_with_limit(
 WUFFS_BASE__GENERATED_C_CODE
 static uint64_t
 wuffs_brotli__metablock_builder__bit_cost(
-    const wuffs_brotli__metablock_builder* self,
+    wuffs_brotli__metablock_builder* self,
     uint64_t a_count);
 
 WUFFS_BASE__GENERATED_C_CODE
@@ -79785,7 +79784,7 @@ wuffs_brotli__metablock_builder__h_set_bit_cost(
 WUFFS_BASE__GENERATED_C_CODE
 static uint64_t
 wuffs_brotli__metablock_builder__h_population_cost(
-    const wuffs_brotli__metablock_builder* self,
+    wuffs_brotli__metablock_builder* self,
     wuffs_base__slice_u8 a_wb,
     uint64_t a_h,
     uint32_t a_ds);
@@ -79952,7 +79951,7 @@ wuffs_brotli__encoder__gbs_histo_off(
 WUFFS_BASE__GENERATED_C_CODE
 static uint64_t
 wuffs_brotli__encoder__gbs_entropy(
-    const wuffs_brotli__encoder* self,
+    wuffs_brotli__encoder* self,
     wuffs_base__slice_u8 a_wb,
     uint64_t a_off,
     uint64_t a_size);
@@ -85284,30 +85283,6 @@ wuffs_brotli__encoder__create_backward_references(
   return wuffs_base__make_status(NULL);
 }
 
-// -------- func brotli.bit_cost.init_log2_cache
-
-WUFFS_BASE__GENERATED_C_CODE
-static wuffs_base__empty_struct
-wuffs_brotli__bit_cost__init_log2_cache(
-    wuffs_brotli__bit_cost* self) {
-  uint64_t v_v = 0;
-
-  if (self->private_impl.f_log2_cache_ready) {
-    return wuffs_base__make_empty_struct();
-  }
-  v_v = 0u;
-  while (v_v < 256u) {
-    self->private_data.f_log2_cache[v_v] = WUFFS_BROTLI__LOG2_TABLE[v_v];
-    v_v += 1u;
-  }
-  while (v_v < 65536u) {
-    self->private_data.f_log2_cache[v_v] = wuffs_softfloat__arith__log2_u64(&self->private_data.f_sf, v_v);
-    v_v += 1u;
-  }
-  self->private_impl.f_log2_cache_ready = true;
-  return wuffs_base__make_empty_struct();
-}
-
 // -------- func brotli.bit_cost.ld32
 
 WUFFS_BASE__GENERATED_C_CODE
@@ -85395,10 +85370,30 @@ wuffs_brotli__bit_cost__fast_log2(
     uint64_t a_v) {
   if (a_v < 256u) {
     return WUFFS_BROTLI__LOG2_TABLE[a_v];
-  } else if (self->private_impl.f_log2_cache_ready && (a_v < 65536u)) {
-    return self->private_data.f_log2_cache[a_v];
+  } else if (a_v < 65536u) {
+    if (((self->private_impl.f_log2_valid[(a_v >> 6u)] >> (a_v & 63u)) & 1u) != 0u) {
+      return self->private_data.f_log2_cache[a_v];
+    }
   }
   return wuffs_softfloat__arith__log2_u64(&self->private_data.f_sf, a_v);
+}
+
+// -------- func brotli.bit_cost.fast_log2_memo
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint64_t
+wuffs_brotli__bit_cost__fast_log2_memo(
+    wuffs_brotli__bit_cost* self,
+    uint64_t a_v) {
+  if (a_v < 256u) {
+    return WUFFS_BROTLI__LOG2_TABLE[a_v];
+  } else if (a_v >= 65536u) {
+    return wuffs_softfloat__arith__log2_u64(&self->private_data.f_sf, a_v);
+  } else if (((self->private_impl.f_log2_valid[(a_v >> 6u)] >> (a_v & 63u)) & 1u) == 0u) {
+    self->private_data.f_log2_cache[a_v] = wuffs_softfloat__arith__log2_u64(&self->private_data.f_sf, a_v);
+    self->private_impl.f_log2_valid[(a_v >> 6u)] |= (((uint64_t)(1u)) << (a_v & 63u));
+  }
+  return self->private_data.f_log2_cache[a_v];
 }
 
 // -------- func brotli.bit_cost.bits_entropy
@@ -85406,12 +85401,13 @@ wuffs_brotli__bit_cost__fast_log2(
 WUFFS_BASE__GENERATED_C_CODE
 static uint64_t
 wuffs_brotli__bit_cost__bits_entropy(
-    const wuffs_brotli__bit_cost* self,
+    wuffs_brotli__bit_cost* self,
     wuffs_base__slice_u8 a_population,
     uint64_t a_size) {
   uint64_t v_sum = 0;
   uint64_t v_retval = 0;
   uint64_t v_p = 0;
+  uint64_t v_lp = 0;
   wuffs_base__slice_u8 v_q = {0};
   uint64_t v_n = 0;
 
@@ -85425,10 +85421,12 @@ wuffs_brotli__bit_cost__bits_entropy(
       v_q = wuffs_base__slice_u8__subslice_i(v_q, 4u);
     }
     v_sum += v_p;
-    v_retval = wuffs_softfloat__arith__f64_sub(&self->private_data.f_sf, v_retval, wuffs_softfloat__arith__f64_mul(&self->private_data.f_sf, wuffs_softfloat__arith__f64_from_u64(&self->private_data.f_sf, v_p), wuffs_brotli__bit_cost__fast_log2(self, v_p)));
+    v_lp = wuffs_brotli__bit_cost__fast_log2_memo(self, v_p);
+    v_retval = wuffs_softfloat__arith__f64_sub(&self->private_data.f_sf, v_retval, wuffs_softfloat__arith__f64_mul(&self->private_data.f_sf, wuffs_softfloat__arith__f64_from_u64(&self->private_data.f_sf, v_p), v_lp));
   }
   if (v_sum != 0u) {
-    v_retval = wuffs_softfloat__arith__f64_add(&self->private_data.f_sf, v_retval, wuffs_softfloat__arith__f64_mul(&self->private_data.f_sf, wuffs_softfloat__arith__f64_from_u64(&self->private_data.f_sf, v_sum), wuffs_brotli__bit_cost__fast_log2(self, v_sum)));
+    v_lp = wuffs_brotli__bit_cost__fast_log2_memo(self, v_sum);
+    v_retval = wuffs_softfloat__arith__f64_add(&self->private_data.f_sf, v_retval, wuffs_softfloat__arith__f64_mul(&self->private_data.f_sf, wuffs_softfloat__arith__f64_from_u64(&self->private_data.f_sf, v_sum), v_lp));
   }
   if (wuffs_softfloat__arith__f64_lt(&self->private_data.f_sf, v_retval, wuffs_softfloat__arith__f64_from_u64(&self->private_data.f_sf, v_sum)) != 0u) {
     v_retval = wuffs_softfloat__arith__f64_from_u64(&self->private_data.f_sf, v_sum);
@@ -85441,7 +85439,7 @@ wuffs_brotli__bit_cost__bits_entropy(
 WUFFS_BASE__GENERATED_C_CODE
 static uint64_t
 wuffs_brotli__bit_cost__population_cost(
-    const wuffs_brotli__bit_cost* self,
+    wuffs_brotli__bit_cost* self,
     wuffs_base__slice_u8 a_histogram,
     uint32_t a_data_size) {
   uint64_t v_total = 0;
@@ -85462,6 +85460,7 @@ wuffs_brotli__bit_cost__population_cost(
   uint32_t v_depth_histo[18] = {0};
   uint64_t v_log2total = 0;
   uint64_t v_log2p = 0;
+  uint64_t v_lp = 0;
   uint64_t v_depth = 0;
   uint32_t v_reps = 0;
   uint64_t v_sum = 0;
@@ -85522,12 +85521,13 @@ wuffs_brotli__bit_cost__population_cost(
     return wuffs_softfloat__arith__f64_sub(&self->private_data.f_sf, wuffs_softfloat__arith__f64_add(&self->private_data.f_sf, wuffs_softfloat__arith__f64_add(&self->private_data.f_sf, 4630404104378646528u, wuffs_softfloat__arith__f64_from_u32(&self->private_data.f_sf, ((uint32_t)(3u * v_h23)))), wuffs_softfloat__arith__f64_from_u32(&self->private_data.f_sf, ((uint32_t)(2u * ((uint32_t)(v_histo[0u] + v_histo[1u])))))), wuffs_softfloat__arith__f64_from_u32(&self->private_data.f_sf, v_histomax));
   }
   v_max_depth = 1u;
-  v_log2total = wuffs_brotli__bit_cost__fast_log2(self, v_total);
+  v_log2total = wuffs_brotli__bit_cost__fast_log2_memo(self, v_total);
   v_i = 0u;
   while (v_i < a_data_size) {
     v_c = wuffs_brotli__bit_cost__ld32(self, a_histogram, (((uint64_t)(v_i)) * 4u));
     if (v_c > 0u) {
-      v_log2p = wuffs_softfloat__arith__f64_sub(&self->private_data.f_sf, v_log2total, wuffs_brotli__bit_cost__fast_log2(self, ((uint64_t)(v_c))));
+      v_lp = wuffs_brotli__bit_cost__fast_log2_memo(self, ((uint64_t)(v_c)));
+      v_log2p = wuffs_softfloat__arith__f64_sub(&self->private_data.f_sf, v_log2total, v_lp);
       v_depth = wuffs_softfloat__arith__f64_to_u64_trunc(&self->private_data.f_sf, wuffs_softfloat__arith__f64_add(&self->private_data.f_sf, v_log2p, 4602678819172646912u));
       v_bits = wuffs_softfloat__arith__f64_add(&self->private_data.f_sf, v_bits, wuffs_softfloat__arith__f64_mul(&self->private_data.f_sf, wuffs_softfloat__arith__f64_from_u32(&self->private_data.f_sf, v_c), v_log2p));
       if (v_depth > 15u) {
@@ -85569,11 +85569,13 @@ wuffs_brotli__bit_cost__population_cost(
   while (v_i < 18u) {
     v_p = ((uint64_t)(v_depth_histo[v_i]));
     v_sum += v_p;
-    v_retval = wuffs_softfloat__arith__f64_sub(&self->private_data.f_sf, v_retval, wuffs_softfloat__arith__f64_mul(&self->private_data.f_sf, wuffs_softfloat__arith__f64_from_u64(&self->private_data.f_sf, v_p), wuffs_brotli__bit_cost__fast_log2(self, v_p)));
+    v_lp = wuffs_brotli__bit_cost__fast_log2_memo(self, v_p);
+    v_retval = wuffs_softfloat__arith__f64_sub(&self->private_data.f_sf, v_retval, wuffs_softfloat__arith__f64_mul(&self->private_data.f_sf, wuffs_softfloat__arith__f64_from_u64(&self->private_data.f_sf, v_p), v_lp));
     v_i += 1u;
   }
   if (v_sum != 0u) {
-    v_retval = wuffs_softfloat__arith__f64_add(&self->private_data.f_sf, v_retval, wuffs_softfloat__arith__f64_mul(&self->private_data.f_sf, wuffs_softfloat__arith__f64_from_u64(&self->private_data.f_sf, v_sum), wuffs_brotli__bit_cost__fast_log2(self, v_sum)));
+    v_lp = wuffs_brotli__bit_cost__fast_log2_memo(self, v_sum);
+    v_retval = wuffs_softfloat__arith__f64_add(&self->private_data.f_sf, v_retval, wuffs_softfloat__arith__f64_mul(&self->private_data.f_sf, wuffs_softfloat__arith__f64_from_u64(&self->private_data.f_sf, v_sum), v_lp));
   }
   if (wuffs_softfloat__arith__f64_lt(&self->private_data.f_sf, v_retval, wuffs_softfloat__arith__f64_from_u64(&self->private_data.f_sf, v_sum)) != 0u) {
     v_retval = wuffs_softfloat__arith__f64_from_u64(&self->private_data.f_sf, v_sum);
@@ -87178,12 +87180,15 @@ wuffs_brotli__encoder__find_match_length_with_limit(
 WUFFS_BASE__GENERATED_C_CODE
 static uint64_t
 wuffs_brotli__metablock_builder__bit_cost(
-    const wuffs_brotli__metablock_builder* self,
+    wuffs_brotli__metablock_builder* self,
     uint64_t a_count) {
+  uint64_t v_c = 0;
+
   if (a_count == 0u) {
     return 13835058055282163712u;
   }
-  return wuffs_brotli__bit_cost__fast_log2(&self->private_data.f_bc, a_count);
+  v_c = wuffs_brotli__bit_cost__fast_log2_memo(&self->private_data.f_bc, a_count);
+  return v_c;
 }
 
 // -------- func brotli.metablock_builder.histogram_add_vector
@@ -87570,7 +87575,7 @@ wuffs_brotli__metablock_builder__find_blocks(
   wuffs_private_impl__bulk_memset(&self->private_data.f_insert_cost[0], 35200u * (size_t)8u, 0u);
   v_i = 0u;
   while (v_i < a_num_histograms) {
-    self->private_data.f_insert_cost[(v_i & 255u)] = wuffs_brotli__bit_cost__fast_log2(&self->private_data.f_bc, (wuffs_brotli__metablock_builder__h_total(self, a_wb, ((uint64_t)(a_histograms + ((uint64_t)(v_i * v_hs)))), a_ds) & 4294967295u));
+    self->private_data.f_insert_cost[(v_i & 255u)] = wuffs_brotli__bit_cost__fast_log2_memo(&self->private_data.f_bc, (wuffs_brotli__metablock_builder__h_total(self, a_wb, ((uint64_t)(a_histograms + ((uint64_t)(v_i * v_hs)))), a_ds) & 4294967295u));
     v_i += 1u;
   }
   v_i = v_alphabet_size;
@@ -87580,7 +87585,8 @@ wuffs_brotli__metablock_builder__find_blocks(
     while (v_j < a_num_histograms) {
       v_k = ((uint64_t)(((uint64_t)(v_i * a_num_histograms)) + v_j));
       if (v_k < 35200u) {
-        self->private_data.f_insert_cost[v_k] = wuffs_softfloat__arith__f64_sub(&self->private_data.f_sf, self->private_data.f_insert_cost[(v_j & 255u)], wuffs_brotli__metablock_builder__bit_cost(self, ((uint64_t)(wuffs_brotli__metablock_builder__ld32(self, a_wb, ((uint64_t)(((uint64_t)(a_histograms + ((uint64_t)(v_j * v_hs)))) + ((uint64_t)(v_i * 4u)))))))));
+        v_c = wuffs_brotli__metablock_builder__bit_cost(self, ((uint64_t)(wuffs_brotli__metablock_builder__ld32(self, a_wb, ((uint64_t)(((uint64_t)(a_histograms + ((uint64_t)(v_j * v_hs)))) + ((uint64_t)(v_i * 4u))))))));
+        self->private_data.f_insert_cost[v_k] = wuffs_softfloat__arith__f64_sub(&self->private_data.f_sf, self->private_data.f_insert_cost[(v_j & 255u)], v_c);
       }
       v_j += 1u;
     }
@@ -87750,6 +87756,7 @@ wuffs_brotli__metablock_builder__cluster_blocks(
     uint64_t a_num_blocks,
     uint64_t a_block_ids,
     uint32_t a_ds) {
+  uint64_t v_c = 0;
   uint64_t v_hs = 0;
   uint64_t v_histogram_symbols = 0;
   uint64_t v_u32s = 0;
@@ -87839,11 +87846,12 @@ wuffs_brotli__metablock_builder__cluster_blocks(
         v_pos += 1u;
         v_k += 1u;
       }
+      v_c = wuffs_brotli__metablock_builder__h_population_cost(self, a_wb, ((uint64_t)(v_histograms + ((uint64_t)(v_j * v_hs)))), a_ds);
       wuffs_brotli__metablock_builder__h_set_bit_cost(self,
           a_wb,
           ((uint64_t)(v_histograms + ((uint64_t)(v_j * v_hs)))),
           a_ds,
-          wuffs_brotli__metablock_builder__h_population_cost(self, a_wb, ((uint64_t)(v_histograms + ((uint64_t)(v_j * v_hs)))), a_ds));
+          v_c);
       wuffs_brotli__metablock_builder__st32(self, a_wb, ((uint64_t)(v_new_clusters + ((uint64_t)(v_j * 4u)))), ((uint32_t)(v_j)));
       wuffs_brotli__metablock_builder__st32(self, a_wb, ((uint64_t)(v_symbols + ((uint64_t)(v_j * 4u)))), ((uint32_t)(v_j)));
       wuffs_brotli__metablock_builder__st32(self, a_wb, ((uint64_t)(v_sizes + ((uint64_t)(v_j * 4u)))), 1u);
@@ -89521,6 +89529,8 @@ wuffs_brotli__metablock_builder__histogram_bit_cost_distance(
     uint64_t a_histogram,
     uint64_t a_candidate,
     uint64_t a_tmp) {
+  uint64_t v_c = 0;
+
   if (wuffs_brotli__metablock_builder__h_total(self, a_wb, a_histogram, a_ds) == 0u) {
     return 0u;
   }
@@ -89534,7 +89544,8 @@ wuffs_brotli__metablock_builder__histogram_bit_cost_distance(
       a_tmp,
       a_candidate,
       a_ds);
-  return wuffs_softfloat__arith__f64_sub(&self->private_data.f_sf, wuffs_brotli__metablock_builder__h_population_cost(self, a_wb, a_tmp, a_ds), wuffs_brotli__metablock_builder__h_bit_cost(self, a_wb, a_candidate, a_ds));
+  v_c = wuffs_brotli__metablock_builder__h_population_cost(self, a_wb, a_tmp, a_ds);
+  return wuffs_softfloat__arith__f64_sub(&self->private_data.f_sf, v_c, wuffs_brotli__metablock_builder__h_bit_cost(self, a_wb, a_candidate, a_ds));
 }
 
 // -------- func brotli.metablock_builder.histogram_remap
@@ -89698,6 +89709,7 @@ wuffs_brotli__metablock_builder__cluster_histograms(
     uint64_t a_max_histograms,
     uint64_t a_out_histos,
     uint64_t a_histogram_symbols) {
+  uint64_t v_c = 0;
   uint64_t v_hs = 0;
   uint64_t v_mark = 0;
   uint64_t v_cluster_size = 0;
@@ -89735,11 +89747,12 @@ wuffs_brotli__metablock_builder__cluster_histograms(
         ((uint64_t)(a_out_histos + ((uint64_t)(v_i * v_hs)))),
         ((uint64_t)(a_in_histos + ((uint64_t)(v_i * v_hs)))),
         a_ds);
+    v_c = wuffs_brotli__metablock_builder__h_population_cost(self, a_wb, ((uint64_t)(a_in_histos + ((uint64_t)(v_i * v_hs)))), a_ds);
     wuffs_brotli__metablock_builder__h_set_bit_cost(self,
         a_wb,
         ((uint64_t)(a_out_histos + ((uint64_t)(v_i * v_hs)))),
         a_ds,
-        wuffs_brotli__metablock_builder__h_population_cost(self, a_wb, ((uint64_t)(a_in_histos + ((uint64_t)(v_i * v_hs)))), a_ds));
+        v_c);
     wuffs_brotli__metablock_builder__st32(self, a_wb, ((uint64_t)(a_histogram_symbols + ((uint64_t)(v_i * 4u)))), ((uint32_t)(v_i)));
     v_i += 1u;
   }
@@ -96423,7 +96436,8 @@ wuffs_brotli__encoder__estimate_bit_costs_for_literals_utf8(
     } else if (v_utf8_pos == 2u) {
       v_iw = v_iwu2;
     }
-    v_lit_cost = wuffs_softfloat__arith__f64_sub(&self->private_data.f_sf, wuffs_brotli__bit_cost__fast_log2(&self->private_data.f_bc, v_iw), wuffs_brotli__bit_cost__fast_log2(&self->private_data.f_bc, v_histo));
+    v_lit_cost = wuffs_brotli__bit_cost__fast_log2_memo(&self->private_data.f_bc, v_iw);
+    v_lit_cost = wuffs_softfloat__arith__f64_sub(&self->private_data.f_sf, v_lit_cost, wuffs_brotli__bit_cost__fast_log2(&self->private_data.f_bc, v_histo));
     v_lit_cost = wuffs_softfloat__arith__f64_add(&self->private_data.f_sf, v_lit_cost, 4584030313835631162u);
     wuffs_brotli__encoder__lc_finish_cost(self,
         a_wb,
@@ -96494,7 +96508,8 @@ wuffs_brotli__encoder__estimate_bit_costs_for_literals(
     if (v_histo == 0u) {
       v_histo = 1u;
     }
-    v_lit_cost = wuffs_softfloat__arith__f64_sub(&self->private_data.f_sf, wuffs_brotli__bit_cost__fast_log2(&self->private_data.f_bc, v_in_window), wuffs_brotli__bit_cost__fast_log2(&self->private_data.f_bc, v_histo));
+    v_lit_cost = wuffs_brotli__bit_cost__fast_log2_memo(&self->private_data.f_bc, v_in_window);
+    v_lit_cost = wuffs_softfloat__arith__f64_sub(&self->private_data.f_sf, v_lit_cost, wuffs_brotli__bit_cost__fast_log2(&self->private_data.f_bc, v_histo));
     v_lit_cost = wuffs_softfloat__arith__f64_add(&self->private_data.f_sf, v_lit_cost, 4584015902316823577u);
     wuffs_brotli__encoder__lc_finish_cost(self,
         a_wb,
@@ -96824,12 +96839,15 @@ wuffs_brotli__metablock_builder__h_set_bit_cost(
 WUFFS_BASE__GENERATED_C_CODE
 static uint64_t
 wuffs_brotli__metablock_builder__h_population_cost(
-    const wuffs_brotli__metablock_builder* self,
+    wuffs_brotli__metablock_builder* self,
     wuffs_base__slice_u8 a_wb,
     uint64_t a_h,
     uint32_t a_ds) {
+  uint64_t v_c = 0;
+
   if (a_h <= ((uint64_t)(a_wb.len))) {
-    return wuffs_brotli__bit_cost__population_cost(&self->private_data.f_bc, wuffs_base__slice_u8__subslice_i(a_wb, a_h), a_ds);
+    v_c = wuffs_brotli__bit_cost__population_cost(&self->private_data.f_bc, wuffs_base__slice_u8__subslice_i(a_wb, a_h), a_ds);
+    return v_c;
   }
   return 0u;
 }
@@ -97085,7 +97103,8 @@ wuffs_brotli__metablock_builder__compute_distance_cost(
     }
     v_i += 1u;
   }
-  self->private_impl.f_dist_cost = wuffs_softfloat__arith__f64_add(&self->private_data.f_sf, wuffs_brotli__metablock_builder__h_population_cost(self, a_wb, a_tmp, 544u), v_extra_bits);
+  self->private_impl.f_dist_cost = wuffs_brotli__metablock_builder__h_population_cost(self, a_wb, a_tmp, 544u);
+  self->private_impl.f_dist_cost = wuffs_softfloat__arith__f64_add(&self->private_data.f_sf, self->private_impl.f_dist_cost, v_extra_bits);
   return true;
 }
 
@@ -97205,7 +97224,6 @@ wuffs_brotli__metablock_builder__build_meta_block(
   uint32_t v_v = 0;
 
   wuffs_brotli__metablock_builder__reset_arena(self, ((uint64_t)(a_wb.len)));
-  wuffs_brotli__bit_cost__init_log2_cache(&self->private_data.f_bc);
   v_orig_npostfix = self->private_impl.f_dist_postfix_bits;
   v_orig_ndirect = self->private_impl.f_dist_num_direct_codes;
   v_orig_asm = self->private_impl.f_dist_alphabet_size_max;
@@ -97754,12 +97772,15 @@ wuffs_brotli__encoder__gbs_histo_off(
 WUFFS_BASE__GENERATED_C_CODE
 static uint64_t
 wuffs_brotli__encoder__gbs_entropy(
-    const wuffs_brotli__encoder* self,
+    wuffs_brotli__encoder* self,
     wuffs_base__slice_u8 a_wb,
     uint64_t a_off,
     uint64_t a_size) {
+  uint64_t v_e = 0;
+
   if (a_off <= ((uint64_t)(a_wb.len))) {
-    return wuffs_brotli__bit_cost__bits_entropy(&self->private_data.f_bc, wuffs_base__slice_u8__subslice_i(a_wb, a_off), a_size);
+    v_e = wuffs_brotli__bit_cost__bits_entropy(&self->private_data.f_bc, wuffs_base__slice_u8__subslice_i(a_wb, a_off), a_size);
+    return v_e;
   }
   return 0u;
 }
@@ -99396,18 +99417,20 @@ wuffs_brotli__encoder__hq_extend_var_region(
 WUFFS_BASE__GENERATED_C_CODE
 WUFFS_BASE__MAYBE_STATIC uint64_t
 wuffs_brotli__metablock_tester__bits_entropy(
-    const wuffs_brotli__metablock_tester* self,
+    wuffs_brotli__metablock_tester* self,
     wuffs_base__slice_u8 a_population,
     uint64_t a_size) {
   if (!self) {
     return 0;
   }
-  if ((self->private_impl.magic != WUFFS_BASE__MAGIC) &&
-      (self->private_impl.magic != WUFFS_BASE__DISABLED)) {
+  if (self->private_impl.magic != WUFFS_BASE__MAGIC) {
     return 0;
   }
 
-  return wuffs_brotli__bit_cost__bits_entropy(&self->private_data.f_bc, a_population, a_size);
+  uint64_t v_c = 0;
+
+  v_c = wuffs_brotli__bit_cost__bits_entropy(&self->private_data.f_bc, a_population, a_size);
+  return v_c;
 }
 
 // -------- func brotli.metablock_tester.population_cost
@@ -99415,23 +99438,27 @@ wuffs_brotli__metablock_tester__bits_entropy(
 WUFFS_BASE__GENERATED_C_CODE
 WUFFS_BASE__MAYBE_STATIC uint64_t
 wuffs_brotli__metablock_tester__population_cost(
-    const wuffs_brotli__metablock_tester* self,
+    wuffs_brotli__metablock_tester* self,
     wuffs_base__slice_u8 a_histogram,
     uint32_t a_data_size) {
   if (!self) {
     return 0;
   }
-  if ((self->private_impl.magic != WUFFS_BASE__MAGIC) &&
-      (self->private_impl.magic != WUFFS_BASE__DISABLED)) {
+  if (self->private_impl.magic != WUFFS_BASE__MAGIC) {
     return 0;
   }
 
+  uint64_t v_c = 0;
+
   if (a_data_size == 256u) {
-    return wuffs_brotli__bit_cost__population_cost(&self->private_data.f_bc, a_histogram, 256u);
+    v_c = wuffs_brotli__bit_cost__population_cost(&self->private_data.f_bc, a_histogram, 256u);
+    return v_c;
   } else if (a_data_size == 704u) {
-    return wuffs_brotli__bit_cost__population_cost(&self->private_data.f_bc, a_histogram, 704u);
+    v_c = wuffs_brotli__bit_cost__population_cost(&self->private_data.f_bc, a_histogram, 704u);
+    return v_c;
   } else if (a_data_size == 544u) {
-    return wuffs_brotli__bit_cost__population_cost(&self->private_data.f_bc, a_histogram, 544u);
+    v_c = wuffs_brotli__bit_cost__population_cost(&self->private_data.f_bc, a_histogram, 544u);
+    return v_c;
   }
   return 0u;
 }
@@ -99481,7 +99508,6 @@ wuffs_brotli__metablock_tester__split_block(
 
   wuffs_brotli__metablock_builder__set_params(&self->private_data.f_mb, a_quality, false, false);
   wuffs_brotli__metablock_builder__reset_arena(&self->private_data.f_mb, ((uint64_t)(a_workbuf.len)));
-  wuffs_brotli__bit_cost__init_log2_cache(&self->private_data.f_mb.private_data.f_bc);
   wuffs_brotli__metablock_builder__alloc_block_splits(&self->private_data.f_mb, a_cmds, a_num_commands);
   if (self->private_data.f_mb.private_impl.f_oom) {
     return wuffs_base__make_status(wuffs_base__error__bad_workbuf_length);
@@ -99535,7 +99561,6 @@ wuffs_brotli__metablock_tester__cluster_histograms(
     return 18446744073709551615u;
   }
   v_hs = wuffs_brotli__metablock_builder__hsize(&self->private_data.f_mb, v_ds);
-  wuffs_brotli__bit_cost__init_log2_cache(&self->private_data.f_mb.private_data.f_bc);
   wuffs_brotli__metablock_builder__reset_arena(&self->private_data.f_mb, ((uint64_t)(a_workbuf.len)));
   v_n = ((uint64_t)(a_in_size * v_hs));
   v_in_off = wuffs_brotli__metablock_builder__alloc(&self->private_data.f_mb, v_n);

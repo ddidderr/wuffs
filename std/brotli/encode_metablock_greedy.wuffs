@@ -47,9 +47,12 @@ pri func encoder.gbs_histo_off(c: base.u32[..= 3], ix: base.u64) base.u64 {
 
 // gbs_entropy returns BrotliBitsEntropy of the size u32le values at
 // args.wb[off ..].
-pri func encoder.gbs_entropy(wb: roslice base.u8, off: base.u64, size: base.u64) base.u64 {
+pri func encoder.gbs_entropy!(wb: roslice base.u8, off: base.u64, size: base.u64) base.u64 {
+    var e : base.u64
+
     if args.off <= args.wb.length() {
-        return this.bc.bits_entropy(population: args.wb[args.off ..], size: args.size)
+        e = this.bc.bits_entropy!(population: args.wb[args.off ..], size: args.size)
+        return e
     }
     return 0
 }
@@ -162,7 +165,7 @@ pri func encoder.gbs_finish_block!(wb: slice base.u8, c: base.u32[..= 3], is_fin
         this.set_byte!(s: args.wb, i: types_off, v: 0)
         i = 0
         while i < nc {
-            e = this.gbs_entropy(wb: args.wb, off: this.gbs_histo_off(c: args.c, ix: i), size: alphabet_size)
+            e = this.gbs_entropy!(wb: args.wb, off: this.gbs_histo_off(c: args.c, ix: i), size: alphabet_size)
             this.gbs_last_entropy[((le_base as base.u64) ~mod+ i) & 127] = e
             this.gbs_last_entropy[(((le_base as base.u64) ~mod+ nc) ~mod+ i) & 127] = e
             i ~mod+= 1
@@ -185,7 +188,7 @@ pri func encoder.gbs_finish_block!(wb: slice base.u8, c: base.u32[..= 3], is_fin
         last1 = this.gbs_last_histogram_ix[(args.c * 2) + 1]
         i = 0
         while i < nc {
-            e = this.gbs_entropy(wb: args.wb, off: this.gbs_histo_off(c: args.c, ix: curr ~mod+ i), size: alphabet_size)
+            e = this.gbs_entropy!(wb: args.wb, off: this.gbs_histo_off(c: args.c, ix: curr ~mod+ i), size: alphabet_size)
             this.gbs_entropy_tmp[i & 15] = e
             j = 0
             while j < 2 {
@@ -197,7 +200,7 @@ pri func encoder.gbs_finish_block!(wb: slice base.u8, c: base.u32[..= 3], is_fin
                 } else {
                     this.gbs_add_histogram!(wb: args.wb, dst: tmp, src: this.gbs_histo_off(c: args.c, ix: last1 ~mod+ i), n: data_size)
                 }
-                this.gbs_comb_entropy[jx & 31] = this.gbs_entropy(wb: args.wb, off: tmp, size: alphabet_size)
+                this.gbs_comb_entropy[jx & 31] = this.gbs_entropy!(wb: args.wb, off: tmp, size: alphabet_size)
                 d = this.sf.f64_sub(
                         a: this.sf.f64_sub(a: this.gbs_comb_entropy[jx & 31], b: e),
                         b: this.gbs_last_entropy[((le_base as base.u64) ~mod+ jx) & 127])

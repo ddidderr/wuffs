@@ -264,9 +264,12 @@ pri func metablock_builder.h_set_bit_cost!(wb: slice base.u8, h: base.u64, ds: b
     this.st64!(wb: args.wb, i: args.h ~mod+ (((args.ds as base.u64) * 4) + 8), v: args.bit_cost)
 }
 
-pri func metablock_builder.h_population_cost(wb: roslice base.u8, h: base.u64, ds: base.u32[..= 704]) base.u64 {
+pri func metablock_builder.h_population_cost!(wb: roslice base.u8, h: base.u64, ds: base.u32[..= 704]) base.u64 {
+    var c : base.u64
+
     if args.h <= args.wb.length() {
-        return this.bc.population_cost(histogram: args.wb[args.h ..], data_size: args.ds)
+        c = this.bc.population_cost!(histogram: args.wb[args.h ..], data_size: args.ds)
+        return c
     }
     return 0
 }
@@ -482,9 +485,8 @@ pri func metablock_builder.compute_distance_cost!(wb: slice base.u8, cmds: rosli
         }
         i ~mod+= 1
     }
-    this.dist_cost = this.sf.f64_add(
-            a: this.h_population_cost(wb: args.wb, h: args.tmp, ds: HISTOGRAM_DISTANCE_DATA_SIZE),
-            b: extra_bits)
+    this.dist_cost = this.h_population_cost!(wb: args.wb, h: args.tmp, ds: HISTOGRAM_DISTANCE_DATA_SIZE)
+    this.dist_cost = this.sf.f64_add(a: this.dist_cost, b: extra_bits)
     return true
 }
 
@@ -592,7 +594,6 @@ pri func metablock_builder.build_meta_block!(wb: slice base.u8, ringbuffer: rosl
     var v               : base.u32
 
     this.reset_arena!(wb_len: args.wb.length())
-    this.bc.init_log2_cache!()
 
     orig_npostfix = this.dist_postfix_bits
     orig_ndirect = this.dist_num_direct_codes

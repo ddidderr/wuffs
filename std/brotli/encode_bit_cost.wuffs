@@ -12,8 +12,8 @@
 
 // This file mirrors bit_cost.c, bit_cost_inc.h and fast_log.h. The functions
 // are methods of the bit_cost struct (whose only state is the stateless
-// softfloat arith), so that other structs (the encoder, the
-// metablock_builder) can embed one with a single field.
+// softfloat arith and a lazily filled FastLog2 cache), so that other structs
+// (the encoder, the metablock_builder) can embed one with a single field.
 //
 // Doubles are IEEE 754 binary64 bit patterns (base.u64). A uint32_t array
 // (e.g. a histogram's data_) is a slice of little-endian bytes, because
@@ -48,42 +48,22 @@ pri const F64_HUGE_VAL : base.u64 = 0x7FF0_0000_0000_0000
 // F64_1E99 is the C code's 1e99.
 pri const F64_1E99 : base.u64 = 0x547D_42AE_A287_9F2E
 
-// LOG2_CACHE_SIZE is the size of the bit_cost.log2_cache table.
-pri const LOG2_CACHE_SIZE : base.u64 = 65536
-
 pri struct bit_cost?(
-        // log2_cache_ready is whether log2_cache has been filled (by
-        // init_log2_cache).
-        log2_cache_ready : base.bool,
+        // Bit (v & 63) of log2_valid[v >> 6] is whether log2_cache[v] holds
+        // FastLog2(v). This bitmap is zeroed when the struct is initialized
+        // (but log2_cache need not be), so the cache starts empty.
+        log2_valid : array[1024] base.u64,
 
         sf : softfloat.arith,
 ) + (
-        // log2_cache[v] is FastLog2(v), for v < LOG2_CACHE_SIZE. It is only a
-        // speed optimization (glibc's log2 is expensive to emulate): the
-        // values are computed by the same functions, so the results are
-        // identical with or without it.
+        // log2_cache[v] is FastLog2(v), for 256 <= v < 65536, filled lazily
+        // (see fast_log2_memo). It is only a speed optimization (glibc's log2
+        // is expensive to emulate): the values are computed by the same
+        // functions, so the results are identical with or without it. Few of
+        // the 65536 entries are typically needed, so filling it lazily is
+        // much cheaper than filling it all up front.
         log2_cache : array[65536] base.u64,
 )
-
-// init_log2_cache fills the log2_cache table (if it is not already filled).
-// Calling it is optional, but it makes fast_log2 faster.
-pri func bit_cost.init_log2_cache!() {
-    var v : base.u64
-
-    if this.log2_cache_ready {
-        return nothing
-    }
-    v = 0
-    while v < 256 {
-        this.log2_cache[v] = LOG2_TABLE[v]
-        v += 1
-    }
-    while v < 65536 {
-        this.log2_cache[v] = this.sf.log2_u64(v: v)
-        v += 1
-    }
-    this.log2_cache_ready = true
-}
 
 // ld32 returns the u32le at s[i ..], or 0 if that is out of bounds (which
 // the callers never do).
@@ -138,23 +118,41 @@ pri func bit_cost.st64!(s: slice base.u8, i: base.u64, v: base.u64) {
 }
 
 // Mirrors FastLog2 in fast_log.h. The result is the bit pattern of an IEEE
-// 754 binary64 value.
+// 754 binary64 value. It uses (but does not fill) log2_cache: see
+// fast_log2_memo.
 pri func bit_cost.fast_log2(v: base.u64) base.u64 {
     if args.v < 256 {
         return LOG2_TABLE[args.v]
-    } else if this.log2_cache_ready and (args.v < 65536) {
-        return this.log2_cache[args.v]
+    } else if args.v < 65536 {
+        if ((this.log2_valid[args.v >> 6] >> (args.v & 63)) & 1) <> 0 {
+            return this.log2_cache[args.v]
+        }
     }
     return this.sf.log2_u64(v: args.v)
+}
+
+// fast_log2_memo is like fast_log2 (it also mirrors FastLog2) but it fills
+// the log2_cache entry for v (if v is in the cache's range).
+pri func bit_cost.fast_log2_memo!(v: base.u64) base.u64 {
+    if args.v < 256 {
+        return LOG2_TABLE[args.v]
+    } else if args.v >= 65536 {
+        return this.sf.log2_u64(v: args.v)
+    } else if ((this.log2_valid[args.v >> 6] >> (args.v & 63)) & 1) == 0 {
+        this.log2_cache[args.v] = this.sf.log2_u64(v: args.v)
+        this.log2_valid[args.v >> 6] |= (1 as base.u64) << (args.v & 63)
+    }
+    return this.log2_cache[args.v]
 }
 
 // Mirrors BrotliBitsEntropy in bit_cost.c. population holds (at least) size
 // u32le values. The C code's "goto odd_number_of_elements_left" only changes
 // the loop's unrolling, not the order of the operations.
-pri func bit_cost.bits_entropy(population: roslice base.u8, size: base.u64) base.u64 {
+pri func bit_cost.bits_entropy!(population: roslice base.u8, size: base.u64) base.u64 {
     var sum    : base.u64
     var retval : base.u64
     var p      : base.u64
+    var lp     : base.u64
     var q      : roslice base.u8
     var n      : base.u64
 
@@ -168,12 +166,14 @@ pri func bit_cost.bits_entropy(population: roslice base.u8, size: base.u64) base
             q = q[4 ..]
         }
         sum ~mod+= p
+        lp = this.fast_log2_memo!(v: p)
         retval = this.sf.f64_sub(a: retval, b: this.sf.f64_mul(
-                a: this.sf.f64_from_u64(a: p), b: this.fast_log2(v: p)))
+                a: this.sf.f64_from_u64(a: p), b: lp))
     }
     if sum <> 0 {
+        lp = this.fast_log2_memo!(v: sum)
         retval = this.sf.f64_add(a: retval, b: this.sf.f64_mul(
-                a: this.sf.f64_from_u64(a: sum), b: this.fast_log2(v: sum)))
+                a: this.sf.f64_from_u64(a: sum), b: lp))
     }
     if this.sf.f64_lt(a: retval, b: this.sf.f64_from_u64(a: sum)) <> 0 {
         retval = this.sf.f64_from_u64(a: sum)
@@ -184,7 +184,7 @@ pri func bit_cost.bits_entropy(population: roslice base.u8, size: base.u64) base
 // Mirrors BrotliPopulationCostLiteral, BrotliPopulationCostCommand and
 // BrotliPopulationCostDistance (FN(BrotliPopulationCost) in bit_cost_inc.h).
 // histogram is a histogram of data_size symbols (see the layout above).
-pri func bit_cost.population_cost(histogram: roslice base.u8, data_size: base.u32[..= 704]) base.u64 {
+pri func bit_cost.population_cost!(histogram: roslice base.u8, data_size: base.u32[..= 704]) base.u64 {
     var total       : base.u64
     var count       : base.u32
     var s           : array[4] base.u32
@@ -203,6 +203,7 @@ pri func bit_cost.population_cost(histogram: roslice base.u8, data_size: base.u3
     var depth_histo : array[18] base.u32
     var log2total   : base.u64
     var log2p       : base.u64
+    var lp          : base.u64
     var depth       : base.u64
     var reps        : base.u32
     var sum         : base.u64
@@ -284,12 +285,13 @@ pri func bit_cost.population_cost(histogram: roslice base.u8, data_size: base.u3
     // Compute the entropy of the histogram and simultaneously build a
     // simplified histogram of the code length codes.
     max_depth = 1
-    log2total = this.fast_log2(v: total)
+    log2total = this.fast_log2_memo!(v: total)
     i = 0
     while i < args.data_size {
         c = this.ld32(s: args.histogram, i: (i as base.u64) * 4)
         if c > 0 {
-            log2p = this.sf.f64_sub(a: log2total, b: this.fast_log2(v: c as base.u64))
+            lp = this.fast_log2_memo!(v: c as base.u64)
+            log2p = this.sf.f64_sub(a: log2total, b: lp)
             depth = this.sf.f64_to_u64_trunc(a: this.sf.f64_add(a: log2p, b: 0x3FE0_0000_0000_0000))
             bits = this.sf.f64_add(a: bits, b: this.sf.f64_mul(
                     a: this.sf.f64_from_u32(a: c), b: log2p))
@@ -340,13 +342,15 @@ pri func bit_cost.population_cost(histogram: roslice base.u8, data_size: base.u3
     while i < 18 {
         p = depth_histo[i] as base.u64
         sum ~mod+= p
+        lp = this.fast_log2_memo!(v: p)
         retval = this.sf.f64_sub(a: retval, b: this.sf.f64_mul(
-                a: this.sf.f64_from_u64(a: p), b: this.fast_log2(v: p)))
+                a: this.sf.f64_from_u64(a: p), b: lp))
         i ~mod+= 1
     }
     if sum <> 0 {
+        lp = this.fast_log2_memo!(v: sum)
         retval = this.sf.f64_add(a: retval, b: this.sf.f64_mul(
-                a: this.sf.f64_from_u64(a: sum), b: this.fast_log2(v: sum)))
+                a: this.sf.f64_from_u64(a: sum), b: lp))
     }
     if this.sf.f64_lt(a: retval, b: this.sf.f64_from_u64(a: sum)) <> 0 {
         retval = this.sf.f64_from_u64(a: sum)

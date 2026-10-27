@@ -896,7 +896,12 @@ uses it at qualities 10 and 11 (and its smaller helpers at lower
 qualities). Its
 fixed-size state (about 0.8 MiB: FindBlocks' cost arrays and a 64Ki-entry
 FastLog2 cache in its `bit_cost`) lives in the struct; everything that the C
-code allocates on the heap lives in a caller-supplied workbuf.
+code allocates on the heap lives in a caller-supplied workbuf. The FastLog2
+cache (like the encoder's own `bit_cost` one) is filled lazily, one entry at
+a time, when `fast_log2_memo` first needs that entry (a bitmap, zeroed when the
+struct is initialized, records which entries are valid): typically only a few
+thousand of the 65536 entries are ever used, and each one costs a (slow, exact)
+software `log2`.
 
 Data formats (all little-endian, matching the C structs' memory layout on a
 64-bit little-endian machine, so that results can be compared with `memcmp`):

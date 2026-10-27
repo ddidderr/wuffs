@@ -277,7 +277,8 @@ pri func encoder.estimate_bit_costs_for_literals_utf8!(wb: slice base.u8, pos: b
         } else if utf8_pos == 2 {
             iw = iwu2
         }
-        lit_cost = this.sf.f64_sub(a: this.bc.fast_log2(v: iw), b: this.bc.fast_log2(v: histo))
+        lit_cost = this.bc.fast_log2_memo!(v: iw)
+        lit_cost = this.sf.f64_sub(a: lit_cost, b: this.bc.fast_log2(v: histo))
         lit_cost = this.sf.f64_add(a: lit_cost, b: LC_F64_0_02905)
         this.lc_finish_cost!(wb: args.wb, cost_off: args.cost_off, i: i, lit_cost: lit_cost, utf8: true)
         i ~mod+= 1
@@ -337,7 +338,8 @@ pri func encoder.estimate_bit_costs_for_literals!(wb: slice base.u8, pos: base.u
         if histo == 0 {
             histo = 1
         }
-        lit_cost = this.sf.f64_sub(a: this.bc.fast_log2(v: in_window), b: this.bc.fast_log2(v: histo))
+        lit_cost = this.bc.fast_log2_memo!(v: in_window)
+        lit_cost = this.sf.f64_sub(a: lit_cost, b: this.bc.fast_log2(v: histo))
         lit_cost = this.sf.f64_add(a: lit_cost, b: LC_F64_0_029)
         this.lc_finish_cost!(wb: args.wb, cost_off: args.cost_off, i: i, lit_cost: lit_cost, utf8: false)
         i ~mod+= 1

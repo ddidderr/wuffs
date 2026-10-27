@@ -31,12 +31,15 @@ pri const HISTOGRAMS_PER_BATCH : base.u64 = 64
 pri const CLUSTERS_PER_BATCH   : base.u64 = 16
 
 // Mirrors BitCost in block_splitter.c.
-pri func metablock_builder.bit_cost(count: base.u64) base.u64 {
+pri func metablock_builder.bit_cost!(count: base.u64) base.u64 {
+    var c : base.u64
+
     if args.count == 0 {
         // -2.0
         return 0xC000_0000_0000_0000
     }
-    return this.bc.fast_log2(v: args.count)
+    c = this.bc.fast_log2_memo!(v: args.count)
+    return c
 }
 
 // Mirrors FN(HistogramAddVector) in histogram_inc.h, adding the n symbols at
@@ -314,7 +317,7 @@ pri func metablock_builder.find_blocks!(wb: slice base.u8, data: base.u64, lengt
     i = 0
     while i < args.num_histograms {
         // FastLog2((uint32_t)histograms[i].total_count_).
-        this.insert_cost[i & 255] = this.bc.fast_log2(
+        this.insert_cost[i & 255] = this.bc.fast_log2_memo!(
                 v: this.h_total(wb: args.wb, h: args.histograms ~mod+ (i ~mod* hs), ds: args.ds) & 0xFFFF_FFFF)
         i ~mod+= 1
     }
@@ -326,9 +329,8 @@ pri func metablock_builder.find_blocks!(wb: slice base.u8, data: base.u64, lengt
         while j < args.num_histograms {
             k = (i ~mod* args.num_histograms) ~mod+ j
             if k < 35200 {
-                this.insert_cost[k] = this.sf.f64_sub(
-                        a: this.insert_cost[j & 255],
-                        b: this.bit_cost(count: this.ld32(wb: args.wb, i: (args.histograms ~mod+ (j ~mod* hs)) ~mod+ (i ~mod* 4)) as base.u64))
+                c = this.bit_cost!(count: this.ld32(wb: args.wb, i: (args.histograms ~mod+ (j ~mod* hs)) ~mod+ (i ~mod* 4)) as base.u64)
+                this.insert_cost[k] = this.sf.f64_sub(a: this.insert_cost[j & 255], b: c)
             }
             j ~mod+= 1
         }
@@ -471,6 +473,7 @@ pri func metablock_builder.build_block_histograms!(wb: slice base.u8, data: base
 // this.split_etc[cat].
 pri func metablock_builder.cluster_blocks!(wb: slice base.u8, cat: base.u32[..= 2], data: base.u64, length: base.u64, width: base.u32,
         num_blocks: base.u64, block_ids: base.u64, ds: base.u32[..= 704]) {
+    var c                   : base.u64
     var hs                  : base.u64
     var histogram_symbols   : base.u64
     var u32s                : base.u64
@@ -562,8 +565,8 @@ pri func metablock_builder.cluster_blocks!(wb: slice base.u8, cat: base.u32[..= 
                 pos ~mod+= 1
                 k ~mod+= 1
             }
-            this.h_set_bit_cost!(wb: args.wb, h: histograms ~mod+ (j ~mod* hs), ds: args.ds,
-                    bit_cost: this.h_population_cost(wb: args.wb, h: histograms ~mod+ (j ~mod* hs), ds: args.ds))
+            c = this.h_population_cost!(wb: args.wb, h: histograms ~mod+ (j ~mod* hs), ds: args.ds)
+            this.h_set_bit_cost!(wb: args.wb, h: histograms ~mod+ (j ~mod* hs), ds: args.ds, bit_cost: c)
             this.st32!(wb: args.wb, i: new_clusters ~mod+ (j ~mod* 4), v: (j & 0xFFFF_FFFF) as base.u32)
             this.st32!(wb: args.wb, i: symbols ~mod+ (j ~mod* 4), v: (j & 0xFFFF_FFFF) as base.u32)
             this.st32!(wb: args.wb, i: sizes ~mod+ (j ~mod* 4), v: 1)

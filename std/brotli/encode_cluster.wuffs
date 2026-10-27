@@ -108,7 +108,7 @@ pri func metablock_builder.compare_and_push_to_queue!(wb: slice base.u8, ds: bas
         }
         this.h_copy!(wb: args.wb, h: args.tmp, v: h1, ds: args.ds)
         this.h_add_histogram!(wb: args.wb, h: args.tmp, v: h2, ds: args.ds)
-        c = this.h_population_cost(wb: args.wb, h: args.tmp, ds: args.ds)
+        c = this.h_population_cost!(wb: args.wb, h: args.tmp, ds: args.ds)
         if this.sf.f64_lt(a: c, b: this.sf.f64_sub(a: threshold, b: cost_diff)) <> 0 {
             cost_combo = c
             is_good_pair = true
@@ -271,14 +271,15 @@ pri func metablock_builder.histogram_combine!(wb: slice base.u8, ds: base.u32[..
 // Mirrors FN(BrotliHistogramBitCostDistance) in cluster_inc.h.
 pri func metablock_builder.histogram_bit_cost_distance!(wb: slice base.u8, ds: base.u32[..= 704],
         histogram: base.u64, candidate: base.u64, tmp: base.u64) base.u64 {
+    var c : base.u64
+
     if this.h_total(wb: args.wb, h: args.histogram, ds: args.ds) == 0 {
         return 0
     }
     this.h_copy!(wb: args.wb, h: args.tmp, v: args.histogram, ds: args.ds)
     this.h_add_histogram!(wb: args.wb, h: args.tmp, v: args.candidate, ds: args.ds)
-    return this.sf.f64_sub(
-            a: this.h_population_cost(wb: args.wb, h: args.tmp, ds: args.ds),
-            b: this.h_bit_cost(wb: args.wb, h: args.candidate, ds: args.ds))
+    c = this.h_population_cost!(wb: args.wb, h: args.tmp, ds: args.ds)
+    return this.sf.f64_sub(a: c, b: this.h_bit_cost(wb: args.wb, h: args.candidate, ds: args.ds))
 }
 
 // Mirrors FN(BrotliHistogramRemap) in cluster_inc.h.
@@ -395,6 +396,7 @@ pri func metablock_builder.histogram_reindex!(wb: slice base.u8, ds: base.u32[..
 // histogram_symbols. It returns the C code's *out_size.
 pri func metablock_builder.cluster_histograms!(wb: slice base.u8, ds: base.u32[..= 704], in_histos: base.u64, in_size: base.u64,
         max_histograms: base.u64, out_histos: base.u64, histogram_symbols: base.u64) base.u64 {
+    var c                : base.u64
     var hs               : base.u64
     var mark             : base.u64
     var cluster_size     : base.u64
@@ -426,8 +428,8 @@ pri func metablock_builder.cluster_histograms!(wb: slice base.u8, ds: base.u32[.
     i = 0
     while i < args.in_size {
         this.h_copy!(wb: args.wb, h: args.out_histos ~mod+ (i ~mod* hs), v: args.in_histos ~mod+ (i ~mod* hs), ds: args.ds)
-        this.h_set_bit_cost!(wb: args.wb, h: args.out_histos ~mod+ (i ~mod* hs), ds: args.ds,
-                bit_cost: this.h_population_cost(wb: args.wb, h: args.in_histos ~mod+ (i ~mod* hs), ds: args.ds))
+        c = this.h_population_cost!(wb: args.wb, h: args.in_histos ~mod+ (i ~mod* hs), ds: args.ds)
+        this.h_set_bit_cost!(wb: args.wb, h: args.out_histos ~mod+ (i ~mod* hs), ds: args.ds, bit_cost: c)
         this.st32!(wb: args.wb, i: args.histogram_symbols ~mod+ (i ~mod* 4), v: (i & 0xFFFF_FFFF) as base.u32)
         i ~mod+= 1
     }
