@@ -154,8 +154,8 @@ invariants for memory safety but Wuffs requires explicit bounds checks.
 - Metadata callbacks (metadata blocks are currently skipped). See the
   "Metadata Blocks" section below.
 - Fast paths.
-- Encoder quality levels 10 and 11, encoder dictionaries and large-window
-  encoding at qualities 3 and above (see the "Encoder" section below).
+- Encoder dictionaries and large-window encoding at qualities 3 and above
+  (see the "Encoder" section below).
 
 
 ## Encoder
@@ -169,7 +169,7 @@ the Wuffs code mirrors the C code function by function, with comments like
 point arithmetic (the C code's `double`s) uses `std/softfloat`, so that the
 results are bit-exact regardless of the compiler and CPU.
 
-Qualities 0 to 9 are implemented: qualities 0 and 1 (the C code's
+All qualities (0 to 11) are implemented: qualities 0 and 1 (the C code's
 `FAST_ONE_PASS_COMPRESSION_QUALITY` and `FAST_TWO_PASS_COMPRESSION_QUALITY`,
 implemented by `compress_fragment.c` and `compress_fragment_two_pass.c`) and
 qualities 2 to 9 (the C code's `EncodeData` path: a ring buffer, hashers,
@@ -177,10 +177,14 @@ qualities 2 to 9 (the C code's `EncodeData` path: a ring buffer, hashers,
 `WriteMetaBlockInternal`, which picks `BrotliStoreMetaBlockFast` at quality
 2, `BrotliStoreMetaBlockTrivial` at quality 3 and, at qualities 4 to 9, the
 literal context modeling heuristics, `BrotliBuildMetaBlockGreedy`,
-`BrotliOptimizeHistograms` and `BrotliStoreMetaBlock`). For qualities 10 and
-11 (including the default quality, 11), and for large-window brotli at
-qualities 3 and above, `transform_io` returns
-`"#unsupported encoder quality"` (and `workbuf_len` is 0). Large-window
+`BrotliOptimizeHistograms` and `BrotliStoreMetaBlock`) and qualities 10 and
+11 (the default is 11: the same `EncodeData` path with the H10 binary tree
+hasher, `BrotliCreateZopfliBackwardReferences` at quality 10 and
+`BrotliCreateHqZopfliBackwardReferences` at quality 11, and then
+`ChooseContextMode`, `BrotliBuildMetaBlock`, `BrotliOptimizeHistograms` and
+`BrotliStoreMetaBlock`). For large-window brotli at qualities 3 and above,
+`transform_io` returns `"#unsupported encoder quality"` (and `workbuf_len`
+is 0). Large-window
 brotli works at quality 2 (and is ignored at qualities 0 and 1, like the C
 code).
 
@@ -204,7 +208,7 @@ The source files are:
 - `encode_histogram.wuffs`: `histogram.h`, `histogram_inc.h` and
   `histogram.c` (histogram helpers and `BrotliBuildHistogramsWithContext`),
   also as `bit_cost` methods.
-- `encode_data.wuffs`: the rest of `encode.c` that qualities 2 to 9 use
+- `encode_data.wuffs`: the rest of `encode.c` that qualities 2 to 11 use
   (`EncodeData`, `WriteMetaBlockInternal`, `ShouldCompress`,
   `DecideOverLiteralContextModeling`, `ChooseContextMap`, `UpdateSizeHint`,
   `ExtendLastCommand`, etc), `ringbuffer.h`, the `quality.h` helpers and the
@@ -221,6 +225,25 @@ The source files are:
   `BrotliStoreMetaBlockFast`, `BrotliStoreMetaBlock`, block split codes,
   `EncodeContextMap` with move-to-front and run-length coding,
   `BuildAndStoreEntropyCodes`, etc).
+- `encode_hash_to_binary_tree.wuffs`: `hash_to_binary_tree_inc.h` (the H10
+  hasher of qualities 10 and 11, including `StoreRange`,
+  `StitchToPreviousBlock` and `FindAllMatches`).
+- `encode_static_dict.wuffs`: `static_dict.c`'s
+  `BrotliFindAllStaticDictionaryMatches` (every transform), with the
+  `static_dict_lut.h` tables.
+- `encode_literal_cost.wuffs`: `literal_cost.c`
+  (`BrotliEstimateBitCostsForLiterals`, with `utf8_util.c`'s
+  `BrotliIsMostlyUTF8`), in f32 arithmetic via `std/softfloat`.
+- `encode_zopfli.wuffs`: `backward_references_hq.c` (the `ZopfliNode` array,
+  `ZopfliCostModel`, `StartPosQueue`, `UpdateNodes`,
+  `ZopfliComputeShortestPath`, `ZopfliCreateCommands`,
+  `BrotliCreateZopfliBackwardReferences` and
+  `BrotliCreateHqZopfliBackwardReferences`), with the C code's f32 costs as
+  binary32 bit patterns.
+- `encode_store_hq.wuffs`: the quality 10 and 11 parts of
+  `WriteMetaBlockInternal` (`ChooseContextMode`, the `metablock_builder` call
+  and `BrotliStoreMetaBlock` with any literal context mode and context maps)
+  and the quality 10 and 11 workbuf sizing.
 - `encode_metablock_greedy.wuffs`: `BrotliBuildMetaBlockGreedy` (and its
   greedy block splitters, `metablock_inc.h`) and `BrotliOptimizeHistograms`
   for its output.
@@ -234,10 +257,10 @@ The source files are:
 - `encode_metablock.wuffs`: the `metablock_builder` struct and `metablock.c`
   (`BrotliInitDistanceParams`, `BrotliBuildMetaBlock`,
   `BrotliOptimizeHistograms`). See "Encoder Metablock Builder" below.
-  Only quality 10 and above use `BrotliBuildMetaBlock`, so the encoder does
-  not call it yet, but it uses some of the smaller functions
-  (`BrotliInitDistanceParams`, `PrefixEncodeCopyDistance`,
-  `CommandRestoreDistanceCode` and `BrotliOptimizeHuffmanCountsForRle`).
+  Only qualities 10 and 11 use `BrotliBuildMetaBlock` (lower qualities use
+  some of the smaller functions: `BrotliInitDistanceParams`,
+  `PrefixEncodeCopyDistance`, `CommandRestoreDistanceCode` and
+  `BrotliOptimizeHuffmanCountsForRle`).
 - `encode_tester.wuffs`: TEST ONLY. The `metablock_tester` struct exposes
   the internal functions above to C test programs. It is not part of the
   encoder API.
@@ -372,6 +395,9 @@ lgblock and an unset size hint):
 | 7       | 4.4      | 4.4      | 13.8     | 51.4     | 107.5    |
 | 9       | 5.1      | 5.1      | 39.5     | 77.1     | 133.2    |
 
+At qualities 10 and 11, `workbuf_len` is a range instead (see the next
+section).
+
 Fixed-size state (the hash table and command and literal buffers of
 qualities 0 and 1, the Huffman scratch space, the greedy block splitters'
 state, the block encoders' block type and length codes, etc) lives in the `encoder` struct (which is therefore
@@ -380,6 +406,82 @@ about 2.5 MiB). It does not need zero-initializing:
 qualities 0 and 1, the input block is not copied: the encoder compresses
 directly from `src`. At qualities 2 to 9, like the C code, the input is
 copied into the ring buffer.
+
+
+### Qualities 10 and 11 Workbuf Length
+
+At qualities 10 and 11, the workbuf has the same regions as at quality 9
+(with `cmds_cap` computed the same way), except that:
+
+- region 3 is the H10 hasher: `4 << 17` bytes of buckets (u32le) and then
+  the binary tree forest (`8 << lgwin` bytes, u32le), and
+- region 5 keeps only the literal context map, `rle_symbols` and the block
+  encoders' depths and bits, followed by a variable region, which runs from
+  there to the end of the workbuf (however long that is).
+
+The variable region holds, at different times, the Zopfli scratch space
+(while `EncodeData` computes the backward references: `(n + 1)` 16-byte
+`ZopfliNode`s, `(n + 2)` f32 literal costs and, at quality 10, room for one
+position's matches or, at quality 11, `n` u32 match counts followed by the
+8-byte `BackwardMatch`es of the whole input block, for an input block of `n`
+bytes) and then the `metablock_builder`'s workbuf (see "Encoder Metablock
+Builder" below), whose results the metablock store then reads.
+
+The C code allocates these as it goes, for the actual input, and their worst
+cases are huge (see `workbuf_len_worst_case` below), so `workbuf_len` returns
+a range whose `max_incl` is the C code's worst case for the sanitized
+parameters (saturating at `0xFFFF_FFFF_FFFF_FFFF`) and whose `min_incl` is a
+practical bound. Both have the same fixed regions, followed by a variable
+region of `max(Z, M)` bytes, where `L` is the most literals that a metablock
+can hold (`min(max_len, (max_len / 8) + (1 << lgblock))`, since `EncodeData`
+merges another input block only while there are fewer than `max_len / 8`
+literals) and:
+
+- `Z` is the Zopfli scratch space for `n = 1 << lgblock` bytes, with up to
+  100 `BackwardMatch`es per byte (`max_incl`: up to 2 from the short
+  distance scan, 64 from the binary tree and 34 from the static dictionary)
+  or 16 per byte (`min_incl`), and
+- `M` is the `metablock_builder`'s `workbuf_len_worst_case(L, cmds_cap)`
+  (`max_incl`) or `workbuf_len_practical(L, cmds_cap)` (`min_incl`).
+
+`workbuf_len_practical` is `workbuf_len_worst_case` with these caps:
+`FindBlocks` makes at most `(k / 16) + 1` blocks for `k` literals, commands
+or distances (instead of one block per symbol), `ClusterBlocks`' first phase
+makes at most `(k / 64) + 64` clusters and there are at most that many (and
+at most 256) block types. Over 142 files from `test/data` (including
+`harvesters.bmp`, 3 MiB, and other images, text, JSON and binaries) and some
+synthetic inputs, at qualities 10 and 11 and lgwins 16 and 24, the C
+algorithm's actual maxima were one block per 83 literals (per 85 commands,
+per 154 distances), one first-phase cluster per 286 literals (per 915
+commands) and about 7.4 `BackwardMatch`es per byte (for random text over a
+2-letter alphabet; at most 2.3 for the files), so the caps have a margin of
+at least 4x. The largest `metablock_builder` workbuf used was 43.7 MB, for
+2.1 MiB of literals.
+
+This is one documented deviation from the C code: with a workbuf of at least
+`min_incl` but less than `max_incl` bytes, an input that needs more than the
+variable region holds makes `transform_io` return `"#bad workbuf length"`
+(where the C code would allocate more memory). A workbuf of `max_incl` bytes
+never fails. In MiB (with the default lgblock, which is
+`min(18, lgwin)` for lgwin above 16 and 16 otherwise), `min_incl` and
+`max_incl` are:
+
+| quality | lgwin 10      | lgwin 16      | lgwin 18      | lgwin 22       | lgwin 24       |
+| ------- | ------------- | ------------- | ------------- | -------------- | -------------- |
+| 10      | 91.7 .. 288.0 | 92.2 .. 288.5 | 128.7 .. 914.2 | 403.0 .. 5116.1 | 775.5 .. 9678.1 |
+| 11      | 91.7 .. 288.0 | 92.2 .. 288.5 | 128.7 .. 914.2 | 403.0 .. 5116.1 | 775.5 .. 9678.1 |
+
+(Quality 11's extra `BackwardMatch` storage fits in the space that the
+`metablock_builder` needs anyway, so the two rows are equal. With lgblock
+24, `min_incl` is about 2.1 GiB at quality 10 and 2.6 GiB at quality 11.)
+
+At qualities 10 and 11, every command's distance code is less than `1 <<
+25` (distances are at most `(1 << lgwin) - 16` or, for static dictionary
+words, at most the C code's `max_distance` check in `FindAllMatchesH10` and
+less than `(1 << 24) + (1 << 17)`, plus 15 for the distance code), which
+satisfies the `metablock_builder`'s precondition (distance codes at most the
+distance params' `max_distance`, which is at least `(1 << 26) - 4` without
+large-window brotli).
 
 
 ### Encoder Operation Mapping
@@ -432,7 +534,7 @@ emitting the flint, and its callers then call it again.
 ### Encoder Testing
 
 `wuffs test -mimic std/brotli` checks byte-exact parity with libbrotlienc
-over a grid of qualities (0 to 9), lgwins, modes, input chunkings, flushes,
+over a grid of qualities (0 to 11), lgwins, modes, input chunkings, flushes,
 metadata blocks, size hints and other parameters (lgblock, npostfix, ndirect,
 disabling literal context modeling, stream offset, large window at quality 2),
 as well as round trips through the decoder.
@@ -473,6 +575,13 @@ libbrotlienc v1.2.1 on x86-64.
   encoder's arrays instead of a slice.
 - Like the C code, there is no fallback to an uncompressed stream (that is
   only in the C code's one-shot `BrotliEncoderCompress`).
+- At qualities 10 and 11, a workbuf between `workbuf_len`'s `min_incl` and
+  `max_incl` can be too short for an unusual input, which then fails with
+  `"#bad workbuf length"` (see "Qualities 10 and 11 Workbuf Length").
+- At qualities 10 and 11, the C code's f32 costs (`ZopfliNode` costs, the
+  cost model and literal costs) are computed with `std/softfloat`'s binary32
+  operations, rounding each operation to f32 like an SSE2 build (whose
+  `float` arithmetic has no excess precision).
 
 
 ### Encoder Metablock Builder
@@ -480,8 +589,9 @@ libbrotlienc v1.2.1 on x86-64.
 The `metablock_builder` struct (a `pri struct`, embeddable in the encoder
 with one field, e.g. `mb : metablock_builder` in the private data section)
 implements the quality 10 and 11 metablock construction (`BrotliBuildMetaBlock`)
-and `BrotliOptimizeHistograms`. The encoder has one (its `mb` field) but
-only calls its smaller helpers so far (see the source file list above). Its
+and `BrotliOptimizeHistograms`. The encoder has one (its `mb` field) and
+uses it at qualities 10 and 11 (and its smaller helpers at lower
+qualities). Its
 fixed-size state (about 0.8 MiB: FindBlocks' cost arrays and a 64Ki-entry
 FastLog2 cache in its `bit_cost`) lives in the struct; everything that the C
 code allocates on the heap lives in a caller-supplied workbuf.
@@ -556,6 +666,10 @@ The exact signatures are:
   of the port. `wb_high` records what a call actually used: over the parity
   harness's inputs, at most about 42 MB (for 1.3 MiB of literals split into
   256 literal block types).
+- `workbuf_len_practical(num_literals: u64, num_commands: u64) u64` is the
+  same bound with caps on the numbers of blocks and clusters (see
+  "Qualities 10 and 11 Workbuf Length"), which the encoder uses for its
+  `workbuf_len().min_incl`.
 
 The MetaBlockSplit result is described by these fields, indexed by category
 (0 = literal, 1 = command, 2 = distance), with offsets into `wb`:
@@ -596,11 +710,13 @@ metablock) for as long as it needs the results.
 
 ### Encoder TODO
 
-- Qualities 10 and 11 (Zopfli, the H10 binary tree hasher and
-  `BrotliBuildMetaBlock`, which is already ported in `encode_metablock.wuffs`).
 - Large-window encoding at qualities 3 and above (it works at quality 2).
-- `workbuf_len` is a worst case. A future option could take the input length
-  (like the C code's size hint) to give a tighter bound.
+- `workbuf_len` is a worst case (or, at qualities 10 and 11, a practical
+  bound). A future option could take the input length (like the C code's
+  size hint) to give a tighter bound.
+- Speed: at qualities 10 and 11 the Wuffs encoder is several times slower
+  than libbrotlienc, mostly because of the soft float arithmetic in the
+  block splitter and histogram clustering.
 - Custom and shared dictionaries (`BrotliEncoderAttachPreparedDictionary`).
 - Changing parameters mid-stream.
 

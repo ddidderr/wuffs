@@ -25,6 +25,11 @@ In Wuffs syntax, the `base.io_transformer` methods are:
 - `transform_io?(dst: io_writer, src: io_reader, workbuf: slice u8)`
 - `workbuf_len() range_ii_u64`
 
+A workbuf of `workbuf_len().max_incl` bytes always suffices. Some encoders
+(e.g. brotli at qualities 10 and 11) have a smaller `min_incl`, which is
+enough for realistic inputs: with a workbuf shorter than `max_incl`, an
+unusual input can make `transform_io` return `"#bad workbuf length"`.
+
 Encoders may have further, format-specific methods. For example, the brotli
 encoder has `request_flush`, `request_emit_metadata` and
 `max_compressed_size`.
@@ -32,4 +37,4 @@ encoder has `request_flush`, `request_emit_metadata` and
 
 ## Implementations
 
-- [std/brotli](/std/brotli/README.md#encoder) (qualities 0 to 9 only).
+- [std/brotli](/std/brotli/README.md#encoder) (qualities 0 to 11, without encoder dictionaries).
