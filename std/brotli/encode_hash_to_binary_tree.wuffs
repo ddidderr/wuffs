@@ -1,0 +1,330 @@
+// Copyright 2026 The Wuffs Authors.
+//
+// Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
+// https://www.apache.org/licenses/LICENSE-2.0> or the MIT license
+// <LICENSE-MIT or https://opensource.org/licenses/MIT>, at your
+// option. This file may not be copied, modified, or distributed
+// except according to those terms.
+//
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+
+// --------
+
+// This file mirrors hash_to_binary_tree_inc.h, as instantiated in hash.h for
+// the H10 hasher (BUCKET_BITS 17, MAX_TREE_SEARCH_DEPTH 64 and
+// MAX_TREE_COMP_LENGTH 128), which qualities 10 and 11 use.
+//
+// The hasher's memory (the C code's common->extra[0] and extra[1]) is in the
+// workbuf: the buckets (H10_BUCKET_SIZE u32le values) at this.h_off0 and the
+// forest (2 << lgwin u32le values) at this.h_off1.
+//
+// A BackwardMatch (backward_references_hq.h's matches) is 8 bytes in the
+// workbuf: distance (u32le) and length_and_code (u32le).
+
+// Mirrors BUCKET_BITS and BUCKET_SIZE for H10.
+pri const H10_BUCKET_BITS : base.u32 = 17
+pri const H10_BUCKET_SIZE : base.u64 = 0x2_0000
+
+// Mirrors MAX_TREE_SEARCH_DEPTH and MAX_TREE_COMP_LENGTH for H10.
+pri const H10_MAX_TREE_SEARCH_DEPTH : base.u32 = 64
+pri const H10_MAX_TREE_COMP_LENGTH  : base.u64 = 128
+
+// Mirrors MAX_NUM_MATCHES_H10 in hash.h.
+pri const MAX_NUM_MATCHES_H10 : base.u64 = 128
+
+// Mirrors BROTLI_WINDOW_GAP in constants.h.
+pri const BROTLI_WINDOW_GAP : base.u64 = 16
+
+// h10_alloc_size_1 returns the forest's byte length (the C code's
+// alloc_size[1], for the largest num_nodes, 1 << lgwin).
+pri func encoder.h10_alloc_size_1(lgwin: base.u32[..= 30]) base.u64[..= 0x2_0000_0000] {
+    return (8 as base.u64) << args.lgwin
+}
+
+// Mirrors FN(Initialize) and FN(Prepare) in hash_to_binary_tree_inc.h.
+pri func encoder.h10_prepare!(wb: slice base.u8) {
+    var i : base.u64
+
+    this.h10_window_mask = ((1 as base.u64) << this.lgwin) - 1
+    this.h10_invalid_pos = (((0 as base.u64) ~mod- this.h10_window_mask) & 0xFFFF_FFFF) as base.u32
+    i = 0
+    while i < H10_BUCKET_SIZE {
+        this.poke_u32!(s: args.wb, i: this.h_off0 ~mod+ (i * 4), v: this.h10_invalid_pos)
+        i ~mod+= 1
+    }
+}
+
+// Mirrors FN(HashBytes) in hash_to_binary_tree_inc.h.
+pri func encoder.h10_hash_bytes(data: roslice base.u8, i: base.u64) base.u32 {
+    return (this.load32le(s: args.data, i: args.i) ~mod* HASH_MUL_32) >> (32 - H10_BUCKET_BITS)
+}
+
+// h10_forest returns forest[index].
+pri func encoder.h10_forest(wb: roslice base.u8, index: base.u64) base.u64 {
+    return this.load32le(s: args.wb, i: this.h_off1 ~mod+ (args.index ~mod* 4)) as base.u64
+}
+
+// h10_set_forest sets forest[index] to v.
+pri func encoder.h10_set_forest!(wb: slice base.u8, index: base.u64, v: base.u64) {
+    this.poke_u32!(s: args.wb, i: this.h_off1 ~mod+ (args.index ~mod* 4), v: (args.v & 0xFFFF_FFFF) as base.u32)
+}
+
+// set_backward_match sets the BackwardMatch at args.wb[off ..] to distance
+// and length_and_code (the C code's InitBackwardMatch and
+// InitDictionaryBackwardMatch).
+pri func encoder.set_backward_match!(wb: slice base.u8, off: base.u64, distance: base.u64, length_and_code: base.u64) {
+    this.poke_u32!(s: args.wb, i: args.off, v: (args.distance & 0xFFFF_FFFF) as base.u32)
+    this.poke_u32!(s: args.wb, i: args.off ~mod+ 4, v: (args.length_and_code & 0xFFFF_FFFF) as base.u32)
+}
+
+// Mirrors FN(StoreAndFindMatches) in hash_to_binary_tree_inc.h. If find is
+// true, it is the C code's non-NULL matches case: it records each match
+// longer than this.h10_best_len (updating this.h10_best_len) at
+// args.wb[matches_off ..] and returns how many it recorded.
+pri func encoder.h10_store_and_find_matches!(wb: slice base.u8, cur_ix: base.u64, max_length: base.u64, max_backward: base.u64,
+        find: base.bool, matches_off: base.u64) base.u64 {
+    var data               : roslice base.u8
+    var mask               : base.u64
+    var cur_ix_masked      : base.u64
+    var max_comp_len       : base.u64
+    var should_reroot_tree : base.bool
+    var key                : base.u32
+    var prev_ix            : base.u64
+    var node_left          : base.u64
+    var node_right         : base.u64
+    var best_len_left      : base.u64
+    var best_len_right     : base.u64
+    var depth_remaining    : base.u32
+    var backward           : base.u64
+    var prev_ix_masked     : base.u64
+    var cur_len            : base.u64
+    var len                : base.u64
+    var n                  : base.u64
+
+    if this.rb_buf_off > args.wb.length() {
+        return 0
+    }
+    data = args.wb[this.rb_buf_off ..]
+    mask = this.rb_mask as base.u64
+    cur_ix_masked = args.cur_ix & mask
+    max_comp_len = args.max_length.min(no_more_than: H10_MAX_TREE_COMP_LENGTH)
+    should_reroot_tree = args.max_length >= H10_MAX_TREE_COMP_LENGTH
+    key = this.h10_hash_bytes(data: data, i: cur_ix_masked)
+    prev_ix = this.load32le(s: args.wb, i: this.h_off0 ~mod+ ((key as base.u64) * 4)) as base.u64
+    // The forest index of the rightmost node of the left subtree of the new
+    // root, updated as we traverse and re-root the tree of the hash bucket.
+    node_left = 2 ~mod* (args.cur_ix & this.h10_window_mask)
+    // The forest index of the leftmost node of the right subtree of the new
+    // root, updated as we traverse and re-root the tree of the hash bucket.
+    node_right = node_left ~mod+ 1
+    if should_reroot_tree {
+        this.poke_u32!(s: args.wb, i: this.h_off0 ~mod+ ((key as base.u64) * 4), v: (args.cur_ix & 0xFFFF_FFFF) as base.u32)
+    }
+    depth_remaining = H10_MAX_TREE_SEARCH_DEPTH
+    while true {
+        backward = args.cur_ix ~mod- prev_ix
+        prev_ix_masked = prev_ix & mask
+        if (backward == 0) or (backward > args.max_backward) or (depth_remaining == 0) {
+            if should_reroot_tree {
+                this.h10_set_forest!(wb: args.wb, index: node_left, v: this.h10_invalid_pos as base.u64)
+                this.h10_set_forest!(wb: args.wb, index: node_right, v: this.h10_invalid_pos as base.u64)
+            }
+            break
+        }
+        cur_len = best_len_left.min(no_more_than: best_len_right)
+        len = cur_len ~mod+ this.find_match_length_with_limit(
+                s: data, i1: cur_ix_masked ~mod+ cur_len, i2: prev_ix_masked ~mod+ cur_len,
+                limit: args.max_length ~mod- cur_len)
+        if args.find and (len > this.h10_best_len) {
+            this.h10_best_len = len
+            this.set_backward_match!(wb: args.wb, off: args.matches_off ~mod+ (n ~mod* 8),
+                    distance: backward, length_and_code: len ~mod<< 5)
+            n ~mod+= 1
+        }
+        if len >= max_comp_len {
+            if should_reroot_tree {
+                this.h10_set_forest!(wb: args.wb, index: node_left,
+                        v: this.h10_forest(wb: args.wb, index: 2 ~mod* (prev_ix & this.h10_window_mask)))
+                this.h10_set_forest!(wb: args.wb, index: node_right,
+                        v: this.h10_forest(wb: args.wb, index: (2 ~mod* (prev_ix & this.h10_window_mask)) ~mod+ 1))
+            }
+            break
+        }
+        if this.byte_at(s: data, i: cur_ix_masked ~mod+ len) > this.byte_at(s: data, i: prev_ix_masked ~mod+ len) {
+            best_len_left = len
+            if should_reroot_tree {
+                this.h10_set_forest!(wb: args.wb, index: node_left, v: prev_ix)
+            }
+            node_left = (2 ~mod* (prev_ix & this.h10_window_mask)) ~mod+ 1
+            prev_ix = this.h10_forest(wb: args.wb, index: node_left)
+        } else {
+            best_len_right = len
+            if should_reroot_tree {
+                this.h10_set_forest!(wb: args.wb, index: node_right, v: prev_ix)
+            }
+            node_right = 2 ~mod* (prev_ix & this.h10_window_mask)
+            prev_ix = this.h10_forest(wb: args.wb, index: node_right)
+        }
+        depth_remaining ~mod-= 1
+    }
+    return n
+}
+
+// Mirrors FN(FindAllMatches) in hash_to_binary_tree_inc.h, for the built-in
+// static dictionary. It records the matches at args.wb[matches_off ..] and
+// returns how many it recorded.
+pri func encoder.h10_find_all_matches!(wb: slice base.u8, cur_ix: base.u64, max_length: base.u64, max_backward: base.u64,
+        dictionary_distance: base.u64, matches_off: base.u64) base.u64 {
+    var data                     : roslice base.u8
+    var mask                     : base.u64
+    var cur_ix_masked            : base.u64
+    var short_match_max_backward : base.u64
+    var stop                     : base.u64
+    var i                        : base.u64
+    var prev_ix                  : base.u64
+    var backward                 : base.u64
+    var len                      : base.u64
+    var n                        : base.u64
+    var minlen                   : base.u64
+    var maxlen                   : base.u64
+    var l                        : base.u64
+    var dict_id                  : base.u32
+    var distance                 : base.u64
+    var found                    : base.bool
+    var len_code                 : base.u64
+
+    if this.rb_buf_off > args.wb.length() {
+        return 0
+    }
+    data = args.wb[this.rb_buf_off ..]
+    mask = this.rb_mask as base.u64
+    cur_ix_masked = args.cur_ix & mask
+    this.h10_best_len = 1
+    short_match_max_backward = 16
+    if this.quality == 11 {
+        short_match_max_backward = 64
+    }
+    stop = args.cur_ix ~mod- short_match_max_backward
+    if args.cur_ix < short_match_max_backward {
+        stop = 0
+    }
+    i = args.cur_ix ~mod- 1
+    while (i > stop) and (this.h10_best_len <= 2) {
+        prev_ix = i
+        backward = args.cur_ix ~mod- prev_ix
+        if backward > args.max_backward {
+            break
+        }
+        prev_ix &= mask
+        if (this.byte_at(s: data, i: cur_ix_masked) == this.byte_at(s: data, i: prev_ix)) and
+                (this.byte_at(s: data, i: cur_ix_masked ~mod+ 1) == this.byte_at(s: data, i: prev_ix ~mod+ 1)) {
+            len = this.find_match_length_with_limit(s: data, i1: prev_ix, i2: cur_ix_masked, limit: args.max_length)
+            if len > this.h10_best_len {
+                this.h10_best_len = len
+                this.set_backward_match!(wb: args.wb, off: args.matches_off ~mod+ (n ~mod* 8),
+                        distance: backward, length_and_code: len ~mod<< 5)
+                n ~mod+= 1
+            }
+        }
+        i ~mod-= 1
+    }
+    if this.h10_best_len < args.max_length {
+        n ~mod+= this.h10_store_and_find_matches!(wb: args.wb, cur_ix: args.cur_ix, max_length: args.max_length,
+                max_backward: args.max_backward, find: true, matches_off: args.matches_off ~mod+ (n ~mod* 8))
+    }
+    l = 0
+    while l <= SD_MAX_MATCH_LEN {
+        this.sd_matches[l] = SD_INVALID_MATCH
+        l ~mod+= 1
+    }
+    minlen = this.h10_best_len ~mod+ 1
+    minlen = minlen.max(no_less_than: 4)
+    if cur_ix_masked <= data.length() {
+        found = this.find_all_static_dictionary_matches!(data: data[cur_ix_masked ..], min_length: minlen, max_length: args.max_length)
+    }
+    if found {
+        maxlen = args.max_length.min(no_more_than: SD_MAX_MATCH_LEN)
+        l = minlen
+        while l <= maxlen {
+            dict_id = this.sd_matches[l.min(no_more_than: 37)]
+            if dict_id < SD_INVALID_MATCH {
+                distance = (args.dictionary_distance ~mod+ ((dict_id >> 5) as base.u64)) ~mod+ 1
+                if distance <= this.dist_max_distance {
+                    // InitDictionaryBackwardMatch.
+                    len_code = (dict_id & 31) as base.u64
+                    if l == len_code {
+                        len_code = 0
+                    }
+                    this.set_backward_match!(wb: args.wb, off: args.matches_off ~mod+ (n ~mod* 8),
+                            distance: distance, length_and_code: (l ~mod<< 5) | len_code)
+                    n ~mod+= 1
+                }
+            }
+            l ~mod+= 1
+        }
+    }
+    return n
+}
+
+// Mirrors FN(Store) in hash_to_binary_tree_inc.h.
+pri func encoder.h10_store!(wb: slice base.u8, ix: base.u64) {
+    var max_backward : base.u64
+
+    // Maximum distance is window size - 16, see section 9.1. of the spec.
+    max_backward = (this.h10_window_mask ~mod- BROTLI_WINDOW_GAP) ~mod+ 1
+    this.h10_store_and_find_matches!(wb: args.wb, cur_ix: args.ix, max_length: H10_MAX_TREE_COMP_LENGTH,
+            max_backward: max_backward, find: false, matches_off: 0)
+}
+
+// Mirrors FN(StoreRange) in hash_to_binary_tree_inc.h.
+pri func encoder.h10_store_range!(wb: slice base.u8, ix_start: base.u64, ix_end: base.u64) {
+    var i : base.u64
+    var j : base.u64
+
+    i = args.ix_start
+    j = args.ix_start
+    if (args.ix_start ~mod+ 63) <= args.ix_end {
+        i = args.ix_end ~mod- 63
+    }
+    if (args.ix_start ~mod+ 512) <= i {
+        while j < i {
+            this.h10_store!(wb: args.wb, ix: j)
+            j ~mod+= 8
+        }
+    }
+    while i < args.ix_end {
+        this.h10_store!(wb: args.wb, ix: i)
+        i ~mod+= 1
+    }
+}
+
+// Mirrors FN(StitchToPreviousBlock) in hash_to_binary_tree_inc.h.
+pri func encoder.h10_stitch_to_previous_block!(wb: slice base.u8, num_bytes: base.u64, position: base.u64) {
+    var i_start      : base.u64
+    var i_end        : base.u64
+    var i            : base.u64
+    var max_backward : base.u64
+
+    if (args.num_bytes >= 3) and (args.position >= H10_MAX_TREE_COMP_LENGTH) {
+        // Store the last `MAX_TREE_COMP_LENGTH - 1` positions in the hasher.
+        // These could not be calculated before, since they require knowledge
+        // of both the previous and the current block.
+        i_start = (args.position - H10_MAX_TREE_COMP_LENGTH) + 1
+        i_end = args.position.min(no_more_than: i_start ~mod+ args.num_bytes)
+        i = i_start
+        while i < i_end {
+            // Maximum distance is window size - 16, see section 9.1. of the
+            // spec. Furthermore, we have to make sure that we don't look
+            // further back from the start of the next block than the window
+            // size, otherwise we could access already overwritten areas of
+            // the ring-buffer.
+            max_backward = this.h10_window_mask ~mod- this.max64(a: args.position ~mod- i, b: BROTLI_WINDOW_GAP - 1)
+            // We know that i + MAX_TREE_COMP_LENGTH <= position + num_bytes,
+            // i.e. the end of the current block and that we have at least
+            // MAX_TREE_COMP_LENGTH tail in the ring-buffer.
+            this.h10_store_and_find_matches!(wb: args.wb, cur_ix: i, max_length: H10_MAX_TREE_COMP_LENGTH,
+                    max_backward: max_backward, find: false, matches_off: 0)
+            i ~mod+= 1
+        }
+    }
+}

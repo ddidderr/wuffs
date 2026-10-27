@@ -110,7 +110,9 @@ pri func encoder.choose_hasher!() {
     this.h_bucket_bits = 0
     this.h_block_bits = 0
     this.h_num_last_distances = 0
-    if (q == 4) and (this.size_hint >= 0x10_0000) {
+    if q > 9 {
+        this.hasher_type = 10
+    } else if (q == 4) and (this.size_hint >= 0x10_0000) {
         this.hasher_type = 54
     } else if q < 5 {
         this.hasher_type = q
@@ -194,6 +196,10 @@ pri func encoder.hasher_alloc_size(htype: base.u32, bucket_bits: base.u32[..= 24
         } else if args.i == 1 {
             return 4 * 512 * 512
         }
+    } else if args.htype == 10 {
+        if args.i == 0 {
+            return 4 * H10_BUCKET_SIZE
+        }
     }
     return 0
 }
@@ -246,7 +252,9 @@ pri func encoder.hasher_prepare!(wb: slice base.u8, one_shot: base.bool, input_s
     }
     data = args.wb[this.rb_buf_off ..]
 
-    if (htype == 2) or (htype == 3) or (htype == 4) or (htype == 54) {
+    if htype == 10 {
+        this.h10_prepare!(wb: args.wb)
+    } else if (htype == 2) or (htype == 3) or (htype == 4) or (htype == 54) {
         bsize = (1 as base.u64) << this.hasher_quickly_bucket_bits()
         sweep = this.hasher_quickly_sweep()
         if args.one_shot and (args.input_size <= (bsize >> 5)) {
@@ -419,6 +427,10 @@ pri func encoder.hasher_store!(wb: slice base.u8, ix: base.u64) {
 pri func encoder.hasher_store_range!(wb: slice base.u8, ix_start: base.u64, ix_end: base.u64) {
     var i : base.u64
 
+    if this.hasher_type == 10 {
+        this.h10_store_range!(wb: args.wb, ix_start: args.ix_start, ix_end: args.ix_end)
+        return nothing
+    }
     i = args.ix_start
     while i < args.ix_end {
         this.hasher_store!(wb: args.wb, ix: i)
@@ -428,6 +440,10 @@ pri func encoder.hasher_store_range!(wb: slice base.u8, ix_start: base.u64, ix_e
 
 // Mirrors FN(StitchToPreviousBlock) of every hasher.
 pri func encoder.hasher_stitch_to_previous_block!(wb: slice base.u8, num_bytes: base.u64, position: base.u64) {
+    if this.hasher_type == 10 {
+        this.h10_stitch_to_previous_block!(wb: args.wb, num_bytes: args.num_bytes, position: args.position)
+        return nothing
+    }
     if (args.num_bytes >= (this.hasher_type_length() ~mod- 1)) and (args.position >= 3) {
         this.hasher_store!(wb: args.wb, ix: args.position ~mod- 3)
         this.hasher_store!(wb: args.wb, ix: args.position ~mod- 2)

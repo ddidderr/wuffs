@@ -196,6 +196,34 @@ pub struct encoder? implements base.io_transformer(
         mb_cmap_size : base.u64,
         mb_rle_off   : base.u64,
 
+        // Qualities 10 and 11 (see encode_store_hq.wuffs, encode_zopfli.wuffs,
+        // encode_hash_to_binary_tree.wuffs and encode_literal_cost.wuffs):
+        // the literal context mode (a ContextType), the variable workbuf
+        // region's offset, whether it was too short, the metablock_builder's
+        // highest arena use, the H10 hasher's state, BrotliParseAsUTF8's
+        // symbol, the ZopfliCostModel's scalars, the Zopfli workbuf offsets
+        // and the StartPosQueue's idx_ and the PosData being pushed.
+        literal_context_mode : base.u32,
+        var_off              : base.u64,
+        hq_insufficient      : base.bool,
+        hq_wb_high           : base.u64,
+        h10_window_mask      : base.u64,
+        h10_invalid_pos      : base.u32,
+        h10_best_len         : base.u64,
+        lc_symbol            : base.u32,
+        z_num_bytes          : base.u64,
+        z_dist_hist_size     : base.u32,
+        z_min_cost_cmd       : base.u32,
+        z_nodes_off          : base.u64,
+        z_lit_off            : base.u64,
+        z_nm_off             : base.u64,
+        z_m_off              : base.u64,
+        z_m_cap              : base.u64,
+        zq_idx               : base.u64,
+        zp_pos               : base.u64,
+        zp_cost              : base.u32,
+        zp_costdiff          : base.u32,
+
         sf   : softfloat.arith,
         util : base.utility,
 ) + (
@@ -316,6 +344,24 @@ pub struct encoder? implements base.io_transformer(
         // literal_buf_ (quality 1 only).
         command_buf : array[131072] base.u32,
         literal_buf : array[131072] base.u8,
+
+        // Qualities 10 and 11: BrotliFindAllStaticDictionaryMatches'
+        // matches, BrotliEstimateBitCostsForLiterals' histogram, the
+        // ZopfliCostModel's arrays (and its ZopfliCostModelArena), the
+        // StartPosQueue's PosData elements and the PosData being pushed.
+        sd_matches     : array[38] base.u32,
+        lc_histogram   : array[768] base.u32,
+        z_cost_cmd     : array[704] base.u32,
+        z_cost_dist    : array[544] base.u32,
+        z_hist_lit     : array[256] base.u32,
+        z_hist_cmd     : array[704] base.u32,
+        z_hist_dist    : array[544] base.u32,
+        z_cost_literal : array[256] base.u32,
+        zq_pos         : array[8] base.u64,
+        zq_cost        : array[8] base.u32,
+        zq_costdiff    : array[8] base.u32,
+        zq_dc          : array[32] base.u32,
+        zp_dc          : array[4] base.u32,
 )
 
 pub func encoder.get_quirk(key: base.u32) base.u64 {
@@ -421,6 +467,8 @@ pub func encoder.workbuf_len() base.range_ii_u64 {
     } else if (q <= 9) and ((q == 2) or (this.p_large_window == 0)) {
         n = this.compute_layout_offset(quality: q, lgwin: lgwin,
                 lgblock: this.computed_lgblock(quality: q, lgwin: lgwin), idx: LAYOUT_END)
+    } else if (q >= 10) and (this.p_large_window == 0) {
+        return this.workbuf_len_hq(quality: q, lgwin: lgwin)
     }
     return this.util.make_range_ii_u64(min_incl: n, max_incl: n)
 }
@@ -592,7 +640,7 @@ pri func encoder.ensure_initialized!() {
 
     if this.quality == 0 {
         this.init_command_prefix_codes!()
-    } else if (2 <= this.quality) and (this.quality <= 9) {
+    } else if 2 <= this.quality {
         // RingBufferSetup and the workbuf layout.
         this.compute_layout!()
     }
@@ -801,9 +849,8 @@ pub func encoder.transform_io?(dst: base.io_writer, src: base.io_reader, workbuf
     var copy_input_size : base.u64
 
     this.ensure_initialized!()
-    if (this.quality > 9) or (this.large_window and (this.quality > 2)) {
-        // TODO: implement Zopfli (qualities 10 and 11) and large-window
-        // brotli at qualities 3 and above.
+    if this.large_window and (this.quality > 2) {
+        // TODO: implement large-window brotli at qualities 3 and above.
         return "#unsupported encoder quality"
     } else if (this.quality >= 2) and (args.workbuf.length() < this.workbuf_end) {
         return base."#bad workbuf length"

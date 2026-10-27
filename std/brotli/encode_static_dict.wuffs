@@ -1,0 +1,687 @@
+// Copyright 2026 The Wuffs Authors.
+//
+// Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
+// https://www.apache.org/licenses/LICENSE-2.0> or the MIT license
+// <LICENSE-MIT or https://opensource.org/licenses/MIT>, at your
+// option. This file may not be copied, modified, or distributed
+// except according to those terms.
+//
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+
+// --------
+
+// This file mirrors static_dict.c: BrotliFindAllStaticDictionaryMatches, for
+// the built-in dictionary (without a custom or shared dictionary, so there is
+// no second dictionary and no BROTLI_EXPERIMENTAL trie). Qualities 10 and 11
+// (the H10 hasher's FindAllMatches) use it.
+//
+// The C code's matches array is this.sd_matches: for each length l (up to
+// BROTLI_MAX_STATIC_DICTIONARY_MATCH_LEN, which is 37), the smallest
+// ((distance << 5) + len_code) found, or SD_INVALID_MATCH.
+//
+// The data argument of these functions is the ring buffer, starting at the
+// current position. The C code reads at most max_length bytes of it (and
+// max_length is at least 4).
+
+// Mirrors kInvalidMatch in static_dict.h.
+pri const SD_INVALID_MATCH : base.u32 = 0xFFF_FFFF
+
+// Mirrors BROTLI_MAX_STATIC_DICTIONARY_MATCH_LEN in static_dict.h.
+pri const SD_MAX_MATCH_LEN : base.u64 = 37
+
+// Mirrors AddMatch in static_dict.c.
+pri func encoder.sd_add_match!(distance: base.u64, len: base.u64, len_code: base.u64) {
+    var m : base.u32
+
+    m = (((args.distance ~mod<< 5) ~mod+ args.len_code) & 0xFFFF_FFFF) as base.u32
+    if args.len <= SD_MAX_MATCH_LEN {
+        if m < this.sd_matches[args.len] {
+            this.sd_matches[args.len] = m
+        }
+    }
+}
+
+// Mirrors DictMatchLength in static_dict.c.
+pri func encoder.sd_dict_match_length(data: roslice base.u8, id: base.u64, len: base.u32[..= 31], maxlen: base.u64) base.u64 {
+    var offset : base.u64
+
+    offset = (DICTIONARY_OFFSETS_BY_LENGTH[args.len] as base.u64) ~mod+ ((args.len as base.u64) ~mod* args.id)
+    return this.find_match_length_dict(data: args.data, i: 0, d: offset,
+            limit: this.min64(a: args.len as base.u64, b: args.maxlen))
+}
+
+// Mirrors IsMatch in static_dict.c, for the DictWord {len, transform, idx}
+// and data[skip ..].
+pri func encoder.sd_is_match(data: roslice base.u8, skip: base.u64, len: base.u32[..= 31], transform: base.u32, idx: base.u64, max_length: base.u64) base.bool {
+    var offset : base.u64
+    var i      : base.u64
+    var c      : base.u8
+
+    if (args.len as base.u64) > args.max_length {
+        return false
+    }
+    offset = (DICTIONARY_OFFSETS_BY_LENGTH[args.len] as base.u64) ~mod+ ((args.len as base.u64) ~mod* args.idx)
+    if args.transform == 0 {
+        // Match against base dictionary word.
+        return this.find_match_length_dict(data: args.data, i: args.skip, d: offset,
+                limit: args.len as base.u64) == (args.len as base.u64)
+    } else if args.transform == 10 {
+        // Match against uppercase first transform. Note that there are only
+        // ASCII uppercase words in the lookup table.
+        c = this.sd_dict_byte(d: offset)
+        if (c < 'a') or ('z' < c) or ((c ^ 32) <> this.byte_at(s: args.data, i: args.skip)) {
+            return false
+        }
+        return this.find_match_length_dict(data: args.data, i: args.skip ~mod+ 1, d: offset ~mod+ 1,
+                limit: (args.len as base.u64) ~mod- 1) == ((args.len as base.u64) ~mod- 1)
+    }
+    // Match against uppercase all transform. Note that there are only ASCII
+    // uppercase words in the lookup table.
+    i = 0
+    while i < (args.len as base.u64),
+            inv args.len <= 31,
+    {
+        c = this.sd_dict_byte(d: offset ~mod+ i)
+        if ('a' <= c) and (c <= 'z') {
+            if (c ^ 32) <> this.byte_at(s: args.data, i: args.skip ~mod+ i) {
+                return false
+            }
+        } else if c <> this.byte_at(s: args.data, i: args.skip ~mod+ i) {
+            return false
+        }
+        i ~mod+= 1
+    }
+    return true
+}
+
+// sd_hash15 mirrors Hash15 in hash_base.h, for data[skip ..].
+pri func encoder.sd_hash15(data: roslice base.u8, skip: base.u64) base.u32 {
+    return (this.load32le(s: args.data, i: args.skip) ~mod* HASH_MUL_32) >> 17
+}
+
+// Mirrors BrotliFindAllStaticDictionaryMatches (and
+// BrotliFindAllStaticDictionaryMatchesFor) in static_dict.c.
+pri func encoder.find_all_static_dictionary_matches!(data: roslice base.u8, min_length: base.u64, max_length: base.u64) base.bool {
+    var has_found_match : base.bool
+    var offset          : base.u32
+    var end             : base.bool
+    var w               : base.u32
+    var l               : base.u32[..= 31]
+    var n               : base.u64
+    var id              : base.u64
+    var transform       : base.u32
+    var matchlen        : base.u64
+    var minlen          : base.u64
+    var maxlen          : base.u64
+    var len             : base.u64
+    var cut             : base.u64
+    var transform_id    : base.u64
+    var ll              : base.u64
+    var is_all_caps     : base.bool
+    var is_space        : base.bool
+    var s0              : base.u8
+    var s1              : base.u8
+    var s2              : base.u8
+    var s3              : base.u8
+    var s4              : base.u8
+    var s5              : base.u8
+    var s6              : base.u8
+    var d0              : base.u8
+    var d1              : base.u8
+    var t               : base.u64
+    var sk              : base.u64
+
+    offset = STATIC_DICT_LUT_BUCKETS[this.sd_hash15(data: args.data, skip: 0) & 0x7FFF] as base.u32
+    end = offset == 0
+    while not end {
+        w = STATIC_DICT_LUT_WORDS[offset.min(no_more_than: 31704)]
+        offset ~mod+= 1
+        l = w & 0x1F
+        n = (1 as base.u64) << DICTIONARY_SIZE_BITS_BY_LENGTH[l]
+        id = (w >> 16) as base.u64
+        end = (w & 0x80) <> 0
+        transform = (w >> 8) & 0xFF
+        ll = l as base.u64
+        if transform == 0 {
+            matchlen = this.sd_dict_match_length(data: args.data, id: id, len: l, maxlen: args.max_length)
+            // Transform "" + BROTLI_TRANSFORM_IDENTITY + "".
+            if matchlen == ll {
+                this.sd_add_match!(distance: id, len: ll, len_code: ll)
+                has_found_match = true
+            }
+            // Transforms "" + BROTLI_TRANSFORM_OMIT_LAST_1 + "" and
+            // "" + BROTLI_TRANSFORM_OMIT_LAST_1 + "ing ".
+            if matchlen >= (ll ~mod- 1) {
+                this.sd_add_match!(distance: id ~mod+ (12 ~mod* n), len: ll ~mod- 1, len_code: ll)
+                if ((ll ~mod+ 2) < args.max_length) and
+                        (this.byte_at(s: args.data, i: ll ~mod- 1) == 'i') and
+                        (this.byte_at(s: args.data, i: ll) == 'n') and
+                        (this.byte_at(s: args.data, i: ll ~mod+ 1) == 'g') and
+                        (this.byte_at(s: args.data, i: ll ~mod+ 2) == ' ') {
+                    this.sd_add_match!(distance: id ~mod+ (49 ~mod* n), len: ll ~mod+ 3, len_code: ll)
+                }
+                has_found_match = true
+            }
+            // Transform "" + BROTLI_TRANSFORM_OMIT_LAST_# + "" (# = 2 .. 9).
+            minlen = args.min_length
+            if ll > 9 {
+                minlen = minlen.max(no_less_than: ll ~mod- 9)
+            }
+            maxlen = matchlen.min(no_more_than: ll ~mod- 2)
+            len = minlen
+            while len <= maxlen {
+                cut = ll ~mod- len
+                transform_id = (cut ~mod<< 2) ~mod+ ((CUTOFF_TRANSFORMS >> ((cut ~mod* 6) & 63)) & 0x3F)
+                this.sd_add_match!(distance: id ~mod+ (transform_id ~mod* n), len: len, len_code: ll)
+                has_found_match = true
+                if len >= 0xFFFF_FFFF {
+                    break
+                }
+                len ~mod+= 1
+            }
+            if (matchlen < ll) or ((ll ~mod+ 6) >= args.max_length) {
+                continue
+            }
+            s0 = this.byte_at(s: args.data, i: ll)
+            s1 = this.byte_at(s: args.data, i: ll ~mod+ 1)
+            s2 = this.byte_at(s: args.data, i: ll ~mod+ 2)
+            s3 = this.byte_at(s: args.data, i: ll ~mod+ 3)
+            s4 = this.byte_at(s: args.data, i: ll ~mod+ 4)
+            s5 = this.byte_at(s: args.data, i: ll ~mod+ 5)
+            s6 = this.byte_at(s: args.data, i: ll ~mod+ 6)
+            // Transforms "" + BROTLI_TRANSFORM_IDENTITY + <suffix>.
+            if s0 == ' ' {
+                this.sd_add_match!(distance: id ~mod+ n, len: ll ~mod+ 1, len_code: ll)
+                if s1 == 'a' {
+                    if s2 == ' ' {
+                        this.sd_add_match!(distance: id ~mod+ (28 ~mod* n), len: ll ~mod+ 3, len_code: ll)
+                    } else if s2 == 's' {
+                        if s3 == ' ' {
+                            this.sd_add_match!(distance: id ~mod+ (46 ~mod* n), len: ll ~mod+ 4, len_code: ll)
+                        }
+                    } else if s2 == 't' {
+                        if s3 == ' ' {
+                            this.sd_add_match!(distance: id ~mod+ (60 ~mod* n), len: ll ~mod+ 4, len_code: ll)
+                        }
+                    } else if s2 == 'n' {
+                        if (s3 == 'd') and (s4 == ' ') {
+                            this.sd_add_match!(distance: id ~mod+ (10 ~mod* n), len: ll ~mod+ 5, len_code: ll)
+                        }
+                    }
+                } else if s1 == 'b' {
+                    if (s2 == 'y') and (s3 == ' ') {
+                        this.sd_add_match!(distance: id ~mod+ (38 ~mod* n), len: ll ~mod+ 4, len_code: ll)
+                    }
+                } else if s1 == 'i' {
+                    if s2 == 'n' {
+                        if s3 == ' ' {
+                            this.sd_add_match!(distance: id ~mod+ (16 ~mod* n), len: ll ~mod+ 4, len_code: ll)
+                        }
+                    } else if s2 == 's' {
+                        if s3 == ' ' {
+                            this.sd_add_match!(distance: id ~mod+ (47 ~mod* n), len: ll ~mod+ 4, len_code: ll)
+                        }
+                    }
+                } else if s1 == 'f' {
+                    if s2 == 'o' {
+                        if (s3 == 'r') and (s4 == ' ') {
+                            this.sd_add_match!(distance: id ~mod+ (25 ~mod* n), len: ll ~mod+ 5, len_code: ll)
+                        }
+                    } else if s2 == 'r' {
+                        if (s3 == 'o') and (s4 == 'm') and (s5 == ' ') {
+                            this.sd_add_match!(distance: id ~mod+ (37 ~mod* n), len: ll ~mod+ 6, len_code: ll)
+                        }
+                    }
+                } else if s1 == 'o' {
+                    if s2 == 'f' {
+                        if s3 == ' ' {
+                            this.sd_add_match!(distance: id ~mod+ (8 ~mod* n), len: ll ~mod+ 4, len_code: ll)
+                        }
+                    } else if s2 == 'n' {
+                        if s3 == ' ' {
+                            this.sd_add_match!(distance: id ~mod+ (45 ~mod* n), len: ll ~mod+ 4, len_code: ll)
+                        }
+                    }
+                } else if s1 == 'n' {
+                    if (s2 == 'o') and (s3 == 't') and (s4 == ' ') {
+                        this.sd_add_match!(distance: id ~mod+ (80 ~mod* n), len: ll ~mod+ 5, len_code: ll)
+                    }
+                } else if s1 == 't' {
+                    if s2 == 'h' {
+                        if s3 == 'e' {
+                            if s4 == ' ' {
+                                this.sd_add_match!(distance: id ~mod+ (5 ~mod* n), len: ll ~mod+ 5, len_code: ll)
+                            }
+                        } else if s3 == 'a' {
+                            if (s4 == 't') and (s5 == ' ') {
+                                this.sd_add_match!(distance: id ~mod+ (29 ~mod* n), len: ll ~mod+ 6, len_code: ll)
+                            }
+                        }
+                    } else if s2 == 'o' {
+                        if s3 == ' ' {
+                            this.sd_add_match!(distance: id ~mod+ (17 ~mod* n), len: ll ~mod+ 4, len_code: ll)
+                        }
+                    }
+                } else if s1 == 'w' {
+                    if (s2 == 'i') and (s3 == 't') and (s4 == 'h') and (s5 == ' ') {
+                        this.sd_add_match!(distance: id ~mod+ (35 ~mod* n), len: ll ~mod+ 6, len_code: ll)
+                    }
+                }
+            } else if s0 == 0x22 {
+                this.sd_add_match!(distance: id ~mod+ (19 ~mod* n), len: ll ~mod+ 1, len_code: ll)
+                if s1 == '>' {
+                    this.sd_add_match!(distance: id ~mod+ (21 ~mod* n), len: ll ~mod+ 2, len_code: ll)
+                }
+            } else if s0 == '.' {
+                this.sd_add_match!(distance: id ~mod+ (20 ~mod* n), len: ll ~mod+ 1, len_code: ll)
+                if s1 == ' ' {
+                    this.sd_add_match!(distance: id ~mod+ (31 ~mod* n), len: ll ~mod+ 2, len_code: ll)
+                    if (s2 == 'T') and (s3 == 'h') {
+                        if s4 == 'e' {
+                            if s5 == ' ' {
+                                this.sd_add_match!(distance: id ~mod+ (43 ~mod* n), len: ll ~mod+ 6, len_code: ll)
+                            }
+                        } else if s4 == 'i' {
+                            if (s5 == 's') and (s6 == ' ') {
+                                this.sd_add_match!(distance: id ~mod+ (75 ~mod* n), len: ll ~mod+ 7, len_code: ll)
+                            }
+                        }
+                    }
+                }
+            } else if s0 == ',' {
+                this.sd_add_match!(distance: id ~mod+ (76 ~mod* n), len: ll ~mod+ 1, len_code: ll)
+                if s1 == ' ' {
+                    this.sd_add_match!(distance: id ~mod+ (14 ~mod* n), len: ll ~mod+ 2, len_code: ll)
+                }
+            } else if s0 == '\n' {
+                this.sd_add_match!(distance: id ~mod+ (22 ~mod* n), len: ll ~mod+ 1, len_code: ll)
+                if s1 == '\t' {
+                    this.sd_add_match!(distance: id ~mod+ (50 ~mod* n), len: ll ~mod+ 2, len_code: ll)
+                }
+            } else if s0 == ']' {
+                this.sd_add_match!(distance: id ~mod+ (24 ~mod* n), len: ll ~mod+ 1, len_code: ll)
+            } else if s0 == 0x27 {
+                this.sd_add_match!(distance: id ~mod+ (36 ~mod* n), len: ll ~mod+ 1, len_code: ll)
+            } else if s0 == ':' {
+                this.sd_add_match!(distance: id ~mod+ (51 ~mod* n), len: ll ~mod+ 1, len_code: ll)
+            } else if s0 == '(' {
+                this.sd_add_match!(distance: id ~mod+ (57 ~mod* n), len: ll ~mod+ 1, len_code: ll)
+            } else if s0 == '=' {
+                if s1 == 0x22 {
+                    this.sd_add_match!(distance: id ~mod+ (70 ~mod* n), len: ll ~mod+ 2, len_code: ll)
+                } else if s1 == 0x27 {
+                    this.sd_add_match!(distance: id ~mod+ (86 ~mod* n), len: ll ~mod+ 2, len_code: ll)
+                }
+            } else if s0 == 'a' {
+                if (s1 == 'l') and (s2 == ' ') {
+                    this.sd_add_match!(distance: id ~mod+ (84 ~mod* n), len: ll ~mod+ 3, len_code: ll)
+                }
+            } else if s0 == 'e' {
+                if s1 == 'd' {
+                    if s2 == ' ' {
+                        this.sd_add_match!(distance: id ~mod+ (53 ~mod* n), len: ll ~mod+ 3, len_code: ll)
+                    }
+                } else if s1 == 'r' {
+                    if s2 == ' ' {
+                        this.sd_add_match!(distance: id ~mod+ (82 ~mod* n), len: ll ~mod+ 3, len_code: ll)
+                    }
+                } else if s1 == 's' {
+                    if (s2 == 't') and (s3 == ' ') {
+                        this.sd_add_match!(distance: id ~mod+ (95 ~mod* n), len: ll ~mod+ 4, len_code: ll)
+                    }
+                }
+            } else if s0 == 'f' {
+                if (s1 == 'u') and (s2 == 'l') and (s3 == ' ') {
+                    this.sd_add_match!(distance: id ~mod+ (90 ~mod* n), len: ll ~mod+ 4, len_code: ll)
+                }
+            } else if s0 == 'i' {
+                if s1 == 'v' {
+                    if (s2 == 'e') and (s3 == ' ') {
+                        this.sd_add_match!(distance: id ~mod+ (92 ~mod* n), len: ll ~mod+ 4, len_code: ll)
+                    }
+                } else if s1 == 'z' {
+                    if (s2 == 'e') and (s3 == ' ') {
+                        this.sd_add_match!(distance: id ~mod+ (100 ~mod* n), len: ll ~mod+ 4, len_code: ll)
+                    }
+                }
+            } else if s0 == 'l' {
+                if s1 == 'e' {
+                    if (s2 == 's') and (s3 == 's') and (s4 == ' ') {
+                        this.sd_add_match!(distance: id ~mod+ (93 ~mod* n), len: ll ~mod+ 5, len_code: ll)
+                    }
+                } else if s1 == 'y' {
+                    if s2 == ' ' {
+                        this.sd_add_match!(distance: id ~mod+ (61 ~mod* n), len: ll ~mod+ 3, len_code: ll)
+                    }
+                }
+            } else if s0 == 'o' {
+                if (s1 == 'u') and (s2 == 's') and (s3 == ' ') {
+                    this.sd_add_match!(distance: id ~mod+ (106 ~mod* n), len: ll ~mod+ 4, len_code: ll)
+                }
+            }
+        } else {
+            // Set is_all_caps=0 for BROTLI_TRANSFORM_UPPERCASE_FIRST and
+            // is_all_caps=1 otherwise (BROTLI_TRANSFORM_UPPERCASE_ALL)
+            // transform.
+            is_all_caps = transform <> 10
+            if not this.sd_is_match(data: args.data, skip: 0, len: l, transform: transform, idx: id, max_length: args.max_length) {
+                continue
+            }
+            // Transform "" + kUppercase{First,All} + "".
+            t = 9
+            if is_all_caps {
+                t = 44
+            }
+            this.sd_add_match!(distance: id ~mod+ (t ~mod* n), len: ll, len_code: ll)
+            has_found_match = true
+            if (ll ~mod+ 1) >= args.max_length {
+                continue
+            }
+            // Transforms "" + kUppercase{First,All} + <suffix>.
+            s0 = this.byte_at(s: args.data, i: ll)
+            s1 = this.byte_at(s: args.data, i: ll ~mod+ 1)
+            if s0 == ' ' {
+                t = 4
+                if is_all_caps {
+                    t = 68
+                }
+                this.sd_add_match!(distance: id ~mod+ (t ~mod* n), len: ll ~mod+ 1, len_code: ll)
+            } else if s0 == 0x22 {
+                t = 66
+                if is_all_caps {
+                    t = 87
+                }
+                this.sd_add_match!(distance: id ~mod+ (t ~mod* n), len: ll ~mod+ 1, len_code: ll)
+                if s1 == '>' {
+                    t = 69
+                    if is_all_caps {
+                        t = 97
+                    }
+                    this.sd_add_match!(distance: id ~mod+ (t ~mod* n), len: ll ~mod+ 2, len_code: ll)
+                }
+            } else if s0 == '.' {
+                t = 79
+                if is_all_caps {
+                    t = 101
+                }
+                this.sd_add_match!(distance: id ~mod+ (t ~mod* n), len: ll ~mod+ 1, len_code: ll)
+                if s1 == ' ' {
+                    t = 88
+                    if is_all_caps {
+                        t = 114
+                    }
+                    this.sd_add_match!(distance: id ~mod+ (t ~mod* n), len: ll ~mod+ 2, len_code: ll)
+                }
+            } else if s0 == ',' {
+                t = 99
+                if is_all_caps {
+                    t = 112
+                }
+                this.sd_add_match!(distance: id ~mod+ (t ~mod* n), len: ll ~mod+ 1, len_code: ll)
+                if s1 == ' ' {
+                    t = 58
+                    if is_all_caps {
+                        t = 107
+                    }
+                    this.sd_add_match!(distance: id ~mod+ (t ~mod* n), len: ll ~mod+ 2, len_code: ll)
+                }
+            } else if s0 == 0x27 {
+                t = 74
+                if is_all_caps {
+                    t = 94
+                }
+                this.sd_add_match!(distance: id ~mod+ (t ~mod* n), len: ll ~mod+ 1, len_code: ll)
+            } else if s0 == '(' {
+                t = 78
+                if is_all_caps {
+                    t = 113
+                }
+                this.sd_add_match!(distance: id ~mod+ (t ~mod* n), len: ll ~mod+ 1, len_code: ll)
+            } else if s0 == '=' {
+                if s1 == 0x22 {
+                    t = 104
+                    if is_all_caps {
+                        t = 105
+                    }
+                    this.sd_add_match!(distance: id ~mod+ (t ~mod* n), len: ll ~mod+ 2, len_code: ll)
+                } else if s1 == 0x27 {
+                    t = 108
+                    if is_all_caps {
+                        t = 116
+                    }
+                    this.sd_add_match!(distance: id ~mod+ (t ~mod* n), len: ll ~mod+ 2, len_code: ll)
+                }
+            }
+        }
+    }
+
+    // Transforms with prefixes " " and ".".
+    d0 = this.byte_at(s: args.data, i: 0)
+    if (args.max_length >= 5) and ((d0 == ' ') or (d0 == '.')) {
+        is_space = d0 == ' '
+        offset = STATIC_DICT_LUT_BUCKETS[this.sd_hash15(data: args.data, skip: 1) & 0x7FFF] as base.u32
+        end = offset == 0
+        while not end {
+            w = STATIC_DICT_LUT_WORDS[offset.min(no_more_than: 31704)]
+            offset ~mod+= 1
+            l = w & 0x1F
+            n = (1 as base.u64) << DICTIONARY_SIZE_BITS_BY_LENGTH[l]
+            id = (w >> 16) as base.u64
+            end = (w & 0x80) <> 0
+            transform = (w >> 8) & 0xFF
+            ll = l as base.u64
+            if transform == 0 {
+                if not this.sd_is_match(data: args.data, skip: 1, len: l, transform: transform, idx: id, max_length: args.max_length ~mod- 1) {
+                    continue
+                }
+                // Transforms " " + BROTLI_TRANSFORM_IDENTITY + "" and
+                // "." + BROTLI_TRANSFORM_IDENTITY + "".
+                t = 32
+                if is_space {
+                    t = 6
+                }
+                this.sd_add_match!(distance: id ~mod+ (t ~mod* n), len: ll ~mod+ 1, len_code: ll)
+                has_found_match = true
+                if (ll ~mod+ 2) >= args.max_length {
+                    continue
+                }
+                // Transforms " " + BROTLI_TRANSFORM_IDENTITY + <suffix> and
+                // "." + BROTLI_TRANSFORM_IDENTITY + <suffix>.
+                s0 = this.byte_at(s: args.data, i: ll ~mod+ 1)
+                s1 = this.byte_at(s: args.data, i: ll ~mod+ 2)
+                if s0 == ' ' {
+                    t = 77
+                    if is_space {
+                        t = 2
+                    }
+                    this.sd_add_match!(distance: id ~mod+ (t ~mod* n), len: ll ~mod+ 2, len_code: ll)
+                } else if s0 == '(' {
+                    t = 67
+                    if is_space {
+                        t = 89
+                    }
+                    this.sd_add_match!(distance: id ~mod+ (t ~mod* n), len: ll ~mod+ 2, len_code: ll)
+                } else if is_space {
+                    if s0 == ',' {
+                        this.sd_add_match!(distance: id ~mod+ (103 ~mod* n), len: ll ~mod+ 2, len_code: ll)
+                        if s1 == ' ' {
+                            this.sd_add_match!(distance: id ~mod+ (33 ~mod* n), len: ll ~mod+ 3, len_code: ll)
+                        }
+                    } else if s0 == '.' {
+                        this.sd_add_match!(distance: id ~mod+ (71 ~mod* n), len: ll ~mod+ 2, len_code: ll)
+                        if s1 == ' ' {
+                            this.sd_add_match!(distance: id ~mod+ (52 ~mod* n), len: ll ~mod+ 3, len_code: ll)
+                        }
+                    } else if s0 == '=' {
+                        if s1 == 0x22 {
+                            this.sd_add_match!(distance: id ~mod+ (81 ~mod* n), len: ll ~mod+ 3, len_code: ll)
+                        } else if s1 == 0x27 {
+                            this.sd_add_match!(distance: id ~mod+ (98 ~mod* n), len: ll ~mod+ 3, len_code: ll)
+                        }
+                    }
+                }
+            } else if is_space {
+                // Set is_all_caps=0 for BROTLI_TRANSFORM_UPPERCASE_FIRST and
+                // is_all_caps=1 otherwise (BROTLI_TRANSFORM_UPPERCASE_ALL)
+                // transform.
+                is_all_caps = transform <> 10
+                if not this.sd_is_match(data: args.data, skip: 1, len: l, transform: transform, idx: id, max_length: args.max_length ~mod- 1) {
+                    continue
+                }
+                // Transforms " " + kUppercase{First,All} + "".
+                t = 30
+                if is_all_caps {
+                    t = 85
+                }
+                this.sd_add_match!(distance: id ~mod+ (t ~mod* n), len: ll ~mod+ 1, len_code: ll)
+                has_found_match = true
+                if (ll ~mod+ 2) >= args.max_length {
+                    continue
+                }
+                // Transforms " " + kUppercase{First,All} + <suffix>.
+                s0 = this.byte_at(s: args.data, i: ll ~mod+ 1)
+                s1 = this.byte_at(s: args.data, i: ll ~mod+ 2)
+                if s0 == ' ' {
+                    t = 15
+                    if is_all_caps {
+                        t = 83
+                    }
+                    this.sd_add_match!(distance: id ~mod+ (t ~mod* n), len: ll ~mod+ 2, len_code: ll)
+                } else if s0 == ',' {
+                    if not is_all_caps {
+                        this.sd_add_match!(distance: id ~mod+ (109 ~mod* n), len: ll ~mod+ 2, len_code: ll)
+                    }
+                    if s1 == ' ' {
+                        t = 65
+                        if is_all_caps {
+                            t = 111
+                        }
+                        this.sd_add_match!(distance: id ~mod+ (t ~mod* n), len: ll ~mod+ 3, len_code: ll)
+                    }
+                } else if s0 == '.' {
+                    t = 96
+                    if is_all_caps {
+                        t = 115
+                    }
+                    this.sd_add_match!(distance: id ~mod+ (t ~mod* n), len: ll ~mod+ 2, len_code: ll)
+                    if s1 == ' ' {
+                        t = 91
+                        if is_all_caps {
+                            t = 117
+                        }
+                        this.sd_add_match!(distance: id ~mod+ (t ~mod* n), len: ll ~mod+ 3, len_code: ll)
+                    }
+                } else if s0 == '=' {
+                    if s1 == 0x22 {
+                        t = 118
+                        if is_all_caps {
+                            t = 110
+                        }
+                        this.sd_add_match!(distance: id ~mod+ (t ~mod* n), len: ll ~mod+ 3, len_code: ll)
+                    } else if s1 == 0x27 {
+                        t = 120
+                        if is_all_caps {
+                            t = 119
+                        }
+                        this.sd_add_match!(distance: id ~mod+ (t ~mod* n), len: ll ~mod+ 3, len_code: ll)
+                    }
+                }
+            }
+        }
+    }
+
+    if args.max_length >= 6 {
+        // Transforms with prefixes "e ", "s ", ", " and "\xC2\xA0".
+        d1 = this.byte_at(s: args.data, i: 1)
+        if ((d1 == ' ') and ((d0 == 'e') or (d0 == 's') or (d0 == ','))) or
+                ((d0 == 0xC2) and (d1 == 0xA0)) {
+            offset = STATIC_DICT_LUT_BUCKETS[this.sd_hash15(data: args.data, skip: 2) & 0x7FFF] as base.u32
+            end = offset == 0
+            while not end {
+                w = STATIC_DICT_LUT_WORDS[offset.min(no_more_than: 31704)]
+                offset ~mod+= 1
+                l = w & 0x1F
+                n = (1 as base.u64) << DICTIONARY_SIZE_BITS_BY_LENGTH[l]
+                id = (w >> 16) as base.u64
+                end = (w & 0x80) <> 0
+                transform = (w >> 8) & 0xFF
+                ll = l as base.u64
+                if (transform == 0) and
+                        this.sd_is_match(data: args.data, skip: 2, len: l, transform: transform, idx: id, max_length: args.max_length ~mod- 2) {
+                    if d0 == 0xC2 {
+                        this.sd_add_match!(distance: id ~mod+ (102 ~mod* n), len: ll ~mod+ 2, len_code: ll)
+                        has_found_match = true
+                    } else if ((ll ~mod+ 2) < args.max_length) and (this.byte_at(s: args.data, i: ll ~mod+ 2) == ' ') {
+                        t = 13
+                        if d0 == 'e' {
+                            t = 18
+                        } else if d0 == 's' {
+                            t = 7
+                        }
+                        this.sd_add_match!(distance: id ~mod+ (t ~mod* n), len: ll ~mod+ 3, len_code: ll)
+                        has_found_match = true
+                    }
+                }
+            }
+        }
+    }
+
+    if args.max_length >= 9 {
+        // Transforms with prefixes " the " and ".com/".
+        if ((d0 == ' ') and (this.byte_at(s: args.data, i: 1) == 't') and (this.byte_at(s: args.data, i: 2) == 'h') and
+                (this.byte_at(s: args.data, i: 3) == 'e') and (this.byte_at(s: args.data, i: 4) == ' ')) or
+                ((d0 == '.') and (this.byte_at(s: args.data, i: 1) == 'c') and (this.byte_at(s: args.data, i: 2) == 'o') and
+                (this.byte_at(s: args.data, i: 3) == 'm') and (this.byte_at(s: args.data, i: 4) == '/')) {
+            offset = STATIC_DICT_LUT_BUCKETS[this.sd_hash15(data: args.data, skip: 5) & 0x7FFF] as base.u32
+            end = offset == 0
+            while not end {
+                w = STATIC_DICT_LUT_WORDS[offset.min(no_more_than: 31704)]
+                offset ~mod+= 1
+                l = w & 0x1F
+                n = (1 as base.u64) << DICTIONARY_SIZE_BITS_BY_LENGTH[l]
+                id = (w >> 16) as base.u64
+                end = (w & 0x80) <> 0
+                transform = (w >> 8) & 0xFF
+                ll = l as base.u64
+                if (transform == 0) and
+                        this.sd_is_match(data: args.data, skip: 5, len: l, transform: transform, idx: id, max_length: args.max_length ~mod- 5) {
+                    t = 72
+                    if d0 == ' ' {
+                        t = 41
+                    }
+                    this.sd_add_match!(distance: id ~mod+ (t ~mod* n), len: ll ~mod+ 5, len_code: ll)
+                    has_found_match = true
+                    if (ll ~mod+ 5) < args.max_length {
+                        sk = ll ~mod+ 5
+                        if d0 == ' ' {
+                            if ((ll ~mod+ 8) < args.max_length) and
+                                    (this.byte_at(s: args.data, i: sk) == ' ') and
+                                    (this.byte_at(s: args.data, i: sk ~mod+ 1) == 'o') and
+                                    (this.byte_at(s: args.data, i: sk ~mod+ 2) == 'f') and
+                                    (this.byte_at(s: args.data, i: sk ~mod+ 3) == ' ') {
+                                this.sd_add_match!(distance: id ~mod+ (62 ~mod* n), len: ll ~mod+ 9, len_code: ll)
+                                if ((ll ~mod+ 12) < args.max_length) and
+                                        (this.byte_at(s: args.data, i: sk ~mod+ 4) == 't') and
+                                        (this.byte_at(s: args.data, i: sk ~mod+ 5) == 'h') and
+                                        (this.byte_at(s: args.data, i: sk ~mod+ 6) == 'e') and
+                                        (this.byte_at(s: args.data, i: sk ~mod+ 7) == ' ') {
+                                    this.sd_add_match!(distance: id ~mod+ (73 ~mod* n), len: ll ~mod+ 13, len_code: ll)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return has_found_match
+}
+
+// sd_dict_byte returns DICTIONARY[d], or 0 if d is out of bounds (which does
+// not happen for the DictWord entries in the lookup table).
+pri func encoder.sd_dict_byte(d: base.u64) base.u8 {
+    if args.d >= 122784 {
+        return 0
+    }
+    return DICTIONARY[args.d]
+}

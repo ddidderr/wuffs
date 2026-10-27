@@ -1,0 +1,350 @@
+// Copyright 2026 The Wuffs Authors.
+//
+// Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
+// https://www.apache.org/licenses/LICENSE-2.0> or the MIT license
+// <LICENSE-MIT or https://opensource.org/licenses/MIT>, at your
+// option. This file may not be copied, modified, or distributed
+// except according to those terms.
+//
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+
+// --------
+
+// This file mirrors literal_cost.c (BrotliEstimateBitCostsForLiterals) and
+// utf8_util.c (BrotliIsMostlyUTF8), which qualities 10 and 11 use. The C
+// code's float cost array is in the workbuf, as the u32le bits of each
+// binary32 value. Its size_t histogram array is this.lc_histogram.
+
+// The doubles 0.02905, 0.029, 0.5, 1.0, 0.35, 0.35 / 2000 (folded at compile
+// time by the C compiler) and 0.75 (kMinUTF8Ratio in utf8_util.h).
+pri const LC_F64_0_02905   : base.u64 = 0x3F9D_BF48_7FCB_923A
+pri const LC_F64_0_029     : base.u64 = 0x3F9D_B22D_0E56_0419
+pri const LC_F64_0_5       : base.u64 = 0x3FE0_0000_0000_0000
+pri const LC_F64_1         : base.u64 = 0x3FF0_0000_0000_0000
+pri const LC_F64_0_35      : base.u64 = 0x3FD6_6666_6666_6666
+pri const LC_F64_MULT      : base.u64 = 0x3F26_F006_8DB8_BAC7
+pri const LC_F64_UTF8_FRAC : base.u64 = 0x3FE8_0000_0000_0000
+
+// rb_raw returns the ring buffer's byte at masked position mpos plus k (the
+// C code's data[(pos + i) & mask] followed by k unmasked bytes).
+pri func encoder.rb_raw(wb: roslice base.u8, mpos: base.u64, k: base.u64) base.u8 {
+    return this.byte_at(s: args.wb, i: (this.rb_buf_off ~mod+ args.mpos) ~mod+ args.k)
+}
+
+// Mirrors BrotliParseAsUTF8 in utf8_util.c, for the input at masked ring
+// buffer position mpos, with size bytes available. It sets this.lc_symbol
+// and returns the number of bytes read.
+pri func encoder.parse_as_utf8!(wb: roslice base.u8, mpos: base.u64, size: base.u64) base.u64 {
+    var i0 : base.u32
+    var i1 : base.u32
+    var i2 : base.u32
+    var i3 : base.u32
+
+    i0 = this.rb_raw(wb: args.wb, mpos: args.mpos, k: 0) as base.u32
+    i1 = this.rb_raw(wb: args.wb, mpos: args.mpos, k: 1) as base.u32
+    i2 = this.rb_raw(wb: args.wb, mpos: args.mpos, k: 2) as base.u32
+    i3 = this.rb_raw(wb: args.wb, mpos: args.mpos, k: 3) as base.u32
+    // ASCII.
+    if (i0 & 0x80) == 0 {
+        this.lc_symbol = i0
+        if i0 > 0 {
+            return 1
+        }
+    }
+    // 2-byte UTF8.
+    if (args.size > 1) and ((i0 & 0xE0) == 0xC0) and ((i1 & 0xC0) == 0x80) {
+        this.lc_symbol = ((i0 & 0x1F) << 6) | (i1 & 0x3F)
+        if this.lc_symbol > 0x7F {
+            return 2
+        }
+    }
+    // 3-byte UFT8.
+    if (args.size > 2) and ((i0 & 0xF0) == 0xE0) and ((i1 & 0xC0) == 0x80) and ((i2 & 0xC0) == 0x80) {
+        this.lc_symbol = ((i0 & 0x0F) << 12) | ((i1 & 0x3F) << 6) | (i2 & 0x3F)
+        if this.lc_symbol > 0x7FF {
+            return 3
+        }
+    }
+    // 4-byte UFT8.
+    if (args.size > 3) and ((i0 & 0xF8) == 0xF0) and ((i1 & 0xC0) == 0x80) and
+            ((i2 & 0xC0) == 0x80) and ((i3 & 0xC0) == 0x80) {
+        this.lc_symbol = ((i0 & 0x07) << 18) | ((i1 & 0x3F) << 12) | ((i2 & 0x3F) << 6) | (i3 & 0x3F)
+        if (this.lc_symbol > 0xFFFF) and (this.lc_symbol <= 0x10_FFFF) {
+            return 4
+        }
+    }
+    // Not UTF8, emit a special symbol above the UTF8-code space.
+    this.lc_symbol = 0x11_0000 | i0
+    return 1
+}
+
+// Mirrors BrotliIsMostlyUTF8 in utf8_util.c, with a min_fraction of
+// kMinUTF8Ratio (0.75).
+pri func encoder.is_mostly_utf8!(wb: roslice base.u8, pos: base.u64, length: base.u64) base.bool {
+    var size_utf8  : base.u64
+    var i          : base.u64
+    var bytes_read : base.u64
+
+    while i < args.length {
+        bytes_read = this.parse_as_utf8!(wb: args.wb, mpos: (args.pos ~mod+ i) & (this.rb_mask as base.u64),
+                size: args.length ~mod- i)
+        i ~mod+= bytes_read
+        if this.lc_symbol < 0x11_0000 {
+            size_utf8 ~mod+= bytes_read
+        }
+    }
+    return this.sf.f64_gt(
+            a: this.sf.f64_from_u64(a: size_utf8),
+            b: this.sf.f64_mul(a: LC_F64_UTF8_FRAC, b: this.sf.f64_from_u64(a: args.length))) <> 0
+}
+
+// Mirrors UTF8Position in literal_cost.c.
+pri func encoder.utf8_position(last: base.u32, c: base.u32, clamp: base.u32) base.u32[..= 2] {
+    if args.c < 128 {
+        // Next one is the 'Byte 1' again.
+        return 0
+    } else if args.c >= 192 {
+        // Next one is the 'Byte 2' of utf-8 encoding.
+        return args.clamp.min(no_more_than: 1)
+    } else if args.last < 0xE0 {
+        // Completed two or three byte coding.
+        return 0
+    }
+    // Next one is the 'Byte 3' of utf-8 encoding.
+    return args.clamp.min(no_more_than: 2)
+}
+
+// Mirrors DecideMultiByteStatsLevel in literal_cost.c.
+pri func encoder.decide_multi_byte_stats_level(wb: roslice base.u8, pos: base.u64, len: base.u64) base.u32 {
+    var counts1  : base.u64
+    var counts2  : base.u64
+    var max_utf8 : base.u32
+    var last_c   : base.u32
+    var c        : base.u32
+    var i        : base.u64
+    var p        : base.u32
+
+    // max_utf8 should be 2, but 1 compresses better.
+    max_utf8 = 1
+    while i < args.len {
+        c = this.rb_byte(wb: args.wb, pos: args.pos ~mod+ i) as base.u32
+        p = this.utf8_position(last: last_c, c: c, clamp: 2)
+        // C also counts p == 0 (counts[0]) but never uses that count.
+        if p == 1 {
+            counts1 ~mod+= 1
+        } else if p == 2 {
+            counts2 ~mod+= 1
+        }
+        last_c = c
+        i ~mod+= 1
+    }
+    if counts2 < 500 {
+        max_utf8 = 1
+    }
+    if (counts1 ~mod+ counts2) < 25 {
+        max_utf8 = 0
+    }
+    return max_utf8
+}
+
+// lc_finish_cost applies literal_cost.c's common tail to lit_cost (a double):
+// the < 1.0 adjustment, the prologue_length adjustment (if utf8) and the
+// conversion to float. It stores the float at args.wb[cost_off + (4 * i) ..].
+pri func encoder.lc_finish_cost!(wb: slice base.u8, cost_off: base.u64, i: base.u64, lit_cost: base.u64, utf8: base.bool) {
+    var lit_cost : base.u64
+
+    lit_cost = args.lit_cost
+    if this.sf.f64_lt(a: lit_cost, b: LC_F64_1) <> 0 {
+        lit_cost = this.sf.f64_mul(a: lit_cost, b: LC_F64_0_5)
+        lit_cost = this.sf.f64_add(a: lit_cost, b: LC_F64_0_5)
+    }
+    // Make the first bytes more expensive -- seems to help, not sure why.
+    // Perhaps because the entropy source is changing its properties rapidly
+    // in the beginning of the file, perhaps because the beginning of the data
+    // is a statistical "anomaly".
+    if args.utf8 and (args.i < 2000) {
+        lit_cost = this.sf.f64_add(a: lit_cost, b: this.sf.f64_add(a: LC_F64_0_35,
+                b: this.sf.f64_mul(a: LC_F64_MULT, b: this.sf.f64_from_u64(a: args.i))))
+    }
+    this.poke_u32!(s: args.wb, i: args.cost_off ~mod+ (args.i ~mod* 4), v: this.sf.f64_to_f32(a: lit_cost))
+}
+
+// Mirrors EstimateBitCostsForLiteralsUTF8 in literal_cost.c.
+pri func encoder.estimate_bit_costs_for_literals_utf8!(wb: slice base.u8, pos: base.u64, len: base.u64, cost_off: base.u64) {
+    var max_utf8    : base.u32
+    var window_half : base.u64[..= 495]
+    var in_window   : base.u64
+    var iwu0        : base.u64
+    var iwu1        : base.u64
+    var iwu2        : base.u64
+    var i           : base.u64
+    var last_c      : base.u32
+    var c           : base.u32
+    var utf8_pos    : base.u32[..= 2]
+    var utf8_pos2   : base.u32[..= 2]
+    var histo       : base.u64
+    var iw          : base.u64
+    var lit_cost    : base.u64
+    var hi          : base.u32[..= 767]
+
+    // max_utf8 is 0 (normal ASCII single byte modeling), 1 (for 2-byte UTF-8
+    // modeling), or 2 (for 3-byte UTF-8 modeling).
+    max_utf8 = this.decide_multi_byte_stats_level(wb: args.wb, pos: args.pos, len: args.len)
+    window_half = 495
+    in_window = window_half.min(no_more_than: args.len)
+    hi = 0
+    while true {
+        this.lc_histogram[hi] = 0
+        if hi >= 767 {
+            break
+        }
+        hi += 1
+    }
+
+    // Bootstrap histograms.
+    i = 0
+    while i < in_window {
+        c = this.rb_byte(wb: args.wb, pos: args.pos ~mod+ i) as base.u32
+        this.lc_histogram[this.lc_hidx(pos2: utf8_pos, b: (c & 0xFF) as base.u8)] ~mod+= 1
+        if utf8_pos == 0 {
+            iwu0 ~mod+= 1
+        } else if utf8_pos == 1 {
+            iwu1 ~mod+= 1
+        } else {
+            iwu2 ~mod+= 1
+        }
+        utf8_pos = this.utf8_position(last: last_c, c: c, clamp: max_utf8)
+        last_c = c
+        i ~mod+= 1
+    }
+
+    // Compute bit costs with sliding window.
+    i = 0
+    while i < args.len {
+        if i >= window_half {
+            // Remove a byte in the past.
+            c = 0
+            if i >= (window_half + 1) {
+                c = this.rb_byte(wb: args.wb, pos: (args.pos ~mod+ i) ~mod- (window_half + 1)) as base.u32
+            }
+            last_c = 0
+            if i >= (window_half + 2) {
+                last_c = this.rb_byte(wb: args.wb, pos: (args.pos ~mod+ i) ~mod- (window_half + 2)) as base.u32
+            }
+            utf8_pos2 = this.utf8_position(last: last_c, c: c, clamp: max_utf8)
+            hi = this.lc_hidx(pos2: utf8_pos2, b: this.rb_byte(wb: args.wb, pos: (args.pos ~mod+ i) ~mod- window_half))
+            this.lc_histogram[hi] ~mod-= 1
+            if utf8_pos2 == 0 {
+                iwu0 ~mod-= 1
+            } else if utf8_pos2 == 1 {
+                iwu1 ~mod-= 1
+            } else {
+                iwu2 ~mod-= 1
+            }
+        }
+        if (i ~mod+ window_half) < args.len {
+            // Add a byte in the future.
+            c = this.rb_byte(wb: args.wb, pos: ((args.pos ~mod+ i) ~mod+ window_half) ~mod- 1) as base.u32
+            last_c = this.rb_byte(wb: args.wb, pos: ((args.pos ~mod+ i) ~mod+ window_half) ~mod- 2) as base.u32
+            utf8_pos2 = this.utf8_position(last: last_c, c: c, clamp: max_utf8)
+            hi = this.lc_hidx(pos2: utf8_pos2, b: this.rb_byte(wb: args.wb, pos: (args.pos ~mod+ i) ~mod+ window_half))
+            this.lc_histogram[hi] ~mod+= 1
+            if utf8_pos2 == 0 {
+                iwu0 ~mod+= 1
+            } else if utf8_pos2 == 1 {
+                iwu1 ~mod+= 1
+            } else {
+                iwu2 ~mod+= 1
+            }
+        }
+        c = 0
+        if i >= 1 {
+            c = this.rb_byte(wb: args.wb, pos: (args.pos ~mod+ i) ~mod- 1) as base.u32
+        }
+        last_c = 0
+        if i >= 2 {
+            last_c = this.rb_byte(wb: args.wb, pos: (args.pos ~mod+ i) ~mod- 2) as base.u32
+        }
+        utf8_pos = this.utf8_position(last: last_c, c: c, clamp: max_utf8)
+        hi = this.lc_hidx(pos2: utf8_pos, b: this.rb_byte(wb: args.wb, pos: args.pos ~mod+ i))
+        histo = this.lc_histogram[hi] as base.u64
+        if histo == 0 {
+            histo = 1
+        }
+        iw = iwu0
+        if utf8_pos == 1 {
+            iw = iwu1
+        } else if utf8_pos == 2 {
+            iw = iwu2
+        }
+        lit_cost = this.sf.f64_sub(a: this.bc.fast_log2(v: iw), b: this.bc.fast_log2(v: histo))
+        lit_cost = this.sf.f64_add(a: lit_cost, b: LC_F64_0_02905)
+        this.lc_finish_cost!(wb: args.wb, cost_off: args.cost_off, i: i, lit_cost: lit_cost, utf8: true)
+        i ~mod+= 1
+    }
+}
+
+// Mirrors BrotliEstimateBitCostsForLiterals in literal_cost.c. The len
+// floats go to args.wb[cost_off ..].
+pri func encoder.estimate_bit_costs_for_literals!(wb: slice base.u8, pos: base.u64, len: base.u64, cost_off: base.u64) {
+    var window_half : base.u64
+    var in_window   : base.u64
+    var i           : base.u64
+    var histo       : base.u64
+    var lit_cost    : base.u64
+    var hi          : base.u32
+    var b           : base.u8
+    var utf8        : base.bool
+
+    utf8 = this.is_mostly_utf8!(wb: args.wb, pos: args.pos, length: args.len)
+    if utf8 {
+        this.estimate_bit_costs_for_literals_utf8!(wb: args.wb, pos: args.pos, len: args.len, cost_off: args.cost_off)
+        return nothing
+    }
+    window_half = 2000
+    in_window = window_half.min(no_more_than: args.len)
+    hi = 0
+    while hi < 256 {
+        this.lc_histogram[hi] = 0
+        hi ~mod+= 1
+    }
+
+    // Bootstrap histogram.
+    i = 0
+    while i < in_window {
+        b = this.rb_byte(wb: args.wb, pos: args.pos ~mod+ i)
+        this.lc_histogram[b] ~mod+= 1
+        i ~mod+= 1
+    }
+
+    // Compute bit costs with sliding window.
+    i = 0
+    while i < args.len {
+        if i >= window_half {
+            // Remove a byte in the past.
+            b = this.rb_byte(wb: args.wb, pos: (args.pos ~mod+ i) ~mod- window_half)
+            this.lc_histogram[b] ~mod-= 1
+            in_window ~mod-= 1
+        }
+        if (i ~mod+ window_half) < args.len {
+            // Add a byte in the future.
+            b = this.rb_byte(wb: args.wb, pos: (args.pos ~mod+ i) ~mod+ window_half)
+            this.lc_histogram[b] ~mod+= 1
+            in_window ~mod+= 1
+        }
+        b = this.rb_byte(wb: args.wb, pos: args.pos ~mod+ i)
+        histo = this.lc_histogram[b] as base.u64
+        if histo == 0 {
+            histo = 1
+        }
+        lit_cost = this.sf.f64_sub(a: this.bc.fast_log2(v: in_window), b: this.bc.fast_log2(v: histo))
+        lit_cost = this.sf.f64_add(a: lit_cost, b: LC_F64_0_029)
+        this.lc_finish_cost!(wb: args.wb, cost_off: args.cost_off, i: i, lit_cost: lit_cost, utf8: false)
+        i ~mod+= 1
+    }
+}
+
+// lc_hidx returns the histogram index (256 * pos2) + b.
+pri func encoder.lc_hidx(pos2: base.u32[..= 2], b: base.u8) base.u32[..= 767] {
+    return (256 * args.pos2) + (args.b as base.u32)
+}

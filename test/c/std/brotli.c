@@ -894,18 +894,20 @@ wuffs_brotli_encode_plan(wuffs_base__io_buffer* dst,
   wuffs_base__range_ii_u64 workbuf_len =
       wuffs_brotli__encoder__workbuf_len(enc);
   wuffs_base__slice_u8 workbuf = g_work_slice_u8;
-  if (workbuf_len.max_incl > (1ull << 31)) {
+  // Use the minimum, so that the qualities 10 and 11 practical bound (see
+  // the README) is exercised. At other qualities, min_incl == max_incl.
+  if (workbuf_len.min_incl > (1ull << 31)) {
     ret = "workbuf_len is too large";
     goto cleanup;
-  } else if (workbuf_len.max_incl > g_work_slice_u8.len) {
-    big_workbuf = malloc((size_t)workbuf_len.max_incl);
+  } else if (workbuf_len.min_incl > g_work_slice_u8.len) {
+    big_workbuf = malloc((size_t)workbuf_len.min_incl);
     if (!big_workbuf) {
       ret = "malloc failed";
       goto cleanup;
     }
     workbuf.ptr = big_workbuf;
   }
-  workbuf.len = (size_t)workbuf_len.max_incl;
+  workbuf.len = (size_t)workbuf_len.min_incl;
 
   for (size_t i = 0; i < num_steps; i++) {
     size_t end = src->meta.ri + step_lens[i];
@@ -1258,8 +1260,8 @@ test_wuffs_brotli_encode_parameters() {
   BROTLI_ENC_CHECK(wuffs_brotli__encoder__get_quirk(
                        enc, WUFFS_BROTLI__QUIRK_LGWIN) == 99,
                    "get lgwin");
-  // The default quality is 11, which is unsupported.
-  BROTLI_ENC_CHECK(wuffs_brotli__encoder__workbuf_len(enc).max_incl == 0,
+  // The default quality is 11 (and lgwin 99 is sanitized to 24).
+  BROTLI_ENC_CHECK(wuffs_brotli__encoder__workbuf_len(enc).min_incl > 0,
                    "workbuf_len at q11");
   status = wuffs_brotli__encoder__set_quirk(
       enc, WUFFS_BROTLI__QUIRK_ENCODER_QUALITY, 0xFFFFFFFF);  // (int)-1.
@@ -1336,10 +1338,9 @@ test_wuffs_brotli_encode_parameters() {
   src = make_io_buffer_from_string("", 0);
   dst.meta.wi = 0;
 
-  // Qualities 10 and 11 (and 12, which sanitizes to 11) are unsupported, and
-  // so is large-window brotli at qualities 3 and above.
-  for (uint32_t q = 3; q <= 12; q++) {
-    bool large_window = q < 10;
+  // Large-window brotli at qualities 3 to 9 is unsupported.
+  for (uint32_t q = 3; q <= 9; q++) {
+    bool large_window = true;
     free(enc);
     enc = wuffs_brotli__encoder__alloc();
     if (!enc) {

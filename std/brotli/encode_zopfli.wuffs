@@ -1,0 +1,1141 @@
+// Copyright 2026 The Wuffs Authors.
+//
+// Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
+// https://www.apache.org/licenses/LICENSE-2.0> or the MIT license
+// <LICENSE-MIT or https://opensource.org/licenses/MIT>, at your
+// option. This file may not be copied, modified, or distributed
+// except according to those terms.
+//
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+
+// --------
+
+// This file mirrors backward_references_hq.c (and backward_references_hq.h):
+// the Zopfli backward references of qualities 10
+// (BrotliCreateZopfliBackwardReferences) and 11
+// (BrotliCreateHqZopfliBackwardReferences), without a compound dictionary
+// (so the C code's gap is always 0) or a contextual dictionary.
+//
+// The C code's float values are binary32 bit patterns (base.u32), computed
+// with std/softfloat's f32 functions, in the C code's operation order (with
+// FLT_EVAL_METHOD 0: every float operation rounds to float).
+//
+// Memory: the C code allocates its ZopfliNode array, the cost model's
+// literal_costs_ array and (at quality 11) its num_matches and matches arrays
+// on the heap. Here, they live in the workbuf's variable region (which starts
+// at this.var_off and runs to the end of the workbuf; see
+// encode_store_hq.wuffs), in this order:
+//  - the nodes ((num_bytes + 1) * 16 bytes): each ZopfliNode is length,
+//    distance, dcode_insert_length and u (the cost / next / shortcut union),
+//    all u32le,
+//  - literal_costs_ ((num_bytes + 2) floats, as u32le),
+//  - at quality 10, the matches (2 * (MAX_NUM_MATCHES_H10 + 64)
+//    BackwardMatches) or, at quality 11, num_matches (num_bytes u32le values)
+//    and then the matches (as many as fit in the rest of the workbuf).
+// The ZopfliCostModel's other arrays and the StartPosQueue are encoder
+// fields (z_etc and zq_etc).
+
+pri status "#insufficient workbuf length"
+
+// Mirrors kInfinity in backward_references_hq.c: 1.7e38f.
+pri const Z_INFINITY : base.u32 = 0x7EFF_C99E
+
+// The floats 1.0f and 2.0f.
+pri const Z_F32_1 : base.u32 = 0x3F80_0000
+pri const Z_F32_2 : base.u32 = 0x4000_0000
+
+// Mirrors MAX_ZOPFLI_LEN_QUALITY_10 and MAX_ZOPFLI_LEN_QUALITY_11 in
+// quality.h.
+pri const MAX_ZOPFLI_LEN_QUALITY_10 : base.u64 = 150
+pri const MAX_ZOPFLI_LEN_QUALITY_11 : base.u64 = 325
+
+// Mirrors BROTLI_LONG_COPY_QUICK_STEP in quality.h.
+pri const BROTLI_LONG_COPY_QUICK_STEP : base.u64 = 16384
+
+// Mirrors BROTLI_MAX_EFFECTIVE_DISTANCE_ALPHABET_SIZE in
+// backward_references_hq.c.
+pri const Z_MAX_DIST_ALPHABET : base.u32 = 544
+
+// Mirrors kDistanceCacheIndex and kDistanceCacheOffset in
+// backward_references_hq.c (the offsets as two's complement u32s).
+pri const Z_DISTANCE_CACHE_INDEX : roarray[16] base.u32[..= 3] = [
+        0, 1, 2, 3, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1,
+]
+
+pri const Z_DISTANCE_CACHE_OFFSET : roarray[16] base.u32 = [
+        0, 0, 0, 0, 0xFFFF_FFFF, 1, 0xFFFF_FFFE, 2,
+        0xFFFF_FFFD, 3, 0xFFFF_FFFF, 1, 0xFFFF_FFFE, 2, 0xFFFF_FFFD, 3,
+]
+
+// -------- ZopfliNode accessors.
+
+pri func encoder.zn_length(wb: roslice base.u8, i: base.u64) base.u32 {
+    return this.load32le(s: args.wb, i: this.z_nodes_off ~mod+ (args.i ~mod* 16))
+}
+
+pri func encoder.zn_distance(wb: roslice base.u8, i: base.u64) base.u32 {
+    return this.load32le(s: args.wb, i: (this.z_nodes_off ~mod+ (args.i ~mod* 16)) ~mod+ 4)
+}
+
+pri func encoder.zn_dil(wb: roslice base.u8, i: base.u64) base.u32 {
+    return this.load32le(s: args.wb, i: (this.z_nodes_off ~mod+ (args.i ~mod* 16)) ~mod+ 8)
+}
+
+pri func encoder.zn_u(wb: roslice base.u8, i: base.u64) base.u32 {
+    return this.load32le(s: args.wb, i: (this.z_nodes_off ~mod+ (args.i ~mod* 16)) ~mod+ 12)
+}
+
+pri func encoder.zn_set_length!(wb: slice base.u8, i: base.u64, v: base.u32) {
+    this.poke_u32!(s: args.wb, i: this.z_nodes_off ~mod+ (args.i ~mod* 16), v: args.v)
+}
+
+pri func encoder.zn_set_u!(wb: slice base.u8, i: base.u64, v: base.u32) {
+    this.poke_u32!(s: args.wb, i: (this.z_nodes_off ~mod+ (args.i ~mod* 16)) ~mod+ 12, v: args.v)
+}
+
+// Mirrors ZopfliNodeCopyLength in backward_references_hq.c.
+pri func encoder.zn_copy_length(wb: roslice base.u8, i: base.u64) base.u64 {
+    return (this.zn_length(wb: args.wb, i: args.i) & 0x1FF_FFFF) as base.u64
+}
+
+// Mirrors ZopfliNodeLengthCode in backward_references_hq.c.
+pri func encoder.zn_length_code(wb: roslice base.u8, i: base.u64) base.u64 {
+    var length : base.u32
+
+    length = this.zn_length(wb: args.wb, i: args.i)
+    return (((length & 0x1FF_FFFF) ~mod+ 9) ~mod- (length >> 25)) as base.u64
+}
+
+// Mirrors ZopfliNodeDistanceCode in backward_references_hq.c.
+pri func encoder.zn_distance_code(wb: roslice base.u8, i: base.u64) base.u64 {
+    var short_code : base.u32
+
+    short_code = this.zn_dil(wb: args.wb, i: args.i) >> 27
+    if short_code == 0 {
+        return (this.zn_distance(wb: args.wb, i: args.i) as base.u64) + 15
+    }
+    return (short_code - 1) as base.u64
+}
+
+// Mirrors ZopfliNodeCommandLength in backward_references_hq.c.
+pri func encoder.zn_command_length(wb: roslice base.u8, i: base.u64) base.u64 {
+    return this.zn_copy_length(wb: args.wb, i: args.i) ~mod+ ((this.zn_dil(wb: args.wb, i: args.i) & 0x7FF_FFFF) as base.u64)
+}
+
+// Mirrors BrotliInitZopfliNodes in backward_references_hq.c.
+pri func encoder.init_zopfli_nodes!(wb: slice base.u8, length: base.u64) {
+    var i   : base.u64
+    var off : base.u64
+
+    i = 0
+    while i < args.length {
+        off = this.z_nodes_off ~mod+ (i ~mod* 16)
+        this.poke_u32!(s: args.wb, i: off, v: 1)
+        this.poke_u32!(s: args.wb, i: off ~mod+ 4, v: 0)
+        this.poke_u32!(s: args.wb, i: off ~mod+ 8, v: 0)
+        this.poke_u32!(s: args.wb, i: off ~mod+ 12, v: Z_INFINITY)
+        i ~mod+= 1
+    }
+}
+
+// BackwardMatch accessors: BackwardMatchLength and BackwardMatchLengthCode
+// in backward_references_hq.h's companion header (hash.h).
+pri func encoder.bm_distance(wb: roslice base.u8, off: base.u64) base.u64 {
+    return this.load32le(s: args.wb, i: args.off) as base.u64
+}
+
+pri func encoder.bm_length(wb: roslice base.u8, off: base.u64) base.u64 {
+    return (this.load32le(s: args.wb, i: args.off ~mod+ 4) >> 5) as base.u64
+}
+
+pri func encoder.bm_length_code(wb: roslice base.u8, off: base.u64) base.u64 {
+    var lac  : base.u32
+    var code : base.u32
+
+    lac = this.load32le(s: args.wb, i: args.off ~mod+ 4)
+    code = lac & 31
+    if code <> 0 {
+        return code as base.u64
+    }
+    return (lac >> 5) as base.u64
+}
+
+// bm_copy copies the BackwardMatch at args.wb[src ..] to args.wb[dst ..].
+pri func encoder.bm_copy!(wb: slice base.u8, dst: base.u64, src: base.u64) {
+    var d : base.u32
+    var l : base.u32
+
+    d = this.load32le(s: args.wb, i: args.src)
+    l = this.load32le(s: args.wb, i: args.src ~mod+ 4)
+    this.poke_u32!(s: args.wb, i: args.dst, v: d)
+    this.poke_u32!(s: args.wb, i: args.dst ~mod+ 4, v: l)
+}
+
+// -------- ZopfliCostModel.
+
+// lit_cost_at returns literal_costs_[i].
+pri func encoder.lit_cost_at(wb: roslice base.u8, i: base.u64) base.u32 {
+    return this.load32le(s: args.wb, i: this.z_lit_off ~mod+ (args.i ~mod* 4))
+}
+
+// Mirrors InitZopfliCostModel in backward_references_hq.c.
+pri func encoder.init_zopfli_cost_model!(num_bytes: base.u64) {
+    this.z_num_bytes = args.num_bytes
+    this.z_dist_hist_size = this.dist_alphabet_size_limit.min(no_more_than: Z_MAX_DIST_ALPHABET)
+}
+
+// z_hist returns histogram[i] of the C code's ZopfliCostModelArena: which
+// is 0 (histogram_literal), 1 (histogram_cmd) or 2 (histogram_dist).
+pri func encoder.z_hist(which: base.u32, i: base.u32) base.u32 {
+    if args.which == 0 {
+        return this.z_hist_lit[args.i & 255]
+    } else if args.which == 1 {
+        return this.z_hist_cmd[args.i.min(no_more_than: 703)]
+    }
+    return this.z_hist_dist[args.i.min(no_more_than: 543)]
+}
+
+// z_set_cost sets cost[i] of SetCost's cost argument: which is 0
+// (cost_literal), 1 (cost_cmd_) or 2 (cost_dist_).
+pri func encoder.z_set_cost!(which: base.u32, i: base.u32, v: base.u32) {
+    if args.which == 0 {
+        this.z_cost_literal[args.i & 255] = args.v
+    } else if args.which == 1 {
+        this.z_cost_cmd[args.i.min(no_more_than: 703)] = args.v
+    } else {
+        this.z_cost_dist[args.i.min(no_more_than: 543)] = args.v
+    }
+}
+
+// Mirrors SetCost in backward_references_hq.c, from the histogram (and to
+// the cost array) selected by which.
+pri func encoder.z_set_cost_from_histogram!(which: base.u32, histogram_size: base.u32, literal_histogram: base.bool) {
+    var sum                 : base.u64
+    var missing_symbol_sum  : base.u64
+    var log2sum             : base.u32
+    var missing_symbol_cost : base.u32
+    var i                   : base.u32
+    var h                   : base.u32
+    var cost                : base.u32
+
+    i = 0
+    while i < args.histogram_size {
+        sum ~mod+= this.z_hist(which: args.which, i: i) as base.u64
+        i ~mod+= 1
+    }
+    log2sum = this.sf.f64_to_f32(a: this.bc.fast_log2(v: sum))
+    missing_symbol_sum = sum
+    if not args.literal_histogram {
+        i = 0
+        while i < args.histogram_size {
+            if this.z_hist(which: args.which, i: i) == 0 {
+                missing_symbol_sum ~mod+= 1
+            }
+            i ~mod+= 1
+        }
+    }
+    missing_symbol_cost = this.sf.f32_add(a: this.sf.f64_to_f32(a: this.bc.fast_log2(v: missing_symbol_sum)), b: Z_F32_2)
+    i = 0
+    while i < args.histogram_size {
+        h = this.z_hist(which: args.which, i: i)
+        if h == 0 {
+            this.z_set_cost!(which: args.which, i: i, v: missing_symbol_cost)
+        } else {
+            // Shannon bits for this symbol.
+            cost = this.sf.f32_sub(a: log2sum, b: this.sf.f64_to_f32(a: this.bc.fast_log2(v: h as base.u64)))
+            // Cannot be coded with less than 1 bit.
+            if this.sf.f32_lt(a: cost, b: Z_F32_1) <> 0 {
+                cost = Z_F32_1
+            }
+            this.z_set_cost!(which: args.which, i: i, v: cost)
+        }
+        i ~mod+= 1
+    }
+}
+
+// Mirrors ZopfliCostModelSetFromCommands in backward_references_hq.c. The
+// commands are the num_commands commands starting at command index
+// cmds_base.
+pri func encoder.zopfli_cost_model_set_from_commands!(wb: slice base.u8, position: base.u64, cmds_base: base.u64,
+        num_commands: base.u64, last_insert_len: base.u64) {
+    var pos           : base.u64
+    var min_cost_cmd  : base.u32
+    var i             : base.u64
+    var j             : base.u64
+    var c             : base.u64
+    var inslength     : base.u64
+    var copylength    : base.u64
+    var distcode      : base.u32
+    var cmdcode       : base.u32
+    var literal_carry : base.u32
+    var lc_i          : base.u32
+    var lc_i1         : base.u32
+    var b             : base.u8
+
+    pos = args.position ~mod- args.last_insert_len
+    min_cost_cmd = Z_INFINITY
+    j = 0
+    while j < 704 {
+        if j < 256 {
+            this.z_hist_lit[j] = 0
+        }
+        if j < 544 {
+            this.z_hist_dist[j] = 0
+        }
+        this.z_hist_cmd[j] = 0
+        j ~mod+= 1
+    }
+
+    i = 0
+    while i < args.num_commands {
+        c = args.cmds_base ~mod+ i
+        inslength = this.cmd_insert_len(wb: args.wb, i: c) as base.u64
+        copylength = this.cmd_copy_len(wb: args.wb, i: c) as base.u64
+        distcode = (this.cmd_dist_prefix(wb: args.wb, i: c) & 0x3FF) as base.u32
+        cmdcode = this.cmd_cmd_prefix(wb: args.wb, i: c) as base.u32
+        this.z_hist_cmd[cmdcode.min(no_more_than: 703)] ~mod+= 1
+        if cmdcode >= 128 {
+            this.z_hist_dist[distcode.min(no_more_than: 543)] ~mod+= 1
+        }
+        j = 0
+        while j < inslength {
+            b = this.rb_byte(wb: args.wb, pos: pos ~mod+ j)
+            this.z_hist_lit[b] ~mod+= 1
+            j ~mod+= 1
+        }
+        pos ~mod+= inslength ~mod+ copylength
+        i ~mod+= 1
+    }
+
+    this.z_set_cost_from_histogram!(which: 0, histogram_size: 256, literal_histogram: true)
+    this.z_set_cost_from_histogram!(which: 1, histogram_size: 704, literal_histogram: false)
+    this.z_set_cost_from_histogram!(which: 2, histogram_size: this.z_dist_hist_size, literal_histogram: false)
+
+    j = 0
+    while j < 704 {
+        min_cost_cmd = this.sf.f32_min(a: min_cost_cmd, b: this.z_cost_cmd[j])
+        j ~mod+= 1
+    }
+    this.z_min_cost_cmd = min_cost_cmd
+
+    literal_carry = 0
+    this.poke_u32!(s: args.wb, i: this.z_lit_off, v: 0)
+    lc_i = 0
+    i = 0
+    while i < this.z_num_bytes {
+        b = this.rb_byte(wb: args.wb, pos: args.position ~mod+ i)
+        literal_carry = this.sf.f32_add(a: literal_carry, b: this.z_cost_literal[b])
+        lc_i1 = this.sf.f32_add(a: lc_i, b: literal_carry)
+        this.poke_u32!(s: args.wb, i: this.z_lit_off ~mod+ ((i ~mod+ 1) ~mod* 4), v: lc_i1)
+        literal_carry = this.sf.f32_sub(a: literal_carry, b: this.sf.f32_sub(a: lc_i1, b: lc_i))
+        lc_i = lc_i1
+        i ~mod+= 1
+    }
+}
+
+// Mirrors ZopfliCostModelSetFromLiteralCosts in backward_references_hq.c.
+pri func encoder.zopfli_cost_model_set_from_literal_costs!(wb: slice base.u8, position: base.u64) {
+    var literal_carry : base.u32
+    var lc_i          : base.u32
+    var lc_i1         : base.u32
+    var i             : base.u64
+    var j             : base.u32
+
+    this.estimate_bit_costs_for_literals!(wb: args.wb, pos: args.position, len: this.z_num_bytes,
+            cost_off: this.z_lit_off ~mod+ 4)
+    literal_carry = 0
+    this.poke_u32!(s: args.wb, i: this.z_lit_off, v: 0)
+    lc_i = 0
+    i = 0
+    while i < this.z_num_bytes {
+        literal_carry = this.sf.f32_add(a: literal_carry, b: this.lit_cost_at(wb: args.wb, i: i ~mod+ 1))
+        lc_i1 = this.sf.f32_add(a: lc_i, b: literal_carry)
+        this.poke_u32!(s: args.wb, i: this.z_lit_off ~mod+ ((i ~mod+ 1) ~mod* 4), v: lc_i1)
+        literal_carry = this.sf.f32_sub(a: literal_carry, b: this.sf.f32_sub(a: lc_i1, b: lc_i))
+        lc_i = lc_i1
+        i ~mod+= 1
+    }
+    j = 0
+    while j < 704 {
+        this.z_cost_cmd[j] = this.sf.f64_to_f32(a: this.bc.fast_log2(v: (11 + j) as base.u64))
+        j ~mod+= 1
+    }
+    j = 0
+    while j < this.z_dist_hist_size {
+        this.z_cost_dist[j.min(no_more_than: 543)] = this.sf.f64_to_f32(a: this.bc.fast_log2(v: (20 ~mod+ j) as base.u64))
+        j ~mod+= 1
+    }
+    this.z_min_cost_cmd = this.sf.f64_to_f32(a: this.bc.fast_log2(v: 11))
+}
+
+// Mirrors ZopfliCostModelGetLiteralCosts in backward_references_hq.c.
+pri func encoder.z_literal_costs(wb: roslice base.u8, from: base.u64, to: base.u64) base.u32 {
+    return this.sf.f32_sub(a: this.lit_cost_at(wb: args.wb, i: args.to), b: this.lit_cost_at(wb: args.wb, i: args.from))
+}
+
+// Mirrors UpdateZopfliNode in backward_references_hq.c.
+pri func encoder.update_zopfli_node!(wb: slice base.u8, pos: base.u64, start_pos: base.u64, len: base.u64,
+        len_code: base.u64, dist: base.u64, short_code: base.u64, cost: base.u32) {
+    var off : base.u64
+
+    off = this.z_nodes_off ~mod+ ((args.pos ~mod+ args.len) ~mod* 16)
+    this.poke_u32!(s: args.wb, i: off,
+            v: ((args.len | (((args.len ~mod+ 9) ~mod- args.len_code) ~mod<< 25)) & 0xFFFF_FFFF) as base.u32)
+    this.poke_u32!(s: args.wb, i: off ~mod+ 4, v: (args.dist & 0xFFFF_FFFF) as base.u32)
+    this.poke_u32!(s: args.wb, i: off ~mod+ 8,
+            v: (((args.short_code ~mod<< 27) | (args.pos ~mod- args.start_pos)) & 0xFFFF_FFFF) as base.u32)
+    this.poke_u32!(s: args.wb, i: off ~mod+ 12, v: args.cost)
+}
+
+// -------- StartPosQueue.
+
+// Mirrors StartPosQueueSize in backward_references_hq.c.
+pri func encoder.start_pos_queue_size() base.u64 {
+    return this.zq_idx.min(no_more_than: 8)
+}
+
+// Mirrors StartPosQueuePush in backward_references_hq.c, for the PosData in
+// the zp_etc fields.
+pri func encoder.start_pos_queue_push!() {
+    var offset : base.u64
+    var len    : base.u64
+    var i      : base.u64
+    var a      : base.u32[..= 7]
+    var b      : base.u32[..= 7]
+    var k      : base.u32
+
+    offset = (0xFFFF_FFFF_FFFF_FFFF ^ this.zq_idx) & 7
+    this.zq_idx ~mod+= 1
+    len = this.start_pos_queue_size()
+    a = (offset & 7) as base.u32
+    this.zq_pos[a] = this.zp_pos
+    this.zq_cost[a] = this.zp_cost
+    this.zq_costdiff[a] = this.zp_costdiff
+    k = 0
+    while k < 4 {
+        this.zq_dc[(a << 2) | k] = this.zp_dc[k]
+        k ~mod+= 1
+    }
+    // Restore the sorted order. In the list of |len| items at most |len - 1|
+    // adjacent element comparisons / swaps are required.
+    i = 1
+    while i < len {
+        a = (offset & 7) as base.u32
+        b = ((offset ~mod+ 1) & 7) as base.u32
+        if this.sf.f32_gt(a: this.zq_costdiff[a], b: this.zq_costdiff[b]) <> 0 {
+            this.start_pos_queue_swap!(a: a, b: b)
+        }
+        offset ~mod+= 1
+        i ~mod+= 1
+    }
+}
+
+// start_pos_queue_swap is BROTLI_SWAP(PosData, q, a, b).
+pri func encoder.start_pos_queue_swap!(a: base.u32[..= 7], b: base.u32[..= 7]) {
+    var t64 : base.u64
+    var t32 : base.u32
+    var k   : base.u32
+
+    t64 = this.zq_pos[args.a]
+    this.zq_pos[args.a] = this.zq_pos[args.b]
+    this.zq_pos[args.b] = t64
+    t32 = this.zq_cost[args.a]
+    this.zq_cost[args.a] = this.zq_cost[args.b]
+    this.zq_cost[args.b] = t32
+    t32 = this.zq_costdiff[args.a]
+    this.zq_costdiff[args.a] = this.zq_costdiff[args.b]
+    this.zq_costdiff[args.b] = t32
+    k = 0
+    while k < 4 {
+        t32 = this.zq_dc[(args.a << 2) | k]
+        this.zq_dc[(args.a << 2) | k] = this.zq_dc[(args.b << 2) | k]
+        this.zq_dc[(args.b << 2) | k] = t32
+        k ~mod+= 1
+    }
+}
+
+// start_pos_queue_at mirrors StartPosQueueAt in backward_references_hq.c,
+// returning the index (into the zq_etc arrays) of the k'th element.
+pri func encoder.start_pos_queue_at(k: base.u64) base.u32[..= 7] {
+    return ((args.k ~mod- this.zq_idx) & 7) as base.u32
+}
+
+// -------- The shortest path.
+
+// Mirrors ComputeMinimumCopyLength in backward_references_hq.c.
+pri func encoder.compute_minimum_copy_length(wb: roslice base.u8, start_cost: base.u32, num_bytes: base.u64, pos: base.u64) base.u64 {
+    var min_cost        : base.u32
+    var len             : base.u64
+    var next_len_bucket : base.u64
+    var next_len_offset : base.u64
+
+    // Compute the minimum possible cost of reaching any future position.
+    min_cost = args.start_cost
+    len = 2
+    next_len_bucket = 4
+    next_len_offset = 10
+    while ((args.pos ~mod+ len) <= args.num_bytes) and
+            (this.sf.f32_le(a: this.zn_u(wb: args.wb, i: args.pos ~mod+ len), b: min_cost) <> 0) {
+        // We already reached (pos + len) with no more cost than the minimum
+        // possible cost of reaching anything from this pos, so there is no
+        // point in looking for lengths <= len.
+        len ~mod+= 1
+        if len == next_len_offset {
+            // We reached the next copy length code bucket, so we add one
+            // more extra bit to the minimum cost.
+            min_cost = this.sf.f32_add(a: min_cost, b: Z_F32_1)
+            next_len_offset ~mod+= next_len_bucket
+            next_len_bucket ~mod*= 2
+        }
+    }
+    return len
+}
+
+// Mirrors ComputeDistanceShortcut in backward_references_hq.c (with a gap
+// of 0).
+pri func encoder.compute_distance_shortcut(wb: roslice base.u8, block_start: base.u64, pos: base.u64, max_backward_limit: base.u64) base.u32 {
+    var c_len : base.u64
+    var i_len : base.u64
+    var dist  : base.u64
+
+    c_len = this.zn_copy_length(wb: args.wb, i: args.pos)
+    i_len = (this.zn_dil(wb: args.wb, i: args.pos) & 0x7FF_FFFF) as base.u64
+    dist = this.zn_distance(wb: args.wb, i: args.pos) as base.u64
+    // Since |block_start + pos| is the end position of the command, the copy
+    // part starts from |block_start + pos - c_len|. Distances that are
+    // greater than this or greater than |max_backward_limit| + |gap| are
+    // static dictionary references, and do not update the last distances.
+    // Also distance code 0 (last distance) does not update the last
+    // distances.
+    if args.pos == 0 {
+        return 0
+    } else if ((dist ~mod+ c_len) <= (args.block_start ~mod+ args.pos)) and
+            (dist <= args.max_backward_limit) and
+            (this.zn_distance_code(wb: args.wb, i: args.pos) > 0) {
+        return (args.pos & 0xFFFF_FFFF) as base.u32
+    }
+    return this.zn_u(wb: args.wb, i: (args.pos ~mod- c_len) ~mod- i_len)
+}
+
+// Mirrors ComputeDistanceCache in backward_references_hq.c, writing to the
+// zp_dc field. The starting distance cache is this.dist_cache.
+pri func encoder.compute_distance_cache!(wb: roslice base.u8, pos: base.u64) {
+    var idx   : base.u32
+    var p     : base.u64
+    var i_len : base.u64
+    var c_len : base.u64
+
+    idx = 0
+    p = this.zn_u(wb: args.wb, i: args.pos) as base.u64
+    while (idx < 4) and (p > 0) {
+        i_len = (this.zn_dil(wb: args.wb, i: p) & 0x7FF_FFFF) as base.u64
+        c_len = this.zn_copy_length(wb: args.wb, i: p)
+        this.zp_dc[idx] = this.zn_distance(wb: args.wb, i: p)
+        idx ~mod+= 1
+        // Because of prerequisite, p >= c_len + i_len >= 2.
+        p = this.zn_u(wb: args.wb, i: (p ~mod- c_len) ~mod- i_len) as base.u64
+    }
+    while idx < 4 {
+        this.zp_dc[idx] = this.dist_cache[idx]
+        idx ~mod+= 1
+    }
+}
+
+// Mirrors EvaluateNode in backward_references_hq.c.
+pri func encoder.evaluate_node!(wb: slice base.u8, block_start: base.u64, pos: base.u64, max_backward_limit: base.u64) {
+    var node_cost : base.u32
+    var lc        : base.u32
+
+    // Save cost, because ComputeDistanceCache invalidates it.
+    node_cost = this.zn_u(wb: args.wb, i: args.pos)
+    this.zn_set_u!(wb: args.wb, i: args.pos, v: this.compute_distance_shortcut(
+            wb: args.wb, block_start: args.block_start, pos: args.pos, max_backward_limit: args.max_backward_limit))
+    lc = this.z_literal_costs(wb: args.wb, from: 0, to: args.pos)
+    if this.sf.f32_le(a: node_cost, b: lc) <> 0 {
+        this.zp_pos = args.pos
+        this.zp_cost = node_cost
+        this.zp_costdiff = this.sf.f32_sub(a: node_cost, b: lc)
+        this.compute_distance_cache!(wb: args.wb, pos: args.pos)
+        this.start_pos_queue_push!()
+    }
+}
+
+// Mirrors UpdateNodes in backward_references_hq.c. The num_matches matches
+// are at args.wb[matches_off ..]. It returns the longest copy length.
+pri func encoder.update_nodes!(wb: slice base.u8, num_bytes: base.u64, block_start: base.u64, pos: base.u64,
+        max_backward_limit: base.u64, num_matches: base.u64, matches_off: base.u64) base.u64 {
+    var mask                : base.u64
+    var cur_ix              : base.u64
+    var cur_ix_masked       : base.u64
+    var max_distance        : base.u64
+    var dictionary_start    : base.u64
+    var max_len             : base.u64
+    var max_zopfli_len      : base.u64
+    var max_iters           : base.u64
+    var min_len             : base.u64
+    var result              : base.u64
+    var k                   : base.u64
+    var q                   : base.u32[..= 7]
+    var min_cost            : base.u32
+    var start               : base.u64
+    var inscode             : base.u32
+    var start_costdiff      : base.u32
+    var base_cost           : base.u32
+    var best_len            : base.u64
+    var j                   : base.u64
+    var idx                 : base.u32[..= 3]
+    var backward            : base.u64
+    var bw32                : base.u32
+    var prev_ix             : base.u64
+    var len                 : base.u64
+    var continuation        : base.u8
+    var dist_cost           : base.u32
+    var l                   : base.u64
+    var copycode            : base.u32
+    var cmdcode             : base.u16
+    var cost                : base.u32
+    var moff                : base.u64
+    var dist                : base.u64
+    var is_dictionary_match : base.bool
+    var dist_code           : base.u64
+    var pe                  : base.u64
+    var dist_symbol         : base.u32
+    var distnumextra        : base.u32
+    var max_match_len       : base.u64
+    var len_code            : base.u64
+
+    mask = this.rb_mask as base.u64
+    cur_ix = args.block_start ~mod+ args.pos
+    cur_ix_masked = cur_ix & mask
+    max_distance = cur_ix.min(no_more_than: args.max_backward_limit)
+    dictionary_start = this.min64(a: cur_ix ~mod+ (this.stream_offset as base.u64), b: args.max_backward_limit)
+    max_len = args.num_bytes ~mod- args.pos
+    max_zopfli_len = MAX_ZOPFLI_LEN_QUALITY_10
+    max_iters = 1
+    if this.quality > 10 {
+        max_zopfli_len = MAX_ZOPFLI_LEN_QUALITY_11
+        max_iters = 5
+    }
+
+    this.evaluate_node!(wb: args.wb, block_start: args.block_start ~mod+ (this.stream_offset as base.u64),
+            pos: args.pos, max_backward_limit: args.max_backward_limit)
+
+    q = this.start_pos_queue_at(k: 0)
+    min_cost = this.sf.f32_add(
+            a: this.sf.f32_add(a: this.zq_cost[q], b: this.z_min_cost_cmd),
+            b: this.z_literal_costs(wb: args.wb, from: this.zq_pos[q], to: args.pos))
+    min_len = this.compute_minimum_copy_length(wb: args.wb, start_cost: min_cost, num_bytes: args.num_bytes, pos: args.pos)
+
+    // Go over the command starting positions in order of increasing cost
+    // difference.
+    k = 0
+    while (k < max_iters) and (k < this.start_pos_queue_size()) {
+        q = this.start_pos_queue_at(k: k)
+        start = this.zq_pos[q]
+        inscode = this.get_insert_length_code(insertlen: args.pos ~mod- start)
+        start_costdiff = this.zq_costdiff[q]
+        base_cost = this.sf.f32_add(
+                a: this.sf.f32_add(a: start_costdiff, b: this.sf.f32_from_u32(a: INS_EXTRA[inscode.min(no_more_than: 23)])),
+                b: this.z_literal_costs(wb: args.wb, from: 0, to: args.pos))
+
+        // Look for last distance matches using the distance cache from this
+        // starting position.
+        best_len = min_len ~mod- 1
+        j = 0
+        while (j < 16) and (best_len < max_len) {
+            idx = Z_DISTANCE_CACHE_INDEX[j]
+            bw32 = this.zq_dc[((q as base.u32) << 2) | idx] ~mod+ Z_DISTANCE_CACHE_OFFSET[j]
+            backward = bw32 as base.u64
+            if bw32 >= 0x8000_0000 {
+                backward |= 0xFFFF_FFFF_0000_0000
+            }
+            prev_ix = cur_ix ~mod- backward
+            len = 0
+            continuation = this.rb_raw(wb: args.wb, mpos: cur_ix_masked ~mod+ best_len, k: 0)
+            if (cur_ix_masked ~mod+ best_len) > mask {
+                break
+            }
+            if backward > dictionary_start {
+                // Word dictionary -> ignore.
+                j ~mod+= 1
+                continue
+            }
+            if backward <= max_distance {
+                // Regular backward reference.
+                if prev_ix >= cur_ix {
+                    j ~mod+= 1
+                    continue
+                }
+                prev_ix &= mask
+                if ((prev_ix ~mod+ best_len) > mask) or
+                        (continuation <> this.rb_raw(wb: args.wb, mpos: prev_ix ~mod+ best_len, k: 0)) {
+                    j ~mod+= 1
+                    continue
+                }
+                if this.rb_buf_off <= args.wb.length() {
+                    len = this.find_match_length_with_limit(s: args.wb[this.rb_buf_off ..],
+                            i1: prev_ix, i2: cur_ix_masked, limit: max_len)
+                }
+            } else {
+                // "Gray" area. It is addressable by decoder, but this encoder
+                // instance does not have that data -> should not touch it.
+                // (Without a compound dictionary, backward > dictionary_start
+                // was handled above.)
+                j ~mod+= 1
+                continue
+            }
+            dist_cost = this.sf.f32_add(a: base_cost, b: this.z_cost_dist[j])
+            l = best_len ~mod+ 1
+            while l <= len {
+                copycode = this.get_copy_length_code(copylen: l)
+                cmdcode = this.combine_length_codes(inscode: inscode, copycode: copycode, use_last_distance: j == 0)
+                if cmdcode < 128 {
+                    cost = base_cost
+                } else {
+                    cost = dist_cost
+                }
+                cost = this.sf.f32_add(
+                        a: this.sf.f32_add(a: cost, b: this.sf.f32_from_u32(a: COPY_EXTRA[copycode.min(no_more_than: 23)])),
+                        b: this.z_cost_cmd[cmdcode.min(no_more_than: 703)])
+                if this.sf.f32_lt(a: cost, b: this.zn_u(wb: args.wb, i: args.pos ~mod+ l)) <> 0 {
+                    this.update_zopfli_node!(wb: args.wb, pos: args.pos, start_pos: start, len: l,
+                            len_code: l, dist: backward, short_code: j ~mod+ 1, cost: cost)
+                    result = result.max(no_less_than: l)
+                }
+                best_len = l
+                l ~mod+= 1
+            }
+            j ~mod+= 1
+        }
+
+        // At higher iterations look only for new last distance matches, since
+        // looking only for new command start positions with the same
+        // distances does not help much.
+        if k >= 2 {
+            k ~mod+= 1
+            continue
+        }
+
+        // Loop through all possible copy lengths at this position.
+        len = min_len
+        j = 0
+        while j < args.num_matches {
+            moff = args.matches_off ~mod+ (j ~mod* 8)
+            dist = this.bm_distance(wb: args.wb, off: moff)
+            is_dictionary_match = dist > dictionary_start
+            // We already tried all possible last distance matches, so we can
+            // use normal distance code here.
+            dist_code = dist ~mod+ 15
+            pe = this.mb.prefix_encode_copy_distance(
+                    distance_code: dist_code,
+                    num_direct_codes: this.num_direct_distance_codes as base.u64,
+                    postfix_bits: this.distance_postfix_bits)
+            dist_symbol = (pe & 0xFFFF) as base.u32
+            distnumextra = dist_symbol >> 10
+            dist_cost = this.sf.f32_add(
+                    a: this.sf.f32_add(a: base_cost, b: this.sf.f32_from_u32(a: distnumextra)),
+                    b: this.z_cost_dist[this.min32_543(a: dist_symbol & 0x3FF)])
+
+            // Try all copy lengths up until the maximum copy length
+            // corresponding to this distance. If the distance refers to the
+            // static dictionary, or the maximum length is long enough, try
+            // only one maximum length.
+            max_match_len = this.bm_length(wb: args.wb, off: moff)
+            if (len < max_match_len) and (is_dictionary_match or (max_match_len > max_zopfli_len)) {
+                len = max_match_len
+            }
+            while len <= max_match_len {
+                len_code = len
+                if is_dictionary_match {
+                    len_code = this.bm_length_code(wb: args.wb, off: moff)
+                }
+                copycode = this.get_copy_length_code(copylen: len_code)
+                cmdcode = this.combine_length_codes(inscode: inscode, copycode: copycode, use_last_distance: false)
+                cost = this.sf.f32_add(
+                        a: this.sf.f32_add(a: dist_cost, b: this.sf.f32_from_u32(a: COPY_EXTRA[copycode.min(no_more_than: 23)])),
+                        b: this.z_cost_cmd[cmdcode.min(no_more_than: 703)])
+                if this.sf.f32_lt(a: cost, b: this.zn_u(wb: args.wb, i: args.pos ~mod+ len)) <> 0 {
+                    this.update_zopfli_node!(wb: args.wb, pos: args.pos, start_pos: start, len: len,
+                            len_code: len_code, dist: dist, short_code: 0, cost: cost)
+                    result = result.max(no_less_than: len)
+                }
+                len ~mod+= 1
+            }
+            j ~mod+= 1
+        }
+        k ~mod+= 1
+    }
+    return result
+}
+
+// Mirrors ComputeShortestPathFromNodes in backward_references_hq.c.
+pri func encoder.compute_shortest_path_from_nodes!(wb: slice base.u8, num_bytes: base.u64) base.u64 {
+    var index        : base.u64
+    var num_commands : base.u64
+    var len          : base.u64
+
+    index = args.num_bytes
+    while ((this.zn_dil(wb: args.wb, i: index) & 0x7FF_FFFF) == 0) and (this.zn_length(wb: args.wb, i: index) == 1) {
+        if index == 0 {
+            break
+        }
+        index ~mod-= 1
+    }
+    this.zn_set_u!(wb: args.wb, i: index, v: 0xFFFF_FFFF)
+    while index <> 0 {
+        len = this.zn_command_length(wb: args.wb, i: index)
+        if len == 0 {
+            // Unreachable (the C code would loop forever).
+            break
+        }
+        index ~mod-= len
+        this.zn_set_u!(wb: args.wb, i: index, v: (len & 0xFFFF_FFFF) as base.u32)
+        num_commands ~mod+= 1
+    }
+    return num_commands
+}
+
+// Mirrors BrotliZopfliCreateCommands in backward_references_hq.c. The
+// commands go to command indexes cmds_base and up.
+pri func encoder.zopfli_create_commands!(wb: slice base.u8, num_bytes: base.u64, block_start: base.u64, cmds_base: base.u64) {
+    var max_backward_limit : base.u64
+    var pos                : base.u64
+    var offset             : base.u32
+    var i                  : base.u64
+    var next               : base.u64
+    var copy_length        : base.u64
+    var insert_length      : base.u64
+    var distance           : base.u64
+    var len_code           : base.u64
+    var dictionary_start   : base.u64
+    var is_dictionary      : base.bool
+    var dist_code          : base.u64
+
+    max_backward_limit = ((1 as base.u64) << this.lgwin) ~mod- 16
+    offset = this.zn_u(wb: args.wb, i: 0)
+    while offset <> 0xFFFF_FFFF {
+        next = pos ~mod+ (offset as base.u64)
+        copy_length = this.zn_copy_length(wb: args.wb, i: next)
+        insert_length = (this.zn_dil(wb: args.wb, i: next) & 0x7FF_FFFF) as base.u64
+        pos ~mod+= insert_length
+        offset = this.zn_u(wb: args.wb, i: next)
+        if i == 0 {
+            insert_length ~mod+= this.last_insert_len
+            this.last_insert_len = 0
+        }
+        distance = this.zn_distance(wb: args.wb, i: next) as base.u64
+        len_code = this.zn_length_code(wb: args.wb, i: next)
+        dictionary_start = this.min64(a: (args.block_start ~mod+ pos) ~mod+ (this.stream_offset as base.u64), b: max_backward_limit)
+        is_dictionary = distance > dictionary_start
+        dist_code = this.zn_distance_code(wb: args.wb, i: next)
+        this.init_command!(wb: args.wb, n: args.cmds_base ~mod+ i, insertlen: insert_length,
+                copylen: copy_length, copylen_code_delta: len_code ~mod- copy_length, distance_code: dist_code)
+        if (not is_dictionary) and (dist_code > 0) {
+            this.dist_cache[3] = this.dist_cache[2]
+            this.dist_cache[2] = this.dist_cache[1]
+            this.dist_cache[1] = this.dist_cache[0]
+            this.dist_cache[0] = (distance & 0xFFFF_FFFF) as base.u32
+        }
+        this.num_lits ~mod+= insert_length
+        pos ~mod+= copy_length
+        i ~mod+= 1
+    }
+    this.last_insert_len ~mod+= args.num_bytes ~mod- pos
+}
+
+// Mirrors ZopfliIterate in backward_references_hq.c. The num_matches array
+// is at this.z_nm_off and the matches at this.z_m_off.
+pri func encoder.zopfli_iterate!(wb: slice base.u8, num_bytes: base.u64, position: base.u64) base.u64 {
+    var max_backward_limit : base.u64
+    var max_zopfli_len     : base.u64
+    var cur_match_pos      : base.u64
+    var i                  : base.u64
+    var skip               : base.u64
+    var nm                 : base.u64
+    var ml                 : base.u64
+
+    max_backward_limit = ((1 as base.u64) << this.lgwin) ~mod- 16
+    max_zopfli_len = MAX_ZOPFLI_LEN_QUALITY_10
+    if this.quality > 10 {
+        max_zopfli_len = MAX_ZOPFLI_LEN_QUALITY_11
+    }
+    this.zn_set_length!(wb: args.wb, i: 0, v: 0)
+    this.zn_set_u!(wb: args.wb, i: 0, v: 0)
+    this.zq_idx = 0
+    i = 0
+    while (i ~mod+ 3) < args.num_bytes {
+        nm = this.load32le(s: args.wb, i: this.z_nm_off ~mod+ (i ~mod* 4)) as base.u64
+        skip = this.update_nodes!(wb: args.wb, num_bytes: args.num_bytes, block_start: args.position, pos: i,
+                max_backward_limit: max_backward_limit, num_matches: nm,
+                matches_off: this.z_m_off ~mod+ (cur_match_pos ~mod* 8))
+        if skip < BROTLI_LONG_COPY_QUICK_STEP {
+            skip = 0
+        }
+        cur_match_pos ~mod+= nm
+        if nm == 1 {
+            ml = this.bm_length(wb: args.wb, off: this.z_m_off ~mod+ ((cur_match_pos ~mod- 1) ~mod* 8))
+            if ml > max_zopfli_len {
+                skip = skip.max(no_less_than: ml)
+            }
+        }
+        if skip > 1 {
+            skip ~mod-= 1
+            while skip > 0 {
+                i ~mod+= 1
+                if (i ~mod+ 3) >= args.num_bytes {
+                    break
+                }
+                this.evaluate_node!(wb: args.wb, block_start: args.position ~mod+ (this.stream_offset as base.u64),
+                        pos: i, max_backward_limit: max_backward_limit)
+                cur_match_pos ~mod+= this.load32le(s: args.wb, i: this.z_nm_off ~mod+ (i ~mod* 4)) as base.u64
+                skip ~mod-= 1
+            }
+        }
+        i ~mod+= 1
+    }
+    skip = this.compute_shortest_path_from_nodes!(wb: args.wb, num_bytes: args.num_bytes)
+    return skip
+}
+
+// z_set_offsets sets this.z_nodes_off, z_lit_off, z_nm_off and z_m_off for
+// num_bytes, and this.z_m_cap (the number of BackwardMatches that fit). It
+// returns false if the workbuf is too short.
+pri func encoder.z_set_offsets!(wb_len: base.u64, num_bytes: base.u64) base.bool {
+    var n   : base.u64
+    var end : base.u64
+
+    n = args.num_bytes
+    this.z_nodes_off = this.var_off
+    this.z_lit_off = this.z_nodes_off ~mod+ ((n ~mod+ 1) ~mod* 16)
+    this.z_nm_off = this.z_lit_off ~mod+ ((n ~mod+ 2) ~mod* 4)
+    if this.quality > 10 {
+        this.z_m_off = this.z_nm_off ~mod+ (n ~mod* 4)
+    } else {
+        this.z_m_off = this.z_nm_off
+    }
+    if this.z_m_off > args.wb_len {
+        return false
+    }
+    this.z_m_cap = (args.wb_len ~mod- this.z_m_off) / 8
+    if this.quality <= 10 {
+        if this.z_m_cap < (2 * (MAX_NUM_MATCHES_H10 + 64)) {
+            return false
+        }
+        return true
+    }
+    end = this.z_m_off
+    return end <= args.wb_len
+}
+
+// Mirrors BrotliZopfliComputeShortestPath in backward_references_hq.c. The
+// nodes were initialized by the caller.
+pri func encoder.zopfli_compute_shortest_path!(wb: slice base.u8, num_bytes: base.u64, position: base.u64) base.u64 {
+    var max_backward_limit : base.u64
+    var max_zopfli_len     : base.u64
+    var store_end          : base.u64
+    var i                  : base.u64
+    var pos                : base.u64
+    var max_distance       : base.u64
+    var dictionary_start   : base.u64
+    var skip               : base.u64
+    var num_matches        : base.u64
+    var ml                 : base.u64
+
+    max_backward_limit = ((1 as base.u64) << this.lgwin) ~mod- 16
+    max_zopfli_len = MAX_ZOPFLI_LEN_QUALITY_10
+    if this.quality > 10 {
+        max_zopfli_len = MAX_ZOPFLI_LEN_QUALITY_11
+    }
+    store_end = args.position
+    if args.num_bytes >= H10_MAX_TREE_COMP_LENGTH {
+        store_end = ((args.position ~mod+ args.num_bytes) ~mod- H10_MAX_TREE_COMP_LENGTH) ~mod+ 1
+    }
+    this.zn_set_length!(wb: args.wb, i: 0, v: 0)
+    this.zn_set_u!(wb: args.wb, i: 0, v: 0)
+    this.init_zopfli_cost_model!(num_bytes: args.num_bytes)
+    this.zopfli_cost_model_set_from_literal_costs!(wb: args.wb, position: args.position)
+    this.zq_idx = 0
+    i = 0
+    while (i ~mod+ 3) < args.num_bytes {
+        pos = args.position ~mod+ i
+        max_distance = pos.min(no_more_than: max_backward_limit)
+        dictionary_start = this.min64(a: pos ~mod+ (this.stream_offset as base.u64), b: max_backward_limit)
+        num_matches = this.h10_find_all_matches!(wb: args.wb, cur_ix: pos, max_length: args.num_bytes ~mod- i,
+                max_backward: max_distance, dictionary_distance: dictionary_start, matches_off: this.z_m_off)
+        if num_matches > 0 {
+            ml = this.bm_length(wb: args.wb, off: this.z_m_off ~mod+ ((num_matches ~mod- 1) ~mod* 8))
+            if ml > max_zopfli_len {
+                this.bm_copy!(wb: args.wb, dst: this.z_m_off, src: this.z_m_off ~mod+ ((num_matches ~mod- 1) ~mod* 8))
+                num_matches = 1
+            }
+        }
+        skip = this.update_nodes!(wb: args.wb, num_bytes: args.num_bytes, block_start: args.position, pos: i,
+                max_backward_limit: max_backward_limit, num_matches: num_matches, matches_off: this.z_m_off)
+        if skip < BROTLI_LONG_COPY_QUICK_STEP {
+            skip = 0
+        }
+        if num_matches == 1 {
+            ml = this.bm_length(wb: args.wb, off: this.z_m_off)
+            if ml > max_zopfli_len {
+                skip = skip.max(no_less_than: ml)
+            }
+        }
+        if skip > 1 {
+            // Add the tail of the copy to the hasher.
+            this.h10_store_range!(wb: args.wb, ix_start: pos ~mod+ 1, ix_end: this.min64(a: pos ~mod+ skip, b: store_end))
+            skip ~mod-= 1
+            while skip > 0 {
+                i ~mod+= 1
+                if (i ~mod+ 3) >= args.num_bytes {
+                    break
+                }
+                this.evaluate_node!(wb: args.wb, block_start: args.position ~mod+ (this.stream_offset as base.u64),
+                        pos: i, max_backward_limit: max_backward_limit)
+                skip ~mod-= 1
+            }
+        }
+        i ~mod+= 1
+    }
+    skip = this.compute_shortest_path_from_nodes!(wb: args.wb, num_bytes: args.num_bytes)
+    return skip
+}
+
+// Mirrors BrotliCreateZopfliBackwardReferences in backward_references_hq.c.
+pri func encoder.create_zopfli_backward_references!(wb: slice base.u8, num_bytes: base.u64, position: base.u64) base.status {
+    var cmds_base  : base.u64
+    var n          : base.u64
+    var ok_offsets : base.bool
+
+    ok_offsets = this.z_set_offsets!(wb_len: args.wb.length(), num_bytes: args.num_bytes)
+    if not ok_offsets {
+        return "#insufficient workbuf length"
+    }
+    cmds_base = this.num_cmds
+    this.init_zopfli_nodes!(wb: args.wb, length: args.num_bytes ~mod+ 1)
+    n = this.zopfli_compute_shortest_path!(wb: args.wb, num_bytes: args.num_bytes, position: args.position)
+    if (cmds_base ~mod+ n) > this.cmds_cap {
+        return "#internal error: inconsistent encoder state"
+    }
+    this.num_cmds ~mod+= n
+    this.zopfli_create_commands!(wb: args.wb, num_bytes: args.num_bytes, block_start: args.position, cmds_base: cmds_base)
+    return ok
+}
+
+// Mirrors BrotliCreateHqZopfliBackwardReferences in
+// backward_references_hq.c.
+pri func encoder.create_hq_zopfli_backward_references!(wb: slice base.u8, num_bytes: base.u64, position: base.u64) base.status {
+    var max_backward_limit   : base.u64
+    var store_end            : base.u64
+    var cur_match_pos        : base.u64
+    var i                    : base.u64
+    var pos                  : base.u64
+    var max_distance         : base.u64
+    var dictionary_start     : base.u64
+    var max_length           : base.u64
+    var num_found_matches    : base.u64
+    var cur_match_end        : base.u64
+    var match_len            : base.u64
+    var skip                 : base.u64
+    var j                    : base.u64
+    var orig_num_literals    : base.u64
+    var orig_last_insert_len : base.u64
+    var orig_dist_cache      : array[4] base.u32
+    var orig_num_commands    : base.u64
+    var iter                 : base.u32
+    var k                    : base.u32
+    var n                    : base.u64
+    var ok_offsets           : base.bool
+
+    ok_offsets = this.z_set_offsets!(wb_len: args.wb.length(), num_bytes: args.num_bytes)
+    if not ok_offsets {
+        return "#insufficient workbuf length"
+    }
+    max_backward_limit = ((1 as base.u64) << this.lgwin) ~mod- 16
+    store_end = args.position
+    if args.num_bytes >= H10_MAX_TREE_COMP_LENGTH {
+        store_end = ((args.position ~mod+ args.num_bytes) ~mod- H10_MAX_TREE_COMP_LENGTH) ~mod+ 1
+    }
+    i = 0
+    while (i ~mod+ 3) < args.num_bytes {
+        pos = args.position ~mod+ i
+        max_distance = pos.min(no_more_than: max_backward_limit)
+        dictionary_start = this.min64(a: pos ~mod+ (this.stream_offset as base.u64), b: max_backward_limit)
+        max_length = args.num_bytes ~mod- i
+        // Ensure that we have enough free slots.
+        if (cur_match_pos ~mod+ MAX_NUM_MATCHES_H10) > this.z_m_cap {
+            return "#insufficient workbuf length"
+        }
+        num_found_matches = this.h10_find_all_matches!(wb: args.wb, cur_ix: pos, max_length: max_length,
+                max_backward: max_distance, dictionary_distance: dictionary_start,
+                matches_off: this.z_m_off ~mod+ (cur_match_pos ~mod* 8))
+        cur_match_end = cur_match_pos ~mod+ num_found_matches
+        this.poke_u32!(s: args.wb, i: this.z_nm_off ~mod+ (i ~mod* 4), v: (num_found_matches & 0xFFFF_FFFF) as base.u32)
+        if num_found_matches > 0 {
+            match_len = this.bm_length(wb: args.wb, off: this.z_m_off ~mod+ ((cur_match_end ~mod- 1) ~mod* 8))
+            if match_len > MAX_ZOPFLI_LEN_QUALITY_11 {
+                skip = match_len ~mod- 1
+                this.bm_copy!(wb: args.wb, dst: this.z_m_off ~mod+ (cur_match_pos ~mod* 8),
+                        src: this.z_m_off ~mod+ ((cur_match_end ~mod- 1) ~mod* 8))
+                cur_match_pos ~mod+= 1
+                this.poke_u32!(s: args.wb, i: this.z_nm_off ~mod+ (i ~mod* 4), v: 1)
+                // Add the tail of the copy to the hasher.
+                this.h10_store_range!(wb: args.wb, ix_start: pos ~mod+ 1,
+                        ix_end: this.min64(a: pos ~mod+ match_len, b: store_end))
+                j = 0
+                while j < skip {
+                    this.poke_u32!(s: args.wb, i: this.z_nm_off ~mod+ (((i ~mod+ 1) ~mod+ j) ~mod* 4), v: 0)
+                    j ~mod+= 1
+                }
+                i ~mod+= skip
+            } else {
+                cur_match_pos = cur_match_end
+            }
+        }
+        i ~mod+= 1
+    }
+    orig_num_literals = this.num_lits
+    orig_last_insert_len = this.last_insert_len
+    k = 0
+    while k < 4 {
+        orig_dist_cache[k] = this.dist_cache[k]
+        k ~mod+= 1
+    }
+    orig_num_commands = this.num_cmds
+    this.init_zopfli_cost_model!(num_bytes: args.num_bytes)
+    iter = 0
+    while iter < 2 {
+        this.init_zopfli_nodes!(wb: args.wb, length: args.num_bytes ~mod+ 1)
+        if iter == 0 {
+            this.zopfli_cost_model_set_from_literal_costs!(wb: args.wb, position: args.position)
+        } else {
+            this.zopfli_cost_model_set_from_commands!(wb: args.wb, position: args.position,
+                    cmds_base: orig_num_commands, num_commands: this.num_cmds ~mod- orig_num_commands,
+                    last_insert_len: orig_last_insert_len)
+        }
+        this.num_cmds = orig_num_commands
+        this.num_lits = orig_num_literals
+        this.last_insert_len = orig_last_insert_len
+        k = 0
+        while k < 4 {
+            this.dist_cache[k] = orig_dist_cache[k]
+            k ~mod+= 1
+        }
+        n = this.zopfli_iterate!(wb: args.wb, num_bytes: args.num_bytes, position: args.position)
+        if (orig_num_commands ~mod+ n) > this.cmds_cap {
+            return "#internal error: inconsistent encoder state"
+        }
+        this.num_cmds ~mod+= n
+        this.zopfli_create_commands!(wb: args.wb, num_bytes: args.num_bytes, block_start: args.position,
+                cmds_base: orig_num_commands)
+        iter ~mod+= 1
+    }
+    return ok
+}
+
+// min32_543 returns min(a, 543).
+pri func encoder.min32_543(a: base.u32) base.u32[..= 543] {
+    if args.a < 543 {
+        return args.a
+    }
+    return 543
+}

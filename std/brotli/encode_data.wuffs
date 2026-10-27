@@ -38,7 +38,8 @@ pri const LAYOUT_CMAP       : base.u32 = 14
 pri const LAYOUT_RLE        : base.u32 = 15
 pri const LAYOUT_BE_DEPTH_0 : base.u32 = 16
 pri const LAYOUT_BE_BITS_0  : base.u32 = 19
-pri const LAYOUT_END        : base.u32 = 22
+pri const LAYOUT_VAR        : base.u32 = 22
+pri const LAYOUT_END        : base.u32 = 23
 
 // The C code's MAX_NUM_DELAYED_SYMBOLS (in quality.h).
 pri const MAX_NUM_DELAYED_SYMBOLS : base.u64 = 0x2FFF
@@ -96,7 +97,9 @@ pri func encoder.hasher_total_size(quality: base.u32[..= 11], lgwin: base.u32[..
     var bucket_bits : base.u32[..= 24]
     var block_bits  : base.u32[..= 16]
 
-    if (args.quality == 4) and (args.size_hint >= 0x10_0000) {
+    if args.quality >= 10 {
+        return (4 * H10_BUCKET_SIZE) + this.h10_alloc_size_1(lgwin: args.lgwin)
+    } else if (args.quality == 4) and (args.size_hint >= 0x10_0000) {
         htype = 54
     } else if args.quality < 5 {
         htype = args.quality
@@ -188,6 +191,14 @@ pri func encoder.compute_layout_offset(quality: base.u32[..= 11], lgwin: base.u3
             size = this.hash_region_size(quality: args.quality, lgwin: args.lgwin)
         } else if i == LAYOUT_CMDS {
             size = 16 ~mod* cmds_cap
+        } else if (args.quality >= 10) and (i < LAYOUT_CMAP) {
+            // Qualities 10 and 11 do not use BrotliBuildMetaBlockGreedy's
+            // regions (see encode_store_hq.wuffs).
+            size = 0
+        } else if i == LAYOUT_VAR {
+            if args.quality >= 10 {
+                size = this.hq_var_len(quality: args.quality, lgwin: args.lgwin, lgblock: args.lgblock, worst_case: false)
+            }
         } else if args.quality >= 4 {
             if i == (LAYOUT_TYPES_0 + 0) {
                 size = (max_len / 512) + 1
@@ -267,6 +278,7 @@ pri func encoder.compute_layout!() {
     this.mb_comb_off = this.compute_layout_offset(quality: q, lgwin: lw, lgblock: lb, idx: LAYOUT_COMB)
     this.mb_cmap_off = this.compute_layout_offset(quality: q, lgwin: lw, lgblock: lb, idx: LAYOUT_CMAP)
     this.mb_rle_off = this.compute_layout_offset(quality: q, lgwin: lw, lgblock: lb, idx: LAYOUT_RLE)
+    this.var_off = this.compute_layout_offset(quality: q, lgwin: lw, lgblock: lb, idx: LAYOUT_VAR)
     this.workbuf_end = this.compute_layout_offset(quality: q, lgwin: lw, lgblock: lb, idx: LAYOUT_END)
 
     // RingBufferSetup.
@@ -805,6 +817,12 @@ pri func encoder.write_meta_block_internal!(wb: slice base.u8, last_flush_pos: b
     } else if this.quality < 4 {
         this.store_meta_block_trivial!(wb: args.wb, start_pos: wrapped_last_flush_pos, length: args.bytes,
                 is_last: args.is_last, n_commands: this.num_cmds, s: args.s)
+    } else if this.quality >= 10 {
+        this.write_meta_block_hq!(wb: args.wb, wrapped_last_flush_pos: wrapped_last_flush_pos, bytes: args.bytes,
+                is_last: args.is_last, prev_byte: args.prev_byte, prev_byte2: args.prev_byte2, s: args.s)
+        if this.hq_insufficient {
+            return nothing
+        }
     } else {
         num_literal_contexts = 1
         if this.p_disable_lcm == 0 {
@@ -894,6 +912,12 @@ pri func encoder.encode_data!(wb: slice base.u8, is_last: base.bool, force_flush
     this.hasher_setup!(wb: args.wb, position: wrapped_last_processed_pos, input_size: bytes, is_last: args.is_last)
     this.hasher_stitch_to_previous_block!(wb: args.wb, num_bytes: bytes, position: wrapped_last_processed_pos)
 
+    if this.quality >= 10 {
+        this.literal_context_mode = this.choose_context_mode!(wb: args.wb,
+                pos: this.wrap_position(position: this.last_flush_pos),
+                length: this.input_pos ~mod- this.last_flush_pos)
+    }
+
     if (this.num_cmds > 0) and (this.last_insert_len == 0) {
         n = this.extend_last_command!(wb: args.wb, bytes: bytes,
                 wrapped_last_processed_pos: wrapped_last_processed_pos)
@@ -901,7 +925,13 @@ pri func encoder.encode_data!(wb: slice base.u8, is_last: base.bool, force_flush
         wrapped_last_processed_pos = (wrapped_last_processed_pos ~mod+ n) & 0xFFFF_FFFF
     }
 
-    status = this.create_backward_references!(wb: args.wb, num_bytes: bytes, position: wrapped_last_processed_pos)
+    if this.quality == 10 {
+        status = this.create_zopfli_backward_references!(wb: args.wb, num_bytes: bytes, position: wrapped_last_processed_pos)
+    } else if this.quality == 11 {
+        status = this.create_hq_zopfli_backward_references!(wb: args.wb, num_bytes: bytes, position: wrapped_last_processed_pos)
+    } else {
+        status = this.create_backward_references!(wb: args.wb, num_bytes: bytes, position: wrapped_last_processed_pos)
+    }
     if not status.is_ok() {
         return status
     }
@@ -956,6 +986,9 @@ pri func encoder.encode_data!(wb: slice base.u8, is_last: base.bool, force_flush
     this.write_meta_block_internal!(wb: args.wb, last_flush_pos: this.last_flush_pos, bytes: metablock_size,
             is_last: args.is_last, prev_byte: this.prev_byte, prev_byte2: this.prev_byte2,
             s: args.wb[.. storage_len])
+    if this.hq_insufficient {
+        return "#insufficient workbuf length"
+    }
     ix = this.bw_ix >> 3
     this.last_bytes = this.byte_at(s: args.wb, i: ix) as base.u32
     this.last_bytes_bits = (this.bw_ix & 7) as base.u32

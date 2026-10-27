@@ -870,6 +870,12 @@ func mainEncoder() error {
 		return err
 	}
 
+	// ---- Tables for qualities 10 and 11.
+
+	if err := printEncoderTablesQ10(w, readFile); err != nil {
+		return err
+	}
+
 	// Drop the final blank line.
 	_, err = os.Stdout.Write(bytes.TrimSuffix(w.Bytes(), []byte("\n")))
 	return err
@@ -1083,5 +1089,40 @@ func printEncoderTablesQ2(w *bytes.Buffer, readFile func(string) (string, error)
 		}
 		printTable(w, "From enc/encode.c "+x.cName+".", x.wuffName, "base.u8[..= 12]", vs, 16, false)
 	}
+	return nil
+}
+
+// printEncoderTablesQ10 prints the tables used by the encoder's quality 10
+// and 11 code paths: the static dictionary lookup table of static_dict_lut.h
+// (used by BrotliFindAllStaticDictionaryMatches).
+func printEncoderTablesQ10(w *bytes.Buffer, readFile func(string) (string, error)) error {
+	// ---- enc/static_dict_lut_inc.h
+
+	lutC, err := readFile("enc/static_dict_lut_inc.h")
+	if err != nil {
+		return err
+	}
+	buckets, err := parseIntsAfter(lutC, "kStaticDictionaryBuckets", 32768)
+	if err != nil {
+		return err
+	}
+	const numItems = 31705
+	words, err := parseIntsAfter(lutC, "kStaticDictionaryWords", 3*numItems)
+	if err != nil {
+		return err
+	}
+	packed := make([]int64, numItems)
+	for i := range packed {
+		l, t, idx := words[3*i+0], words[3*i+1], words[3*i+2]
+		if (l < 0) || (l > 0xFF) || (t < 0) || (t > 0xFF) || (idx < 0) || (idx > 0xFFFF) {
+			return fmt.Errorf("kStaticDictionaryWords: bad element %d", i)
+		}
+		packed[i] = l | (t << 8) | (idx << 16)
+	}
+	printTable(w, "From enc/static_dict_lut_inc.h kStaticDictionaryBuckets.",
+		"STATIC_DICT_LUT_BUCKETS", "base.u16", buckets, 16, false)
+	printTable(w, "From enc/static_dict_lut_inc.h kStaticDictionaryWords. Each DictWord\n"+
+		"// {len, transform, idx} is packed as (len | (transform << 8) | (idx << 16)).",
+		"STATIC_DICT_LUT_WORDS", "base.u32", packed, 8, true)
 	return nil
 }
