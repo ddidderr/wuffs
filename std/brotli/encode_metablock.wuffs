@@ -1021,6 +1021,8 @@ pri func metablock_builder.cluster_scratch_len(in_size: base.u64, hs: base.u64) 
 pri func metablock_builder.workbuf_len_worst_case(num_literals: base.u64, num_commands: base.u64) base.u64 {
     var l     : base.u64
     var c     : base.u64
+    var tl    : base.u64
+    var tc    : base.u64
     var n     : base.u64
     var split : base.u64
 
@@ -1037,13 +1039,19 @@ pri func metablock_builder.workbuf_len_worst_case(num_literals: base.u64, num_co
     split = split.max(no_less_than: (2 ~mod* c) ~sat+
             this.sbv_scratch_len(length: c, hs: HISTOGRAM_DISTANCE_SIZE, symbols_per_histogram: 544, max_histograms: 50))
     n ~sat+= split.max(no_less_than: HISTOGRAM_DISTANCE_SIZE)
-    // The MetaBlockSplit's histograms and context maps (with at most 256
-    // block types per category), plus the input histograms for clustering.
-    n ~sat+= (256 * HISTOGRAM_COMMAND_SIZE) + (16384 * 4) + (16384 * HISTOGRAM_LITERAL_SIZE) +
-            (1024 * 4) + (1024 * HISTOGRAM_DISTANCE_SIZE)
-    n ~sat+= (16384 * HISTOGRAM_LITERAL_SIZE) + (1024 * HISTOGRAM_DISTANCE_SIZE)
+    // The number of block types is at most 256 (MAX_NUMBER_OF_HISTOGRAMS)
+    // and at most the number of symbols (but at least 1). tl bounds the
+    // literal block types and tc bounds both the command and the distance
+    // block types (there are at most as many distances as commands).
+    tl = l.max(no_less_than: 1).min(no_more_than: 256)
+    tc = c.max(no_less_than: 1).min(no_more_than: 256)
+    // The MetaBlockSplit's histograms and context maps, plus the input
+    // histograms for clustering.
+    n ~sat+= (tc * HISTOGRAM_COMMAND_SIZE) + (tl * 64 * 4) + (tl * 64 * HISTOGRAM_LITERAL_SIZE) +
+            (tc * 4 * 4) + (tc * 4 * HISTOGRAM_DISTANCE_SIZE)
+    n ~sat+= (tl * 64 * HISTOGRAM_LITERAL_SIZE) + (tc * 4 * HISTOGRAM_DISTANCE_SIZE)
     // cluster_histograms' scratch.
-    n ~sat+= this.cluster_scratch_len(in_size: 16384, hs: HISTOGRAM_LITERAL_SIZE).max(no_less_than:
-            this.cluster_scratch_len(in_size: 1024, hs: HISTOGRAM_DISTANCE_SIZE))
+    n ~sat+= this.cluster_scratch_len(in_size: tl * 64, hs: HISTOGRAM_LITERAL_SIZE).max(no_less_than:
+            this.cluster_scratch_len(in_size: tc * 4, hs: HISTOGRAM_DISTANCE_SIZE))
     return n
 }
