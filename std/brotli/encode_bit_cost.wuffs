@@ -1,0 +1,320 @@
+// Copyright 2026 The Wuffs Authors.
+//
+// Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
+// https://www.apache.org/licenses/LICENSE-2.0> or the MIT license
+// <LICENSE-MIT or https://opensource.org/licenses/MIT>, at your
+// option. This file may not be copied, modified, or distributed
+// except according to those terms.
+//
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+
+// --------
+
+// This file mirrors bit_cost.c, bit_cost_inc.h and fast_log.h. The functions
+// are methods of the bit_cost struct (whose only state is the stateless
+// softfloat arith), so that other structs (the encoder, the
+// metablock_builder) can embed one with a single field.
+//
+// Doubles are IEEE 754 binary64 bit patterns (base.u64). A uint32_t array
+// (e.g. a histogram's data_) is a slice of little-endian bytes, because
+// Wuffs' C code generator does not support "slice base.u32" arguments.
+//
+// A histogram (the C code's HistogramLiteral, HistogramCommand and
+// HistogramDistance structs) is (4 * data_size) + 16 bytes, exactly the C
+// struct's memory layout on a 64-bit little-endian machine:
+//
+//   [0 .. 4 * data_size)                       data_, as u32le values
+//   [4 * data_size .. (4 * data_size) + 8)     total_count_, as a u64le
+//   [(4 * data_size) + 8 .. (4 * data_size) + 16)   bit_cost_, as the u64le
+//                                              bits of a binary64
+//
+// data_size is 256 (HISTOGRAM_LITERAL_DATA_SIZE), 704
+// (HISTOGRAM_COMMAND_DATA_SIZE) or 544 (HISTOGRAM_DISTANCE_DATA_SIZE). The C
+// code's templated functions (the FN(X) macros, instantiated three times) are
+// one Wuffs function each, with a data_size argument.
+
+pri const HISTOGRAM_LITERAL_DATA_SIZE  : base.u32 = 256
+pri const HISTOGRAM_COMMAND_DATA_SIZE  : base.u32 = 704
+pri const HISTOGRAM_DISTANCE_DATA_SIZE : base.u32 = 544
+
+// The byte sizes of the three histogram types.
+pri const HISTOGRAM_LITERAL_SIZE  : base.u64 = 1040
+pri const HISTOGRAM_COMMAND_SIZE  : base.u64 = 2832
+pri const HISTOGRAM_DISTANCE_SIZE : base.u64 = 2192
+
+// F64_HUGE_VAL is +infinity (the C code's HUGE_VAL).
+pri const F64_HUGE_VAL : base.u64 = 0x7FF0_0000_0000_0000
+
+// F64_1E99 is the C code's 1e99.
+pri const F64_1E99 : base.u64 = 0x547D_42AE_A287_9F2E
+
+pri struct bit_cost?(
+        sf : softfloat.arith,
+)
+
+// ld32 returns the u32le at s[i ..], or 0 if that is out of bounds (which
+// the callers never do).
+pri func bit_cost.ld32(s: roslice base.u8, i: base.u64) base.u32 {
+    var q : roslice base.u8
+
+    if args.i < args.s.length() {
+        q = args.s[args.i ..]
+        if q.length() >= 4 {
+            return q.peek_u32le()
+        }
+    }
+    return 0
+}
+
+// ld64 is like ld32 but for a u64le.
+pri func bit_cost.ld64(s: roslice base.u8, i: base.u64) base.u64 {
+    var q : roslice base.u8
+
+    if args.i < args.s.length() {
+        q = args.s[args.i ..]
+        if q.length() >= 8 {
+            return q.peek_u64le()
+        }
+    }
+    return 0
+}
+
+// st32 stores v as a u32le at s[i ..], or does nothing if that is out of
+// bounds (which the callers never do).
+pri func bit_cost.st32!(s: slice base.u8, i: base.u64, v: base.u32) {
+    var q : slice base.u8
+
+    if args.i < args.s.length() {
+        q = args.s[args.i ..]
+        if q.length() >= 4 {
+            q.poke_u32le!(a: args.v)
+        }
+    }
+}
+
+// st64 is like st32 but for a u64le.
+pri func bit_cost.st64!(s: slice base.u8, i: base.u64, v: base.u64) {
+    var q : slice base.u8
+
+    if args.i < args.s.length() {
+        q = args.s[args.i ..]
+        if q.length() >= 8 {
+            q.poke_u64le!(a: args.v)
+        }
+    }
+}
+
+// Mirrors FastLog2 in fast_log.h. The result is the bit pattern of an IEEE
+// 754 binary64 value.
+pri func bit_cost.fast_log2(v: base.u64) base.u64 {
+    if args.v < 256 {
+        return LOG2_TABLE[args.v]
+    }
+    return this.sf.log2_u64(v: args.v)
+}
+
+// Mirrors BrotliBitsEntropy in bit_cost.c. population holds (at least) size
+// u32le values. The C code's "goto odd_number_of_elements_left" only changes
+// the loop's unrolling, not the order of the operations.
+pri func bit_cost.bits_entropy(population: roslice base.u8, size: base.u64) base.u64 {
+    var sum    : base.u64
+    var retval : base.u64
+    var p      : base.u64
+    var q      : roslice base.u8
+    var n      : base.u64
+
+    q = args.population
+    n = args.size
+    while n > 0 {
+        n -= 1
+        p = 0
+        if q.length() >= 4 {
+            p = q.peek_u32le() as base.u64
+            q = q[4 ..]
+        }
+        sum ~mod+= p
+        retval = this.sf.f64_sub(a: retval, b: this.sf.f64_mul(
+                a: this.sf.f64_from_u64(a: p), b: this.fast_log2(v: p)))
+    }
+    if sum <> 0 {
+        retval = this.sf.f64_add(a: retval, b: this.sf.f64_mul(
+                a: this.sf.f64_from_u64(a: sum), b: this.fast_log2(v: sum)))
+    }
+    if this.sf.f64_lt(a: retval, b: this.sf.f64_from_u64(a: sum)) <> 0 {
+        retval = this.sf.f64_from_u64(a: sum)
+    }
+    return retval
+}
+
+// Mirrors BrotliPopulationCostLiteral, BrotliPopulationCostCommand and
+// BrotliPopulationCostDistance (FN(BrotliPopulationCost) in bit_cost_inc.h).
+// histogram is a histogram of data_size symbols (see the layout above).
+pri func bit_cost.population_cost(histogram: roslice base.u8, data_size: base.u32[..= 704]) base.u64 {
+    var total       : base.u64
+    var count       : base.u32
+    var s           : array[4] base.u32
+    var bits        : base.u64
+    var i           : base.u32
+    var j           : base.u32
+    var k           : base.u32
+    var c           : base.u32
+    var histo       : array[4] base.u32
+    var h0          : base.u32
+    var h1          : base.u32
+    var h2          : base.u32
+    var h23         : base.u32
+    var histomax    : base.u32
+    var max_depth   : base.u64[..= 15]
+    var depth_histo : array[18] base.u32
+    var log2total   : base.u64
+    var log2p       : base.u64
+    var depth       : base.u64
+    var reps        : base.u32
+    var sum         : base.u64
+    var retval      : base.u64
+    var p           : base.u64
+
+    total = this.ld64(s: args.histogram, i: (args.data_size as base.u64) * 4)
+    if total == 0 {
+        // kOneSymbolHistogramCost.
+        return 0x4028_0000_0000_0000
+    }
+    i = 0
+    while i < args.data_size {
+        if this.ld32(s: args.histogram, i: (i as base.u64) * 4) > 0 {
+            if count < 4 {
+                s[count] = i
+            }
+            count ~mod+= 1
+            if count > 4 {
+                break
+            }
+        }
+        i ~mod+= 1
+    }
+    if count == 1 {
+        // kOneSymbolHistogramCost.
+        return 0x4028_0000_0000_0000
+    }
+    if count == 2 {
+        // kTwoSymbolHistogramCost + (double)total_count_.
+        return this.sf.f64_add(a: 0x4034_0000_0000_0000, b: this.sf.f64_from_u64(a: total))
+    }
+    if count == 3 {
+        h0 = this.ld32(s: args.histogram, i: (s[0] as base.u64) * 4)
+        h1 = this.ld32(s: args.histogram, i: (s[1] as base.u64) * 4)
+        h2 = this.ld32(s: args.histogram, i: (s[2] as base.u64) * 4)
+        histomax = h0.max(no_less_than: h1.max(no_less_than: h2))
+        // kThreeSymbolHistogramCost + 2 * (histo0 + histo1 + histo2) -
+        // histomax, where the integer expression is uint32_t arithmetic.
+        return this.sf.f64_sub(
+                a: this.sf.f64_add(
+                a: 0x403C_0000_0000_0000,
+                b: this.sf.f64_from_u32(a: 2 ~mod* ((h0 ~mod+ h1) ~mod+ h2))),
+                b: this.sf.f64_from_u32(a: histomax))
+    }
+    if count == 4 {
+        i = 0
+        while i < 4 {
+            histo[i] = this.ld32(s: args.histogram, i: (s[i] as base.u64) * 4)
+            i ~mod+= 1
+        }
+        // Sort.
+        i = 0
+        while i < 4 {
+            j = i ~mod+ 1
+            while j < 4 {
+                if histo[j] > histo[i & 3] {
+                    k = histo[j]
+                    histo[j] = histo[i & 3]
+                    histo[i & 3] = k
+                }
+                j ~mod+= 1
+            }
+            i ~mod+= 1
+        }
+        h23 = histo[2] ~mod+ histo[3]
+        histomax = h23.max(no_less_than: histo[0])
+        // kFourSymbolHistogramCost + 3 * h23 + 2 * (histo[0] + histo[1]) -
+        // histomax, evaluated left to right.
+        return this.sf.f64_sub(
+                a: this.sf.f64_add(
+                a: this.sf.f64_add(
+                a: 0x4042_8000_0000_0000,
+                b: this.sf.f64_from_u32(a: 3 ~mod* h23)),
+                b: this.sf.f64_from_u32(a: 2 ~mod* (histo[0] ~mod+ histo[1]))),
+                b: this.sf.f64_from_u32(a: histomax))
+    }
+
+    // Compute the entropy of the histogram and simultaneously build a
+    // simplified histogram of the code length codes.
+    max_depth = 1
+    log2total = this.fast_log2(v: total)
+    i = 0
+    while i < args.data_size {
+        c = this.ld32(s: args.histogram, i: (i as base.u64) * 4)
+        if c > 0 {
+            log2p = this.sf.f64_sub(a: log2total, b: this.fast_log2(v: c as base.u64))
+            depth = this.sf.f64_to_u64_trunc(a: this.sf.f64_add(a: log2p, b: 0x3FE0_0000_0000_0000))
+            bits = this.sf.f64_add(a: bits, b: this.sf.f64_mul(
+                    a: this.sf.f64_from_u32(a: c), b: log2p))
+            if depth > 15 {
+                depth = 15
+            }
+            if depth > (max_depth as base.u64) {
+                max_depth = depth & 15
+            }
+            depth_histo[depth & 15] ~mod+= 1
+            i ~mod+= 1
+        } else {
+            // Compute the run length of zeros.
+            reps = 1
+            k = i ~mod+ 1
+            while k < args.data_size {
+                if this.ld32(s: args.histogram, i: (k as base.u64) * 4) <> 0 {
+                    break
+                }
+                reps ~mod+= 1
+                k ~mod+= 1
+            }
+            i ~sat+= reps
+            if i >= args.data_size {
+                // Don't add any cost for the last zero run.
+                break
+            }
+            if reps < 3 {
+                depth_histo[0] ~mod+= reps
+            } else {
+                reps -= 2
+                while reps > 0 {
+                    depth_histo[17] ~mod+= 1
+                    // Add the 3 extra bits for the 17 code length code.
+                    bits = this.sf.f64_add(a: bits, b: 0x4008_0000_0000_0000)
+                    reps >>= 3
+                }
+            }
+        }
+    }
+    // Add the estimated encoding cost of the code length code histogram.
+    bits = this.sf.f64_add(a: bits, b: this.sf.f64_from_u64(a: 18 + (2 * max_depth)))
+
+    // Add the entropy of the code length code histogram. This is
+    // BrotliBitsEntropy(depth_histo, BROTLI_CODE_LENGTH_CODES), inlined
+    // because depth_histo is a local array.
+    i = 0
+    while i < 18 {
+        p = depth_histo[i] as base.u64
+        sum ~mod+= p
+        retval = this.sf.f64_sub(a: retval, b: this.sf.f64_mul(
+                a: this.sf.f64_from_u64(a: p), b: this.fast_log2(v: p)))
+        i ~mod+= 1
+    }
+    if sum <> 0 {
+        retval = this.sf.f64_add(a: retval, b: this.sf.f64_mul(
+                a: this.sf.f64_from_u64(a: sum), b: this.fast_log2(v: sum)))
+    }
+    if this.sf.f64_lt(a: retval, b: this.sf.f64_from_u64(a: sum)) <> 0 {
+        retval = this.sf.f64_from_u64(a: sum)
+    }
+    return this.sf.f64_add(a: bits, b: retval)
+}

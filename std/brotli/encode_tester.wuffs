@@ -1,0 +1,47 @@
+// Copyright 2026 The Wuffs Authors.
+//
+// Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
+// https://www.apache.org/licenses/LICENSE-2.0> or the MIT license
+// <LICENSE-MIT or https://opensource.org/licenses/MIT>, at your
+// option. This file may not be copied, modified, or distributed
+// except according to those terms.
+//
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+
+// --------
+
+// TEST ONLY. The metablock_tester struct is not part of the encoder API. It
+// exposes the encoder's internal (pri) bit cost, histogram, block splitter,
+// clustering and metablock functions as pub methods, so that C test programs
+// (test/c/std/brotli.c and script/manual-test-brotli-metablock-parity.c) can
+// compare them with the C code's BROTLI_INTERNAL functions. Its methods and
+// their semantics may change at any time.
+
+pub struct metablock_tester?(
+        dummy : base.u32,
+) + (
+        // Wuffs' C code generator expects same-package struct fields to be in
+        // the private_data section (after the "+").
+        bc : bit_cost,
+)
+
+// bits_entropy mirrors BrotliBitsEntropy. population holds size u32le values.
+pub func metablock_tester.bits_entropy(population: roslice base.u8, size: base.u64) base.u64 {
+    return this.bc.bits_entropy(population: args.population, size: args.size)
+}
+
+// population_cost mirrors BrotliPopulationCostLiteral (data_size 256),
+// BrotliPopulationCostCommand (704) and BrotliPopulationCostDistance (544).
+// histogram has the C struct's layout: data_size u32le counts, then the
+// total_count_ u64le (and then the bit_cost_, which is ignored). It returns 0
+// for any other data_size.
+pub func metablock_tester.population_cost(histogram: roslice base.u8, data_size: base.u32) base.u64 {
+    if args.data_size == 256 {
+        return this.bc.population_cost(histogram: args.histogram, data_size: 256)
+    } else if args.data_size == 704 {
+        return this.bc.population_cost(histogram: args.histogram, data_size: 704)
+    } else if args.data_size == 544 {
+        return this.bc.population_cost(histogram: args.histogram, data_size: 544)
+    }
+    return 0
+}
