@@ -19,14 +19,15 @@
 // The C code's floating point (double) arithmetic is done with the
 // std/softfloat package, which is bit-exact. FastLog2's log2 matches glibc's.
 //
-// Only qualities 0 and 1 (the C code's BrotliCompressFragmentFast and
-// BrotliCompressFragmentTwoPass) are implemented so far. See README.md for
-// the API, including how the C code's FLUSH and EMIT_METADATA operations map
-// to the request_flush and request_emit_metadata methods.
+// Qualities 0 and 1 (the C code's BrotliCompressFragmentFast and
+// BrotliCompressFragmentTwoPass) and qualities 2 to 9 (the C code's
+// EncodeData, see encode_data.wuffs) are implemented so far. See README.md
+// for the API, including how the C code's FLUSH and EMIT_METADATA operations
+// map to the request_flush and request_emit_metadata methods.
 //
-// TODO: qualities 2 to 11 (the C code's EncodeData, WriteMetaBlockInternal,
-// hashers, block splitting, context modeling and Zopfli), large-window
-// brotli at those qualities and custom (prepared or shared) dictionaries.
+// TODO: qualities 10 and 11 (Zopfli and BrotliBuildMetaBlock), large-window
+// brotli at qualities 3 and above and custom (prepared or shared)
+// dictionaries.
 
 use "std/softfloat"
 

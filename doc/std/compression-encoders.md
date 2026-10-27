@@ -32,4 +32,4 @@ encoder has `request_flush`, `request_emit_metadata` and
 
 ## Implementations
 
-- [std/brotli](/std/brotli/README.md#encoder) (qualities 0 and 1 only).
+- [std/brotli](/std/brotli/README.md#encoder) (qualities 0 to 9 only).
