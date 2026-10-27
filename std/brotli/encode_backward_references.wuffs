@@ -224,10 +224,11 @@ pri func encoder.compute_distance_code(distance: base.u64, max_distance: base.u6
 }
 
 // Mirrors CreateBackwardReferences in backward_references_inc.h (via
-// BrotliCreateBackwardReferences in backward_references.c), without a
-// compound dictionary and with the built-in static dictionary. New commands
-// are appended at this.num_cmds.
-pri func encoder.create_backward_references!(wb: slice base.u8, num_bytes: base.u64, position: base.u64) base.status {
+// BrotliCreateBackwardReferences in backward_references.c), with the
+// built-in static dictionary. Its ENABLE_COMPOUND_DICTIONARY variant (see
+// compound_dictionary_enabled) searches the attached dictionaries (in
+// args.dwb). New commands are appended at this.num_cmds.
+pri func encoder.create_backward_references!(wb: slice base.u8, dwb: roslice base.u8, num_bytes: base.u64, position: base.u64) base.status {
     var position                      : base.u64
     var max_backward_limit            : base.u64
     var position_offset               : base.u64
@@ -250,6 +251,9 @@ pri func encoder.create_backward_references!(wb: slice base.u8, num_bytes: base.
     var range_end                     : base.u64
     var k_margin                      : base.u64
     var pos_jump                      : base.u64
+    var gap                           : base.u64
+    var use_compound                  : base.bool
+    var data                          : roslice base.u8
 
     position = args.position
     max_backward_limit = ((1 as base.u64) << this.lgwin) ~mod- 16
@@ -266,6 +270,11 @@ pri func encoder.create_backward_references!(wb: slice base.u8, num_bytes: base.
         random_heuristics_window_size = 512
     }
     apply_random_heuristics = position ~mod+ random_heuristics_window_size
+    gap = this.dict_total_size
+    use_compound = this.compound_dictionary_enabled()
+    if this.rb_buf_off <= args.wb.length() {
+        data = args.wb[this.rb_buf_off ..]
+    }
 
     this.prepare_distance_cache!()
 
@@ -278,8 +287,13 @@ pri func encoder.create_backward_references!(wb: slice base.u8, num_bytes: base.
         this.sr_distance = 0
         this.sr_score = SCORE_BASE + 100
         this.find_longest_match!(wb: args.wb, cur_ix: position, max_length: max_length,
-                max_backward: max_distance, dictionary_distance: dictionary_start,
+                max_backward: max_distance, dictionary_distance: dictionary_start ~mod+ gap,
                 max_distance: this.dist_max_distance)
+        if use_compound {
+            this.lookup_compound_dictionary_match!(data: data, dwb: args.dwb,
+                    cur_ix: position, max_length: max_length,
+                    max_ring_buffer_distance: dictionary_start, max_distance: this.dist_max_distance)
+        }
         if this.sr_score > (SCORE_BASE + 100) {
             // Found a match. Let's look for something even better ahead.
             delayed_backward_references = 0
@@ -299,8 +313,13 @@ pri func encoder.create_backward_references!(wb: slice base.u8, num_bytes: base.
                 max_distance = this.min64(a: position ~mod+ 1, b: max_backward_limit)
                 dictionary_start = this.min64(a: (position ~mod+ 1) ~mod+ position_offset, b: max_backward_limit)
                 this.find_longest_match!(wb: args.wb, cur_ix: position ~mod+ 1, max_length: max_length,
-                        max_backward: max_distance, dictionary_distance: dictionary_start,
+                        max_backward: max_distance, dictionary_distance: dictionary_start ~mod+ gap,
                         max_distance: this.dist_max_distance)
+                if use_compound {
+                    this.lookup_compound_dictionary_match!(data: data, dwb: args.dwb,
+                            cur_ix: position ~mod+ 1, max_length: max_length,
+                            max_ring_buffer_distance: dictionary_start, max_distance: this.dist_max_distance)
+                }
                 if this.sr_score >= (sr_score ~mod+ 175) {
                     // Ok, let's just write one byte for now and start a match
                     // from the next byte.
@@ -324,8 +343,8 @@ pri func encoder.create_backward_references!(wb: slice base.u8, num_bytes: base.
             dictionary_start = this.min64(a: position ~mod+ position_offset, b: max_backward_limit)
             // The first 16 codes are special short-codes, and the minimum
             // offset is 1.
-            distance_code = this.compute_distance_code(distance: this.sr_distance, max_distance: dictionary_start)
-            if (this.sr_distance <= dictionary_start) and (distance_code > 0) {
+            distance_code = this.compute_distance_code(distance: this.sr_distance, max_distance: dictionary_start ~mod+ gap)
+            if (this.sr_distance <= (dictionary_start ~mod+ gap)) and (distance_code > 0) {
                 this.dist_cache[3] = this.dist_cache[2]
                 this.dist_cache[2] = this.dist_cache[1]
                 this.dist_cache[1] = this.dist_cache[0]

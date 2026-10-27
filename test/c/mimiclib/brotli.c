@@ -21,6 +21,7 @@
 
 #include "brotli/decode.h"
 #include "brotli/encode.h"
+#include "brotli/shared_dictionary.h"
 
 // mimic_brotli_decode_error_code is like mimic_brotli_decode but also stores
 // the libbrotlidec error code (a BrotliDecoderErrorCode value) in
@@ -92,6 +93,20 @@ mimic_brotli_decode(wuffs_base__io_buffer* dst,
 // Each BrotliEncoderCompressStream call gets at most dst_chunk bytes of dst
 // (or all of dst's writable bytes, if dst_chunk is zero).
 const char*  //
+mimic_brotli_encode_with_dictionaries(wuffs_base__io_buffer* dst,
+                                      wuffs_base__io_buffer* src,
+                                      const uint32_t* param_keys,
+                                      const uint32_t* param_values,
+                                      size_t num_params,
+                                      size_t num_dicts,
+                                      const uint32_t* dict_types,
+                                      const wuffs_base__slice_u8* dicts,
+                                      const uint32_t* step_ops,
+                                      const size_t* step_lens,
+                                      size_t num_steps,
+                                      size_t dst_chunk);
+
+const char*  //
 mimic_brotli_encode(wuffs_base__io_buffer* dst,
                     wuffs_base__io_buffer* src,
                     const uint32_t* param_keys,
@@ -101,19 +116,80 @@ mimic_brotli_encode(wuffs_base__io_buffer* dst,
                     const size_t* step_lens,
                     size_t num_steps,
                     size_t dst_chunk) {
+  return mimic_brotli_encode_with_dictionaries(
+      dst, src, param_keys, param_values, num_params, 0, NULL, NULL, step_ops,
+      step_lens, num_steps, dst_chunk);
+}
+
+// mimic_brotli_encode_with_dictionaries is like mimic_brotli_encode but it
+// also prepares (with BrotliEncoderPrepareDictionary) and attaches (with
+// BrotliEncoderAttachPreparedDictionary), after setting the parameters and
+// before the first step, num_dicts dictionaries. Each dict_types[i] is a
+// BrotliSharedDictionaryType value: 0 for BROTLI_SHARED_DICTIONARY_RAW and 1
+// for BROTLI_SHARED_DICTIONARY_SERIALIZED. The quality passed to
+// BrotliEncoderPrepareDictionary is the last BROTLI_PARAM_QUALITY param (or
+// the default, 11), although the C code ignores it for raw dictionaries.
+//
+// libbrotlienc only supports serialized dictionaries when built with
+// BROTLI_EXPERIMENTAL (which is not the default). When preparing or
+// attaching a dictionary fails, this function returns
+// mimic_brotli_prepare_dictionary_failed_message or
+// mimic_brotli_attach_prepared_dictionary_failed_message.
+const char mimic_brotli_prepare_dictionary_failed_message[] =
+    "libbrotlienc: BrotliEncoderPrepareDictionary failed";
+const char mimic_brotli_attach_prepared_dictionary_failed_message[] =
+    "libbrotlienc: BrotliEncoderAttachPreparedDictionary failed";
+
+#define MIMIC_BROTLI_ENCODE_MAX_DICTS 64
+
+const char*  //
+mimic_brotli_encode_with_dictionaries(wuffs_base__io_buffer* dst,
+                                      wuffs_base__io_buffer* src,
+                                      const uint32_t* param_keys,
+                                      const uint32_t* param_values,
+                                      size_t num_params,
+                                      size_t num_dicts,
+                                      const uint32_t* dict_types,
+                                      const wuffs_base__slice_u8* dicts,
+                                      const uint32_t* step_ops,
+                                      const size_t* step_lens,
+                                      size_t num_steps,
+                                      size_t dst_chunk) {
   if (BrotliEncoderVersion() != 0x1002001) {
     return "libbrotlienc: unexpected version (want v1.2.1)";
+  } else if (num_dicts > MIMIC_BROTLI_ENCODE_MAX_DICTS) {
+    return "mimic_brotli_encode: too many dictionaries";
   }
+  BrotliEncoderPreparedDictionary* prepared[MIMIC_BROTLI_ENCODE_MAX_DICTS];
+  size_t num_prepared = 0;
   BrotliEncoderState* state = BrotliEncoderCreateInstance(NULL, NULL, NULL);
   if (!state) {
     return "libbrotlienc: BrotliEncoderCreateInstance failed";
   }
   const char* ret = NULL;
+  int quality = 11;
   for (size_t j = 0; j < num_params; j++) {
+    if (param_keys[j] == BROTLI_PARAM_QUALITY) {
+      quality = (int)(param_values[j]);
+    }
     if (!BrotliEncoderSetParameter(state,
                                    (BrotliEncoderParameter)(param_keys[j]),
                                    param_values[j])) {
       ret = "libbrotlienc: BrotliEncoderSetParameter failed";
+      goto cleanup;
+    }
+  }
+  for (size_t j = 0; j < num_dicts; j++) {
+    prepared[j] = BrotliEncoderPrepareDictionary(
+        (BrotliSharedDictionaryType)(dict_types[j]), dicts[j].len,
+        dicts[j].ptr, quality, NULL, NULL, NULL);
+    if (!prepared[j]) {
+      ret = mimic_brotli_prepare_dictionary_failed_message;
+      goto cleanup;
+    }
+    num_prepared++;
+    if (!BrotliEncoderAttachPreparedDictionary(state, prepared[j])) {
+      ret = mimic_brotli_attach_prepared_dictionary_failed_message;
       goto cleanup;
     }
   }
@@ -156,12 +232,13 @@ mimic_brotli_encode(wuffs_base__io_buffer* dst,
 
 cleanup:
   BrotliEncoderDestroyInstance(state);
+  for (size_t j = 0; j < num_prepared; j++) {
+    BrotliEncoderDestroyPreparedDictionary(prepared[j]);
+  }
   return ret;
 }
 
 // ---------------- Large Window and Dictionaries
-
-#include "brotli/shared_dictionary.h"
 
 // mimic_brotli_decode_with_options is like mimic_brotli_decode_error_code but
 // it also sets BROTLI_DECODER_PARAM_LARGE_WINDOW (if large_window is true) and

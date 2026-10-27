@@ -487,10 +487,11 @@ pri func encoder.update_size_hint!(available_in: base.u64) {
     }
 }
 
-// Mirrors ExtendLastCommand in encode.c (without a compound dictionary). It
-// returns how many bytes it extended the last command by: the caller
-// subtracts that from bytes and adds it to wrapped_last_processed_pos.
-pri func encoder.extend_last_command!(wb: slice base.u8, bytes: base.u64, wrapped_last_processed_pos: base.u64) base.u64 {
+// Mirrors ExtendLastCommand in encode.c (see extend_last_command_compound
+// for its compound dictionary branch). It returns how many bytes it extended
+// the last command by: the caller subtracts that from bytes and adds it to
+// wrapped_last_processed_pos.
+pri func encoder.extend_last_command!(wb: slice base.u8, dwb: roslice base.u8, bytes: base.u64, wrapped_last_processed_pos: base.u64) base.u64 {
     var last                  : base.u64
     var max_backward_distance : base.u64
     var copy_len              : base.u32
@@ -519,6 +520,11 @@ pri func encoder.extend_last_command!(wb: slice base.u8, bytes: base.u64, wrappe
                 n ~mod+= 1
                 p = (p ~mod+ 1) & 0xFFFF_FFFF
             }
+        } else {
+            n = this.extend_last_command_compound(wb: args.wb, dwb: args.dwb, bytes: args.bytes,
+                    wrapped_last_processed_pos: args.wrapped_last_processed_pos,
+                    cmd_dist: cmd_dist, max_distance: max_distance, last_copy_len: last_copy_len)
+            copy_len ~mod+= (n & 0xFFFF_FFFF) as base.u32
         }
         // The copy length is at most the metablock size, and thus
         // expressible.
@@ -876,7 +882,7 @@ pri func encoder.write_meta_block_internal!(wb: slice base.u8, last_flush_pos: b
 
 // Mirrors EncodeData in encode.c, for qualities 2 to 9. On a new metablock,
 // it sets the pending output (this.out_etc) to the storage (or tiny_buf).
-pri func encoder.encode_data!(wb: slice base.u8, is_last: base.bool, force_flush: base.bool) base.status {
+pri func encoder.encode_data!(wb: slice base.u8, dwb: roslice base.u8, is_last: base.bool, force_flush: base.bool) base.status {
     var status                     : base.status
     var delta                      : base.u64
     var bytes                      : base.u64
@@ -941,7 +947,7 @@ pri func encoder.encode_data!(wb: slice base.u8, is_last: base.bool, force_flush
     }
 
     if (this.num_cmds > 0) and (this.last_insert_len == 0) {
-        n = this.extend_last_command!(wb: args.wb, bytes: bytes,
+        n = this.extend_last_command!(wb: args.wb, dwb: args.dwb, bytes: bytes,
                 wrapped_last_processed_pos: wrapped_last_processed_pos)
         bytes ~mod-= n
         wrapped_last_processed_pos = (wrapped_last_processed_pos ~mod+ n) & 0xFFFF_FFFF
@@ -952,7 +958,7 @@ pri func encoder.encode_data!(wb: slice base.u8, is_last: base.bool, force_flush
     } else if this.quality == 11 {
         status = this.create_hq_zopfli_backward_references!(wb: args.wb, num_bytes: bytes, position: wrapped_last_processed_pos)
     } else {
-        status = this.create_backward_references!(wb: args.wb, num_bytes: bytes, position: wrapped_last_processed_pos)
+        status = this.create_backward_references!(wb: args.wb, dwb: args.dwb, num_bytes: bytes, position: wrapped_last_processed_pos)
     }
     if not status.is_ok() {
         return status

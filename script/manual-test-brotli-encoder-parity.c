@@ -71,6 +71,7 @@
 #include <string.h>
 #include <time.h>
 
+#include "brotli/decode.h"
 #include "brotli/encode.h"
 
 #define WUFFS_IMPLEMENTATION
@@ -113,6 +114,26 @@ static uint32_t g_qmin = 0;
 static uint32_t g_qmax = 9;
 static uint32_t g_oneshot_lgwin = 0;
 static bool g_lw_only = false;
+static bool g_dict_only = false;
+
+// The attached raw dictionaries (see set_dicts), for both encoders: the C
+// code's prepared dictionaries and a Wuffs encoder (g_dict_template) that has
+// them added, with the dictionaries in g_workbuf[.. g_dict_end]. For a small
+// total dictionary size, encode_wuffs adds them to a fresh encoder instead.
+#define MAX_DICTS 16
+static const uint8_t* g_dict_ptrs[MAX_DICTS];
+static size_t g_dict_lens[MAX_DICTS];
+static size_t g_num_dicts;
+static size_t g_dict_total;
+static BrotliEncoderPreparedDictionary* g_dict_prepared[MAX_DICTS];
+static wuffs_brotli__encoder* g_dict_template;
+static uint64_t g_dict_end;
+static uint64_t g_num_roundtrips;
+static uint64_t g_last_wlen;  // encode_wuffs' workbuf_len.
+static char g_dict_desc[160];
+static uint8_t* g_foreign_dict;  // test/data/enwik5.
+static size_t g_foreign_dict_len;
+static uint64_t g_num_smaller_checks;
 
 typedef struct {
   uint32_t keys[MAX_PARAMS];
@@ -348,6 +369,74 @@ brotli_enc_quirk_key(uint32_t param) {
   return 0;
 }
 
+// grow_workbuf makes g_workbuf at least n bytes long, keeping its contents
+// (and so any dictionaries at its start).
+static bool  //
+grow_workbuf(uint64_t n) {
+  if (n <= g_workbuf_len) {
+    return true;
+  } else if (n > ((uint64_t)3 << 30)) {
+    return false;
+  }
+  uint8_t* p = realloc(g_workbuf, (size_t)n);
+  if (!p) {
+    return false;
+  }
+  g_workbuf = p;
+  g_workbuf_len = (size_t)n;
+  return true;
+}
+
+// set_dicts sets the attached dictionaries for the following checks (none if
+// n is 0), preparing them for both encoders.
+static const char*  //
+set_dicts(size_t n, const uint8_t* const* ptrs, const size_t* lens) {
+  for (size_t j = 0; j < g_num_dicts; j++) {
+    BrotliEncoderDestroyPreparedDictionary(g_dict_prepared[j]);
+    g_dict_prepared[j] = NULL;
+  }
+  free(g_dict_template);
+  g_dict_template = NULL;
+  g_num_dicts = 0;
+  g_dict_total = 0;
+  g_dict_end = 0;
+  for (size_t j = 0; (j < n) && (j < MAX_DICTS); j++) {
+    g_dict_ptrs[j] = ptrs[j];
+    g_dict_lens[j] = lens[j];
+    g_dict_total += lens[j];
+    // The quality argument does not matter for raw dictionaries.
+    g_dict_prepared[j] = BrotliEncoderPrepareDictionary(
+        BROTLI_SHARED_DICTIONARY_RAW, lens[j], ptrs[j], 11, NULL, NULL, NULL);
+    g_num_dicts = j + 1;
+    if (!g_dict_prepared[j]) {
+      return "BrotliEncoderPrepareDictionary failed";
+    }
+  }
+  if (g_dict_total <= (256 << 10)) {
+    return NULL;
+  }
+  g_dict_template = wuffs_brotli__encoder__alloc();
+  if (!g_dict_template) {
+    return "alloc failed";
+  }
+  for (size_t j = 0; j < g_num_dicts; j++) {
+    uint64_t wlen = wuffs_brotli__encoder__add_dictionary_workbuf_len(
+        g_dict_template, g_dict_lens[j]);
+    if (!grow_workbuf(wlen)) {
+      return "malloc failed";
+    }
+    wuffs_base__status status = wuffs_brotli__encoder__add_dictionary(
+        g_dict_template, WUFFS_BROTLI__DICTIONARY_TYPE_RAW,
+        wuffs_base__make_slice_u8((uint8_t*)g_dict_ptrs[j], g_dict_lens[j]),
+        wuffs_base__make_slice_u8(g_workbuf, (size_t)wlen));
+    if (status.repr) {
+      return status.repr;
+    }
+  }
+  g_dict_end = wuffs_brotli__encoder__workbuf_len(g_dict_template).max_incl;
+  return NULL;
+}
+
 // encode_wuffs mirrors wuffs_brotli_encode_plan in test/c/std/brotli.c.
 static const char*  //
 encode_wuffs(const config* c, size_t* have_len) {
@@ -356,6 +445,26 @@ encode_wuffs(const config* c, size_t* have_len) {
     return "alloc failed";
   }
   const char* ret = NULL;
+  if (g_dict_template) {
+    memcpy(enc, g_dict_template, sizeof__wuffs_brotli__encoder());
+  } else if (g_num_dicts > 0) {
+    for (size_t j = 0; j < g_num_dicts; j++) {
+      uint64_t n = wuffs_brotli__encoder__add_dictionary_workbuf_len(
+          enc, g_dict_lens[j]);
+      if (!grow_workbuf(n)) {
+        ret = "malloc failed";
+        goto cleanup;
+      }
+      wuffs_base__status status = wuffs_brotli__encoder__add_dictionary(
+          enc, WUFFS_BROTLI__DICTIONARY_TYPE_RAW,
+          wuffs_base__make_slice_u8((uint8_t*)g_dict_ptrs[j], g_dict_lens[j]),
+          wuffs_base__make_slice_u8(g_workbuf, (size_t)n));
+      if (status.repr) {
+        ret = status.repr;
+        goto cleanup;
+      }
+    }
+  }
   wuffs_base__io_buffer dst = wuffs_base__ptr_u8__writer(g_have, MAX_OUTPUT);
   wuffs_base__io_buffer src = wuffs_base__ptr_u8__reader(g_src, g_src_len,
                                                          false);
@@ -378,15 +487,11 @@ encode_wuffs(const config* c, size_t* have_len) {
   if (wlen > ((uint64_t)12 << 30)) {
     ret = g_too_large;
     goto cleanup;
-  } else if (wlen > g_workbuf_len) {
-    free(g_workbuf);
-    g_workbuf = malloc((size_t)wlen);
-    g_workbuf_len = g_workbuf ? (size_t)wlen : 0;
-    if (!g_workbuf) {
-      ret = "malloc failed";
-      goto cleanup;
-    }
+  } else if (!grow_workbuf(wlen)) {
+    ret = "malloc failed";
+    goto cleanup;
   }
+  g_last_wlen = wlen;
   if ((g_short_workbuf_len > 0) && (g_short_workbuf_len < wlen)) {
     wlen = g_short_workbuf_len;
   }
@@ -461,6 +566,12 @@ encode_mimic(const config* c, size_t* want_len) {
       goto cleanup;
     }
   }
+  for (size_t j = 0; j < g_num_dicts; j++) {
+    if (!BrotliEncoderAttachPreparedDictionary(state, g_dict_prepared[j])) {
+      ret = "BrotliEncoderAttachPreparedDictionary failed";
+      goto cleanup;
+    }
+  }
   const uint8_t* next_in = g_src;
   for (size_t i = 0; i < g_num_steps; i++) {
     size_t avail_in = g_step_lens[i];
@@ -508,6 +619,10 @@ describe(char* buf, size_t n, const char* name, const config* c) {
              " chunking=%u flush=%u metadata=%u/%zu dst_chunk=%zu seed=0x%" PRIX64,
              c->chunking, c->flush, c->metadata_position, c->metadata_len,
              c->dst_chunk, c->seed);
+  }
+  k = (int)strlen(buf);
+  if ((g_num_dicts > 0) && (k > 0) && ((size_t)k < n)) {
+    snprintf(buf + k, n - (size_t)k, " dicts=%s", g_dict_desc);
   }
 }
 
@@ -568,9 +683,12 @@ short_workbuf_len(const config* c, size_t len, uint64_t wlen) {
   return (n < wlen) ? (size_t)n : 0;
 }
 
+static const char*  //
+roundtrip(const config* c, const uint8_t* data, size_t len, size_t want_len);
+
 static void  //
 check(const char* name, const config* c, const uint8_t* data, size_t len) {
-  char desc[512];
+  char desc[768];
   g_num_configs++;
   const char* err = make_plan(c, data, len);
   if (err) {
@@ -594,16 +712,7 @@ check(const char* name, const config* c, const uint8_t* data, size_t len) {
   if (c->try_short && !have_err && !want_err) {
     // Also check the shortest workbuf that should work, and that one byte
     // less fails.
-    wuffs_brotli__encoder* enc = wuffs_brotli__encoder__alloc();
-    uint64_t wlen = 0;
-    if (enc) {
-      for (size_t j = 0; j < c->num_params; j++) {
-        wuffs_brotli__encoder__set_quirk(enc, brotli_enc_quirk_key(c->keys[j]),
-                                         c->values[j]);
-      }
-      wlen = wuffs_brotli__encoder__workbuf_len(enc).min_incl;
-      free(enc);
-    }
+    uint64_t wlen = g_last_wlen;
     size_t short_len = short_workbuf_len(c, len, wlen);
     if (short_len > 0) {
       g_num_short_checks++;
@@ -646,7 +755,121 @@ check(const char* name, const config* c, const uint8_t* data, size_t len) {
            "at offset %zu\n",
            desc, have_len, want_len, i);
     fflush(stdout);
+    return;
   }
+  if (g_num_dicts > 0) {
+    // A stream offset makes the output a continuation of another stream, so
+    // it cannot be decoded on its own.
+    bool stream_offset = false;
+    for (size_t j = 0; j < c->num_params; j++) {
+      if ((c->keys[j] == 9) && c->values[j]) {
+        stream_offset = true;
+      }
+    }
+    if (!stream_offset) {
+      g_num_roundtrips++;
+      const char* rt_err = roundtrip(c, data, len, want_len);
+      if (rt_err) {
+        g_num_mismatches++;
+        describe(desc, sizeof desc, name, c);
+        printf("ROUNDTRIP FAILURE %s: %s\n", desc, rt_err);
+        fflush(stdout);
+      }
+    }
+  }
+}
+
+// roundtrip checks that both libbrotlidec and Wuffs' decoder (with the same
+// dictionaries attached) decode g_want (of want_len bytes) to data.
+static const char*  //
+roundtrip(const config* c, const uint8_t* data, size_t len, size_t want_len) {
+  static uint8_t* out = NULL;
+  static uint8_t* dec_workbuf = NULL;
+  static size_t dec_workbuf_len = 0;
+  if (!out) {
+    out = malloc(MAX_INPUT);
+    if (!out) {
+      return "malloc failed";
+    }
+  }
+  bool lw = false;
+  for (size_t j = 0; j < c->num_params; j++) {
+    if (c->keys[j] == 6) {
+      lw = c->values[j] != 0;
+    }
+  }
+
+  // libbrotlidec.
+  BrotliDecoderState* d = BrotliDecoderCreateInstance(NULL, NULL, NULL);
+  if (!d) {
+    return "BrotliDecoderCreateInstance failed";
+  }
+  BrotliDecoderSetParameter(d, BROTLI_DECODER_PARAM_LARGE_WINDOW, lw ? 1 : 0);
+  for (size_t j = 0; j < g_num_dicts; j++) {
+    if (!BrotliDecoderAttachDictionary(d, BROTLI_SHARED_DICTIONARY_RAW,
+                                       g_dict_lens[j], g_dict_ptrs[j])) {
+      BrotliDecoderDestroyInstance(d);
+      return "BrotliDecoderAttachDictionary failed";
+    }
+  }
+  size_t avail_in = want_len;
+  const uint8_t* next_in = g_want;
+  size_t avail_out = MAX_INPUT;
+  uint8_t* next_out = out;
+  BrotliDecoderResult r = BrotliDecoderDecompressStream(
+      d, &avail_in, &next_in, &avail_out, &next_out, NULL);
+  BrotliDecoderDestroyInstance(d);
+  if (r != BROTLI_DECODER_RESULT_SUCCESS) {
+    return "libbrotlidec failed";
+  } else if (((MAX_INPUT - avail_out) != len) || (len && memcmp(out, data, len))) {
+    return "libbrotlidec round trip mismatch";
+  }
+
+  // Wuffs' decoder.
+  wuffs_brotli__decoder* dec = wuffs_brotli__decoder__alloc();
+  if (!dec) {
+    return "alloc failed";
+  }
+  const char* ret = NULL;
+  wuffs_brotli__decoder__set_quirk(dec, WUFFS_BROTLI__QUIRK_LARGE_WINDOW,
+                                   lw ? 1 : 0);
+  size_t need = g_dict_total + ((size_t)1 << 30) + 542;
+  if (need > dec_workbuf_len) {
+    free(dec_workbuf);
+    dec_workbuf = malloc(need);
+    dec_workbuf_len = dec_workbuf ? need : 0;
+    if (!dec_workbuf) {
+      free(dec);
+      return "malloc failed";
+    }
+  }
+  wuffs_base__slice_u8 wb = wuffs_base__make_slice_u8(dec_workbuf, dec_workbuf_len);
+  for (size_t j = 0; j < g_num_dicts; j++) {
+    wuffs_base__status status = wuffs_brotli__decoder__add_dictionary(
+        dec, WUFFS_BROTLI__DICTIONARY_TYPE_RAW,
+        wuffs_base__make_slice_u8((uint8_t*)g_dict_ptrs[j], g_dict_lens[j]), wb);
+    if (status.repr) {
+      ret = status.repr;
+      goto cleanup;
+    }
+  }
+  uint64_t wlen = wuffs_brotli__decoder__workbuf_len(dec).max_incl;
+  if (wlen > dec_workbuf_len) {
+    ret = "decoder workbuf_len is too large";
+    goto cleanup;
+  }
+  wuffs_base__io_buffer dst = wuffs_base__ptr_u8__writer(out, MAX_INPUT);
+  wuffs_base__io_buffer src = wuffs_base__ptr_u8__reader(g_want, want_len, true);
+  wuffs_base__status status = wuffs_brotli__decoder__transform_io(
+      dec, &dst, &src, wuffs_base__make_slice_u8(dec_workbuf, (size_t)wlen));
+  if (status.repr) {
+    ret = status.repr;
+  } else if ((dst.meta.wi != len) || (len && memcmp(out, data, len))) {
+    ret = "Wuffs decoder round trip mismatch";
+  }
+cleanup:
+  free(dec);
+  return ret;
 }
 
 static config  //
@@ -959,8 +1182,318 @@ run_input_q2(const char* name, const uint8_t* data, size_t len, uint32_t q) {
   }
 }
 
+// run_dict_configs runs the dictionary grid's configurations for one
+// quality and the current dictionaries. level 0 is the full grid, level 1 a
+// smaller one and level 2 a much smaller one (for long inputs).
+static void  //
+run_dict_configs(const char* name, const uint8_t* data, size_t len, uint32_t q,
+                 int level) {
+  static const uint32_t lgwins[] = {10, 16, 22, 24};
+  for (size_t w = 0; w < 4; w++) {
+    for (uint32_t ch = 0; ch < 5; ch += 4) {
+      for (uint32_t fl = 0; fl < 3; fl += 2) {
+        if ((level >= 1) && ((w == 1) || ((ch == 0) && (fl == 2)))) {
+          continue;
+        } else if ((level >= 2) && ((w == 0) || (ch != fl * 2))) {
+          continue;
+        }
+        config c = make_config(q, lgwins[w]);
+        c.chunking = ch;
+        c.flush = fl;
+        c.seed = 0x60000 | (w << 8) | (ch << 4) | fl | (q << 12);
+        check(name, &c, data, len);
+      }
+    }
+  }
+
+  static const uint32_t extras[][6] = {
+      // Pairs of (BrotliEncoderParameter, value). A zero key ends the list.
+      {5, 0xFFFFFFFF},            // BROTLI_PARAM_SIZE_HINT: the exact size.
+      {5, 1u << 20},              // H54 (quality 4), H6 or H68.
+      {5, 1},                     //
+      {9, 1},                     // BROTLI_PARAM_STREAM_OFFSET.
+      {9, 1000},                  //
+      {9, 1u << 30},              //
+      {6, 1, 2, 18},              // BROTLI_PARAM_LARGE_WINDOW.
+      {6, 1, 2, 30},              //
+      {6, 1, 2, 25, 5, 1u << 20}, // H35, H55 or H65.
+      {9, 1000, 6, 1, 2, 26},     // Stream offset and large window.
+      {3, 16},                    // BROTLI_PARAM_LGBLOCK.
+      {3, 24, 5, 1u << 21},       //
+      {7, 2, 8, 12},              // BROTLI_PARAM_NPOSTFIX and NDIRECT.
+      {0, 2},                     // FONT mode.
+      {4, 1},                     // DISABLE_LITERAL_CONTEXT_MODELING.
+  };
+  for (size_t i = 0; i < sizeof extras / sizeof extras[0]; i++) {
+    for (uint32_t ch = 0; ch < 5; ch += 4) {
+      if ((level >= 1) && (ch == 0)) {
+        continue;
+      } else if ((level >= 2) && (i != 1) && (i != 4) && (i != 8)) {
+        continue;
+      }
+      config c = make_config(q, 22);
+      for (size_t k = 0; (k < 6) && ((k == 0) || extras[i][k]); k += 2) {
+        uint32_t v = extras[i][k + 1];
+        if ((extras[i][k] == 5) && (v == 0xFFFFFFFF)) {
+          v = (uint32_t)len;
+        }
+        add_param(&c, extras[i][k], v);
+      }
+      c.chunking = ch;
+      c.flush = 2;
+      c.seed = 0x70000 | i | (ch << 8) | (q << 12);
+      check(name, &c, data, len);
+    }
+  }
+  if (level >= 2) {
+    return;
+  }
+
+  // Metadata blocks, limited dst lengths and a flush after every chunk.
+  for (uint32_t pos = 1; pos <= 2; pos++) {
+    config c = make_config(q, 18);
+    c.chunking = 4;
+    c.flush = 2;
+    c.metadata_position = pos;
+    c.metadata_len = (pos == 1) ? 0 : 100;
+    c.seed = 0x80000 | pos | (q << 12);
+    check(name, &c, data, len);
+  }
+  {
+    config c = make_config(q, 16);
+    c.chunking = 4;
+    c.flush = 0;
+    c.dst_chunk = (len <= (32 << 10)) ? 3 : 4096;
+    c.seed = 0x90000 | (q << 12);
+    check(name, &c, data, len);
+  }
+  if (len <= (8 << 10)) {
+    config c = make_config(q, 22);
+    c.chunking = 2;
+    c.flush = 1;
+    c.seed = 0xA0000 | (q << 12);
+    check(name, &c, data, len);
+  }
+}
+
+// check_smaller checks that, with the current dictionaries (which should
+// hold much of data), libbrotlienc's output (which Wuffs' output matches) is
+// smaller than without them (unless that is already tiny).
+static void  //
+check_smaller(const char* name, const uint8_t* data, size_t len, uint32_t q) {
+  config c = make_config(q, 22);
+  check(name, &c, data, len);
+  size_t with_len = g_last_want_len;
+  size_t saved = g_num_dicts;
+  size_t without_len = 0;
+  g_num_dicts = 0;
+  const char* err = make_plan(&c, data, len);
+  if (!err) {
+    err = encode_mimic(&c, &without_len);
+  }
+  g_num_dicts = saved;
+  g_num_smaller_checks++;
+  // Tiny outputs (e.g. for long runs of zeroes) cannot shrink.
+  if (err || (with_len > without_len) ||
+      ((without_len >= 64) && (with_len >= without_len))) {
+    g_num_mismatches++;
+    printf("NOT SMALLER %s: q=%u dicts=%s: %zu bytes with, %zu without: %s\n",
+           name, q, g_dict_desc, with_len, without_len, err ? err : "");
+    fflush(stdout);
+  }
+}
+
+// run_input_dict runs the dictionary grid (several sets of raw dictionaries,
+// mostly made from the input, so that there are matches) for an input.
+static void  //
+run_input_dict(const char* name, const uint8_t* data, size_t len) {
+  uint64_t configs0 = g_num_configs;
+  uint64_t mismatches0 = g_num_mismatches;
+  time_t start = time(NULL);
+  static uint8_t noise[1000];
+  fill_random(noise, sizeof noise, 0xD1C7);
+  static const char text[] = "the quick brown fox jumps over the lazy dog";
+  bool big = len > (256 << 10);
+
+  for (int set = 0; set < 7; set++) {
+    const uint8_t* ptrs[MAX_DICTS];
+    size_t lens[MAX_DICTS];
+    size_t n = 0;
+    int level = big ? 2 : 1;
+    switch (set) {
+      case 0:  // A prefix of the input.
+        ptrs[n] = data;
+        lens[n++] = len / 2;
+        snprintf(g_dict_desc, sizeof g_dict_desc, "prefix");
+        level = big ? 2 : 0;
+        break;
+      case 1:  // The whole input.
+        ptrs[n] = data;
+        lens[n++] = len;
+        snprintf(g_dict_desc, sizeof g_dict_desc, "whole");
+        level = big ? 2 : 0;
+        break;
+      case 2:  // Another file.
+        ptrs[n] = g_foreign_dict;
+        lens[n++] = g_foreign_dict_len;
+        snprintf(g_dict_desc, sizeof g_dict_desc, "enwik5");
+        break;
+      case 3:  // Noise and the input's middle third.
+        ptrs[n] = noise;
+        lens[n++] = sizeof noise;
+        ptrs[n] = data + (len / 3);
+        lens[n++] = (len / 3);
+        snprintf(g_dict_desc, sizeof g_dict_desc, "noise+middle");
+        break;
+      case 4: {  // 15 (the maximum number of) pieces of the input.
+        if (len == 0) {
+          continue;
+        }
+        size_t k = (len + 14) / 15;
+        for (size_t j = 0; j < 15; j++) {
+          size_t at = (j * k) % len;
+          ptrs[n] = data + at;
+          lens[n++] = ((len - at) < k) ? (len - at) : k;
+        }
+        snprintf(g_dict_desc, sizeof g_dict_desc, "15 pieces of %zu", k);
+        break;
+      }
+      case 5:  // Tiny dictionaries (and an empty one, first).
+        ptrs[n] = (const uint8_t*)text;
+        lens[n++] = 0;
+        ptrs[n] = (const uint8_t*)text;
+        lens[n++] = 1;
+        ptrs[n] = (const uint8_t*)text + 4;
+        lens[n++] = 7;
+        ptrs[n] = (const uint8_t*)text + 10;
+        lens[n++] = 8;
+        ptrs[n] = (len >= 9) ? data + (len - 9) : (const uint8_t*)text;
+        lens[n++] = 9;
+        snprintf(g_dict_desc, sizeof g_dict_desc, "tiny");
+        break;
+      case 6:  // The input's two halves, swapped.
+        ptrs[n] = data + (len / 2);
+        lens[n++] = len - (len / 2);
+        ptrs[n] = data;
+        lens[n++] = len / 2;
+        ptrs[n] = (const uint8_t*)text;
+        lens[n++] = sizeof text - 1;
+        snprintf(g_dict_desc, sizeof g_dict_desc, "swapped halves+text");
+        break;
+    }
+    const char* err = set_dicts(n, ptrs, lens);
+    if (err) {
+      g_num_mismatches++;
+      printf("FAILURE %s: set_dicts(%s): %s\n", name, g_dict_desc, err);
+      continue;
+    }
+    for (uint32_t q = g_qmin; q <= g_qmax; q++) {
+      run_dict_configs(name, data, len, q, level);
+      if ((set == 1) && (len >= 1000) && (q >= 5)) {
+        check_smaller(name, data, len, q);
+      }
+    }
+  }
+  set_dicts(0, NULL, NULL);
+  printf("%-50s %8zu bytes: %6" PRIu64 " configs, %" PRIu64
+         " mismatches (%lds)\n",
+         name, len, g_num_configs - configs0, g_num_mismatches - mismatches0,
+         (long)(time(NULL) - start));
+  fflush(stdout);
+}
+
+// run_big_dicts checks dictionaries of 2 to 40 MiB (every hash table size
+// class of CreatePreparedDictionary), with pieces of a 1 MiB input copied
+// into them at various offsets.
+static void  //
+run_big_dicts(size_t which) {
+  static const size_t sizes[] = {
+      (2 << 20),     (2 << 20) + 1, (3 << 20) + 77, (5 << 20) + 3,
+      (9 << 20) + 5, (17 << 20) + 1, (40 << 20) + 9,
+  };
+  if (which >= sizeof sizes / sizeof sizes[0]) {
+    return;
+  }
+  uint64_t configs0 = g_num_configs;
+  uint64_t mismatches0 = g_num_mismatches;
+  time_t start = time(NULL);
+  size_t dlen = sizes[which];
+  size_t len = 1 << 20;
+  uint8_t* input = malloc(len);
+  uint8_t* dict = malloc(dlen);
+  if (!input || !dict) {
+    printf("FAILURE: malloc failed\n");
+    g_num_mismatches++;
+    free(input);
+    free(dict);
+    return;
+  }
+  fill_mixed(input, len, 0xB16 + which);
+  fill_mixed(dict, dlen, 0xD1C + which);
+  // Copy 64 KiB pieces of the input to the dictionary's start, middle and
+  // end (with sparse changes).
+  for (size_t j = 0; j < 3; j++) {
+    size_t at = (j == 0) ? 1234 : (j == 1) ? (dlen / 2) : (dlen - (70 << 10));
+    memcpy(dict + at, input + (j * (300 << 10)), 64 << 10);
+    for (size_t i = 777; i < (64 << 10); i += 4099) {
+      dict[at + i] ^= 0x33;
+    }
+  }
+  char name[96];
+  snprintf(name, sizeof name, "synthetic: 1 MiB with a %zu byte dictionary",
+           dlen);
+  const uint8_t* ptrs[2] = {dict, input + (900 << 10)};
+  size_t lens[2] = {dlen, 1000};
+  snprintf(g_dict_desc, sizeof g_dict_desc, "big %zu + 1000", dlen);
+  const char* err = set_dicts(2, ptrs, lens);
+  if (err) {
+    g_num_mismatches++;
+    printf("FAILURE %s: set_dicts: %s\n", name, err);
+  } else {
+    for (uint32_t q = (g_qmin > 2) ? g_qmin : 2; q <= g_qmax; q++) {
+      static const uint32_t lgwins[] = {16, 24};
+      for (size_t w = 0; w < 2; w++) {
+        config c = make_config(q, lgwins[w]);
+        c.seed = 0xB0000 | (w << 8) | (q << 12);
+        check(name, &c, input, len);
+        c.chunking = 4;
+        c.flush = 2;
+        check(name, &c, input, len);
+      }
+      static const uint32_t extras[][6] = {
+          {6, 1, 2, 30, 5, 1u << 20},
+          {9, 1000},
+          {5, 1u << 20},
+      };
+      for (size_t i = 0; i < 3; i++) {
+        config c = make_config(q, 22);
+        for (size_t k = 0; (k < 6) && ((k == 0) || extras[i][k]); k += 2) {
+          add_param(&c, extras[i][k], extras[i][k + 1]);
+        }
+        c.seed = 0xC0000 | i | (q << 12);
+        check(name, &c, input, len);
+      }
+      if (q >= 5) {
+        check_smaller(name, input, len, q);
+      }
+    }
+  }
+  set_dicts(0, NULL, NULL);
+  free(input);
+  free(dict);
+  printf("%-50s %8zu bytes: %6" PRIu64 " configs, %" PRIu64
+         " mismatches (%lds)\n",
+         name, len, g_num_configs - configs0, g_num_mismatches - mismatches0,
+         (long)(time(NULL) - start));
+  fflush(stdout);
+}
+
 static void  //
 run_input(const char* name, const uint8_t* data, size_t len) {
+  if (g_dict_only) {
+    run_input_dict(name, data, len);
+    return;
+  }
   uint64_t configs0 = g_num_configs;
   uint64_t mismatches0 = g_num_mismatches;
   time_t start = time(NULL);
@@ -1070,6 +1603,8 @@ main(int argc, char** argv) {
       g_oneshot_lgwin = a;
     } else if (strcmp(argv[argi], "-lw") == 0) {
       g_lw_only = true;
+    } else if (strcmp(argv[argi], "-dict") == 0) {
+      g_dict_only = true;
     } else if (strcmp(argv[argi], "-big") == 0) {
       big = true;
     } else if (sscanf(argv[argi], "-shard=%u/%u", &a, &b) == 2) {
@@ -1115,7 +1650,20 @@ main(int argc, char** argv) {
           compare_strings);
   }
 
+  g_foreign_dict = read_whole_file("test/data/enwik5", &g_foreign_dict_len);
+  if (!g_foreign_dict) {
+    fprintf(stderr, "could not read test/data/enwik5\n");
+    return 1;
+  }
+
   int input_index = 0;
+  if (g_dict_only && (argi >= argc)) {
+    for (size_t j = 0; j < 7; j++) {
+      if (((input_index++) % shard_n) == shard_k) {
+        run_big_dicts(j);
+      }
+    }
+  }
   if (big) {
     // Synthetic inputs of several MiB (with the usual grid) and of 24 to 70
     // MiB (with run_input_far's configurations), with repeats at distances
@@ -1205,8 +1753,10 @@ main(int argc, char** argv) {
   }
 
   printf("TOTAL: %" PRIu64 " configs (%" PRIu64
-         " also with a short workbuf, %" PRIu64
+         " also with a short workbuf, %" PRIu64 " round trips, %" PRIu64
+         " smaller-with-dictionary checks, %" PRIu64
          " skipped as too large), %" PRIu64 " mismatches\n",
-         g_num_configs, g_num_short_checks, g_num_skipped, g_num_mismatches);
+         g_num_configs, g_num_short_checks, g_num_roundtrips,
+         g_num_smaller_checks, g_num_skipped, g_num_mismatches);
   return g_num_mismatches ? 1 : 0;
 }

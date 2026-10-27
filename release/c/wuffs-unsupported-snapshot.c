@@ -9236,6 +9236,7 @@ extern const char wuffs_brotli__error__truncated_input[];
 extern const char wuffs_brotli__error__unsupported_large_window[];
 extern const char wuffs_brotli__error__unsupported_multiple_custom_static_dictionaries[];
 extern const char wuffs_brotli__error__unsupported_encoder_quality[];
+extern const char wuffs_brotli__error__unsupported_serialized_encoder_dictionary[];
 
 // ---------------- Public Consts
 
@@ -9456,6 +9457,20 @@ wuffs_brotli__encoder__transform_io(
     wuffs_base__io_buffer* a_dst,
     wuffs_base__io_buffer* a_src,
     wuffs_base__slice_u8 a_workbuf);
+
+WUFFS_BASE__GENERATED_C_CODE
+WUFFS_BASE__MAYBE_STATIC wuffs_base__status
+wuffs_brotli__encoder__add_dictionary(
+    wuffs_brotli__encoder* self,
+    uint32_t a_dict_type,
+    wuffs_base__slice_u8 a_dict,
+    wuffs_base__slice_u8 a_workbuf);
+
+WUFFS_BASE__GENERATED_C_CODE
+WUFFS_BASE__MAYBE_STATIC uint64_t
+wuffs_brotli__encoder__add_dictionary_workbuf_len(
+    const wuffs_brotli__encoder* self,
+    uint64_t a_dict_len);
 
 WUFFS_BASE__GENERATED_C_CODE
 WUFFS_BASE__MAYBE_STATIC uint64_t
@@ -10032,6 +10047,15 @@ struct wuffs_brotli__encoder__struct {
     uint32_t f_hr_factor_remove;
     uint64_t f_hr_next_ix;
     uint64_t f_hr_off;
+    uint32_t f_dict_num_chunks;
+    uint64_t f_dict_total_size;
+    uint64_t f_dict_end;
+    uint64_t f_dict_chunk_offsets[16];
+    uint64_t f_dc_src_off[15];
+    uint64_t f_dc_size[15];
+    uint32_t f_dc_bucket_bits[15];
+    uint32_t f_dc_slot_bits[15];
+    uint64_t f_dc_num_items[15];
     uint64_t f_sr_len;
     uint64_t f_sr_distance;
     uint64_t f_sr_score;
@@ -10067,6 +10091,7 @@ struct wuffs_brotli__encoder__struct {
     uint32_t f_zp_costdiff;
 
     uint32_t p_transform_io;
+    uint32_t p_do_transform_io;
   } private_impl;
 
   struct {
@@ -10142,6 +10167,9 @@ struct wuffs_brotli__encoder__struct {
     uint8_t f_cl_depth[32];
     uint16_t f_cl_bits[32];
     uint32_t f_hash_table[131072];
+    uint32_t f_dp_slot_size[4096];
+    uint32_t f_dp_slot_limit[4096];
+    uint32_t f_dp_slot_off[4096];
     uint32_t f_command_buf[131072];
     uint8_t f_literal_buf[131072];
     uint32_t f_sd_matches[38];
@@ -10167,7 +10195,7 @@ struct wuffs_brotli__encoder__struct {
       uint64_t v_mark;
       uint64_t v_copy_input_size;
       uint64_t scratch;
-    } s_transform_io;
+    } s_do_transform_io;
   } private_data;
 
 #ifdef __cplusplus
@@ -10278,6 +10306,20 @@ struct wuffs_brotli__encoder__struct {
       wuffs_base__io_buffer* a_src,
       wuffs_base__slice_u8 a_workbuf) {
     return wuffs_brotli__encoder__transform_io(this, a_dst, a_src, a_workbuf);
+  }
+
+  inline wuffs_base__status
+  add_dictionary(
+      uint32_t a_dict_type,
+      wuffs_base__slice_u8 a_dict,
+      wuffs_base__slice_u8 a_workbuf) {
+    return wuffs_brotli__encoder__add_dictionary(this, a_dict_type, a_dict, a_workbuf);
+  }
+
+  inline uint64_t
+  add_dictionary_workbuf_len(
+      uint64_t a_dict_len) const {
+    return wuffs_brotli__encoder__add_dictionary_workbuf_len(this, a_dict_len);
   }
 
 #endif  // __cplusplus
@@ -43040,6 +43082,7 @@ const char wuffs_brotli__error__internal_error_inconsistent_huffman_table[] = "#
 const char wuffs_brotli__error__internal_error_inconsistent_ring_buffer[] = "#brotli: internal error: inconsistent ring buffer";
 const char wuffs_brotli__error__unsupported_encoder_quality[] = "#brotli: unsupported encoder quality";
 const char wuffs_brotli__error__internal_error_inconsistent_encoder_state[] = "#brotli: internal error: inconsistent encoder state";
+const char wuffs_brotli__error__unsupported_serialized_encoder_dictionary[] = "#brotli: unsupported serialized encoder dictionary";
 
 // ---------------- Private Consts
 
@@ -76648,6 +76691,10 @@ WUFFS_BROTLI__DICTIONARY[122784] WUFFS_BASE__POTENTIALLY_UNUSED = {
 
 #define WUFFS_BROTLI__F64_3 4613937818241073152u
 
+#define WUFFS_BROTLI__ENCODER_DICTIONARY_CHUNKS_MAX 15u
+
+#define WUFFS_BROTLI__PREPARED_DICTIONARY_HASH_MUL_64_LONG 2297779722762296275u
+
 #define WUFFS_BROTLI__TREE_NONE 65535u
 
 #define WUFFS_BROTLI__FRAGMENT_MAX_DISTANCE 262128u
@@ -77254,6 +77301,7 @@ static wuffs_base__status
 wuffs_brotli__encoder__create_backward_references(
     wuffs_brotli__encoder* self,
     wuffs_base__slice_u8 a_wb,
+    wuffs_base__slice_u8 a_dwb,
     uint64_t a_num_bytes,
     uint64_t a_position);
 
@@ -77826,6 +77874,15 @@ wuffs_brotli__encoder__write_metadata_header(
     uint32_t a_block_size);
 
 WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__status
+wuffs_brotli__encoder__do_transform_io(
+    wuffs_brotli__encoder* self,
+    wuffs_base__io_buffer* a_dst,
+    wuffs_base__io_buffer* a_src,
+    wuffs_base__slice_u8 a_workbuf,
+    wuffs_base__slice_u8 a_dwb);
+
+WUFFS_BASE__GENERATED_C_CODE
 static bool
 wuffs_brotli__metablock_builder__histogram_pair_is_less(
     const wuffs_brotli__metablock_builder* self,
@@ -78058,6 +78115,7 @@ static uint64_t
 wuffs_brotli__encoder__extend_last_command(
     wuffs_brotli__encoder* self,
     wuffs_base__slice_u8 a_wb,
+    wuffs_base__slice_u8 a_dwb,
     uint64_t a_bytes,
     uint64_t a_wrapped_last_processed_pos);
 
@@ -78127,8 +78185,67 @@ static wuffs_base__status
 wuffs_brotli__encoder__encode_data(
     wuffs_brotli__encoder* self,
     wuffs_base__slice_u8 a_wb,
+    wuffs_base__slice_u8 a_dwb,
     bool a_is_last,
     bool a_force_flush);
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint64_t
+wuffs_brotli__encoder__prepare_dictionary(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    uint64_t a_src_off,
+    uint64_t a_n,
+    uint32_t a_bucket_bits,
+    uint32_t a_slot_bits);
+
+WUFFS_BASE__GENERATED_C_CODE
+static bool
+wuffs_brotli__encoder__compound_dictionary_enabled(
+    const wuffs_brotli__encoder* self);
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__lookup_compound_dictionary_match(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_data,
+    wuffs_base__slice_u8 a_dwb,
+    uint64_t a_cur_ix,
+    uint64_t a_max_length,
+    uint64_t a_max_ring_buffer_distance,
+    uint64_t a_max_distance);
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__find_compound_dictionary_match(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_data,
+    wuffs_base__slice_u8 a_dwb,
+    uint32_t a_d,
+    uint64_t a_cur_ix,
+    uint64_t a_max_length,
+    uint64_t a_distance_offset,
+    uint64_t a_max_distance);
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint64_t
+wuffs_brotli__encoder__find_match_length_2(
+    const wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_a,
+    wuffs_base__slice_u8 a_b,
+    uint64_t a_limit);
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint64_t
+wuffs_brotli__encoder__extend_last_command_compound(
+    const wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    wuffs_base__slice_u8 a_dwb,
+    uint64_t a_bytes,
+    uint64_t a_wrapped_last_processed_pos,
+    uint64_t a_cmd_dist,
+    uint64_t a_max_distance,
+    uint64_t a_last_copy_len);
 
 WUFFS_BASE__GENERATED_C_CODE
 static bool
@@ -84538,6 +84655,7 @@ static wuffs_base__status
 wuffs_brotli__encoder__create_backward_references(
     wuffs_brotli__encoder* self,
     wuffs_base__slice_u8 a_wb,
+    wuffs_base__slice_u8 a_dwb,
     uint64_t a_num_bytes,
     uint64_t a_position) {
   uint64_t v_position = 0;
@@ -84562,6 +84680,9 @@ wuffs_brotli__encoder__create_backward_references(
   uint64_t v_range_end = 0;
   uint64_t v_k_margin = 0;
   uint64_t v_pos_jump = 0;
+  uint64_t v_gap = 0;
+  bool v_use_compound = false;
+  wuffs_base__slice_u8 v_data = {0};
 
   v_position = a_position;
   v_max_backward_limit = ((uint64_t)((((uint64_t)(1u)) << self->private_impl.f_lgwin) - 16u));
@@ -84578,6 +84699,11 @@ wuffs_brotli__encoder__create_backward_references(
     v_random_heuristics_window_size = 512u;
   }
   v_apply_random_heuristics = ((uint64_t)(v_position + v_random_heuristics_window_size));
+  v_gap = self->private_impl.f_dict_total_size;
+  v_use_compound = wuffs_brotli__encoder__compound_dictionary_enabled(self);
+  if (self->private_impl.f_rb_buf_off <= ((uint64_t)(a_wb.len))) {
+    v_data = wuffs_base__slice_u8__subslice_i(a_wb, self->private_impl.f_rb_buf_off);
+  }
   wuffs_brotli__encoder__prepare_distance_cache(self);
   while (((uint64_t)(v_position + v_htl)) < v_pos_end) {
     v_max_length = ((uint64_t)(v_pos_end - v_position));
@@ -84592,8 +84718,17 @@ wuffs_brotli__encoder__create_backward_references(
         v_position,
         v_max_length,
         v_max_distance,
-        v_dictionary_start,
+        ((uint64_t)(v_dictionary_start + v_gap)),
         self->private_impl.f_dist_max_distance);
+    if (v_use_compound) {
+      wuffs_brotli__encoder__lookup_compound_dictionary_match(self,
+          v_data,
+          a_dwb,
+          v_position,
+          v_max_length,
+          v_dictionary_start,
+          self->private_impl.f_dist_max_distance);
+    }
     if (self->private_impl.f_sr_score > 2020u) {
       v_delayed_backward_references = 0u;
       v_max_length -= 1u;
@@ -84616,8 +84751,17 @@ wuffs_brotli__encoder__create_backward_references(
             ((uint64_t)(v_position + 1u)),
             v_max_length,
             v_max_distance,
-            v_dictionary_start,
+            ((uint64_t)(v_dictionary_start + v_gap)),
             self->private_impl.f_dist_max_distance);
+        if (v_use_compound) {
+          wuffs_brotli__encoder__lookup_compound_dictionary_match(self,
+              v_data,
+              a_dwb,
+              ((uint64_t)(v_position + 1u)),
+              v_max_length,
+              v_dictionary_start,
+              self->private_impl.f_dist_max_distance);
+        }
         if (self->private_impl.f_sr_score >= ((uint64_t)(v_sr_score + 175u))) {
           v_position += 1u;
           v_insert_length += 1u;
@@ -84636,8 +84780,8 @@ wuffs_brotli__encoder__create_backward_references(
       }
       v_apply_random_heuristics = ((uint64_t)(((uint64_t)(v_position + ((uint64_t)(2u * self->private_impl.f_sr_len)))) + v_random_heuristics_window_size));
       v_dictionary_start = wuffs_brotli__encoder__min64(self, ((uint64_t)(v_position + v_position_offset)), v_max_backward_limit);
-      v_distance_code = wuffs_brotli__encoder__compute_distance_code(self, self->private_impl.f_sr_distance, v_dictionary_start);
-      if ((self->private_impl.f_sr_distance <= v_dictionary_start) && (v_distance_code > 0u)) {
+      v_distance_code = wuffs_brotli__encoder__compute_distance_code(self, self->private_impl.f_sr_distance, ((uint64_t)(v_dictionary_start + v_gap)));
+      if ((self->private_impl.f_sr_distance <= ((uint64_t)(v_dictionary_start + v_gap))) && (v_distance_code > 0u)) {
         self->private_impl.f_dist_cache[3u] = self->private_impl.f_dist_cache[2u];
         self->private_impl.f_dist_cache[2u] = self->private_impl.f_dist_cache[1u];
         self->private_impl.f_dist_cache[1u] = self->private_impl.f_dist_cache[0u];
@@ -87670,6 +87814,7 @@ wuffs_brotli__encoder__workbuf_len(
   uint32_t v_q = 0;
   uint32_t v_lgwin = 0;
   uint64_t v_n = 0;
+  wuffs_base__range_ii_u64 v_r = {0};
 
   v_q = wuffs_brotli__encoder__sanitized_quality(self);
   v_lgwin = wuffs_brotli__encoder__sanitized_lgwin(self, v_q);
@@ -87682,8 +87827,10 @@ wuffs_brotli__encoder__workbuf_len(
         wuffs_brotli__encoder__computed_lgblock(self, v_q, v_lgwin),
         23u);
   } else {
-    return wuffs_brotli__encoder__workbuf_len_hq(self, v_q, v_lgwin);
+    v_r = wuffs_brotli__encoder__workbuf_len_hq(self, v_q, v_lgwin);
+    return wuffs_base__utility__make_range_ii_u64(wuffs_base__u64__sat_add(wuffs_private_impl__range_ii_u64__get_min_incl(&v_r), self->private_impl.f_dict_end), wuffs_base__u64__sat_add(wuffs_private_impl__range_ii_u64__get_max_incl(&v_r), self->private_impl.f_dict_end));
   }
+  wuffs_private_impl__u64__sat_add_indirect(&v_n, self->private_impl.f_dict_end);
   return wuffs_base__utility__make_range_ii_u64(v_n, v_n);
 }
 
@@ -88147,6 +88294,72 @@ wuffs_brotli__encoder__transform_io(
   self->private_impl.active_coroutine = 0;
   wuffs_base__status status = wuffs_base__make_status(NULL);
 
+  wuffs_base__status v_status = wuffs_base__make_status(NULL);
+
+  uint32_t coro_susp_point = self->private_impl.p_transform_io;
+  switch (coro_susp_point) {
+    WUFFS_BASE__COROUTINE_SUSPENSION_POINT_0;
+
+    while (true) {
+      if (self->private_impl.f_dict_end > ((uint64_t)(a_workbuf.len))) {
+        status = wuffs_base__make_status(wuffs_base__error__bad_workbuf_length);
+        goto exit;
+      }
+      {
+        wuffs_base__status t_0 = wuffs_brotli__encoder__do_transform_io(self,
+            a_dst,
+            a_src,
+            wuffs_base__slice_u8__subslice_i(a_workbuf, self->private_impl.f_dict_end),
+            wuffs_base__slice_u8__subslice_j(a_workbuf, self->private_impl.f_dict_end));
+        v_status = t_0;
+      }
+      if (wuffs_base__status__is_ok(&v_status)) {
+        status = wuffs_base__make_status(NULL);
+        goto ok;
+      } else if ( ! wuffs_base__status__is_suspension(&v_status)) {
+        status = v_status;
+        if (wuffs_base__status__is_error(&status)) {
+          goto exit;
+        } else if (wuffs_base__status__is_suspension(&status)) {
+          status = wuffs_base__make_status(wuffs_base__error__cannot_return_a_suspension);
+          goto exit;
+        }
+        goto ok;
+      }
+      status = v_status;
+      WUFFS_BASE__COROUTINE_SUSPENSION_POINT_MAYBE_SUSPEND(1);
+    }
+
+    ok:
+    self->private_impl.p_transform_io = 0;
+    goto exit;
+  }
+
+  goto suspend;
+  suspend:
+  self->private_impl.p_transform_io = wuffs_base__status__is_suspension(&status) ? coro_susp_point : 0;
+  self->private_impl.active_coroutine = wuffs_base__status__is_suspension(&status) ? 1 : 0;
+
+  goto exit;
+  exit:
+  if (wuffs_base__status__is_error(&status)) {
+    self->private_impl.magic = WUFFS_BASE__DISABLED;
+  }
+  return status;
+}
+
+// -------- func brotli.encoder.do_transform_io
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__status
+wuffs_brotli__encoder__do_transform_io(
+    wuffs_brotli__encoder* self,
+    wuffs_base__io_buffer* a_dst,
+    wuffs_base__io_buffer* a_src,
+    wuffs_base__slice_u8 a_workbuf,
+    wuffs_base__slice_u8 a_dwb) {
+  wuffs_base__status status = wuffs_base__make_status(NULL);
+
   uint32_t v_op = 0;
   uint64_t v_avail = 0;
   uint64_t v_block_size = 0;
@@ -88187,20 +88400,24 @@ wuffs_brotli__encoder__transform_io(
     io2_a_src = io0_a_src + a_src->meta.wi;
   }
 
-  uint32_t coro_susp_point = self->private_impl.p_transform_io;
+  uint32_t coro_susp_point = self->private_impl.p_do_transform_io;
   if (coro_susp_point) {
-    v_op = self->private_data.s_transform_io.v_op;
-    v_is_last = self->private_data.s_transform_io.v_is_last;
-    v_force_flush = self->private_data.s_transform_io.v_force_flush;
-    v_storage_len = self->private_data.s_transform_io.v_storage_len;
-    v_table_bits = self->private_data.s_transform_io.v_table_bits;
-    v_mark = self->private_data.s_transform_io.v_mark;
-    v_copy_input_size = self->private_data.s_transform_io.v_copy_input_size;
+    v_op = self->private_data.s_do_transform_io.v_op;
+    v_is_last = self->private_data.s_do_transform_io.v_is_last;
+    v_force_flush = self->private_data.s_do_transform_io.v_force_flush;
+    v_storage_len = self->private_data.s_do_transform_io.v_storage_len;
+    v_table_bits = self->private_data.s_do_transform_io.v_table_bits;
+    v_mark = self->private_data.s_do_transform_io.v_mark;
+    v_copy_input_size = self->private_data.s_do_transform_io.v_copy_input_size;
   }
   switch (coro_susp_point) {
     WUFFS_BASE__COROUTINE_SUSPENSION_POINT_0;
 
     wuffs_brotli__encoder__ensure_initialized(self);
+    if ((self->private_impl.f_quality >= 10u) && (self->private_impl.f_dict_num_chunks > 0u)) {
+      status = wuffs_base__make_status(wuffs_brotli__error__unsupported_encoder_quality);
+      goto exit;
+    }
     wuffs_brotli__encoder__hq_extend_var_region(self, ((uint64_t)(a_workbuf.len)));
     if ((self->private_impl.f_quality >= 2u) && (((uint64_t)(a_workbuf.len)) < self->private_impl.f_workbuf_end)) {
       self->private_impl.f_rb_short_workbuf = true;
@@ -88239,7 +88456,11 @@ wuffs_brotli__encoder__transform_io(
             continue;
           }
           if ((self->private_impl.f_quality >= 2u) && (self->private_impl.f_input_pos != self->private_impl.f_last_flush_pos)) {
-            v_status = wuffs_brotli__encoder__encode_data(self, a_workbuf, false, true);
+            v_status = wuffs_brotli__encoder__encode_data(self,
+                a_workbuf,
+                a_dwb,
+                false,
+                true);
             if ( ! wuffs_base__status__is_ok(&v_status)) {
               status = v_status;
               if (wuffs_base__status__is_error(&status)) {
@@ -88313,15 +88534,15 @@ wuffs_brotli__encoder__transform_io(
             }
           }
           v_mark = ((uint64_t)(iop_a_src - io0_a_src));
-          self->private_data.s_transform_io.scratch = v_copy_input_size;
+          self->private_data.s_do_transform_io.scratch = v_copy_input_size;
           WUFFS_BASE__COROUTINE_SUSPENSION_POINT(4);
-          if (self->private_data.s_transform_io.scratch > ((uint64_t)(io2_a_src - iop_a_src))) {
-            self->private_data.s_transform_io.scratch -= ((uint64_t)(io2_a_src - iop_a_src));
+          if (self->private_data.s_do_transform_io.scratch > ((uint64_t)(io2_a_src - iop_a_src))) {
+            self->private_data.s_do_transform_io.scratch -= ((uint64_t)(io2_a_src - iop_a_src));
             iop_a_src = io2_a_src;
             status = wuffs_base__make_status(wuffs_base__suspension__short_read);
             goto suspend;
           }
-          iop_a_src += self->private_data.s_transform_io.scratch;
+          iop_a_src += self->private_data.s_do_transform_io.scratch;
           wuffs_brotli__encoder__copy_input_to_ring_buffer(self, a_workbuf, wuffs_private_impl__io__since(v_mark, ((uint64_t)(iop_a_src - io0_a_src)), io0_a_src));
           if ((self->private_impl.f_flint > 0u) && (self->private_impl.f_flint < 2147483648u)) {
             self->private_impl.f_flint = ((uint32_t)(self->private_impl.f_flint - ((uint32_t)((v_copy_input_size & 255u)))));
@@ -88360,7 +88581,11 @@ wuffs_brotli__encoder__transform_io(
               v_force_flush = true;
             }
             wuffs_brotli__encoder__update_size_hint(self, ((uint64_t)(io2_a_src - iop_a_src)));
-            v_status = wuffs_brotli__encoder__encode_data(self, a_workbuf, v_is_last, v_force_flush);
+            v_status = wuffs_brotli__encoder__encode_data(self,
+                a_workbuf,
+                a_dwb,
+                v_is_last,
+                v_force_flush);
             if ( ! wuffs_base__status__is_ok(&v_status)) {
               status = v_status;
               if (wuffs_base__status__is_error(&status)) {
@@ -88416,15 +88641,15 @@ wuffs_brotli__encoder__transform_io(
           self->private_impl.f_bw_ix = ((uint64_t)(self->private_impl.f_last_bytes_bits));
           v_table_bits = wuffs_brotli__encoder__get_hash_table(self, v_block_size);
           v_mark = ((uint64_t)(iop_a_src - io0_a_src));
-          self->private_data.s_transform_io.scratch = v_block_size;
+          self->private_data.s_do_transform_io.scratch = v_block_size;
           WUFFS_BASE__COROUTINE_SUSPENSION_POINT(5);
-          if (self->private_data.s_transform_io.scratch > ((uint64_t)(io2_a_src - iop_a_src))) {
-            self->private_data.s_transform_io.scratch -= ((uint64_t)(io2_a_src - iop_a_src));
+          if (self->private_data.s_do_transform_io.scratch > ((uint64_t)(io2_a_src - iop_a_src))) {
+            self->private_data.s_do_transform_io.scratch -= ((uint64_t)(io2_a_src - iop_a_src));
             iop_a_src = io2_a_src;
             status = wuffs_base__make_status(wuffs_base__suspension__short_read);
             goto suspend;
           }
-          iop_a_src += self->private_data.s_transform_io.scratch;
+          iop_a_src += self->private_data.s_do_transform_io.scratch;
           if (v_storage_len > ((uint64_t)(a_workbuf.len))) {
             status = wuffs_base__make_status(wuffs_brotli__error__internal_error_inconsistent_encoder_state);
             goto exit;
@@ -88482,21 +88707,20 @@ wuffs_brotli__encoder__transform_io(
     }
 
     ok:
-    self->private_impl.p_transform_io = 0;
+    self->private_impl.p_do_transform_io = 0;
     goto exit;
   }
 
   goto suspend;
   suspend:
-  self->private_impl.p_transform_io = wuffs_base__status__is_suspension(&status) ? coro_susp_point : 0;
-  self->private_impl.active_coroutine = wuffs_base__status__is_suspension(&status) ? 1 : 0;
-  self->private_data.s_transform_io.v_op = v_op;
-  self->private_data.s_transform_io.v_is_last = v_is_last;
-  self->private_data.s_transform_io.v_force_flush = v_force_flush;
-  self->private_data.s_transform_io.v_storage_len = v_storage_len;
-  self->private_data.s_transform_io.v_table_bits = v_table_bits;
-  self->private_data.s_transform_io.v_mark = v_mark;
-  self->private_data.s_transform_io.v_copy_input_size = v_copy_input_size;
+  self->private_impl.p_do_transform_io = wuffs_base__status__is_suspension(&status) ? coro_susp_point : 0;
+  self->private_data.s_do_transform_io.v_op = v_op;
+  self->private_data.s_do_transform_io.v_is_last = v_is_last;
+  self->private_data.s_do_transform_io.v_force_flush = v_force_flush;
+  self->private_data.s_do_transform_io.v_storage_len = v_storage_len;
+  self->private_data.s_do_transform_io.v_table_bits = v_table_bits;
+  self->private_data.s_do_transform_io.v_mark = v_mark;
+  self->private_data.s_do_transform_io.v_copy_input_size = v_copy_input_size;
 
   goto exit;
   exit:
@@ -88507,9 +88731,6 @@ wuffs_brotli__encoder__transform_io(
     a_src->meta.ri = ((size_t)(iop_a_src - a_src->data.ptr));
   }
 
-  if (wuffs_base__status__is_error(&status)) {
-    self->private_impl.magic = WUFFS_BASE__DISABLED;
-  }
   return status;
 }
 
@@ -89697,6 +89918,7 @@ static uint64_t
 wuffs_brotli__encoder__extend_last_command(
     wuffs_brotli__encoder* self,
     wuffs_base__slice_u8 a_wb,
+    wuffs_base__slice_u8 a_dwb,
     uint64_t a_bytes,
     uint64_t a_wrapped_last_processed_pos) {
   uint64_t v_last = 0;
@@ -89726,6 +89948,16 @@ wuffs_brotli__encoder__extend_last_command(
         v_n += 1u;
         v_p = (((uint64_t)(v_p + 1u)) & 4294967295u);
       }
+    } else {
+      v_n = wuffs_brotli__encoder__extend_last_command_compound(self,
+          a_wb,
+          a_dwb,
+          a_bytes,
+          a_wrapped_last_processed_pos,
+          v_cmd_dist,
+          v_max_distance,
+          v_last_copy_len);
+      v_copy_len += ((uint32_t)(v_n));
     }
     wuffs_brotli__encoder__set_cmd(self,
         a_wb,
@@ -90132,6 +90364,7 @@ static wuffs_base__status
 wuffs_brotli__encoder__encode_data(
     wuffs_brotli__encoder* self,
     wuffs_base__slice_u8 a_wb,
+    wuffs_base__slice_u8 a_dwb,
     bool a_is_last,
     bool a_force_flush) {
   wuffs_base__status v_status = wuffs_base__make_status(NULL);
@@ -90189,7 +90422,11 @@ wuffs_brotli__encoder__encode_data(
     self->private_impl.f_literal_context_mode = wuffs_brotli__encoder__choose_context_mode(self, a_wb, wuffs_brotli__encoder__wrap_position(self, self->private_impl.f_last_flush_pos), ((uint64_t)(self->private_impl.f_input_pos - self->private_impl.f_last_flush_pos)));
   }
   if ((self->private_impl.f_num_cmds > 0u) && (self->private_impl.f_last_insert_len == 0u)) {
-    v_n = wuffs_brotli__encoder__extend_last_command(self, a_wb, v_bytes, v_wrapped_last_processed_pos);
+    v_n = wuffs_brotli__encoder__extend_last_command(self,
+        a_wb,
+        a_dwb,
+        v_bytes,
+        v_wrapped_last_processed_pos);
     v_bytes -= v_n;
     v_wrapped_last_processed_pos = (((uint64_t)(v_wrapped_last_processed_pos + v_n)) & 4294967295u);
   }
@@ -90198,7 +90435,11 @@ wuffs_brotli__encoder__encode_data(
   } else if (self->private_impl.f_quality == 11u) {
     v_status = wuffs_brotli__encoder__create_hq_zopfli_backward_references(self, a_wb, v_bytes, v_wrapped_last_processed_pos);
   } else {
-    v_status = wuffs_brotli__encoder__create_backward_references(self, a_wb, v_bytes, v_wrapped_last_processed_pos);
+    v_status = wuffs_brotli__encoder__create_backward_references(self,
+        a_wb,
+        a_dwb,
+        v_bytes,
+        v_wrapped_last_processed_pos);
   }
   if ( ! wuffs_base__status__is_ok(&v_status)) {
     return wuffs_private_impl__status__ensure_not_a_suspension(v_status);
@@ -90278,6 +90519,562 @@ wuffs_brotli__encoder__encode_data(
   self->private_impl.f_out_pos = 0u;
   self->private_impl.f_out_len = v_ix;
   return wuffs_base__make_status(NULL);
+}
+
+// -------- func brotli.encoder.add_dictionary
+
+WUFFS_BASE__GENERATED_C_CODE
+WUFFS_BASE__MAYBE_STATIC wuffs_base__status
+wuffs_brotli__encoder__add_dictionary(
+    wuffs_brotli__encoder* self,
+    uint32_t a_dict_type,
+    wuffs_base__slice_u8 a_dict,
+    wuffs_base__slice_u8 a_workbuf) {
+  if (!self) {
+    return wuffs_base__make_status(wuffs_base__error__bad_receiver);
+  }
+  if (self->private_impl.magic != WUFFS_BASE__MAGIC) {
+    return wuffs_base__make_status(
+        (self->private_impl.magic == WUFFS_BASE__DISABLED)
+        ? wuffs_base__error__disabled_by_previous_error
+        : wuffs_base__error__initialize_not_called);
+  }
+
+  uint64_t v_n = 0;
+  uint64_t v_lo = 0;
+  uint64_t v_hi = 0;
+  uint32_t v_bucket_bits = 0;
+  uint32_t v_slot_bits = 0;
+  uint64_t v_num_items = 0;
+  uint32_t v_c = 0;
+
+  if (self->private_impl.f_is_initialized) {
+    return wuffs_base__make_status(wuffs_base__error__bad_call_sequence);
+  } else if (a_dict_type == 1u) {
+    return wuffs_base__make_status(wuffs_brotli__error__unsupported_serialized_encoder_dictionary);
+  } else if (a_dict_type != 0u) {
+    return wuffs_base__make_status(wuffs_base__error__bad_argument);
+  } else if (self->private_impl.f_dict_num_chunks >= 15u) {
+    return wuffs_base__make_status(wuffs_brotli__error__too_many_compound_dictionaries);
+  }
+  v_n = ((uint64_t)(a_dict.len));
+  if ((v_n > 2147483647u) || (wuffs_base__u64__sat_add(self->private_impl.f_dict_total_size, v_n) > 2147483647u)) {
+    return wuffs_base__make_status(wuffs_brotli__error__too_much_dictionary_data);
+  } else if (wuffs_brotli__encoder__add_dictionary_workbuf_len(self, v_n) > ((uint64_t)(a_workbuf.len))) {
+    return wuffs_base__make_status(wuffs_base__error__bad_workbuf_length);
+  }
+  v_bucket_bits = 17u;
+  while (((((uint64_t)(16u)) << v_bucket_bits) < v_n) && (v_bucket_bits < 22u)) {
+    v_bucket_bits += 1u;
+  }
+  if (v_bucket_bits >= 10u) {
+    v_slot_bits = (v_bucket_bits - 10u);
+  }
+  v_lo = self->private_impl.f_dict_end;
+  v_hi = ((uint64_t)(v_lo + v_n));
+  if ((v_lo > v_hi) || (v_hi > ((uint64_t)(a_workbuf.len)))) {
+    return wuffs_base__make_status(wuffs_brotli__error__internal_error_inconsistent_encoder_state);
+  }
+  wuffs_private_impl__slice_u8__copy_from_slice(wuffs_base__slice_u8__subslice_ij(a_workbuf, v_lo, v_hi), a_dict);
+  v_num_items = wuffs_brotli__encoder__prepare_dictionary(self,
+      a_workbuf,
+      v_lo,
+      v_n,
+      v_bucket_bits,
+      v_slot_bits);
+  v_c = self->private_impl.f_dict_num_chunks;
+  if (v_c >= 15u) {
+    return wuffs_base__make_status(wuffs_brotli__error__internal_error_inconsistent_encoder_state);
+  }
+  self->private_impl.f_dc_src_off[v_c] = v_lo;
+  self->private_impl.f_dc_size[v_c] = v_n;
+  self->private_impl.f_dc_bucket_bits[v_c] = v_bucket_bits;
+  self->private_impl.f_dc_slot_bits[v_c] = v_slot_bits;
+  self->private_impl.f_dc_num_items[v_c] = v_num_items;
+  self->private_impl.f_dict_total_size += v_n;
+  self->private_impl.f_dict_chunk_offsets[(v_c + 1u)] = self->private_impl.f_dict_total_size;
+  self->private_impl.f_dict_num_chunks = (v_c + 1u);
+  self->private_impl.f_dict_end = ((uint64_t)(((uint64_t)(((uint64_t)(v_hi + (((uint64_t)(4u)) << v_slot_bits))) + (((uint64_t)(2u)) << v_bucket_bits))) + ((uint64_t)(4u * v_num_items))));
+  return wuffs_base__make_status(NULL);
+}
+
+// -------- func brotli.encoder.add_dictionary_workbuf_len
+
+WUFFS_BASE__GENERATED_C_CODE
+WUFFS_BASE__MAYBE_STATIC uint64_t
+wuffs_brotli__encoder__add_dictionary_workbuf_len(
+    const wuffs_brotli__encoder* self,
+    uint64_t a_dict_len) {
+  if (!self) {
+    return 0;
+  }
+  if ((self->private_impl.magic != WUFFS_BASE__MAGIC) &&
+      (self->private_impl.magic != WUFFS_BASE__DISABLED)) {
+    return 0;
+  }
+
+  uint32_t v_bucket_bits = 0;
+  uint32_t v_slot_bits = 0;
+  uint64_t v_n = 0;
+  uint64_t v_max_items = 0;
+
+  if (a_dict_len > 2147483647u) {
+    return 18446744073709551615u;
+  }
+  v_n = a_dict_len;
+  v_bucket_bits = 17u;
+  while (((((uint64_t)(16u)) << v_bucket_bits) < v_n) && (v_bucket_bits < 22u)) {
+    v_bucket_bits += 1u;
+  }
+  if (v_bucket_bits >= 10u) {
+    v_slot_bits = (v_bucket_bits - 10u);
+  }
+  if (v_n > 7u) {
+    v_max_items = (v_n - 7u);
+  }
+  return wuffs_base__u64__sat_add(wuffs_base__u64__sat_add(wuffs_base__u64__sat_add(wuffs_base__u64__sat_add(wuffs_base__u64__sat_add(self->private_impl.f_dict_end, v_n), (((uint64_t)(4u)) << v_slot_bits)), (((uint64_t)(2u)) << v_bucket_bits)), ((uint64_t)(4u * v_max_items))), wuffs_base__u64__sat_add((((uint64_t)(6u)) << v_bucket_bits), ((uint64_t)(4u * v_n))));
+}
+
+// -------- func brotli.encoder.prepare_dictionary
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint64_t
+wuffs_brotli__encoder__prepare_dictionary(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    uint64_t a_src_off,
+    uint64_t a_n,
+    uint32_t a_bucket_bits,
+    uint32_t a_slot_bits) {
+  uint64_t v_num_slots = 0;
+  uint64_t v_num_buckets = 0;
+  uint64_t v_slot_mask = 0;
+  uint64_t v_slot_off = 0;
+  uint64_t v_heads_off = 0;
+  uint64_t v_items_off = 0;
+  uint64_t v_num_off = 0;
+  uint64_t v_bh_off = 0;
+  uint64_t v_nb_off = 0;
+  uint64_t v_max_items = 0;
+  uint64_t v_i = 0;
+  uint64_t v_j = 0;
+  uint64_t v_h = 0;
+  uint64_t v_key = 0;
+  uint32_t v_count = 0;
+  uint32_t v_limit = 0;
+  uint32_t v_size = 0;
+  bool v_overflow = false;
+  uint64_t v_total_items = 0;
+  uint64_t v_slot = 0;
+  uint64_t v_cursor = 0;
+  uint64_t v_pos = 0;
+  uint32_t v_k = 0;
+
+  v_num_slots = (((uint64_t)(1u)) << a_slot_bits);
+  v_num_buckets = (((uint64_t)(1u)) << a_bucket_bits);
+  v_slot_mask = (v_num_slots - 1u);
+  if (a_n > 7u) {
+    v_max_items = (a_n - 7u);
+  }
+  v_slot_off = ((uint64_t)(a_src_off + a_n));
+  v_heads_off = ((uint64_t)(v_slot_off + ((uint64_t)(4u * v_num_slots))));
+  v_items_off = ((uint64_t)(v_heads_off + ((uint64_t)(2u * v_num_buckets))));
+  v_num_off = ((uint64_t)(v_items_off + ((uint64_t)(4u * v_max_items))));
+  v_bh_off = ((uint64_t)(v_num_off + ((uint64_t)(2u * v_num_buckets))));
+  v_nb_off = ((uint64_t)(v_bh_off + ((uint64_t)(4u * v_num_buckets))));
+  wuffs_brotli__encoder__fill_bytes(self,
+      a_wb,
+      v_num_off,
+      ((uint64_t)(2u * v_num_buckets)),
+      0u);
+  v_i = 0u;
+  while (((uint64_t)(v_i + 7u)) < a_n) {
+    v_h = ((uint64_t)((wuffs_brotli__encoder__load64le(self, a_wb, ((uint64_t)(a_src_off + v_i))) & 1099511627775u) * 2297779722762296275u));
+    v_key = ((v_h >> 32u) >> (32u - a_bucket_bits));
+    v_count = ((uint32_t)(wuffs_brotli__encoder__peek_u16(self, a_wb, ((uint64_t)(v_num_off + ((uint64_t)(2u * v_key)))))));
+    if (v_count == 0u) {
+      wuffs_brotli__encoder__poke_u32(self, a_wb, ((uint64_t)(v_nb_off + ((uint64_t)(4u * v_i)))), 4294967295u);
+    } else {
+      wuffs_brotli__encoder__poke_u32(self, a_wb, ((uint64_t)(v_nb_off + ((uint64_t)(4u * v_i)))), wuffs_brotli__encoder__load32le(self, a_wb, ((uint64_t)(v_bh_off + ((uint64_t)(4u * v_key))))));
+    }
+    wuffs_brotli__encoder__poke_u32(self, a_wb, ((uint64_t)(v_bh_off + ((uint64_t)(4u * v_key)))), ((uint32_t)(v_i)));
+    v_count += 1u;
+    if (v_count > 32u) {
+      v_count = 32u;
+    }
+    wuffs_brotli__encoder__poke_u16(self, a_wb, ((uint64_t)(v_num_off + ((uint64_t)(2u * v_key)))), ((uint16_t)(v_count)));
+    v_i += 1u;
+  }
+  v_i = 0u;
+  while (v_i < v_num_slots) {
+    v_limit = 32u;
+    while (true) {
+      v_count = 0u;
+      v_overflow = false;
+      v_j = v_i;
+      while (v_j < v_num_buckets) {
+        v_size = ((uint32_t)(wuffs_brotli__encoder__peek_u16(self, a_wb, ((uint64_t)(v_num_off + ((uint64_t)(2u * v_j)))))));
+        if (v_count >= 65535u) {
+          v_overflow = true;
+          break;
+        }
+        if (v_size > v_limit) {
+          v_size = v_limit;
+        }
+        v_count += v_size;
+        v_j += v_num_slots;
+      }
+      if ( ! v_overflow) {
+        self->private_data.f_dp_slot_size[(v_i & 4095u)] = v_count;
+        v_total_items += ((uint64_t)(v_count));
+        break;
+      } else if (v_limit == 0u) {
+        self->private_data.f_dp_slot_size[(v_i & 4095u)] = 0u;
+        break;
+      }
+      v_limit -= 1u;
+    }
+    self->private_data.f_dp_slot_limit[(v_i & 4095u)] = v_limit;
+    v_i += 1u;
+  }
+  v_total_items = 0u;
+  v_i = 0u;
+  while (v_i < v_num_slots) {
+    wuffs_brotli__encoder__poke_u32(self, a_wb, ((uint64_t)(v_slot_off + ((uint64_t)(4u * v_i)))), ((uint32_t)(v_total_items)));
+    self->private_data.f_dp_slot_off[(v_i & 4095u)] = ((uint32_t)(v_total_items));
+    v_total_items += ((uint64_t)(self->private_data.f_dp_slot_size[(v_i & 4095u)]));
+    self->private_data.f_dp_slot_size[(v_i & 4095u)] = 0u;
+    v_i += 1u;
+  }
+  v_i = 0u;
+  while (v_i < v_num_buckets) {
+    v_slot = (v_i & v_slot_mask & 4095u);
+    v_count = ((uint32_t)(wuffs_brotli__encoder__peek_u16(self, a_wb, ((uint64_t)(v_num_off + ((uint64_t)(2u * v_i)))))));
+    if (v_count > self->private_data.f_dp_slot_limit[v_slot]) {
+      v_count = self->private_data.f_dp_slot_limit[v_slot];
+    }
+    if (v_count == 0u) {
+      wuffs_brotli__encoder__poke_u16(self, a_wb, ((uint64_t)(v_heads_off + ((uint64_t)(2u * v_i)))), 65535u);
+      v_i += 1u;
+      continue;
+    }
+    v_cursor = ((uint64_t)(self->private_data.f_dp_slot_size[v_slot]));
+    wuffs_brotli__encoder__poke_u16(self, a_wb, ((uint64_t)(v_heads_off + ((uint64_t)(2u * v_i)))), ((uint16_t)(v_cursor)));
+    v_cursor += ((uint64_t)(self->private_data.f_dp_slot_off[v_slot]));
+    self->private_data.f_dp_slot_size[v_slot] += v_count;
+    v_pos = ((uint64_t)(wuffs_brotli__encoder__load32le(self, a_wb, ((uint64_t)(v_bh_off + ((uint64_t)(4u * v_i)))))));
+    v_k = 0u;
+    while (v_k < v_count) {
+      wuffs_brotli__encoder__poke_u32(self, a_wb, ((uint64_t)(v_items_off + ((uint64_t)(4u * v_cursor)))), ((uint32_t)(v_pos)));
+      v_cursor += 1u;
+      v_pos = ((uint64_t)(wuffs_brotli__encoder__load32le(self, a_wb, ((uint64_t)(v_nb_off + ((uint64_t)(4u * v_pos)))))));
+      v_k += 1u;
+    }
+    v_cursor -= 1u;
+    wuffs_brotli__encoder__poke_u32(self, a_wb, ((uint64_t)(v_items_off + ((uint64_t)(4u * v_cursor)))), (wuffs_brotli__encoder__load32le(self, a_wb, ((uint64_t)(v_items_off + ((uint64_t)(4u * v_cursor))))) | 2147483648u));
+    v_i += 1u;
+  }
+  return v_total_items;
+}
+
+// -------- func brotli.encoder.compound_dictionary_enabled
+
+WUFFS_BASE__GENERATED_C_CODE
+static bool
+wuffs_brotli__encoder__compound_dictionary_enabled(
+    const wuffs_brotli__encoder* self) {
+  uint32_t v_htype = 0;
+
+  if (self->private_impl.f_dict_num_chunks == 0u) {
+    return false;
+  }
+  v_htype = self->private_impl.f_hasher_type;
+  return ((v_htype == 5u) ||
+      (v_htype == 6u) ||
+      (v_htype == 58u) ||
+      (v_htype == 68u) ||
+      (v_htype == 40u) ||
+      (v_htype == 41u) ||
+      (v_htype == 42u) ||
+      ((v_htype == 54u) && (self->private_impl.f_hr_jump != 0u)));
+}
+
+// -------- func brotli.encoder.lookup_compound_dictionary_match
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__lookup_compound_dictionary_match(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_data,
+    wuffs_base__slice_u8 a_dwb,
+    uint64_t a_cur_ix,
+    uint64_t a_max_length,
+    uint64_t a_max_ring_buffer_distance,
+    uint64_t a_max_distance) {
+  uint64_t v_base_offset = 0;
+  uint32_t v_d = 0;
+
+  v_base_offset = ((uint64_t)(a_max_ring_buffer_distance + self->private_impl.f_dict_total_size));
+  v_d = 0u;
+  while (v_d < self->private_impl.f_dict_num_chunks) {
+    wuffs_brotli__encoder__find_compound_dictionary_match(self,
+        a_data,
+        a_dwb,
+        v_d,
+        a_cur_ix,
+        a_max_length,
+        ((uint64_t)(v_base_offset - self->private_impl.f_dict_chunk_offsets[v_d])),
+        a_max_distance);
+    v_d += 1u;
+  }
+  return wuffs_base__make_empty_struct();
+}
+
+// -------- func brotli.encoder.find_compound_dictionary_match
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__find_compound_dictionary_match(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_data,
+    wuffs_base__slice_u8 a_dwb,
+    uint32_t a_d,
+    uint64_t a_cur_ix,
+    uint64_t a_max_length,
+    uint64_t a_distance_offset,
+    uint64_t a_max_distance) {
+  uint64_t v_source_size = 0;
+  uint64_t v_boundary = 0;
+  uint64_t v_src_off = 0;
+  uint64_t v_slot_off = 0;
+  uint64_t v_heads_off = 0;
+  uint64_t v_items_off = 0;
+  wuffs_base__slice_u8 v_source = {0};
+  wuffs_base__slice_u8 v_cur = {0};
+  uint64_t v_cur_ix_masked = 0;
+  uint64_t v_mask = 0;
+  uint64_t v_best_score = 0;
+  uint64_t v_best_len = 0;
+  uint32_t v_i = 0;
+  uint64_t v_h = 0;
+  uint64_t v_key = 0;
+  uint64_t v_slot = 0;
+  uint64_t v_head = 0;
+  uint64_t v_chain = 0;
+  uint32_t v_item = 0;
+  uint64_t v_distance = 0;
+  uint64_t v_offset = 0;
+  uint64_t v_limit = 0;
+  uint64_t v_len = 0;
+  uint64_t v_score = 0;
+  uint64_t v_num_items = 0;
+  uint32_t v_bb = 0;
+  uint32_t v_sb = 0;
+
+  v_bb = wuffs_base__u32__min(self->private_impl.f_dc_bucket_bits[a_d], 22u);
+  v_sb = wuffs_base__u32__min(self->private_impl.f_dc_slot_bits[a_d], 12u);
+  v_num_items = self->private_impl.f_dc_num_items[a_d];
+  v_source_size = self->private_impl.f_dc_size[a_d];
+  v_boundary = ((uint64_t)(a_distance_offset - v_source_size));
+  v_src_off = self->private_impl.f_dc_src_off[a_d];
+  v_slot_off = ((uint64_t)(v_src_off + v_source_size));
+  v_heads_off = ((uint64_t)(v_slot_off + (((uint64_t)(4u)) << v_sb)));
+  v_items_off = ((uint64_t)(v_heads_off + (((uint64_t)(2u)) << v_bb)));
+  if ((v_src_off > v_slot_off) || (v_slot_off > ((uint64_t)(a_dwb.len)))) {
+    return wuffs_base__make_empty_struct();
+  }
+  v_source = wuffs_base__slice_u8__subslice_ij(a_dwb, v_src_off, v_slot_off);
+  v_mask = ((uint64_t)(self->private_impl.f_rb_mask));
+  v_cur_ix_masked = (a_cur_ix & v_mask);
+  if (v_cur_ix_masked > ((uint64_t)(a_data.len))) {
+    return wuffs_base__make_empty_struct();
+  }
+  v_cur = wuffs_base__slice_u8__subslice_i(a_data, v_cur_ix_masked);
+  v_best_score = self->private_impl.f_sr_score;
+  v_best_len = self->private_impl.f_sr_len;
+  v_h = ((uint64_t)((wuffs_brotli__encoder__load64le(self, a_data, v_cur_ix_masked) & 1099511627775u) * 2297779722762296275u));
+  v_key = ((v_h >> 32u) >> (32u - v_bb));
+  v_slot = (v_key & ((((uint64_t)(1u)) << v_sb) - 1u));
+  v_head = ((uint64_t)(wuffs_brotli__encoder__peek_u16(self, a_dwb, ((uint64_t)(v_heads_off + ((uint64_t)(2u * v_key)))))));
+  v_chain = ((uint64_t)(((uint64_t)(wuffs_brotli__encoder__load32le(self, a_dwb, ((uint64_t)(v_slot_off + ((uint64_t)(4u * v_slot))))))) + v_head));
+  v_item = 0u;
+  if (v_head == 65535u) {
+    v_item = 1u;
+  }
+  v_i = 0u;
+  while (v_i < 4u) {
+    v_distance = wuffs_brotli__encoder__dist_cache_u64(self, v_i);
+    if ((v_distance <= v_boundary) || (v_distance > a_distance_offset)) {
+      v_i += 1u;
+      continue;
+    }
+    v_offset = ((uint64_t)(a_distance_offset - v_distance));
+    v_limit = ((uint64_t)(v_source_size - v_offset));
+    v_limit = wuffs_base__u64__min(v_limit, a_max_length);
+    v_len = 0u;
+    if (v_offset <= ((uint64_t)(v_source.len))) {
+      v_len = wuffs_brotli__encoder__find_match_length_2(self, wuffs_base__slice_u8__subslice_i(v_source, v_offset), v_cur, v_limit);
+    }
+    if (v_len >= 2u) {
+      v_score = wuffs_brotli__encoder__backward_reference_score_using_last_distance(self, v_len);
+      if (v_best_score < v_score) {
+        if (v_i != 0u) {
+          v_score -= wuffs_brotli__encoder__backward_reference_penalty_using_last_distance(self, ((uint64_t)(v_i)));
+        }
+        if (v_best_score < v_score) {
+          v_best_score = v_score;
+          if (v_len > v_best_len) {
+            v_best_len = v_len;
+          }
+          self->private_impl.f_sr_len = v_len;
+          self->private_impl.f_sr_len_code_delta = 0u;
+          self->private_impl.f_sr_distance = v_distance;
+          self->private_impl.f_sr_score = v_best_score;
+        }
+      }
+    }
+    v_i += 1u;
+  }
+  if (v_best_len < 3u) {
+    v_best_len = 3u;
+  }
+  while (v_item == 0u) {
+    if (v_chain >= v_num_items) {
+      break;
+    }
+    v_item = wuffs_brotli__encoder__load32le(self, a_dwb, ((uint64_t)(v_items_off + ((uint64_t)(4u * v_chain)))));
+    v_chain += 1u;
+    v_offset = ((uint64_t)((v_item & 2147483647u)));
+    v_item &= 2147483648u;
+    v_distance = ((uint64_t)(a_distance_offset - v_offset));
+    v_limit = ((uint64_t)(v_source_size - v_offset));
+    v_limit = wuffs_base__u64__min(v_limit, a_max_length);
+    if (v_distance > a_max_distance) {
+      continue;
+    }
+    if ((((uint64_t)(v_cur_ix_masked + v_best_len)) > v_mask) || (v_best_len >= v_limit) || (wuffs_brotli__encoder__load32le(self, a_data, ((uint64_t)(((uint64_t)(v_cur_ix_masked + v_best_len)) - 3u))) != wuffs_brotli__encoder__load32le(self, v_source, ((uint64_t)(((uint64_t)(v_offset + v_best_len)) - 3u))))) {
+      continue;
+    }
+    v_len = 0u;
+    if (v_offset <= ((uint64_t)(v_source.len))) {
+      v_len = wuffs_brotli__encoder__find_match_length_2(self, wuffs_base__slice_u8__subslice_i(v_source, v_offset), v_cur, v_limit);
+    }
+    if (v_len >= 4u) {
+      v_score = wuffs_brotli__encoder__backward_reference_score(self, v_len, v_distance);
+      if (v_best_score < v_score) {
+        v_best_score = v_score;
+        v_best_len = v_len;
+        self->private_impl.f_sr_len = v_best_len;
+        self->private_impl.f_sr_len_code_delta = 0u;
+        self->private_impl.f_sr_distance = v_distance;
+        self->private_impl.f_sr_score = v_best_score;
+      }
+    }
+  }
+  return wuffs_base__make_empty_struct();
+}
+
+// -------- func brotli.encoder.find_match_length_2
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint64_t
+wuffs_brotli__encoder__find_match_length_2(
+    const wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_a,
+    wuffs_base__slice_u8 a_b,
+    uint64_t a_limit) {
+  uint64_t v_matched = 0;
+  uint64_t v_n = 0;
+  wuffs_base__slice_u8 v_a = {0};
+  wuffs_base__slice_u8 v_b = {0};
+  uint64_t v_x = 0;
+
+  v_a = a_a;
+  v_b = a_b;
+  v_n = a_limit;
+  while ((v_n >= 8u) && (((uint64_t)(v_a.len)) >= 8u) && (((uint64_t)(v_b.len)) >= 8u)) {
+    v_x = (wuffs_base__peek_u64le__no_bounds_check(v_a.ptr) ^ wuffs_base__peek_u64le__no_bounds_check(v_b.ptr));
+    if (v_x != 0u) {
+      while ((v_x & 255u) == 0u) {
+        v_matched += 1u;
+        v_x >>= 8u;
+      }
+      return v_matched;
+    }
+    v_matched += 8u;
+    v_n -= 8u;
+    v_a = wuffs_base__slice_u8__subslice_i(v_a, 8u);
+    v_b = wuffs_base__slice_u8__subslice_i(v_b, 8u);
+  }
+  while ((v_n > 0u) && (((uint64_t)(v_a.len)) > 0u) && (((uint64_t)(v_b.len)) > 0u)) {
+    if (v_a.ptr[0u] != v_b.ptr[0u]) {
+      break;
+    }
+    v_matched += 1u;
+    v_n -= 1u;
+    v_a = wuffs_base__slice_u8__subslice_i(v_a, 1u);
+    v_b = wuffs_base__slice_u8__subslice_i(v_b, 1u);
+  }
+  return v_matched;
+}
+
+// -------- func brotli.encoder.extend_last_command_compound
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint64_t
+wuffs_brotli__encoder__extend_last_command_compound(
+    const wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    wuffs_base__slice_u8 a_dwb,
+    uint64_t a_bytes,
+    uint64_t a_wrapped_last_processed_pos,
+    uint64_t a_cmd_dist,
+    uint64_t a_max_distance,
+    uint64_t a_last_copy_len) {
+  uint64_t v_address = 0;
+  uint32_t v_br_index = 0;
+  uint64_t v_br_offset = 0;
+  uint64_t v_chunk_length = 0;
+  uint64_t v_n = 0;
+  uint64_t v_p = 0;
+
+  if (((uint64_t)(((uint64_t)(a_cmd_dist - a_max_distance)) - 1u)) >= self->private_impl.f_dict_total_size) {
+    return 0u;
+  } else if (a_last_copy_len >= ((uint64_t)(a_cmd_dist - a_max_distance))) {
+    return 0u;
+  }
+  v_address = ((uint64_t)(((uint64_t)(self->private_impl.f_dict_total_size - ((uint64_t)(a_cmd_dist - a_max_distance)))) + a_last_copy_len));
+  v_br_index = 0u;
+  while ((v_br_index < 15u) && (v_address >= self->private_impl.f_dict_chunk_offsets[(v_br_index + 1u)])) {
+    v_br_index += 1u;
+  }
+  if (v_br_index >= 15u) {
+    return 0u;
+  }
+  v_br_offset = ((uint64_t)(v_address - self->private_impl.f_dict_chunk_offsets[v_br_index]));
+  v_chunk_length = ((uint64_t)(self->private_impl.f_dict_chunk_offsets[(v_br_index + 1u)] - self->private_impl.f_dict_chunk_offsets[v_br_index]));
+  v_p = a_wrapped_last_processed_pos;
+  while (v_n < a_bytes) {
+    if ((v_br_offset >= v_chunk_length) || (v_br_index >= 15u)) {
+      break;
+    }
+    if (wuffs_brotli__encoder__rb_byte(self, a_wb, v_p) != wuffs_brotli__encoder__byte_at(self, a_dwb, ((uint64_t)(self->private_impl.f_dc_src_off[v_br_index] + v_br_offset)))) {
+      break;
+    }
+    v_n += 1u;
+    v_p = (((uint64_t)(v_p + 1u)) & 4294967295u);
+    v_br_offset += 1u;
+    if (v_br_offset == v_chunk_length) {
+      v_br_index += 1u;
+      v_br_offset = 0u;
+      if ((v_br_index < self->private_impl.f_dict_num_chunks) && (v_br_index < 15u)) {
+        v_chunk_length = ((uint64_t)(self->private_impl.f_dict_chunk_offsets[(v_br_index + 1u)] - self->private_impl.f_dict_chunk_offsets[v_br_index]));
+      } else {
+        break;
+      }
+    }
+  }
+  return v_n;
 }
 
 // -------- func brotli.encoder.set_depth

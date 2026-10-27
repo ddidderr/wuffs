@@ -31,16 +31,22 @@ enough for realistic inputs: with a workbuf shorter than `max_incl`, an
 unusual input can make `transform_io` return `"#bad workbuf length"`.
 
 Encoders may have further, format-specific methods. For example, the brotli
-encoder has `request_flush`, `request_emit_metadata` and
-`max_compressed_size`.
+encoder has `request_flush`, `request_emit_metadata`, `max_compressed_size`
+and, for raw (LZ77 prefix) dictionaries, `add_dictionary` and
+`add_dictionary_workbuf_len`. Like quirks, dictionaries are added before the
+first `transform_io` call.
 
 
 ## Implementations
 
-- [std/brotli](/std/brotli/README.md#encoder) (qualities 0 to 11, without
-  encoder dictionaries, including large-window brotli, with windows of up to
-  1 GiB, at qualities 3 to 11). Its `workbuf_len` is the worst case for the
-  parameters (more than 2 GiB for large-window brotli at lgwin 30; at
-  qualities 10 and 11, `min_incl` is a smaller practical bound), but a
-  shorter workbuf works for short inputs: see the README's "Encoder Workbuf
-  Layout" section.
+- [std/brotli](/std/brotli/README.md#encoder) (qualities 0 to 11,
+  including large-window brotli, with windows of up to 1 GiB, at qualities 3
+  to 11). Its `workbuf_len` is the worst case for the parameters (more than
+  2 GiB for large-window brotli at lgwin 30; at qualities 10 and 11,
+  `min_incl` is a smaller practical bound), but a shorter workbuf works for
+  short inputs: see the README's "Encoder Workbuf Layout" section. Up to 15
+  raw dictionaries can be attached (like libbrotlienc's
+  `BrotliEncoderAttachPreparedDictionary`) at qualities 0 to 9, see the
+  README's "Encoder Dictionaries" section. They live at the start of the
+  workbuf, with their prepared hash tables, and `workbuf_len` grows
+  accordingly.

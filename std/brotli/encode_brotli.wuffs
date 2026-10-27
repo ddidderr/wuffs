@@ -194,6 +194,19 @@ pub struct encoder? implements base.io_transformer(
         hr_next_ix       : base.u64,
         hr_off           : base.u64,
 
+        // The attached raw dictionaries (the C code's CompoundDictionary, see
+        // encode_dictionary.wuffs). They use the first dict_end bytes of the
+        // workbuf.
+        dict_num_chunks    : base.u32[..= 15],
+        dict_total_size    : base.u64,
+        dict_end           : base.u64,
+        dict_chunk_offsets : array[16] base.u64,
+        dc_src_off         : array[15] base.u64,
+        dc_size            : array[15] base.u64,
+        dc_bucket_bits     : array[15] base.u32,
+        dc_slot_bits       : array[15] base.u32,
+        dc_num_items       : array[15] base.u64,
+
         // The C code's HasherSearchResult.
         sr_len            : base.u64,
         sr_distance       : base.u64,
@@ -358,6 +371,12 @@ pub struct encoder? implements base.io_transformer(
         // GetHashTable result), with up to (1 << 17) elements.
         hash_table : array[131072] base.u32,
 
+        // CreatePreparedDictionaryWithParams' slot_size and slot_limit
+        // arrays, and its slot_offsets (see encode_dictionary.wuffs).
+        dp_slot_size  : array[4096] base.u32,
+        dp_slot_limit : array[4096] base.u32,
+        dp_slot_off   : array[4096] base.u32,
+
         // command_buf and literal_buf are the C code's command_buf_ and
         // literal_buf_ (quality 1 only).
         command_buf : array[131072] base.u32,
@@ -477,6 +496,7 @@ pub func encoder.workbuf_len() base.range_ii_u64 {
     var q     : base.u32[..= 11]
     var lgwin : base.u32[..= 30]
     var n     : base.u64
+    var r     : base.range_ii_u64
 
     q = this.sanitized_quality()
     lgwin = this.sanitized_lgwin(quality: q)
@@ -486,8 +506,12 @@ pub func encoder.workbuf_len() base.range_ii_u64 {
         n = this.compute_layout_offset(quality: q, lgwin: lgwin,
                 lgblock: this.computed_lgblock(quality: q, lgwin: lgwin), idx: LAYOUT_END)
     } else {
-        return this.workbuf_len_hq(quality: q, lgwin: lgwin)
+        r = this.workbuf_len_hq(quality: q, lgwin: lgwin)
+        return this.util.make_range_ii_u64(
+                min_incl: r.get_min_incl() ~sat+ this.dict_end,
+                max_incl: r.get_max_incl() ~sat+ this.dict_end)
     }
+    n ~sat+= this.dict_end
     return this.util.make_range_ii_u64(min_incl: n, max_incl: n)
 }
 
@@ -849,7 +873,31 @@ pri func encoder.write_metadata_header!(block_size: base.u32) base.u64 {
 // qualities 0 and 1, BrotliEncoderCompressStreamFast). Each (initial or
 // resumed) transform_io call corresponds to one or more C calls. See
 // README.md for the details.
+//
+// The attached dictionaries (see add_dictionary) are the first dict_end
+// bytes of the workbuf. do_transform_io gets the rest of the workbuf (whose
+// layout is described in README.md and encode_data.wuffs) and, as args.dwb,
+// the dictionaries.
 pub func encoder.transform_io?(dst: base.io_writer, src: base.io_reader, workbuf: slice base.u8) {
+    var status : base.status
+
+    while true {
+        if this.dict_end > args.workbuf.length() {
+            return base."#bad workbuf length"
+        }
+        status =? this.do_transform_io?(dst: args.dst, src: args.src,
+                workbuf: args.workbuf[this.dict_end ..],
+                dwb: args.workbuf[.. this.dict_end])
+        if status.is_ok() {
+            return ok
+        } else if not status.is_suspension() {
+            return status
+        }
+        yield? status
+    }
+}
+
+pri func encoder.do_transform_io?(dst: base.io_writer, src: base.io_reader, workbuf: slice base.u8, dwb: roslice base.u8) {
     var op          : base.u32
     var avail       : base.u64
     var block_size  : base.u64
@@ -868,6 +916,11 @@ pub func encoder.transform_io?(dst: base.io_writer, src: base.io_reader, workbuf
     var total           : base.u64
 
     this.ensure_initialized!()
+    if (this.quality >= 10) and (this.dict_num_chunks > 0) {
+        // TODO: compound dictionaries at qualities 10 and 11 (the Zopfli
+        // path's dictionary lookups).
+        return "#unsupported encoder quality"
+    }
     this.hq_extend_var_region!(wb_len: args.workbuf.length())
     if (this.quality >= 2) and (args.workbuf.length() < this.workbuf_end) {
         // A workbuf shorter than workbuf_len works if it is long enough for
@@ -911,7 +964,7 @@ pub func encoder.transform_io?(dst: base.io_writer, src: base.io_reader, workbuf
                     continue
                 }
                 if (this.quality >= 2) and (this.input_pos <> this.last_flush_pos) {
-                    status = this.encode_data!(wb: args.workbuf, is_last: false, force_flush: true)
+                    status = this.encode_data!(wb: args.workbuf, dwb: args.dwb, is_last: false, force_flush: true)
                     if not status.is_ok() {
                         return status
                     }
@@ -1027,7 +1080,7 @@ pub func encoder.transform_io?(dst: base.io_writer, src: base.io_reader, workbuf
                         force_flush = true
                     }
                     this.update_size_hint!(available_in: args.src.length())
-                    status = this.encode_data!(wb: args.workbuf, is_last: is_last, force_flush: force_flush)
+                    status = this.encode_data!(wb: args.workbuf, dwb: args.dwb, is_last: is_last, force_flush: force_flush)
                     if not status.is_ok() {
                         return status
                     }
