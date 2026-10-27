@@ -52,7 +52,7 @@
 // Run it from the Wuffs root directory with:
 //
 //   gcc -O2 -std=c99 script/manual-test-brotli-encoder-parity.c
-//       -lbrotlienc -lbrotlicommon -lm -o /tmp/brotli-enc-parity
+//       -lbrotlienc -lbrotlidec -lbrotlicommon -lm -o /tmp/brotli-enc-parity
 //
 // (as one command line).
 //   /tmp/brotli-enc-parity
@@ -375,7 +375,7 @@ static bool  //
 grow_workbuf(uint64_t n) {
   if (n <= g_workbuf_len) {
     return true;
-  } else if (n > ((uint64_t)3 << 30)) {
+  } else if (n > ((uint64_t)12 << 30)) {
     return false;
   }
   uint8_t* p = realloc(g_workbuf, (size_t)n);
