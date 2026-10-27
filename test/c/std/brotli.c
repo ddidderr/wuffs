@@ -854,6 +854,20 @@ brotli_enc_quirk_key(uint32_t param) {
   return 0;
 }
 
+const char*  //
+wuffs_brotli_encode_plan_with_dictionaries(wuffs_base__io_buffer* dst,
+                                           wuffs_base__io_buffer* src,
+                                           const uint32_t* param_keys,
+                                           const uint32_t* param_values,
+                                           size_t num_params,
+                                           size_t num_dicts,
+                                           const uint32_t* dict_types,
+                                           const wuffs_base__slice_u8* dicts,
+                                           const uint32_t* step_ops,
+                                           const size_t* step_lens,
+                                           size_t num_steps,
+                                           size_t dst_chunk);
+
 // wuffs_brotli_encode_plan is the Wuffs equivalent of mimic_brotli_encode
 // (in test/c/mimiclib/brotli.c).
 const char*  //
@@ -866,6 +880,29 @@ wuffs_brotli_encode_plan(wuffs_base__io_buffer* dst,
                          const size_t* step_lens,
                          size_t num_steps,
                          size_t dst_chunk) {
+  return wuffs_brotli_encode_plan_with_dictionaries(
+      dst, src, param_keys, param_values, num_params, 0, NULL, NULL, step_ops,
+      step_lens, num_steps, dst_chunk);
+}
+
+// wuffs_brotli_encode_plan_with_dictionaries is the Wuffs equivalent of
+// mimic_brotli_encode_with_dictionaries: it adds (with add_dictionary) the
+// num_dicts dictionaries after setting the quirks and before the first step.
+// Each dict_types[i] is WUFFS_BROTLI__DICTIONARY_TYPE_RAW or
+// WUFFS_BROTLI__DICTIONARY_TYPE_SERIALIZED.
+const char*  //
+wuffs_brotli_encode_plan_with_dictionaries(wuffs_base__io_buffer* dst,
+                                           wuffs_base__io_buffer* src,
+                                           const uint32_t* param_keys,
+                                           const uint32_t* param_values,
+                                           size_t num_params,
+                                           size_t num_dicts,
+                                           const uint32_t* dict_types,
+                                           const wuffs_base__slice_u8* dicts,
+                                           const uint32_t* step_ops,
+                                           const size_t* step_lens,
+                                           size_t num_steps,
+                                           size_t dst_chunk) {
   // The encoder struct is large (more than 1 MiB), mostly arrays that do not
   // need zero-initializing, so don't use wuffs_brotli__encoder__alloc.
   wuffs_brotli__encoder* enc = malloc(sizeof__wuffs_brotli__encoder());
@@ -891,23 +928,45 @@ wuffs_brotli_encode_plan(wuffs_base__io_buffer* dst,
       goto cleanup;
     }
   }
-  wuffs_base__range_ii_u64 workbuf_len =
-      wuffs_brotli__encoder__workbuf_len(enc);
   wuffs_base__slice_u8 workbuf = g_work_slice_u8;
-  // Large-window brotli at lgwin 30 needs more than 2 GiB.
-  if ((workbuf_len.max_incl > (3ull << 30)) ||
-      (workbuf_len.max_incl > SIZE_MAX)) {
-    ret = "workbuf_len is too large";
-    goto cleanup;
-  } else if (workbuf_len.max_incl > g_work_slice_u8.len) {
-    big_workbuf = malloc((size_t)workbuf_len.max_incl);
-    if (!big_workbuf) {
-      ret = "malloc failed";
+  workbuf.len = 0;
+  size_t big_workbuf_len = 0;
+  for (size_t j = 0; j <= num_dicts; j++) {
+    // Each add_dictionary call needs add_dictionary_workbuf_len bytes and
+    // transform_io needs workbuf_len bytes, with the same dictionary bytes
+    // at the start.
+    uint64_t n = (j < num_dicts)
+                     ? wuffs_brotli__encoder__add_dictionary_workbuf_len(
+                           enc, dicts[j].len)
+                     : wuffs_brotli__encoder__workbuf_len(enc).max_incl;
+    // Large-window brotli at lgwin 30 needs more than 2 GiB.
+    if ((n > (3ull << 30)) || (n > SIZE_MAX)) {
+      ret = "workbuf_len is too large";
       goto cleanup;
+    } else if ((n > g_work_slice_u8.len) && (n > big_workbuf_len)) {
+      uint8_t* p = realloc(big_workbuf, (size_t)n);
+      if (!p) {
+        ret = "malloc failed";
+        goto cleanup;
+      }
+      if (!big_workbuf && workbuf.len) {
+        // Keep the dictionaries added so far.
+        memcpy(p, g_work_slice_u8.ptr, workbuf.len);
+      }
+      big_workbuf = p;
+      big_workbuf_len = (size_t)n;
+      workbuf.ptr = big_workbuf;
     }
-    workbuf.ptr = big_workbuf;
+    workbuf.len = (size_t)n;
+    if (j < num_dicts) {
+      wuffs_base__status status = wuffs_brotli__encoder__add_dictionary(
+          enc, dict_types[j], dicts[j], workbuf);
+      if (status.repr) {
+        ret = status.repr;
+        goto cleanup;
+      }
+    }
   }
-  workbuf.len = (size_t)workbuf_len.max_incl;
 
   for (size_t i = 0; i < num_steps; i++) {
     size_t end = src->meta.ri + step_lens[i];
@@ -3456,6 +3515,610 @@ test_mimic_brotli_encode_large_window_far() {
 
 #endif  // WUFFS_MIMIC
 
+// ---------------- Brotli Encoder Dictionary Tests
+
+// brotli_enc_load_file returns a malloc'ed copy of the named file (of up to
+// 1 MiB) and sets *len to its length.
+uint8_t*  //
+brotli_enc_load_file(const char* filename, size_t* len) {
+  uint8_t* buf = malloc(1 << 20);
+  if (!buf) {
+    return NULL;
+  }
+  wuffs_base__io_buffer b = ((wuffs_base__io_buffer){
+      .data = wuffs_base__make_slice_u8(buf, 1 << 20),
+  });
+  if (read_file(&b, filename)) {
+    free(buf);
+    return NULL;
+  }
+  *len = b.meta.wi;
+  return buf;
+}
+
+// brotli_enc_config_has_param returns whether c sets the key param to a
+// non-zero value.
+bool  //
+brotli_enc_config_has_param(const brotli_enc_config* c, uint32_t key) {
+  bool ret = false;
+  for (size_t j = 0; j < c->num_params; j++) {
+    if (c->param_keys[j] == key) {
+      ret = c->param_values[j] != 0;
+    }
+  }
+  return ret;
+}
+
+// wuffs_brotli_decode_with_raw_dictionaries decodes src to dst with Wuffs'
+// std/brotli decoder, with the given raw dictionaries attached.
+const char*  //
+wuffs_brotli_decode_with_raw_dictionaries(wuffs_base__io_buffer* dst,
+                                          wuffs_base__io_buffer* src,
+                                          bool large_window,
+                                          size_t num_dicts,
+                                          const wuffs_base__slice_u8* dicts) {
+  wuffs_brotli__decoder dec;
+  CHECK_STATUS("initialize",
+               wuffs_brotli__decoder__initialize(
+                   &dec, sizeof dec, WUFFS_VERSION,
+                   WUFFS_INITIALIZE__LEAVE_INTERNAL_BUFFERS_UNINITIALIZED));
+  CHECK_STATUS("set_quirk",
+               wuffs_brotli__decoder__set_quirk(
+                   &dec, WUFFS_BROTLI__QUIRK_LARGE_WINDOW, large_window));
+  size_t total = 0;
+  for (size_t j = 0; j < num_dicts; j++) {
+    total += dicts[j].len;
+  }
+  size_t n = total + (large_window ? (1 << 30) : (1 << 24)) + 542;
+  uint8_t* p = malloc(n);
+  if (!p) {
+    return "malloc failed";
+  }
+  wuffs_base__slice_u8 workbuf = wuffs_base__make_slice_u8(p, n);
+  const char* ret = NULL;
+  for (size_t j = 0; j < num_dicts; j++) {
+    ret = wuffs_brotli__decoder__add_dictionary(
+              &dec, WUFFS_BROTLI__DICTIONARY_TYPE_RAW, dicts[j], workbuf)
+              .repr;
+    if (ret) {
+      goto cleanup;
+    }
+  }
+  if (wuffs_brotli__decoder__workbuf_len(&dec).max_incl > n) {
+    ret = "decoder workbuf_len is too large";
+    goto cleanup;
+  }
+  ret = wuffs_brotli__decoder__transform_io(&dec, dst, src, workbuf).repr;
+cleanup:
+  free(p);
+  return ret;
+}
+
+// do_test_brotli_encode_dictionary encodes data[:data_len] with the plan's
+// config c and the given raw dictionaries. Unless the config sets a stream
+// offset (whose output is the continuation of another stream), it checks
+// that Wuffs' decoder (and, if mimic is true, libbrotlidec), with the same
+// dictionaries, decodes the result back to data. If mimic is true, it also
+// checks that libbrotlienc's output is the same. It sets *compressed_len.
+const char*  //
+do_test_brotli_encode_dictionary(const char* name,
+                                 const brotli_enc_config* c,
+                                 const uint8_t* data,
+                                 size_t data_len,
+                                 size_t num_dicts,
+                                 const wuffs_base__slice_u8* dicts,
+                                 bool mimic,
+                                 size_t* compressed_len) {
+  uint32_t dict_types[16] = {0};
+  for (size_t j = 0; j < 16; j++) {
+    dict_types[j] = WUFFS_BROTLI__DICTIONARY_TYPE_RAW;
+  }
+  if (num_dicts > 16) {
+    return "too many dictionaries";
+  }
+  wuffs_base__io_buffer src = ((wuffs_base__io_buffer){
+      .data = g_src_slice_u8,
+  });
+  CHECK_STRING(make_brotli_enc_plan(&src, c, data, data_len));
+  wuffs_base__io_buffer have = ((wuffs_base__io_buffer){
+      .data = g_have_slice_u8,
+  });
+  wuffs_base__io_buffer src0 = src;
+  const char* status = wuffs_brotli_encode_plan_with_dictionaries(
+      &have, &src0, c->param_keys, c->param_values, c->num_params, num_dicts,
+      dict_types, dicts, g_brotli_enc_step_ops, g_brotli_enc_step_lens,
+      g_brotli_enc_num_steps, c->dst_chunk);
+  if (status) {
+    RETURN_FAIL("%s: wuffs encode: %s", name, status);
+  }
+  have.meta.closed = true;
+  *compressed_len = have.meta.wi;
+  bool lw = brotli_enc_config_has_param(c, BROTLI_ENC_PARAM_LARGE_WINDOW);
+  bool so = brotli_enc_config_has_param(c, BROTLI_ENC_PARAM_STREAM_OFFSET);
+
+  for (int k = 0; k < (mimic ? 3 : 1); k++) {
+    wuffs_base__io_buffer want = ((wuffs_base__io_buffer){
+        .data = g_want_slice_u8,
+    });
+    wuffs_base__io_buffer have1 = have;
+    if (k == 0) {
+      if (so) {
+        continue;
+      }
+      status = wuffs_brotli_decode_with_raw_dictionaries(&want, &have1, lw,
+                                                         num_dicts, dicts);
+#ifdef WUFFS_MIMIC
+    } else if (k == 1) {
+      if (so) {
+        continue;
+      }
+      int error_code = 0;
+      status = mimic_brotli_decode_with_options(
+          &want, &have1, lw, num_dicts, dict_types, dicts, &error_code);
+    } else {
+      wuffs_base__io_buffer src1 = src;
+      status = mimic_brotli_encode_with_dictionaries(
+          &want, &src1, c->param_keys, c->param_values, c->num_params,
+          num_dicts, dict_types, dicts, g_brotli_enc_step_ops,
+          g_brotli_enc_step_lens, g_brotli_enc_num_steps, c->dst_chunk);
+      if (status) {
+        RETURN_FAIL("%s: mimic encode: %s", name, status);
+      }
+      status = check_io_buffers_equal("", &have, &want);
+      if (status) {
+        RETURN_FAIL("%s: %s", name, status);
+      }
+      continue;
+#endif  // WUFFS_MIMIC
+    }
+    const char* which = (k == 0) ? "wuffs" : "mimic";
+    if (status) {
+      RETURN_FAIL("%s: %s decode: %s", name, which, status);
+    } else if (have1.meta.ri != have1.meta.wi) {
+      RETURN_FAIL("%s: %s decode: trailing data", name, which);
+    } else if (want.meta.wi != data_len) {
+      RETURN_FAIL("%s: %s decoded length: have %zu, want %zu", name, which,
+                  want.meta.wi, data_len);
+    } else if (memcmp(want.data.ptr, data, data_len)) {
+      RETURN_FAIL("%s: %s decoded bytes differ", name, which);
+    }
+  }
+  return NULL;
+}
+
+const char*  //
+test_wuffs_brotli_encode_add_dictionary() {
+  CHECK_FOCUS(__func__);
+  static const uint8_t text[] = "the quick brown fox jumps over the lazy dog";
+  wuffs_base__slice_u8 dict =
+      wuffs_base__make_slice_u8((uint8_t*)text, sizeof text - 1);
+  wuffs_base__slice_u8 workbuf = g_work_slice_u8;
+
+  wuffs_brotli__encoder enc;
+  CHECK_STATUS("initialize",
+               wuffs_brotli__encoder__initialize(
+                   &enc, sizeof enc, WUFFS_VERSION,
+                   WUFFS_INITIALIZE__LEAVE_INTERNAL_BUFFERS_UNINITIALIZED));
+  CHECK_STATUS("set_quirk", wuffs_brotli__encoder__set_quirk(
+                                &enc, WUFFS_BROTLI__QUIRK_ENCODER_QUALITY, 5));
+  uint64_t wlen0 = wuffs_brotli__encoder__workbuf_len(&enc).max_incl;
+
+  // Serialized dictionaries are rejected (like libbrotlienc's default,
+  // non-experimental build) and so are unknown dictionary types.
+  const char* have = wuffs_brotli__encoder__add_dictionary(
+                         &enc, WUFFS_BROTLI__DICTIONARY_TYPE_SERIALIZED, dict,
+                         workbuf)
+                         .repr;
+  if (have != wuffs_brotli__error__unsupported_serialized_encoder_dictionary) {
+    RETURN_FAIL("serialized: have \"%s\"", have);
+  }
+  have = wuffs_brotli__encoder__add_dictionary(&enc, 2, dict, workbuf).repr;
+  if (have != wuffs_base__error__bad_argument) {
+    RETURN_FAIL("unknown type: have \"%s\"", have);
+  }
+
+  // The add_dictionary_workbuf_len formula: for a dictionary of n bytes (and
+  // 17 bucket bits and 7 slot bits, for n up to 2 MiB), n bytes, (4 << 7)
+  // slot offsets, (2 << 17) heads and up to 4 * (n - 7) items, then (6 <<
+  // 17) + (4 * n) bytes of scratch space.
+  uint64_t want_wlen =
+      43 + (4 << 7) + (2 << 17) + (4 * 36) + (6 << 17) + (4 * 43);
+  uint64_t have_wlen =
+      wuffs_brotli__encoder__add_dictionary_workbuf_len(&enc, dict.len);
+  if (have_wlen != want_wlen) {
+    RETURN_FAIL("add_dictionary_workbuf_len: have %" PRIu64 ", want %" PRIu64,
+                have_wlen, want_wlen);
+  }
+  workbuf.len = (size_t)(have_wlen - 1);
+  have = wuffs_brotli__encoder__add_dictionary(
+             &enc, WUFFS_BROTLI__DICTIONARY_TYPE_RAW, dict, workbuf)
+             .repr;
+  if (have != wuffs_base__error__bad_workbuf_length) {
+    RETURN_FAIL("short workbuf: have \"%s\"", have);
+  }
+  if (wuffs_brotli__encoder__workbuf_len(&enc).max_incl != wlen0) {
+    RETURN_FAIL("workbuf_len changed after failed add_dictionary calls");
+  }
+
+  // 15 dictionaries (the C code's SHARED_BROTLI_MAX_COMPOUND_DICTS), one of
+  // them empty, can be added, but not 16.
+  uint64_t dict_end = 0;
+  for (int i = 0; i < 16; i++) {
+    wuffs_base__slice_u8 d = dict;
+    if (i == 3) {
+      d.len = 0;
+    }
+    workbuf.len = g_work_slice_u8.len;
+    uint64_t n = wuffs_brotli__encoder__add_dictionary_workbuf_len(&enc, d.len);
+    if (n != (dict_end + ((i == 3) ? ((4 << 7) + (8 << 17)) : want_wlen))) {
+      RETURN_FAIL("i=%d: add_dictionary_workbuf_len: have %" PRIu64, i, n);
+    }
+    have = wuffs_brotli__encoder__add_dictionary(
+               &enc, WUFFS_BROTLI__DICTIONARY_TYPE_RAW, d, workbuf)
+               .repr;
+    if (i == 15) {
+      if (have != wuffs_brotli__error__too_many_compound_dictionaries) {
+        RETURN_FAIL("i=%d: have \"%s\"", i, have);
+      }
+      break;
+    } else if (have) {
+      RETURN_FAIL("i=%d: have \"%s\"", i, have);
+    }
+    // The dictionary bytes, (4 << 7) slot offsets, (2 << 17) heads and 4
+    // bytes per item. Each of the (43 - 7) positions of "the quick brown fox
+    // etc" has a distinct hash, so there are 36 items.
+    dict_end += (i == 3) ? ((4 << 7) + (2 << 17))
+                         : (43 + (4 << 7) + (2 << 17) + (4 * 36));
+    uint64_t wlen = wuffs_brotli__encoder__workbuf_len(&enc).max_incl;
+    if (wlen != (wlen0 + dict_end)) {
+      RETURN_FAIL("i=%d: workbuf_len: have %" PRIu64 ", want %" PRIu64, i,
+                  wlen, wlen0 + dict_end);
+    }
+  }
+
+  // Quirks can still be set after add_dictionary, until transform_io.
+  CHECK_STATUS("set_quirk", wuffs_brotli__encoder__set_quirk(
+                                &enc, WUFFS_BROTLI__QUIRK_LGWIN, 16));
+  uint64_t wlen = wuffs_brotli__encoder__workbuf_len(&enc).max_incl;
+  if (wlen <= dict_end) {
+    RETURN_FAIL("workbuf_len: have %" PRIu64, wlen);
+  }
+
+  // A workbuf shorter than the dictionaries fails.
+  wuffs_base__io_buffer src = ((wuffs_base__io_buffer){
+      .data = wuffs_base__make_slice_u8((uint8_t*)text, sizeof text - 1),
+      .meta = wuffs_base__make_io_buffer_meta(sizeof text - 1, 0, 0, true),
+  });
+  wuffs_base__io_buffer dst = ((wuffs_base__io_buffer){
+      .data = g_have_slice_u8,
+  });
+  // (An error disables the encoder, so try this on a copy.)
+  wuffs_brotli__encoder* copy = malloc(sizeof enc);
+  if (!copy) {
+    return "malloc failed";
+  }
+  memcpy(copy, &enc, sizeof enc);
+  workbuf.len = (size_t)(dict_end - 1);
+  have = wuffs_brotli__encoder__transform_io(copy, &dst, &src, workbuf).repr;
+  free(copy);
+  if (have != wuffs_base__error__bad_workbuf_length) {
+    RETURN_FAIL("transform_io (short workbuf): have \"%s\"", have);
+  }
+  workbuf.len = (size_t)wlen;
+  CHECK_STATUS("transform_io",
+               wuffs_brotli__encoder__transform_io(&enc, &dst, &src, workbuf));
+  if (dst.meta.wi >= (sizeof text - 1)) {
+    RETURN_FAIL("compressed length: have %zu", dst.meta.wi);
+  }
+
+  // After transform_io, add_dictionary (and set_quirk) fail. (The C code's
+  // BrotliEncoderAttachPreparedDictionary accepts a raw dictionary at any
+  // time, but attaching one after compression has started changes the
+  // compound dictionary's size mid-stream, which is not supported here.)
+  have = wuffs_brotli__encoder__add_dictionary(
+             &enc, WUFFS_BROTLI__DICTIONARY_TYPE_RAW, dict, workbuf)
+             .repr;
+  if (have != wuffs_base__error__bad_call_sequence) {
+    RETURN_FAIL("after transform_io: have \"%s\"", have);
+  }
+  return NULL;
+}
+
+// brotli_enc_dict_set fills dicts with one of the dictionary test sets (for
+// the alice29.txt, asyoulik.txt and romeo.txt files a, b and r, each of
+// length a_len, b_len and r_len) and returns how many dictionaries it has.
+size_t  //
+brotli_enc_dict_set(int which,
+                    wuffs_base__slice_u8* dicts,
+                    uint8_t* a,
+                    size_t a_len,
+                    uint8_t* b,
+                    size_t b_len,
+                    uint8_t* r,
+                    size_t r_len) {
+  switch (which) {
+    case 0:  // One small dictionary.
+      dicts[0] = wuffs_base__make_slice_u8(r, r_len);
+      return 1;
+    case 1:  // The first half of alice29.txt.
+      dicts[0] = wuffs_base__make_slice_u8(a, a_len / 2);
+      return 1;
+    case 2:  // Several dictionaries, including tiny and empty ones.
+      dicts[0] = wuffs_base__make_slice_u8(r, 0);
+      dicts[1] = wuffs_base__make_slice_u8(b + 1000, 5);
+      dicts[2] = wuffs_base__make_slice_u8(a + (a_len / 2), a_len / 4);
+      dicts[3] = wuffs_base__make_slice_u8(b, 4000);
+      dicts[4] = wuffs_base__make_slice_u8(r + 100, 300);
+      return 5;
+    case 3:  // 15 (the maximum number of) pieces of alice29.txt.
+      for (size_t j = 0; j < 15; j++) {
+        dicts[j] = wuffs_base__make_slice_u8(a + (j * 10000), 9000);
+      }
+      return 15;
+  }
+  dicts[0] = wuffs_base__make_slice_u8(b, b_len);
+  return 1;
+}
+
+const char*  //
+do_test_brotli_encode_dictionary_grid(bool mimic) {
+  size_t a_len = 0;
+  size_t b_len = 0;
+  size_t r_len = 0;
+  uint8_t* a = brotli_enc_load_file("test/data/brotli/alice29.txt", &a_len);
+  uint8_t* b = brotli_enc_load_file("test/data/brotli/asyoulik.txt", &b_len);
+  uint8_t* r = brotli_enc_load_file("test/data/romeo.txt", &r_len);
+  const char* ret = NULL;
+  if (!a || !b || !r || (a_len < 150000)) {
+    ret = "could not load the test files";
+    goto cleanup;
+  }
+
+  // Each config is (lgwin, chunking, flush, metadata, extra param, value).
+  static const uint32_t configs[][6] = {
+      {22, BROTLI_ENC_CHUNK_SINGLE, BROTLI_ENC_FLUSH_NONE, 0, 0, 0},
+      {16, BROTLI_ENC_CHUNK_RANDOM, BROTLI_ENC_FLUSH_MIDDLE, 0, 0, 0},
+      {10, BROTLI_ENC_CHUNK_RANDOM, BROTLI_ENC_FLUSH_EVERY_CHUNK, 0, 0, 0},
+      {18, BROTLI_ENC_CHUNK_RANDOM, BROTLI_ENC_FLUSH_MIDDLE,
+       BROTLI_ENC_METADATA_MIDDLE, 0, 0},
+      {22, BROTLI_ENC_CHUNK_RANDOM, BROTLI_ENC_FLUSH_MIDDLE, 0,
+       BROTLI_ENC_PARAM_STREAM_OFFSET, 1000},
+      {24, BROTLI_ENC_CHUNK_SINGLE, BROTLI_ENC_FLUSH_NONE, 0,
+       BROTLI_ENC_PARAM_STREAM_OFFSET, 1 << 30},
+      {26, BROTLI_ENC_CHUNK_RANDOM, BROTLI_ENC_FLUSH_MIDDLE, 0,
+       BROTLI_ENC_PARAM_LARGE_WINDOW, 1},
+      {22, BROTLI_ENC_CHUNK_SINGLE, BROTLI_ENC_FLUSH_NONE, 0,
+       BROTLI_ENC_PARAM_SIZE_HINT, 1 << 20},
+  };
+  // The input is the second half of alice29.txt, except for dictionary set
+  // 4 (all of asyoulik.txt), whose input is romeo.txt.
+  for (int set = 0; (set < 5) && !ret; set++) {
+    wuffs_base__slice_u8 dicts[16];
+    size_t num_dicts = brotli_enc_dict_set(set, dicts, a, a_len, b, b_len, r,
+                                           r_len);
+    const uint8_t* data = (set == 4) ? r : (a + (a_len / 2));
+    size_t data_len = (set == 4) ? r_len : (a_len - (a_len / 2));
+    for (uint32_t q = 0; (q <= 9) && !ret; q++) {
+      for (size_t i = 0; (i < WUFFS_TESTLIB_ARRAY_SIZE(configs)) && !ret;
+           i++) {
+        if (!mimic && (i >= 2) && (q & 1)) {
+          continue;
+        }
+        brotli_enc_config c = make_brotli_enc_config(q, configs[i][0]);
+        if (configs[i][4]) {
+          brotli_enc_config__add_param(&c, configs[i][4], configs[i][5]);
+        }
+        c.chunking = configs[i][1];
+        c.flush = configs[i][2];
+        c.metadata_position = configs[i][3];
+        c.metadata_len = configs[i][3] ? 100 : 0;
+        c.seed = (set << 16) | (q << 8) | i;
+        char s[256];
+        snprintf(s, sizeof s, "set=%d q=%u config=%zu", set, q, i);
+        size_t have_len = 0;
+        ret = do_test_brotli_encode_dictionary(s, &c, data, data_len,
+                                               num_dicts, dicts, mimic,
+                                               &have_len);
+        if (ret || (set != 1) || (q < 5) || (i != 0)) {
+          continue;
+        }
+        // Encoding the second half of alice29.txt with the first half as a
+        // dictionary should be at least 5% better than without it.
+        size_t without_len = 0;
+        ret = do_test_brotli_encode_dictionary(s, &c, data, data_len, 0, NULL,
+                                               false, &without_len);
+        if (!ret && ((have_len * 100) >= (without_len * 95))) {
+          snprintf(g_fail_msg, sizeof g_fail_msg,
+                   "%s: compressed length: have %zu, without dictionary %zu",
+                   s, have_len, without_len);
+          ret = g_fail_msg;
+        }
+      }
+    }
+  }
+
+cleanup:
+  free(a);
+  free(b);
+  free(r);
+  return ret;
+}
+
+const char*  //
+do_test_brotli_encode_dictionary_big(bool mimic) {
+  // Dictionaries of exactly 2 MiB (the largest with 17 bucket bits), one
+  // byte more (18 bucket bits) and 5 and 33 MiB (19 and 22 bucket bits).
+  // Each holds, at various offsets, pieces of the 1 MiB input.
+  static const size_t sizes[] = {2 << 20, (2 << 20) + 1, (5 << 20) + 3,
+                                 (33 << 20) + 5};
+  const size_t len = 1 << 20;
+  uint8_t* data = malloc(len);
+  uint8_t* dict = malloc(sizes[3]);
+  const char* ret = NULL;
+  if (!data || !dict) {
+    ret = "malloc failed";
+    goto cleanup;
+  }
+  brotli_enc_fill_random(data, len, 0xDA7A);
+  for (size_t i = 0; i < len; i++) {
+    // Make it compressible: mostly lowercase letters.
+    data[i] = 'a' + (data[i] % 13);
+  }
+  for (size_t k = 0; (k < WUFFS_TESTLIB_ARRAY_SIZE(sizes)) && !ret; k++) {
+    size_t dlen = sizes[k];
+    brotli_enc_fill_random(dict, dlen, 0xD1C7 + k);
+    for (size_t j = 0; j < 3; j++) {
+      size_t at = (j == 0) ? 999 : (j == 1) ? (dlen / 2) : (dlen - (65 << 10));
+      memcpy(dict + at, data + (j * (300 << 10)), 64 << 10);
+    }
+    wuffs_base__slice_u8 dicts[2] = {
+        wuffs_base__make_slice_u8(dict, dlen),
+        wuffs_base__make_slice_u8(data + (len - 1000), 1000),
+    };
+    static const uint32_t qs[] = {2, 4, 5, 9};
+    for (size_t i = 0; (i < WUFFS_TESTLIB_ARRAY_SIZE(qs)) && !ret; i++) {
+      // Without mimic, and for the largest dictionary, a smaller grid.
+      if ((!mimic && ((k & 1) == 0)) || ((!mimic || (k == 3)) && (i != 2))) {
+        continue;
+      }
+      brotli_enc_config c = make_brotli_enc_config(qs[i], 24);
+      if (i & 1) {
+        brotli_enc_config__add_param(&c, BROTLI_ENC_PARAM_SIZE_HINT, 1 << 20);
+        c.chunking = BROTLI_ENC_CHUNK_RANDOM;
+        c.flush = BROTLI_ENC_FLUSH_MIDDLE;
+      }
+      c.seed = (k << 8) | i;
+      char s[256];
+      snprintf(s, sizeof s, "dictionary of %zu bytes: q=%u", dlen, qs[i]);
+      size_t have_len = 0;
+      ret = do_test_brotli_encode_dictionary(s, &c, data, len, 2, dicts,
+                                             mimic, &have_len);
+      // The three 64 KiB pieces (of 3.7 bits of entropy per byte) should be
+      // found at quality 5 and above, even when they are more than 16 MiB
+      // (lgwin 24's window) into the dictionary.
+      size_t want_max = 0;
+      if (!ret && (qs[i] >= 5)) {
+        c = make_brotli_enc_config(qs[i], 24);
+        ret = do_test_brotli_encode_dictionary(s, &c, data, len, 0, NULL,
+                                               false, &want_max);
+        want_max -= 3 * (24 << 10);
+        if (!ret && (have_len > want_max)) {
+          snprintf(g_fail_msg, sizeof g_fail_msg,
+                   "%s: compressed length: have %zu, want at most %zu", s,
+                   have_len, want_max);
+          ret = g_fail_msg;
+        }
+      }
+    }
+  }
+cleanup:
+  free(data);
+  free(dict);
+  return ret;
+}
+
+const char*  //
+test_wuffs_brotli_encode_dictionary_big() {
+  CHECK_FOCUS(__func__);
+  return do_test_brotli_encode_dictionary_big(false);
+}
+
+const char*  //
+test_wuffs_brotli_encode_dictionary_grid() {
+  CHECK_FOCUS(__func__);
+  return do_test_brotli_encode_dictionary_grid(false);
+}
+
+#ifdef WUFFS_MIMIC
+
+const char*  //
+test_mimic_brotli_encode_dictionary_big() {
+  CHECK_FOCUS(__func__);
+  return do_test_brotli_encode_dictionary_big(true);
+}
+
+const char*  //
+test_mimic_brotli_encode_dictionary_grid() {
+  CHECK_FOCUS(__func__);
+  return do_test_brotli_encode_dictionary_grid(true);
+}
+
+// test_mimic_brotli_encode_dictionary_rejections checks that the dictionaries
+// that libbrotlienc (a default, non-experimental build) rejects are also
+// rejected by Wuffs, and that an empty dictionary is accepted by both.
+const char*  //
+test_mimic_brotli_encode_dictionary_rejections() {
+  CHECK_FOCUS(__func__);
+  static const uint8_t text[] = "the quick brown fox jumps over the lazy dog";
+  // A serialized dictionary (an LZ77 prefix only), which an experimental
+  // libbrotlienc build would accept.
+  static const uint8_t serialized[] = {0x91, 0x00, 0x03, 'f', 'o', 'x', 0x00,
+                                       0x00};
+  static const struct {
+    size_t num_dicts;
+    uint32_t type;  // The last dictionary's type.
+    size_t len;     // The last dictionary's length.
+    const char* want_wuffs;
+    const char* want_mimic;
+  } cases[] = {
+      {1, WUFFS_BROTLI__DICTIONARY_TYPE_SERIALIZED, sizeof serialized,
+       wuffs_brotli__error__unsupported_serialized_encoder_dictionary,
+       mimic_brotli_prepare_dictionary_failed_message},
+      {16, WUFFS_BROTLI__DICTIONARY_TYPE_RAW, 9,
+       wuffs_brotli__error__too_many_compound_dictionaries,
+       mimic_brotli_attach_prepared_dictionary_failed_message},
+      {15, WUFFS_BROTLI__DICTIONARY_TYPE_RAW, 9, NULL, NULL},
+      {1, WUFFS_BROTLI__DICTIONARY_TYPE_RAW, 0, NULL, NULL},
+      {3, WUFFS_BROTLI__DICTIONARY_TYPE_RAW, 0, NULL, NULL},
+  };
+  for (size_t i = 0; i < WUFFS_TESTLIB_ARRAY_SIZE(cases); i++) {
+    uint32_t dict_types[16];
+    wuffs_base__slice_u8 dicts[16];
+    for (size_t j = 0; j < cases[i].num_dicts; j++) {
+      dict_types[j] = WUFFS_BROTLI__DICTIONARY_TYPE_RAW;
+      dicts[j] = wuffs_base__make_slice_u8((uint8_t*)text + j, 20);
+    }
+    size_t last = cases[i].num_dicts - 1;
+    dict_types[last] = cases[i].type;
+    dicts[last] = wuffs_base__make_slice_u8(
+        (uint8_t*)((cases[i].type == WUFFS_BROTLI__DICTIONARY_TYPE_RAW)
+                       ? text
+                       : serialized),
+        cases[i].len);
+
+    brotli_enc_config c = make_brotli_enc_config(5, 22);
+    wuffs_base__io_buffer src = ((wuffs_base__io_buffer){
+        .data = g_src_slice_u8,
+    });
+    CHECK_STRING(make_brotli_enc_plan(&src, &c, text, sizeof text - 1));
+    wuffs_base__io_buffer dsts[2] = {
+        ((wuffs_base__io_buffer){.data = g_have_slice_u8}),
+        ((wuffs_base__io_buffer){.data = g_want_slice_u8}),
+    };
+    for (int k = 0; k < 2; k++) {
+      wuffs_base__io_buffer src1 = src;
+      const char* have =
+          (k ? mimic_brotli_encode_with_dictionaries
+             : wuffs_brotli_encode_plan_with_dictionaries)(
+              &dsts[k], &src1, c.param_keys, c.param_values, c.num_params,
+              cases[i].num_dicts, dict_types, dicts, g_brotli_enc_step_ops,
+              g_brotli_enc_step_lens, g_brotli_enc_num_steps, c.dst_chunk);
+      const char* want = k ? cases[i].want_mimic : cases[i].want_wuffs;
+      if (have != want) {
+        RETURN_FAIL("cases[%zu] (%s): have \"%s\", want \"%s\"", i,
+                    k ? "mimic" : "wuffs", have ? have : "",
+                    want ? want : "");
+      }
+    }
+    if (!cases[i].want_wuffs) {
+      CHECK_STRING(check_io_buffers_equal("", &dsts[0], &dsts[1]));
+    }
+  }
+  return NULL;
+}
+
+#endif  // WUFFS_MIMIC
+
 // ---------------- Brotli Benches
 
 const char*  //
@@ -3526,6 +4189,9 @@ proc g_tests[] = {
 
     // Encoder tests.
 
+    test_wuffs_brotli_encode_add_dictionary,
+    test_wuffs_brotli_encode_dictionary_big,
+    test_wuffs_brotli_encode_dictionary_grid,
     test_wuffs_brotli_encode_interface,
     test_wuffs_brotli_encode_large_window_far,
     test_wuffs_brotli_encode_large_window_files,
@@ -3537,6 +4203,9 @@ proc g_tests[] = {
 
 #ifdef WUFFS_MIMIC
 
+    test_mimic_brotli_encode_dictionary_big,
+    test_mimic_brotli_encode_dictionary_grid,
+    test_mimic_brotli_encode_dictionary_rejections,
     test_mimic_brotli_encode_large_window_far,
     test_mimic_brotli_encode_large_window_files,
     test_mimic_brotli_encode_parity_corpus,

@@ -154,8 +154,7 @@ invariants for memory safety but Wuffs requires explicit bounds checks.
 - Metadata callbacks (metadata blocks are currently skipped). See the
   "Metadata Blocks" section below.
 - Fast paths.
-- Encoder quality levels 10 and 11 and encoder dictionaries (see the
-  "Encoder" section below).
+- Encoder quality levels 10 and 11 (see the "Encoder" section below).
 
 
 ## Encoder
@@ -182,7 +181,8 @@ literal context modeling heuristics, `BrotliBuildMetaBlockGreedy`,
 `"#unsupported encoder quality"` (and `workbuf_len` is 0). Large-window
 brotli (see "Encoder Large Window" below) works at qualities 3 to 9 with
 lgwin 10 to 30. Like the C code, qualities 0 to 2 ignore the large-window
-quirk.
+quirk. Raw (LZ77 prefix) dictionaries (see "Encoder Dictionaries" below) work
+at every quality, and, like the C code, qualities 0 and 1 ignore them.
 
 The source files are:
 
@@ -217,6 +217,13 @@ The source files are:
   `hash_composite_inc.h` (H35, H55 and H65, which combine H3, H54 or H6 with
   a rolling hasher) and `hash_rolling_inc.h` (`HROLLING_FAST` and
   `HROLLING`).
+- `encode_dictionary.wuffs`: `compound_dictionary.c`
+  (`CreatePreparedDictionary`, `AttachPreparedDictionary`), the raw
+  dictionary cases of `BrotliEncoderPrepareDictionary` and
+  `BrotliEncoderAttachPreparedDictionary` (as `add_dictionary`), the
+  compound dictionary search of `hash.h` (`FindCompoundDictionaryMatch`,
+  `LookupCompoundDictionaryMatch`) and the compound dictionary branch of
+  `ExtendLastCommand`.
 - `encode_backward_references.wuffs`: `backward_references.c` and
   `backward_references_inc.h` (`BrotliCreateBackwardReferences`),
   `command.h` and `ComputeDistanceCode`.
@@ -266,6 +273,10 @@ In addition to the `base.io_transformer` methods, the encoder has:
   another request is pending.
 - `max_compressed_size(input_size: u64) u64`: mirrors
   `BrotliEncoderMaxCompressedSize` (0 means overflow).
+- `add_dictionary!(dict_type: u32, dict: roslice u8, workbuf: slice u8)
+  status` and `add_dictionary_workbuf_len(dict_len: u64) u64`: attach a raw
+  dictionary, like `BrotliEncoderPrepareDictionary` plus
+  `BrotliEncoderAttachPreparedDictionary`. See "Encoder Dictionaries" below.
 
 `dst_history_retain_length` is 0: the encoder never re-reads `dst`.
 
@@ -277,7 +288,8 @@ Each quirk mirrors one `BrotliEncoderParameter`, with the value semantics of
 otherwise `set_quirk` returns `"#bad argument"`). Like the C code, they are
 sanitized (`SanitizeParams`, `ComputeLgBlock`, `ChooseDistanceParams`) at the
 first `transform_io` call, after which `set_quirk` returns
-`"#bad call sequence"`.
+`"#bad call sequence"`. Quirks and dictionaries (`add_dictionary`) can be set
+in any order before that first call.
 
 | Quirk                                    | C parameter                                    |
 | ---------------------------------------- | ---------------------------------------------- |
@@ -308,6 +320,12 @@ size hint is replaced by the C code's `UpdateSizeHint` estimate.
 
 
 ### Encoder Workbuf Layout
+
+Any attached dictionaries come first (see "Encoder Dictionaries" below): the
+workbuf's first `D` bytes hold them (with their prepared hash tables) and
+everything described in this section starts at offset `D` (so all of the
+offsets and lengths below are relative to `workbuf[D ..]`, and `workbuf_len`
+is `D` more than the lengths given here). `D` is 0 without dictionaries.
 
 At qualities 0 and 1, the workbuf is the C code's metablock storage (its
 `GetBrotliStorage` buffer): `workbuf_len` is `(2 << lgwin) + 503 + 16` bytes
@@ -511,6 +529,135 @@ truncated for windows up to `1 << 30`. The rolling hashers' table holds
 32-bit positions, like the C code's.
 
 
+### Encoder Dictionaries
+
+`encoder.add_dictionary!(dict_type: base.u32, dict: roslice base.u8, workbuf:
+slice base.u8) base.status` mirrors the C API's
+`BrotliEncoderPrepareDictionary(BROTLI_SHARED_DICTIONARY_RAW, ...)`
+followed by `BrotliEncoderAttachPreparedDictionary`: it attaches a raw (LZ77
+prefix) dictionary, as the next chunk of the C code's compound dictionary.
+The decoder must be given the same dictionaries, in the same order (with
+this package's `decoder.add_dictionary` or libbrotlidec's
+`BrotliDecoderAttachDictionary`, as `DICTIONARY_TYPE_RAW` /
+`BROTLI_SHARED_DICTIONARY_RAW`).
+
+Ordering: like quirks, dictionaries must be added before the first
+`transform_io` call (the C API's "before the first
+`BrotliEncoderCompressStream`"). Quirks and dictionaries can be set in any
+order (preparing a raw dictionary does not depend on any parameter: the
+`quality` argument of `BrotliEncoderPrepareDictionary` is unused for raw
+dictionaries). Call `workbuf_len` after the last `add_dictionary` and
+`set_quirk` call.
+
+Like the decoder, the encoder copies each dictionary into the workbuf, so
+every `add_dictionary` and `transform_io` call must be passed the same
+workbuf (or at least one whose first bytes hold the same contents). Each
+dictionary is followed by its prepared hash tables (the C code's
+`PreparedDictionary`), which `add_dictionary` builds exactly like
+`CreatePreparedDictionary` and `CreatePreparedDictionaryWithParams` in
+`compound_dictionary.c`, so that the compound dictionary search finds the
+same candidates in the same order:
+
+- The hash table size depends only on the dictionary length `n`: 17 bucket
+  bits and 7 slot bits for `n` up to 2 MiB, one more of each for each
+  doubling of `n` (18 and 8 up to 4 MiB, etc), up to 22 and 12 (for more than
+  32 MiB). Each position `i` with `i + 7 < n` is hashed (the low 40 bits of
+  its 8 little-endian bytes, times `kPreparedDictionaryHashMul64Long`), with
+  at most 32 positions per bucket (the most recent ones), and the bucket
+  limits are lowered per slot so that each slot has fewer than 65535 items.
+- Its layout, after the `n` dictionary bytes, is `slot_offsets` (`1 <<
+  slot_bits` u32le values), `heads` (`1 << bucket_bits` u16le values, 0xFFFF
+  for an empty bucket) and `items` (`num_items` u32le values, each a
+  dictionary position, with the high bit marking the end of a bucket's
+  chain), like the C struct's dynamic members.
+
+So the workbuf layout is:
+
+    [0 .. D)    the dictionaries, each one being its n bytes, then
+                (4 << slot_bits) + (2 << bucket_bits) + (4 * num_items)
+                bytes of hash tables. num_items is at most max(0, n - 7).
+    [D .. )     the encoder's other regions (see "Encoder Workbuf Layout").
+
+Preparing a dictionary needs some scratch space (the C code's temporary
+"bloated" hasher: `(6 << bucket_bits) + (4 * n)` bytes), which `add_dictionary`
+puts after the largest possible hash tables. So `add_dictionary`'s workbuf
+must be at least `add_dictionary_workbuf_len(n)` bytes long: `D` (for the
+dictionaries added so far) plus `n + (4 << slot_bits) + (2 << bucket_bits) +
+(4 * max(0, n - 7))` plus that scratch space. For example, for a 1 MiB
+dictionary that is `D` plus about 9.8 MiB, and for a 40 MiB dictionary `D`
+plus about 384 MiB. After the call, `D` grows by the dictionary's bytes and
+actual hash tables (e.g. by at most 5.3 MiB for 1 MiB of dictionary).
+
+The compound dictionary then affects compression like in the C code:
+
+- Qualities 0 and 1 (`BrotliEncoderCompressStreamFast`) ignore it.
+- At qualities 2 to 9, its total size (the C code's `gap`) is added to the
+  static dictionary's base distance (`dictionary_start + gap` in
+  `CreateBackwardReferences`), and distances up to `dictionary_start + gap`
+  (which include compound dictionary references) update the distance cache.
+  `ExtendLastCommand` can extend a copy from the compound dictionary.
+- Only the hashers that `BrotliCreateBackwardReferences` instantiates with
+  `ENABLE_COMPOUND_DICTIONARY` search the dictionaries (with
+  `LookupCompoundDictionaryMatch`, after the hasher's own search, for each
+  chunk in order): H5, H6, H58, H68, H40, H41, H42, H55 and H65. So
+  qualities 5 to 9 search them, quality 4 only with the large-window H55
+  (lgwin above 24 and a big size hint), and qualities 2 and 3 (H2, H3, H35)
+  and quality 4 with H4 or H54 never do (the C code falls back to its
+  non-dictionary variant for those hashers). The search only finds matches
+  that are within `params.dist.max_distance` (`BROTLI_MAX_DISTANCE`, or
+  `BROTLI_MAX_ALLOWED_DISTANCE` for large-window brotli) and that do not
+  cross a chunk's end.
+- With `QUIRK_STREAM_OFFSET`, `dictionary_start` is `min(position +
+  stream_offset, max_backward_limit)`, as in the C code (whose output then
+  continues another stream and can only be decoded after it).
+
+`add_dictionary` statuses (the C code's functions return `NULL` or
+`BROTLI_FALSE`):
+
+| Condition                                                    | Wuffs status                                   | C code |
+| ------------------------------------------------------------ | ---------------------------------------------- | ------ |
+| `transform_io` has been called                               | `base."#bad call sequence"`                    | accepted (see below) |
+| `DICTIONARY_TYPE_SERIALIZED`                                 | `"#unsupported serialized encoder dictionary"` | `BrotliEncoderPrepareDictionary` returns `NULL` |
+| unknown `dict_type`                                          | `base."#bad argument"`                         | `BrotliEncoderPrepareDictionary` returns `NULL` |
+| a 16th dictionary                                            | `"#too many compound dictionaries"`            | `BrotliEncoderAttachPreparedDictionary` fails |
+| more than `0x7FFF_FFFF` bytes of dictionaries in total       | `"#too much dictionary data"`                  | accepted |
+| `workbuf` shorter than `add_dictionary_workbuf_len(n)`       | `base."#bad workbuf length"`                   | n/a |
+
+An empty dictionary is accepted (and counts towards the 15), like in the C
+code. On failure, the encoder's state is unchanged. A `transform_io` call
+with a workbuf shorter than `D` returns `base."#bad workbuf length"`.
+
+Differences from the C code:
+
+- Serialized (shared) dictionaries are rejected, exactly like the default
+  (non-`BROTLI_EXPERIMENTAL`) libbrotlienc build, whose
+  `BrotliEncoderPrepareDictionary` returns `NULL` for them. (The decoder, in
+  contrast, accepts them, like an experimental libbrotlidec build.) With an
+  experimental build, the C encoder would also use their custom static
+  dictionaries; that is not implemented.
+- The C code's `BrotliEncoderAttachPreparedDictionary` accepts a raw
+  dictionary even after compression has started (it only checks
+  `is_initialized_` for serialized dictionaries). The compound dictionary's
+  size then changes mid-stream, so the static dictionary references before
+  and after that point use different distance bases, and the output is
+  generally not decodable. Here, `add_dictionary` returns `"#bad call
+  sequence"` once `transform_io` has been called.
+- The C code holds each dictionary's length in a `uint32_t` (and item
+  offsets in 31 bits). This package rejects more than `0x7FFF_FFFF` bytes
+  of dictionaries in total (like its decoder).
+- When `ExtendLastCommand` extends a copy past the end of a compound
+  dictionary chunk into an empty chunk, the C code reads (one or more
+  bytes) past the end of that empty chunk's (zero-length) data. Here, the
+  extension stops there. This needs an empty dictionary attached after a
+  non-empty one and a copy extension that reaches the non-empty one's end
+  (with empty dictionaries only before the non-empty ones, the behaviors are
+  the same).
+- Like the C code's `BrotliEncoderPrepareDictionary` with the default
+  allocator, there is no separate "prepared dictionary" object that could be
+  shared between encoders: each encoder prepares its own copy (the C code's
+  "lean" prepared dictionaries reference the caller's bytes instead).
+
+
 ### Encoder Testing
 
 `wuffs test -mimic std/brotli` checks byte-exact parity with libbrotlienc
@@ -529,7 +676,19 @@ processes, `-lw` runs only its large-window grid (lgwin 10 to 30 at
 qualities 2 to 9, with various chunkings, flushes, size hints and other
 parameters, each also with the shortest workbuf that should work) and `-big`
 replaces the inputs with synthetic ones of 3 to 70 MiB with repeats at
-distances of up to 40 MiB. With `-q=0-9` (the default) it runs 814,706
+distances of up to 40 MiB. `-dict` replaces the usual grid with a
+dictionary grid (see "Encoder Dictionaries" above): for each input, seven
+sets of raw dictionaries (a prefix of the input, the whole input,
+`test/data/enwik5`, noise plus the input's middle third, 15 pieces of the
+input, tiny and empty dictionaries, and the input's swapped halves plus some
+text), with qualities 0 to 9, lgwins, chunkings, flushes, metadata blocks,
+size hints, stream offsets, large window and other parameters, plus
+dictionaries of 2 MiB to 40 MiB (every hash table size) with a 1 MiB input.
+Each dictionary configuration's output is also decoded by libbrotlidec and
+by this package's decoder (with the same dictionaries), except with a
+stream offset, and the whole-input and big dictionaries check that the
+output is smaller than without them (at qualities 5 and above). With
+`-q=0-9` (the default) and without `-dict` it runs 814,706
 configurations (96,688 of them in the large-window grid), all byte-exact
 against libbrotlienc v1.2.1 on x86-64. With `-lw -big` it runs 720 more
 (on 3, 6 and 12 MiB inputs with the large-window grid and on 24, 40 and
@@ -706,10 +865,11 @@ metablock) for as long as it needs the results.
 
 - Qualities 10 and 11 (Zopfli, the H10 binary tree hasher and
   `BrotliBuildMetaBlock`, which is already ported in `encode_metablock.wuffs`).
-- Large-window encoding at qualities 3 and above (it works at quality 2).
 - `workbuf_len` is a worst case. A future option could take the input length
   (like the C code's size hint) to give a tighter bound.
-- Custom and shared dictionaries (`BrotliEncoderAttachPreparedDictionary`).
+- Compound dictionary matches at qualities 10 and 11 (they need Zopfli).
+- Serialized (shared) dictionaries, which only an experimental
+  (`BROTLI_EXPERIMENTAL`) libbrotlienc build supports.
 - Changing parameters mid-stream.
 
 

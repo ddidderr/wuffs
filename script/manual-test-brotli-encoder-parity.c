@@ -1257,7 +1257,7 @@ run_dict_configs(const char* name, const uint8_t* data, size_t len, uint32_t q,
 
 // check_smaller checks that, with the current dictionaries (which should
 // hold much of data), libbrotlienc's output (which Wuffs' output matches) is
-// smaller than without them.
+// smaller than without them (unless that is already tiny).
 static void  //
 check_smaller(const char* name, const uint8_t* data, size_t len, uint32_t q) {
   config c = make_config(q, 22);
@@ -1272,7 +1272,9 @@ check_smaller(const char* name, const uint8_t* data, size_t len, uint32_t q) {
   }
   g_num_dicts = saved;
   g_num_smaller_checks++;
-  if (err || (with_len >= without_len)) {
+  // Tiny outputs (e.g. for long runs of zeroes) cannot shrink.
+  if (err || (with_len > without_len) ||
+      ((without_len >= 64) && (with_len >= without_len))) {
     g_num_mismatches++;
     printf("NOT SMALLER %s: q=%u dicts=%s: %zu bytes with, %zu without: %s\n",
            name, q, g_dict_desc, with_len, without_len, err ? err : "");
