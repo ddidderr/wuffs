@@ -27,10 +27,11 @@ rm -f ./a.out
 
 It should print "PASS", amongst other information, and exit(0).
 
-As well as decoding its input (with or without the large-window quirk and
-dictionaries), it also encodes the input (with encoder parameters, chunking,
-flushes, metadata blocks and dst limits derived from the input's hash),
-decodes the result and checks that the round trip reproduces the input.
+As well as decoding its input (with or without the large-window quirk,
+metadata reporting and dictionaries), it also encodes the input (with encoder
+parameters, chunking, flushes, metadata blocks and dst limits derived from the
+input's hash), decodes the result and checks that the round trip reproduces
+the input.
 */
 
 #pragma clang diagnostic pop
@@ -387,6 +388,9 @@ fuzz(wuffs_base__io_buffer* src, uint64_t hash) {
   // Enable large-window brotli for half of the inputs.
   wuffs_brotli__decoder__set_quirk(&dec, WUFFS_BROTLI__QUIRK_LARGE_WINDOW,
                                    (hash >> 1) & 1);
+  // Report metadata blocks for half of the inputs.
+  wuffs_brotli__decoder__set_quirk(&dec, WUFFS_BROTLI__QUIRK_REPORT_METADATA,
+                                   (hash >> 40) & 1);
 
   wuffs_base__slice_u8 workbuf =
       wuffs_base__make_slice_u8(g_work_buffer_array, WORK_BUFFER_ARRAY_SIZE);
@@ -456,7 +460,13 @@ fuzz(wuffs_base__io_buffer* src, uint64_t hash) {
     status = wuffs_brotli__decoder__transform_io(&dec, &limited_dst,
                                                  &limited_src, workbuf);
     src->meta.ri = limited_src.meta.ri;
-    if (status.repr == wuffs_base__suspension__short_read) {
+    if (status.repr == wuffs_base__note__metadata_reported) {
+      if (wuffs_brotli__decoder__metadata_length(&dec) > 0x1000000) {
+        fprintf(stderr, "wuffs_brotli__decoder__metadata_length too large\n");
+        intentional_segfault();
+      }
+      continue;
+    } else if (status.repr == wuffs_base__suspension__short_read) {
       if (limited && (src->meta.ri < src->meta.wi)) {
         continue;
       }
