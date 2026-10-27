@@ -674,6 +674,16 @@ on, which is what libbrotlienc does once `ProcessMetadata` sets `next_out_` to
 `test_mimic_brotli_encode_metadata_stale_pointer` test in
 `test/c/std/brotli.c` shows it at quality 1.
 
+Neither encoder's output is fully determined by its input and parameters.
+libbrotlienc's `RingBufferWrite` allocates only the first write's bytes when
+that write is shorter than the ring buffer's tail, and when it later grows the
+buffer it copies them but leaves the tail (the copy of the buffer's start,
+past its end) uninitialized. Match finding near the ring buffer's end can read
+those bytes, so the output can depend on what that `malloc`'d memory held. The
+Wuffs encoder reads the corresponding `workbuf` bytes, which the caller need
+not initialize. Given the same memory contents (e.g. zeroed), both produce
+the same bytes, and both outputs decode correctly.
+
 
 ### Encoder Large Window
 

@@ -956,13 +956,31 @@ c_state_corrupted(BrotliEncoderState* state) {
          (state->remaining_metadata_bytes_ != 0xFFFFFFFFu);
 }
 
+// g_c_zero_alloc makes encode_c give libbrotlienc zeroed memory (see
+// g_enc_uninit_tail).
+static bool g_c_zero_alloc;
+
+static void*  //
+zero_alloc(void* opaque, size_t size) {
+  (void)opaque;
+  return calloc(1, size);
+}
+
+static void  //
+zero_free(void* opaque, void* address) {
+  (void)opaque;
+  free(address);
+}
+
 static const char*  //
 encode_c(const enc_config* c, const dict_set* dicts, const uint8_t* src_ptr,
          uint8_t* out, size_t out_cap, size_t* out_len) {
   *out_len = 0;
   BrotliEncoderPreparedDictionary* prepared[MAX_DICTS] = {0};
   size_t num_prepared = 0;
-  BrotliEncoderState* state = BrotliEncoderCreateInstance(NULL, NULL, NULL);
+  BrotliEncoderState* state =
+      g_c_zero_alloc ? BrotliEncoderCreateInstance(zero_alloc, zero_free, NULL)
+                     : BrotliEncoderCreateInstance(NULL, NULL, NULL);
   if (!state) {
     return "BrotliEncoderCreateInstance failed";
   }
@@ -2131,6 +2149,15 @@ static uint64_t g_enc_bytes_in;
 static uint64_t g_enc_both_rejected;
 static uint64_t g_enc_both_flint_failed;
 static uint64_t g_enc_c_corrupted;
+// g_enc_uninit_tail counts output mismatches that go away when both encoders
+// get zeroed memory. libbrotlienc's RingBufferWrite allocates only the first
+// write's bytes (when it is shorter than the tail) and, when it grows the ring
+// buffer, copies them but leaves the tail (the copy of the buffer's start, past
+// its end) uninitialized, which match finding can then read. Wuffs reads the
+// corresponding workbuf bytes, so each output depends on what that memory
+// held (malloc'd memory for C, the caller's workbuf for Wuffs), and the two
+// agree when the memory does. Both outputs must still decode correctly.
+static uint64_t g_enc_uninit_tail;
 static uint64_t g_enc_skipped;
 static uint64_t g_enc_roundtrips;
 static uint64_t g_enc_with_dicts;
@@ -2529,6 +2556,37 @@ run_enc(uint64_t iters, double secs) {
       continue;
     }
     if ((have_len != want_len) || memcmp(have, want, have_len)) {
+      // Check that Wuffs' output decodes, then rerun both encoders with
+      // zeroed memory (see g_enc_uninit_tail).
+      const char* rt_err =
+          stream_offset ? NULL
+                        : roundtrip_dec(have, have_len, input, len, lw, &ds,
+                                        dec_out);
+      size_t want2_len = 0;
+      size_t have2_len = 0;
+      uint64_t wlen3 = 0;
+      g_c_zero_alloc = true;
+      const char* e1 = encode_c(&c, &ds, src, want, out_cap, &want2_len);
+      g_c_zero_alloc = false;
+      memset(g_enc_wb, 0, wlen);
+      const char* e2 = encode_wuffs(&c, &ds, src, src_len, len, have, out_cap,
+                                    &have2_len, 0, &wlen3);
+      if (!rt_err && !e1 && !e2 && (have2_len == want2_len) &&
+          !memcmp(have, want, have2_len)) {
+        g_enc_uninit_tail++;
+        if (g_enc_uninit_tail <= 5) {
+          static char desc[1 << 16];
+          describe_enc(desc, sizeof desc,
+                       "outputs differ only with non-zeroed memory", &c, &ds,
+                       len, src_len);
+          save_failure("enc-known", desc, src, src_len, &ds);
+          g_num_failures--;
+        }
+        dict_set_free(&ds);
+        continue;
+      }
+      have_len = have2_len;
+      want_len = want2_len;
       size_t j = 0;
       while ((j < have_len) && (j < want_len) && (have[j] == want[j])) {
         j++;
@@ -2575,10 +2633,11 @@ run_enc(uint64_t iters, double secs) {
   printf("encoder campaign: seed=%" PRIu64 " q=%u-%u configs=%" PRIu64
          " failures=%" PRIu64 " skipped(workbuf>3GiB)=%" PRIu64
          " both_rejected=%" PRIu64 " both_flint_failed=%" PRIu64
-         " c_state_corrupted=%" PRIu64 " roundtrips=%" PRIu64 "\n",
+         " c_state_corrupted=%" PRIu64 " uninit_tail=%" PRIu64
+         " roundtrips=%" PRIu64 "\n",
          g_seed, g_qmin, g_qmax, g_enc_configs, g_num_failures, g_enc_skipped,
          g_enc_both_rejected, g_enc_both_flint_failed, g_enc_c_corrupted,
-         g_enc_roundtrips);
+         g_enc_uninit_tail, g_enc_roundtrips);
   printf("  by quality:");
   for (int q = 0; q < 12; q++) {
     printf(" q%d=%" PRIu64, q, g_enc_by_quality[q]);
