@@ -11,22 +11,30 @@
 // ----------------
 
 // manual-test-brotli-encoder-parity.c checks that Wuffs' std/brotli encoder
-// produces exactly the same bytes as libbrotlienc v1.2.1 (at qualities 0 and
-// 1) over the full parameter grid: every test input times
-//   - quality {0, 1}
+// produces exactly the same bytes as libbrotlienc v1.2.1 (at qualities 0 to
+// 9) over a large parameter grid. For each test input and quality:
 //   - lgwin {10, 16, 18, 22, 24}
 //   - mode {0, 1, 2}
 //   - input chunking {single, 1-byte (inputs up to 4 KiB only), 7-byte,
 //     4096-byte, pseudo-random}
 //   - flush {none, every chunk, middle}
 // plus metadata blocks (of 0, 1, 100 and 70000 bytes, at the start, middle
-// and end), size_hint {0, exact, 1 << 30}, other parameters (which have no
-// effect at qualities 0 and 1) and limited dst lengths.
+// and end), size_hint {0, exact, 1 << 30, etc}, the other parameters
+// (lgblock, disable literal context modeling, npostfix and ndirect, large
+// window, stream offset) and limited dst lengths. At qualities 2 and above,
+// inputs longer than 512 KiB use a smaller grid.
 //
 // The test inputs are the files named on the command line (or, by default,
-// every file in test/data/brotli plus test/data/{256.bytes,enwik5,romeo.txt})
-// plus some synthetic inputs (1 MiB of zeroes, 256 KiB of pseudo-random
-// bytes, a repeated 100-byte pattern and pseudo-random lengths 0 to 40).
+// every file in test/data/brotli plus test/data/{256.bytes,enwik5,romeo.txt,
+// pi.txt,nobel-prizes.json,archive.iso,hibiscus.regular.bmp}) plus some
+// synthetic inputs (1 MiB of zeroes, 256 KiB of pseudo-random bytes, a
+// repeated 100-byte pattern, a 600 KiB mixture of text and binary data and
+// pseudo-random lengths 0 to 40).
+//
+// Options (before any file names):
+//   -q=LO-HI   only check qualities LO to HI (default 0-9).
+//   -shard=K/N only check the inputs whose index i satisfies (i % N) == K,
+//              so that N processes can split the work.
 //
 // The test/c/std/brotli.c test program (run by "wuffs test -mimic
 // std/brotli") checks a subset of this grid.
@@ -85,6 +93,9 @@ static size_t g_workbuf_len;
 
 static uint64_t g_num_configs;
 static uint64_t g_num_mismatches;
+
+static uint32_t g_qmin = 0;
+static uint32_t g_qmax = 9;
 
 typedef struct {
   uint32_t keys[MAX_PARAMS];
@@ -268,9 +279,17 @@ encode_wuffs(const config* c, size_t* have_len) {
     }
   }
   uint64_t wlen = wuffs_brotli__encoder__workbuf_len(enc).max_incl;
-  if (wlen > g_workbuf_len) {
+  if (wlen > ((uint64_t)1 << 32)) {
     ret = "workbuf_len is too large";
     goto cleanup;
+  } else if (wlen > g_workbuf_len) {
+    free(g_workbuf);
+    g_workbuf = malloc((size_t)wlen);
+    g_workbuf_len = g_workbuf ? (size_t)wlen : 0;
+    if (!g_workbuf) {
+      ret = "malloc failed";
+      goto cleanup;
+    }
   }
   wuffs_base__slice_u8 workbuf =
       wuffs_base__make_slice_u8(g_workbuf, (size_t)wlen);
@@ -440,96 +459,237 @@ make_config(uint32_t quality, uint32_t lgwin) {
 }
 
 static void  //
-run_input(const char* name, const uint8_t* data, size_t len) {
+run_input_q01(const char* name, const uint8_t* data, size_t len, uint32_t q) {
   static const uint32_t lgwins[] = {10, 16, 18, 22, 24};
   static const size_t metadata_lens[] = {0, 1, 100, 70000};
-  uint64_t configs0 = g_num_configs;
-  uint64_t mismatches0 = g_num_mismatches;
-  time_t start = time(NULL);
 
   // The main grid.
-  for (uint32_t q = 0; q <= 1; q++) {
-    for (size_t w = 0; w < 5; w++) {
-      for (uint32_t mode = 0; mode <= 2; mode++) {
-        for (uint32_t ch = 0; ch < 5; ch++) {
-          if ((ch == 1) && (len > 4096)) {
-            continue;
-          }
-          for (uint32_t fl = 0; fl < 3; fl++) {
-            config c = make_config(q, lgwins[w]);
-            add_param(&c, 0, mode);  // BROTLI_PARAM_MODE.
-            c.chunking = ch;
-            c.flush = fl;
-            c.seed = (w << 8) | (mode << 4) | fl | ((uint64_t)len << 16);
-            check(name, &c, data, len);
-          }
+  for (size_t w = 0; w < 5; w++) {
+    for (uint32_t mode = 0; mode <= 2; mode++) {
+      for (uint32_t ch = 0; ch < 5; ch++) {
+        if ((ch == 1) && (len > 4096)) {
+          continue;
+        }
+        for (uint32_t fl = 0; fl < 3; fl++) {
+          config c = make_config(q, lgwins[w]);
+          add_param(&c, 0, mode);  // BROTLI_PARAM_MODE.
+          c.chunking = ch;
+          c.flush = fl;
+          c.seed = (w << 8) | (mode << 4) | fl | ((uint64_t)len << 16);
+          check(name, &c, data, len);
         }
       }
     }
   }
 
   // Metadata, size_hint, other parameters and limited dst lengths.
-  for (uint32_t q = 0; q <= 1; q++) {
-    for (size_t i = 0; i < 4; i++) {
-      for (uint32_t pos = 1; pos <= 3; pos++) {
-        for (uint32_t fl = 0; fl < 3; fl++) {
-          config c = make_config(q, 16);
-          c.chunking = 4;
-          c.flush = fl;
-          c.metadata_position = pos;
-          c.metadata_len = metadata_lens[i];
-          c.dst_chunk = (fl == 2) ? 5 : 0;
-          c.seed = (i << 8) | pos;
-          check(name, &c, data, len);
-        }
+  for (size_t i = 0; i < 4; i++) {
+    for (uint32_t pos = 1; pos <= 3; pos++) {
+      for (uint32_t fl = 0; fl < 3; fl++) {
+        config c = make_config(q, 16);
+        c.chunking = 4;
+        c.flush = fl;
+        c.metadata_position = pos;
+        c.metadata_len = metadata_lens[i];
+        c.dst_chunk = (fl == 2) ? 5 : 0;
+        c.seed = (i << 8) | pos;
+        check(name, &c, data, len);
       }
     }
-    static const uint32_t extras[][2] = {
-        {5, 0},                    // BROTLI_PARAM_SIZE_HINT.
-        {5, 0xFFFFFFFF},           // Replaced by the exact size.
-        {5, 1u << 30},             //
-        {3, 16},                   // BROTLI_PARAM_LGBLOCK.
-        {3, 24},                   //
-        {4, 1},                    // BROTLI_PARAM_DISABLE_LITERAL_CONTEXT_MODELING.
-        {6, 1},                    // BROTLI_PARAM_LARGE_WINDOW.
-        {7, 2},                    // BROTLI_PARAM_NPOSTFIX.
-        {8, 12},                   // BROTLI_PARAM_NDIRECT.
-        {9, 1},                    // BROTLI_PARAM_STREAM_OFFSET.
-        {9, 1000},                 //
-        {9, 1u << 30},             //
-        {2, 0xFFFFFFFF},           // LGWIN (int)-1.
-        {2, 30},                   //
-        {1, 0xFFFFFFFF},           // QUALITY (int)-1, so quality 0.
-    };
-    for (size_t i = 0; i < sizeof extras / sizeof extras[0]; i++) {
-      for (uint32_t ch = 0; ch < 5; ch += 4) {
-        config c = make_config(q, 22);
-        uint32_t v = extras[i][1];
-        if ((extras[i][0] == 5) && (v == 0xFFFFFFFF)) {
-          v = (uint32_t)len;
-        }
-        add_param(&c, extras[i][0], v);
-        c.chunking = ch;
-        c.flush = 2;
+  }
+  static const uint32_t extras[][2] = {
+      {5, 0},           // BROTLI_PARAM_SIZE_HINT.
+      {5, 0xFFFFFFFF},  // Replaced by the exact size.
+      {5, 1u << 30},    //
+      {3, 16},          // BROTLI_PARAM_LGBLOCK.
+      {3, 24},          //
+      {4, 1},           // BROTLI_PARAM_DISABLE_LITERAL_CONTEXT_MODELING.
+      {6, 1},           // BROTLI_PARAM_LARGE_WINDOW.
+      {7, 2},           // BROTLI_PARAM_NPOSTFIX.
+      {8, 12},          // BROTLI_PARAM_NDIRECT.
+      {9, 1},           // BROTLI_PARAM_STREAM_OFFSET.
+      {9, 1000},        //
+      {9, 1u << 30},    //
+      {2, 0xFFFFFFFF},  // LGWIN (int)-1.
+      {2, 30},          //
+      {1, 0xFFFFFFFF},  // QUALITY (int)-1, so quality 0.
+  };
+  for (size_t i = 0; i < sizeof extras / sizeof extras[0]; i++) {
+    for (uint32_t ch = 0; ch < 5; ch += 4) {
+      config c = make_config(q, 22);
+      uint32_t v = extras[i][1];
+      if ((extras[i][0] == 5) && (v == 0xFFFFFFFF)) {
+        v = (uint32_t)len;
+      }
+      add_param(&c, extras[i][0], v);
+      c.chunking = ch;
+      c.flush = 2;
+      c.seed = i;
+      check(name, &c, data, len);
+    }
+  }
+  if (len <= (256 << 10)) {
+    static const size_t dst_chunks[] = {1, 2, 3, 7, 64, 4096};
+    for (size_t i = 0; i < 6; i++) {
+      for (uint32_t fl = 0; fl < 3; fl++) {
+        config c = make_config(q, (i & 1) ? 10 : 24);
+        c.chunking = (fl == 0) ? 0 : 4;
+        c.flush = fl;
+        c.dst_chunk = dst_chunks[i];
         c.seed = i;
         check(name, &c, data, len);
       }
     }
-    if (len <= (256 << 10)) {
-      static const size_t dst_chunks[] = {1, 2, 3, 7, 64, 4096};
-      for (size_t i = 0; i < 6; i++) {
+  }
+}
+
+// run_input_q2 runs the grid for a quality from 2 to 9.
+static void  //
+run_input_q2(const char* name, const uint8_t* data, size_t len, uint32_t q) {
+  static const uint32_t lgwins[] = {10, 16, 18, 22, 24};
+  static const size_t metadata_lens[] = {0, 1, 100, 70000};
+  bool big = len > (512 << 10);
+
+  // The main grid.
+  for (size_t w = 0; w < 5; w++) {
+    for (uint32_t mode = 0; mode <= 2; mode++) {
+      if (big && (mode == 1)) {
+        continue;
+      }
+      for (uint32_t ch = 0; ch < 5; ch++) {
+        if ((ch == 1) && (len > 4096)) {
+          continue;
+        } else if (big && ((ch == 2) || (ch == 3))) {
+          continue;
+        }
         for (uint32_t fl = 0; fl < 3; fl++) {
-          config c = make_config(q, (i & 1) ? 10 : 24);
-          c.chunking = (fl == 0) ? 0 : 4;
+          if (big && (fl == 1)) {
+            continue;
+          }
+          config c = make_config(q, lgwins[w]);
+          add_param(&c, 0, mode);  // BROTLI_PARAM_MODE.
+          c.chunking = ch;
           c.flush = fl;
-          c.dst_chunk = dst_chunks[i];
-          c.seed = i;
+          c.seed = (w << 8) | (mode << 4) | fl | ((uint64_t)len << 16) | q;
           check(name, &c, data, len);
         }
       }
     }
   }
 
+  // Metadata blocks and limited dst lengths.
+  for (size_t i = 0; i < 4; i++) {
+    for (uint32_t pos = 1; pos <= 3; pos++) {
+      for (uint32_t fl = 0; fl < 3; fl++) {
+        if (big && (fl != 2)) {
+          continue;
+        }
+        config c = make_config(q, (pos == 2) ? 18 : 16);
+        c.chunking = (pos == 3) ? 0 : 4;
+        c.flush = fl;
+        c.metadata_position = pos;
+        c.metadata_len = metadata_lens[i];
+        c.dst_chunk = (fl == 2) ? 5 : 0;
+        c.seed = (i << 8) | pos | (q << 12);
+        check(name, &c, data, len);
+      }
+    }
+  }
+
+  // Other parameters, alone and in combination.
+  static const uint32_t extras[][6] = {
+      // Pairs of (BrotliEncoderParameter, value). A zero key ends the list.
+      {5, 0},                    // BROTLI_PARAM_SIZE_HINT.
+      {5, 0xFFFFFFFF},           // Replaced by the exact size.
+      {5, 1},                    //
+      {5, 1u << 20},             //
+      {5, 1u << 30},             //
+      {3, 16},                   // BROTLI_PARAM_LGBLOCK.
+      {3, 17},                   //
+      {3, 20},                   //
+      {3, 24},                   //
+      {3, 0xFFFFFFFF},           // LGBLOCK (int)-1.
+      {4, 1},                    // DISABLE_LITERAL_CONTEXT_MODELING.
+      {4, 1, 0, 1},              // ... and TEXT mode.
+      {7, 1},                    // BROTLI_PARAM_NPOSTFIX.
+      {7, 2, 8, 12},             // ... and BROTLI_PARAM_NDIRECT.
+      {7, 3, 8, 120},            //
+      {7, 0, 8, 15},             //
+      {7, 3, 8, 0},              //
+      {7, 1, 8, 4},              //
+      {0, 2},                    // FONT mode.
+      {0, 2, 7, 3, 8, 30},       // FONT mode with explicit distance params.
+      {9, 1},                    // BROTLI_PARAM_STREAM_OFFSET.
+      {9, 1000},                 //
+      {9, 1u << 30},             //
+      {2, 0xFFFFFFFF},           // LGWIN (int)-1.
+      {2, 30},                   //
+      {5, 0xFFFFFFFF, 3, 18},    // Exact size hint and LGBLOCK 18.
+      {5, 1u << 21, 4, 1},       // Big size hint, no context modeling.
+  };
+  for (size_t i = 0; i < sizeof extras / sizeof extras[0]; i++) {
+    for (uint32_t ch = 0; ch < 5; ch += 4) {
+      for (size_t w = 0; w < 3; w++) {
+        static const uint32_t ws[] = {16, 22, 24};
+        if (big && (w != 1)) {
+          continue;
+        }
+        config c = make_config(q, ws[w]);
+        for (size_t k = 0; (k < 6) && ((k == 0) || extras[i][k]); k += 2) {
+          uint32_t v = extras[i][k + 1];
+          if ((extras[i][k] == 5) && (v == 0xFFFFFFFF)) {
+            v = (uint32_t)len;
+          }
+          add_param(&c, extras[i][k], v);
+        }
+        c.chunking = ch;
+        c.flush = 2;
+        c.seed = i | (w << 8) | (q << 12);
+        check(name, &c, data, len);
+      }
+    }
+  }
+  if (q == 2) {
+    // Large window is supported (by the Wuffs encoder) only at quality 2.
+    for (uint32_t w = 22; w <= 30; w += 4) {
+      config c = make_config(q, w);
+      add_param(&c, 6, 1);  // BROTLI_PARAM_LARGE_WINDOW.
+      c.chunking = 4;
+      c.flush = 2;
+      c.seed = w;
+      check(name, &c, data, len);
+    }
+  }
+  if (len <= (256 << 10)) {
+    static const size_t dst_chunks[] = {1, 2, 3, 7, 64, 4096};
+    for (size_t i = 0; i < 6; i++) {
+      for (uint32_t fl = 0; fl < 3; fl++) {
+        if ((dst_chunks[i] < 7) && (len > (32 << 10))) {
+          continue;
+        }
+        config c = make_config(q, (i & 1) ? 10 : 24);
+        c.chunking = (fl == 0) ? 0 : 4;
+        c.flush = fl;
+        c.dst_chunk = dst_chunks[i];
+        c.seed = i;
+        check(name, &c, data, len);
+      }
+    }
+  }
+}
+
+static void  //
+run_input(const char* name, const uint8_t* data, size_t len) {
+  uint64_t configs0 = g_num_configs;
+  uint64_t mismatches0 = g_num_mismatches;
+  time_t start = time(NULL);
+  for (uint32_t q = g_qmin; q <= g_qmax; q++) {
+    if (q <= 1) {
+      run_input_q01(name, data, len, q);
+    } else {
+      run_input_q2(name, data, len, q);
+    }
+  }
   printf("%-50s %8zu bytes: %6" PRIu64 " configs, %" PRIu64
          " mismatches (%lds)\n",
          name, len, g_num_configs - configs0, g_num_mismatches - mismatches0,
@@ -567,22 +727,43 @@ main(int argc, char** argv) {
   g_have = malloc(MAX_OUTPUT);
   g_want = malloc(MAX_OUTPUT);
   g_workbuf_len = (2u << 24) + 503 + 16;
-  g_workbuf = malloc(g_workbuf_len);
+  g_workbuf = malloc(g_workbuf_len);  // It grows as needed.
   if (!g_src || !g_have || !g_want || !g_workbuf) {
     fprintf(stderr, "malloc failed\n");
     return 1;
   }
 
+  int shard_k = 0;
+  int shard_n = 1;
+  int argi = 1;
+  for (; argi < argc; argi++) {
+    unsigned a = 0;
+    unsigned b = 0;
+    if (sscanf(argv[argi], "-q=%u-%u", &a, &b) == 2) {
+      g_qmin = a;
+      g_qmax = (b < 9) ? b : 9;
+    } else if (sscanf(argv[argi], "-shard=%u/%u", &a, &b) == 2) {
+      shard_k = (int)a;
+      shard_n = (b > 0) ? (int)b : 1;
+    } else {
+      break;
+    }
+  }
+
   char* names[1024];
   int num_names = 0;
-  if (argc > 1) {
-    for (int i = 1; (i < argc) && (num_names < 1024); i++) {
+  if (argi < argc) {
+    for (int i = argi; (i < argc) && (num_names < 1024); i++) {
       names[num_names++] = strdup(argv[i]);
     }
   } else {
     names[num_names++] = strdup("test/data/256.bytes");
     names[num_names++] = strdup("test/data/enwik5");
     names[num_names++] = strdup("test/data/romeo.txt");
+    names[num_names++] = strdup("test/data/pi.txt");
+    names[num_names++] = strdup("test/data/nobel-prizes.json");
+    names[num_names++] = strdup("test/data/archive.iso");
+    names[num_names++] = strdup("test/data/hibiscus.regular.bmp");
     DIR* d = opendir("test/data/brotli");
     if (!d) {
       fprintf(stderr, "could not open test/data/brotli (run this program "
@@ -604,7 +785,11 @@ main(int argc, char** argv) {
           compare_strings);
   }
 
+  int input_index = 0;
   for (int i = 0; i < num_names; i++) {
+    if (((input_index++) % shard_n) != shard_k) {
+      continue;
+    }
     size_t len = 0;
     uint8_t* data = read_whole_file(names[i], &len);
     if (!data) {
@@ -615,23 +800,62 @@ main(int argc, char** argv) {
     free(data);
   }
 
-  if (argc <= 1) {
+  if (argi >= argc) {
     // Synthetic inputs.
     uint8_t* p = malloc(1 << 20);
     if (!p) {
       return 1;
     }
-    memset(p, 0, 1 << 20);
-    run_input("synthetic: 1 MiB of zeroes", p, 1 << 20);
-    fill_random(p, 256 << 10, 0x1234);
-    run_input("synthetic: 256 KiB of pseudo-random bytes", p, 256 << 10);
-    uint8_t pattern[100];
-    fill_random(pattern, 100, 0x5678);
-    for (size_t i = 0; i < (64 << 10); i++) {
-      p[i] = pattern[i % 100];
+    if (((input_index++) % shard_n) == shard_k) {
+      memset(p, 0, 1 << 20);
+      run_input("synthetic: 1 MiB of zeroes", p, 1 << 20);
     }
-    run_input("synthetic: a repeated 100-byte pattern", p, 64 << 10);
+    if (((input_index++) % shard_n) == shard_k) {
+      fill_random(p, 256 << 10, 0x1234);
+      run_input("synthetic: 256 KiB of pseudo-random bytes", p, 256 << 10);
+    }
+    if (((input_index++) % shard_n) == shard_k) {
+      uint8_t pattern[100];
+      fill_random(pattern, 100, 0x5678);
+      for (size_t i = 0; i < (64 << 10); i++) {
+        p[i] = pattern[i % 100];
+      }
+      run_input("synthetic: a repeated 100-byte pattern", p, 64 << 10);
+    }
+    if (((input_index++) % shard_n) == shard_k) {
+      // A mixture of text (from a small vocabulary, so that there are many
+      // matches), runs and binary noise.
+      static const char* words[] = {"the ",    "brotli ", "wuffs ", "of ",
+                                    "and ",    "data\n",  "time ",  "<a>",
+                                    "encoder", ", ",       "zebra ", "1234"};
+      uint64_t state = 0xABCD;
+      size_t n = 0;
+      while (n < (600 << 10)) {
+        uint64_t r = rand64(&state);
+        if ((r & 0xFF) < 200) {
+          const char* w = words[(r >> 8) % 12];
+          size_t k = strlen(w);
+          while (k-- && (n < (600 << 10))) {
+            p[n++] = (uint8_t)(*w++);
+          }
+        } else if ((r & 0xFF) < 230) {
+          size_t k = (size_t)((r >> 8) % 300);
+          while (k-- && (n < (600 << 10))) {
+            p[n++] = (uint8_t)(r >> 40);
+          }
+        } else {
+          size_t k = (size_t)((r >> 8) % 2000);
+          while (k-- && (n < (600 << 10))) {
+            p[n++] = (uint8_t)(rand64(&state) >> 56);
+          }
+        }
+      }
+      run_input("synthetic: 600 KiB of mixed text and binary", p, n);
+    }
     for (size_t n = 0; n <= 40; n++) {
+      if (((input_index++) % shard_n) != shard_k) {
+        continue;
+      }
       fill_random(p, n, 0x9999 + n);
       char name[64];
       snprintf(name, sizeof name, "synthetic: %zu pseudo-random bytes", n);

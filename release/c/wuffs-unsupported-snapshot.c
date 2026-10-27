@@ -78679,8 +78679,6 @@ wuffs_brotli__encoder__utf8_prefix_lut(
   if (a_b < 128u) {
     return 0u;
   } else if (a_b < 192u) {
-    return 0u;
-  } else if (a_b < 224u) {
     return 1u;
   }
   return 2u;

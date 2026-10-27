@@ -692,8 +692,6 @@ pri func encoder.utf8_prefix_lut(b: base.u8) base.u32[..= 2] {
     if args.b < 0x80 {
         return 0
     } else if args.b < 0xC0 {
-        return 0
-    } else if args.b < 0xE0 {
         return 1
     }
     return 2
