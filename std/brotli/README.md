@@ -825,7 +825,7 @@ dictionary grid (see "Encoder Dictionaries" above): for each input, seven
 sets of raw dictionaries (a prefix of the input, the whole input,
 `test/data/enwik5`, noise plus the input's middle third, 15 pieces of the
 input, tiny and empty dictionaries, and the input's swapped halves plus some
-text), with qualities 0 to 9, lgwins, chunkings, flushes, metadata blocks,
+text), with qualities 0 to 11, lgwins, chunkings, flushes, metadata blocks,
 size hints, stream offsets, large window and other parameters, plus
 dictionaries of 2 MiB to 40 MiB (every hash table size) with a 1 MiB input.
 Each dictionary configuration's output is also decoded by libbrotlidec and
@@ -834,7 +834,11 @@ stream offset, and the whole-input and big dictionaries check that the
 output is smaller than without them (at qualities 5 and above, unless it is
 already tiny). With `-dict` (and `-q=0-9`) it runs 419,802 configurations,
 all byte-exact against libbrotlienc v1.2.1 on x86-64, with 356,546 round
-trips through both decoders. With
+trips through both decoders. With `-dict -q=10-11` (which uses the
+smallest dictionary grid for inputs longer than 64 KiB), shards 0 to 47 of
+90 (except 43 and 46: 98 inputs, including all of the 2 to 40 MiB
+dictionaries) ran 39,800 configurations, also all byte-exact, with 33,814
+round trips through both decoders and 80 smaller-with-dictionary checks. With
 `-q=0-9` (the default) and without `-dict` it runs 814,706
 configurations (96,688 of them in the large-window grid), all byte-exact
 against libbrotlienc v1.2.1 on x86-64. With `-lw -big` it runs 720 more
