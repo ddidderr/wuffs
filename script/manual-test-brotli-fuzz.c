@@ -62,7 +62,8 @@
 //       gcc -O2 -DBROTLI_EXPERIMENTAL -I$BROTLI/c/include -c $f
 //           -o /tmp/bd/$(basename $(dirname $f))_$(basename $f .c).o; done
 //   ar rcs /tmp/bd/libbrotlidecexp.a /tmp/bd/*.o
-//   gcc -O2 -std=c99 -I$BROTLI/c/include script/manual-test-brotli-fuzz.c
+//   gcc -O2 -std=c99 -I$BROTLI/c/include -I$BROTLI/c
+//       script/manual-test-brotli-fuzz.c
 //       $BROTLI_BUILD/libbrotlienc.a /tmp/bd/libbrotlidecexp.a -lm
 //       -o /tmp/brotli-fuzz
 //   /tmp/brotli-fuzz -dec -seed=1 -n=100000
@@ -88,6 +89,9 @@
 #include "brotli/decode.h"
 #include "brotli/encode.h"
 #include "brotli/shared_dictionary.h"
+// libbrotlienc's internal state, to recognize a known C bug (see
+// c_state_corrupted). This needs -I$BROTLI/c as well as -I$BROTLI/c/include.
+#include "enc/state.h"
 
 #define WUFFS_IMPLEMENTATION
 #define WUFFS_CONFIG__MODULES
@@ -930,6 +934,28 @@ cleanup:
 }
 
 // encode_c runs the plan with libbrotlienc.
+// g_c_state_corrupted is encode_c's error when libbrotlienc's
+// BrotliEncoderCompressStream fails because of a C bug: in ProcessMetadata,
+// when dst has no room, the metadata body goes through tiny_buf_ (16 bytes)
+// and pushing it out leaves next_out_ pointing just past tiny_buf_, at
+// remaining_metadata_bytes_. Back in the processing state, qualities 0 and 1
+// compress in place (into the caller's dst) without resetting next_out_, so
+// a later flush's InjectBytePaddingBlock writes the padding bits through the
+// stale pointer, over remaining_metadata_bytes_. Its output is still right,
+// but the next BrotliEncoderCompressStream call sees a metadata block in
+// progress and fails. A C build that sets next_out_ to NULL when the
+// metadata workflow ends produces the same bytes as Wuffs. The corruption
+// shows as the processing state with remaining_metadata_bytes_ not
+// BROTLI_UINT32_MAX, which never happens otherwise.
+static const char g_c_state_corrupted[] =
+    "C state corrupted (stale next_out_ after metadata)";
+
+static bool  //
+c_state_corrupted(BrotliEncoderState* state) {
+  return (state->stream_state_ == BROTLI_STREAM_PROCESSING) &&
+         (state->remaining_metadata_bytes_ != 0xFFFFFFFFu);
+}
+
 static const char*  //
 encode_c(const enc_config* c, const dict_set* dicts, const uint8_t* src_ptr,
          uint8_t* out, size_t out_cap, size_t* out_len) {
@@ -982,7 +1008,8 @@ encode_c(const enc_config* c, const dict_set* dicts, const uint8_t* src_ptr,
       uint8_t* next_out = out + *out_len;
       if (!BrotliEncoderCompressStream(state, op, &avail_in, &next_in,
                                        &avail_out, &next_out, NULL)) {
-        ret = "BrotliEncoderCompressStream failed";
+        ret = c_state_corrupted(state) ? g_c_state_corrupted
+                                       : "BrotliEncoderCompressStream failed";
         goto cleanup;
       }
       *out_len += avail_out0 - avail_out;
@@ -2098,6 +2125,7 @@ static uint64_t g_enc_by_quality[12];
 static uint64_t g_enc_bytes_in;
 static uint64_t g_enc_both_rejected;
 static uint64_t g_enc_both_flint_failed;
+static uint64_t g_enc_c_corrupted;
 static uint64_t g_enc_skipped;
 static uint64_t g_enc_roundtrips;
 static uint64_t g_enc_with_dicts;
@@ -2469,10 +2497,23 @@ run_enc(uint64_t iters, double secs) {
           (have_err == wuffs_base__error__bad_call_sequence) &&
           !strcmp(want_err, "BrotliEncoderCompressStream failed") &&
           (have_len == want_len) && !memcmp(have, want, have_len);
+      // See g_c_state_corrupted: C's output must be a prefix of Wuffs'.
+      bool c_corrupted = !have_err && (want_err == g_c_state_corrupted) &&
+                         (want_len <= have_len) &&
+                         !memcmp(have, want, want_len);
       if (both_rejected) {
         g_enc_both_rejected++;
       } else if (both_flint_failed) {
         g_enc_both_flint_failed++;
+      } else if (c_corrupted) {
+        g_enc_c_corrupted++;
+        if (g_enc_c_corrupted <= 5) {
+          static char desc[1 << 16];
+          describe_enc(desc, sizeof desc, g_c_state_corrupted, &c, &ds, len,
+                       src_len);
+          save_failure("enc-known", desc, src, src_len, &ds);
+          g_num_failures--;
+        }
       } else {
         char what[512];
         snprintf(what, sizeof what, "errors: wuffs \"%s\", C \"%s\"",
@@ -2529,9 +2570,10 @@ run_enc(uint64_t iters, double secs) {
   printf("encoder campaign: seed=%" PRIu64 " q=%u-%u configs=%" PRIu64
          " failures=%" PRIu64 " skipped(workbuf>3GiB)=%" PRIu64
          " both_rejected=%" PRIu64 " both_flint_failed=%" PRIu64
-         " roundtrips=%" PRIu64 "\n",
+         " c_state_corrupted=%" PRIu64 " roundtrips=%" PRIu64 "\n",
          g_seed, g_qmin, g_qmax, g_enc_configs, g_num_failures, g_enc_skipped,
-         g_enc_both_rejected, g_enc_both_flint_failed, g_enc_roundtrips);
+         g_enc_both_rejected, g_enc_both_flint_failed, g_enc_c_corrupted,
+         g_enc_roundtrips);
   printf("  by quality:");
   for (int q = 0; q < 12; q++) {
     printf(" q%d=%" PRIu64, q, g_enc_by_quality[q]);
@@ -2558,10 +2600,13 @@ run_enc(uint64_t iters, double secs) {
 // return the index of the first step that fails (or num_steps). A C step
 // fails if BrotliEncoderCompressStream returns BROTLI_FALSE, a Wuffs step if
 // request_flush, request_emit_metadata or transform_io returns an error.
+static bool g_steps_c_corrupted;
+
 static size_t  //
 run_steps_c(const enc_config* c, const uint8_t* src, uint8_t* out,
             size_t out_cap, size_t* out_len) {
   *out_len = 0;
+  g_steps_c_corrupted = false;
   BrotliEncoderState* state = BrotliEncoderCreateInstance(NULL, NULL, NULL);
   for (size_t j = 0; j < c->num_params; j++) {
     BrotliEncoderSetParameter(state, (BrotliEncoderParameter)(c->keys[j]),
@@ -2582,6 +2627,7 @@ run_steps_c(const enc_config* c, const uint8_t* src, uint8_t* out,
       uint8_t* next_out = out + *out_len;
       if (!BrotliEncoderCompressStream(state, op, &avail_in, &next_in,
                                        &avail_out, &next_out, NULL)) {
+        g_steps_c_corrupted = c_state_corrupted(state);
         failed = true;
         break;
       }
@@ -2690,6 +2736,7 @@ run_steps_wuffs(const enc_config* c, const uint8_t* src_ptr, size_t src_len,
 static uint64_t g_api_checks;
 static uint64_t g_api_both_failed_meta;  // Too-long metadata.
 static uint64_t g_api_both_failed_seq;   // Bad call sequence.
+static uint64_t g_api_c_corrupted;       // See g_c_state_corrupted.
 
 static void  //
 api_fail(const char* fmt, const char* a, uint64_t x, uint64_t y) {
@@ -2818,6 +2865,12 @@ api_compare_steps(const char* what, const enc_config* c, const uint8_t* src,
     if ((have_len != want_len) || memcmp(have, want, have_len)) {
       bad = true;
     }
+  }
+  if (bad && g_steps_c_corrupted && (cf < wf) && (want_len <= have_len) &&
+      !memcmp(have, want, want_len)) {
+    // See g_c_state_corrupted.
+    g_api_c_corrupted++;
+    return;
   }
   if (bad) {
     static char desc[1 << 16];
@@ -3111,7 +3164,7 @@ run_api(uint64_t iters, double secs) {
          " failures=%" PRIu64 "\n",
          g_seed, fixed, it, g_api_checks, g_num_failures);
   printf("  both rejected: too-long metadata=%" PRIu64
-         ", bad call sequence=%" PRIu64 "\n",
-         g_api_both_failed_meta, g_api_both_failed_seq);
+         ", bad call sequence=%" PRIu64 "; C state corrupted=%" PRIu64 "\n",
+         g_api_both_failed_meta, g_api_both_failed_seq, g_api_c_corrupted);
   return g_num_failures ? 1 : 0;
 }

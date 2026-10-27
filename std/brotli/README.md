@@ -644,6 +644,21 @@ returns `"#bad call sequence"` there, after writing the same bytes as the C
 code. The differential fuzzer (`script/manual-test-brotli-fuzz.c -enc`)
 checks that both encoders fail at the same point with equal output.
 
+One libbrotlienc bug is not mirrored. When `ProcessMetadata` has no room in
+`dst` for a metadata block's body, it copies up to 16 bytes into `tiny_buf_`
+and points `next_out_` at it. Pushing those out leaves `next_out_` just past
+`tiny_buf_` (at `remaining_metadata_bytes_`), and nothing resets it when the
+metadata block ends. At qualities 0 and 1, `BrotliEncoderCompressStreamFast`
+compresses into the caller's buffer without touching `next_out_`, so a later
+flush's `InjectBytePaddingBlock` writes its padding bits through the stale
+pointer, over `remaining_metadata_bytes_`. The bytes written are still right,
+but every later `BrotliEncoderCompressStream` call fails, as if a metadata
+block were in progress. The Wuffs encoder writes the same bytes and carries
+on, which is what libbrotlienc does once `ProcessMetadata` sets `next_out_` to
+`NULL` when the metadata block ends. The
+`test_mimic_brotli_encode_metadata_stale_pointer` test in
+`test/c/std/brotli.c` shows it at quality 1.
+
 
 ### Encoder Large Window
 

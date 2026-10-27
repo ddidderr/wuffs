@@ -2219,6 +2219,96 @@ test_mimic_brotli_encode_parity_q10_params() {
   return NULL;
 }
 
+// test_mimic_brotli_encode_metadata_stale_pointer checks a libbrotlienc bug
+// that Wuffs does not mirror. At quality 1, a metadata block whose body goes
+// through the C code's 16-byte tiny_buf_ (dst has no room) leaves next_out_
+// just past tiny_buf_, at remaining_metadata_bytes_. Qualities 0 and 1 then
+// compress in place without resetting next_out_, so the next flush's
+// InjectBytePaddingBlock writes over remaining_metadata_bytes_ (its output is
+// still right) and the next BrotliEncoderCompressStream call fails. Wuffs
+// produces the same bytes and carries on, as libbrotlienc does when
+// ProcessMetadata sets next_out_ to NULL when it ends. See "Encoder Operation
+// Mapping" in std/brotli/README.md.
+const char*  //
+test_mimic_brotli_encode_metadata_stale_pointer() {
+  CHECK_FOCUS(__func__);
+  uint8_t src[300];
+  static const char fox[] = "the quick brown fox jumps over the lazy dog ";
+  for (int i = 0; i < 300; i++) {
+    src[i] = (uint8_t)(fox[i % 44] ^ (i / 97));
+  }
+  // PROCESS 100 bytes, EMIT_METADATA 32 bytes (with 1 byte of dst per call),
+  // PROCESS 100 bytes, FLUSH, FINISH 68 bytes.
+  static const uint32_t ops[5] = {
+      BROTLI_ENC_OP_PROCESS, BROTLI_ENC_OP_EMIT_METADATA,
+      BROTLI_ENC_OP_PROCESS, BROTLI_ENC_OP_FLUSH, BROTLI_ENC_OP_FINISH,
+  };
+  static const size_t lens[5] = {100, 32, 100, 0, 68};
+
+  // libbrotlienc.
+  BrotliEncoderState* state = BrotliEncoderCreateInstance(NULL, NULL, NULL);
+  if (!state) {
+    RETURN_FAIL("BrotliEncoderCreateInstance failed");
+  }
+  BrotliEncoderSetParameter(state, BROTLI_PARAM_QUALITY, 1);
+  BrotliEncoderSetParameter(state, BROTLI_PARAM_LGWIN, 16);
+  const uint8_t* next_in = src;
+  size_t want_len = 0;
+  int failed_step = -1;
+  for (int i = 0; (i < 5) && (failed_step < 0); i++) {
+    size_t avail_in = lens[i];
+    while (true) {
+      size_t room = (ops[i] == BROTLI_ENC_OP_EMIT_METADATA) ? 1 : 1000;
+      size_t avail_out = room;
+      uint8_t* next_out = g_want_slice_u8.ptr + want_len;
+      if (!BrotliEncoderCompressStream(state, (BrotliEncoderOperation)ops[i],
+                                       &avail_in, &next_in, &avail_out,
+                                       &next_out, NULL)) {
+        failed_step = i;
+        break;
+      }
+      want_len += room - avail_out;
+      if ((ops[i] == BROTLI_ENC_OP_FINISH) ? BrotliEncoderIsFinished(state)
+                                           : ((avail_in == 0) &&
+                                              !BrotliEncoderHasMoreOutput(
+                                                  state))) {
+        break;
+      }
+    }
+  }
+  BrotliEncoderDestroyInstance(state);
+  if (failed_step != 4) {
+    RETURN_FAIL("libbrotlienc: failed step: have %d, want 4", failed_step);
+  }
+
+  // Wuffs.
+  wuffs_base__io_buffer have = ((wuffs_base__io_buffer){
+      .data = g_have_slice_u8,
+  });
+  wuffs_base__io_buffer in = wuffs_base__ptr_u8__reader(src, 300, false);
+  uint32_t keys[2] = {BROTLI_ENC_PARAM_QUALITY, BROTLI_ENC_PARAM_LGWIN};
+  uint32_t values[2] = {1, 16};
+  CHECK_STRING(
+      wuffs_brotli_encode_plan(&have, &in, keys, values, 2, ops, lens, 5, 1));
+  if ((have.meta.wi <= want_len) ||
+      memcmp(have.data.ptr, g_want_slice_u8.ptr, want_len)) {
+    RETURN_FAIL("Wuffs output (%zu bytes) does not extend C's (%zu bytes)",
+                have.meta.wi, want_len);
+  }
+
+  // The Wuffs output decodes to the data (without the metadata).
+  size_t decoded_len = g_work_slice_u8.len;
+  if (BrotliDecoderDecompress(have.meta.wi, have.data.ptr, &decoded_len,
+                              g_work_slice_u8.ptr) != BROTLI_DECODER_RESULT_SUCCESS) {
+    RETURN_FAIL("BrotliDecoderDecompress failed");
+  } else if ((decoded_len != 268) ||
+             memcmp(g_work_slice_u8.ptr, src, 100) ||
+             memcmp(g_work_slice_u8.ptr + 100, src + 132, 168)) {
+    RETURN_FAIL("round trip mismatch");
+  }
+  return NULL;
+}
+
 const char*  //
 do_test_mimic_brotli_encode_file(const char* name,
                                  const uint8_t* data,
@@ -4541,6 +4631,7 @@ proc g_tests[] = {
     test_mimic_brotli_encode_dictionary_rejections,
     test_mimic_brotli_encode_large_window_far,
     test_mimic_brotli_encode_large_window_files,
+    test_mimic_brotli_encode_metadata_stale_pointer,
     test_mimic_brotli_encode_parity_corpus,
     test_mimic_brotli_encode_parity_grid,
     test_mimic_brotli_encode_parity_metadata,
