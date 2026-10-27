@@ -1740,6 +1740,377 @@ test_wuffs_brotli_encode_interface() {
   return status;
 }
 
+// ---------------- Decoder Metadata Tests
+
+// The metadata tests encode romeo.txt with metadata blocks (whose contents
+// are also taken from romeo.txt) and then decode it with
+// QUIRK_REPORT_METADATA. The decoded output ("out") and the metadata ("md",
+// each block prefixed by its length as 4 little-endian bytes) are collected
+// separately.
+
+#define BROTLI_MD_NUM_STEPS 8
+#define BROTLI_MD_MAX_BLOCKS 8
+
+static const uint32_t g_brotli_md_step_ops[BROTLI_MD_NUM_STEPS] = {
+    BROTLI_ENC_OP_EMIT_METADATA, BROTLI_ENC_OP_PROCESS,
+    BROTLI_ENC_OP_EMIT_METADATA, BROTLI_ENC_OP_EMIT_METADATA,
+    BROTLI_ENC_OP_FLUSH,         BROTLI_ENC_OP_EMIT_METADATA,
+    BROTLI_ENC_OP_PROCESS,       BROTLI_ENC_OP_FINISH,
+};
+
+static const size_t g_brotli_md_step_lens[BROTLI_MD_NUM_STEPS] = {
+    3, 500, 10, 0, 0, 70000, 1000, 50000,
+};
+
+// brotli_md_want fills out and md with the expected results for the
+// g_brotli_md_step_etc plan applied to src. It sets md_pos[i] to the length of
+// out before the i'th metadata block.
+static void  //
+brotli_md_want(wuffs_base__io_buffer* out,
+               wuffs_base__io_buffer* md,
+               size_t* md_pos,
+               const uint8_t* src) {
+  size_t n_md = 0;
+  for (size_t i = 0; i < BROTLI_MD_NUM_STEPS; i++) {
+    size_t n = g_brotli_md_step_lens[i];
+    if (g_brotli_md_step_ops[i] == BROTLI_ENC_OP_EMIT_METADATA) {
+      md_pos[n_md++] = out->meta.wi;
+      wuffs_base__poke_u32le__no_bounds_check(md->data.ptr + md->meta.wi,
+                                              (uint32_t)n);
+      md->meta.wi += 4;
+      memcpy(md->data.ptr + md->meta.wi, src, n);
+      md->meta.wi += n;
+    } else {
+      memcpy(out->data.ptr + out->meta.wi, src, n);
+      out->meta.wi += n;
+    }
+    src += n;
+  }
+}
+
+// wuffs_brotli_decode_metadata decodes src_ptr[.. src_len] with
+// QUIRK_REPORT_METADATA, at most dst_chunk bytes of dst and src_chunk more
+// bytes of src per transform_io call.
+static const char*  //
+wuffs_brotli_decode_metadata(wuffs_base__io_buffer* out,
+                             wuffs_base__io_buffer* md,
+                             size_t* md_pos,
+                             size_t* num_md,
+                             const uint8_t* src_ptr,
+                             size_t src_len,
+                             size_t dst_chunk,
+                             size_t src_chunk) {
+  wuffs_brotli__decoder dec;
+  CHECK_STATUS("initialize",
+               wuffs_brotli__decoder__initialize(
+                   &dec, sizeof dec, WUFFS_VERSION,
+                   WUFFS_INITIALIZE__LEAVE_INTERNAL_BUFFERS_UNINITIALIZED));
+  CHECK_STATUS("set_quirk",
+               wuffs_brotli__decoder__set_quirk(
+                   &dec, WUFFS_BROTLI__QUIRK_REPORT_METADATA, 1));
+  if (wuffs_brotli__decoder__get_quirk(
+          &dec, WUFFS_BROTLI__QUIRK_REPORT_METADATA) != 1) {
+    RETURN_FAIL("get_quirk: have 0, want 1");
+  }
+
+  uint8_t tmp[4096];
+  if (dst_chunk > sizeof tmp) {
+    RETURN_FAIL("dst_chunk is too large");
+  }
+  size_t md_remaining = 0;
+  *num_md = 0;
+  wuffs_base__io_buffer src = wuffs_base__ptr_u8__reader(
+      (uint8_t*)src_ptr, src_chunk < src_len ? src_chunk : src_len,
+      src_chunk >= src_len);
+  while (true) {
+    wuffs_base__io_buffer dst = wuffs_base__ptr_u8__writer(tmp, dst_chunk);
+    wuffs_base__status status = wuffs_brotli__decoder__transform_io(
+        &dec, &dst, &src, g_work_slice_u8);
+
+    uint8_t* p = tmp;
+    size_t n = dst.meta.wi;
+    if (md_remaining > 0) {
+      size_t m = (n < md_remaining) ? n : md_remaining;
+      if (md->data.len - md->meta.wi < m) {
+        RETURN_FAIL("md is too short");
+      }
+      memcpy(md->data.ptr + md->meta.wi, p, m);
+      md->meta.wi += m;
+      md_remaining -= m;
+      p += m;
+      n -= m;
+    }
+    if (n > 0) {
+      if (md_remaining > 0) {
+        RETURN_FAIL("inconsistent md_remaining");
+      } else if (out->data.len - out->meta.wi < n) {
+        RETURN_FAIL("out is too short");
+      }
+      memcpy(out->data.ptr + out->meta.wi, p, n);
+      out->meta.wi += n;
+    }
+
+    if (status.repr == NULL) {
+      break;
+    } else if (status.repr == wuffs_base__note__metadata_reported) {
+      if (md_remaining > 0) {
+        RETURN_FAIL("metadata reported while copying metadata");
+      } else if (*num_md >= BROTLI_MD_MAX_BLOCKS) {
+        RETURN_FAIL("too many metadata blocks");
+      }
+      uint64_t len = wuffs_brotli__decoder__metadata_length(&dec);
+      md_pos[(*num_md)++] = out->meta.wi;
+      if (md->data.len - md->meta.wi < 4) {
+        RETURN_FAIL("md is too short");
+      }
+      wuffs_base__poke_u32le__no_bounds_check(md->data.ptr + md->meta.wi,
+                                              (uint32_t)len);
+      md->meta.wi += 4;
+      md_remaining = (size_t)len;
+    } else if (status.repr == wuffs_base__suspension__short_read) {
+      if (src.meta.closed) {
+        RETURN_FAIL("short read on closed src");
+      }
+      src.meta.wi = (src_len - src.meta.wi > src_chunk) ? src.meta.wi + src_chunk
+                                                        : src_len;
+      src.meta.closed = src.meta.wi == src_len;
+    } else if (status.repr != wuffs_base__suspension__short_write) {
+      RETURN_FAIL("transform_io: \"%s\"", status.repr);
+    }
+  }
+  if (md_remaining > 0) {
+    RETURN_FAIL("incomplete metadata");
+  }
+
+  // Setting the quirk after decoding has started fails.
+  wuffs_base__status status = wuffs_brotli__decoder__set_quirk(
+      &dec, WUFFS_BROTLI__QUIRK_REPORT_METADATA, 0);
+  if (status.repr != wuffs_base__error__bad_call_sequence) {
+    RETURN_FAIL("set_quirk after start: have \"%s\", want \"%s\"", status.repr,
+                wuffs_base__error__bad_call_sequence);
+  }
+  return NULL;
+}
+
+static const char*  //
+do_test_brotli_decode_metadata(const char* (*encode)(wuffs_base__io_buffer*,
+                                                     wuffs_base__io_buffer*,
+                                                     const uint32_t*,
+                                                     const uint32_t*,
+                                                     size_t,
+                                                     const uint32_t*,
+                                                     const size_t*,
+                                                     size_t,
+                                                     size_t)) {
+  wuffs_base__io_buffer data = ((wuffs_base__io_buffer){
+      .data = g_mimiclib_scratch_slice_u8,
+  });
+  CHECK_STRING(read_file(&data, "test/data/romeo.txt"));
+  // The plan needs 121513 bytes, so repeat romeo.txt (which is shorter).
+  size_t total = 0;
+  for (size_t i = 0; i < BROTLI_MD_NUM_STEPS; i++) {
+    total += g_brotli_md_step_lens[i];
+  }
+  if (data.meta.wi == 0) {
+    RETURN_FAIL("empty romeo.txt");
+  }
+  while (data.meta.wi < total) {
+    size_t n = data.meta.wi;
+    if (n > total - data.meta.wi) {
+      n = total - data.meta.wi;
+    }
+    memmove(data.data.ptr + data.meta.wi, data.data.ptr, n);
+    data.meta.wi += n;
+  }
+
+  // The want and have halves of g_want_slice_u8 and g_have_slice_u8.
+  size_t half_w = g_want_slice_u8.len / 2;
+  size_t half_h = g_have_slice_u8.len / 2;
+  wuffs_base__io_buffer want_out = ((wuffs_base__io_buffer){
+      .data = wuffs_base__make_slice_u8(g_want_slice_u8.ptr, half_w),
+  });
+  wuffs_base__io_buffer want_md = ((wuffs_base__io_buffer){
+      .data = wuffs_base__make_slice_u8(g_want_slice_u8.ptr + half_w, half_w),
+  });
+  size_t want_md_pos[BROTLI_MD_MAX_BLOCKS] = {0};
+  brotli_md_want(&want_out, &want_md, want_md_pos, data.data.ptr);
+
+  static const uint32_t qualities[3] = {0, 5, 11};
+  static const size_t chunks[4][2] = {{4096, 1 << 30}, {1, 1}, {7, 3}, {3, 64}};
+  for (int qi = 0; qi < 3; qi++) {
+    // The decoder uses g_work_slice_u8 as its workbuf, so encode into the
+    // second half of g_have_slice_u8.
+    wuffs_base__io_buffer enc = ((wuffs_base__io_buffer){
+        .data = wuffs_base__make_slice_u8(g_have_slice_u8.ptr + half_h, half_h),
+    });
+    wuffs_base__io_buffer src = data;
+    src.meta.ri = 0;
+    uint32_t keys[2] = {BROTLI_ENC_PARAM_QUALITY, BROTLI_ENC_PARAM_LGWIN};
+    uint32_t values[2] = {qualities[qi], 18};
+    CHECK_STRING((*encode)(&enc, &src, keys, values, 2, g_brotli_md_step_ops,
+                           g_brotli_md_step_lens, BROTLI_MD_NUM_STEPS, 0));
+
+    for (int ci = 0; ci < 4; ci++) {
+      // Decoded output and metadata share the first half of g_have_slice_u8.
+      wuffs_base__io_buffer have_out = ((wuffs_base__io_buffer){
+          .data = wuffs_base__make_slice_u8(g_have_slice_u8.ptr, half_h / 2),
+      });
+      wuffs_base__io_buffer have_md = ((wuffs_base__io_buffer){
+          .data = wuffs_base__make_slice_u8(g_have_slice_u8.ptr + half_h / 2,
+                                            half_h / 2),
+      });
+      size_t have_md_pos[BROTLI_MD_MAX_BLOCKS] = {0};
+      size_t num_md = 0;
+      const char* z = wuffs_brotli_decode_metadata(
+          &have_out, &have_md, have_md_pos, &num_md, enc.data.ptr, enc.meta.wi,
+          chunks[ci][0], chunks[ci][1]);
+      if (z) {
+        RETURN_FAIL("q=%u, chunks=%d: %s", qualities[qi], ci, z);
+      }
+      char s[64];
+      snprintf(s, sizeof s, "q=%u, chunks=%d: out", qualities[qi], ci);
+      CHECK_STRING(check_io_buffers_equal(s, &have_out, &want_out));
+      snprintf(s, sizeof s, "q=%u, chunks=%d: md", qualities[qi], ci);
+      CHECK_STRING(check_io_buffers_equal(s, &have_md, &want_md));
+      if (num_md != 4) {
+        RETURN_FAIL("q=%u, chunks=%d: num_md: have %zu, want 4",
+                    qualities[qi], ci, num_md);
+      }
+      for (size_t i = 0; i < num_md; i++) {
+        if (have_md_pos[i] != want_md_pos[i]) {
+          RETURN_FAIL("q=%u, chunks=%d: md_pos[%zu]: have %zu, want %zu",
+                      qualities[qi], ci, i, have_md_pos[i], want_md_pos[i]);
+        }
+      }
+    }
+  }
+  return NULL;
+}
+
+const char*  //
+test_wuffs_brotli_decode_metadata() {
+  CHECK_FOCUS(__func__);
+  return do_test_brotli_decode_metadata(wuffs_brotli_encode_plan);
+}
+
+#ifdef WUFFS_MIMIC
+
+// mimic_brotli_md_start_func and mimic_brotli_md_chunk_func are libbrotlidec
+// metadata callbacks that append to the wuffs_base__io_buffer opaque.
+static void  //
+mimic_brotli_md_start_func(void* opaque, size_t size) {
+  wuffs_base__io_buffer* md = (wuffs_base__io_buffer*)opaque;
+  if (md->data.len - md->meta.wi >= 4) {
+    wuffs_base__poke_u32le__no_bounds_check(md->data.ptr + md->meta.wi,
+                                            (uint32_t)size);
+    md->meta.wi += 4;
+  } else {
+    md->meta.closed = true;  // Overflow.
+  }
+}
+
+static void  //
+mimic_brotli_md_chunk_func(void* opaque, const uint8_t* data, size_t size) {
+  wuffs_base__io_buffer* md = (wuffs_base__io_buffer*)opaque;
+  if (md->data.len - md->meta.wi >= size) {
+    memcpy(md->data.ptr + md->meta.wi, data, size);
+    md->meta.wi += size;
+  } else {
+    md->meta.closed = true;  // Overflow.
+  }
+}
+
+// test_mimic_brotli_decode_metadata checks that QUIRK_REPORT_METADATA reports
+// the same metadata as libbrotlidec's metadata callbacks, for streams that
+// libbrotlienc produces (and for the streams of the brotli test data, which
+// have no metadata blocks), with a variety of input chunk sizes.
+const char*  //
+test_mimic_brotli_decode_metadata() {
+  CHECK_FOCUS(__func__);
+  CHECK_STRING(do_test_brotli_decode_metadata(mimic_brotli_encode));
+
+  // Also compare libbrotlidec's callbacks with Wuffs on a libbrotlienc
+  // stream, fed to libbrotlidec in 5-byte pieces.
+  wuffs_base__io_buffer data = ((wuffs_base__io_buffer){
+      .data = g_mimiclib_scratch_slice_u8,
+  });
+  CHECK_STRING(read_file(&data, "test/data/romeo.txt"));
+  size_t half_h = g_have_slice_u8.len / 2;
+  size_t half_w = g_want_slice_u8.len / 2;
+  wuffs_base__io_buffer enc = ((wuffs_base__io_buffer){
+      .data = wuffs_base__make_slice_u8(g_have_slice_u8.ptr + half_h, half_h),
+  });
+  static const uint32_t ops[5] = {
+      BROTLI_ENC_OP_PROCESS,       BROTLI_ENC_OP_EMIT_METADATA,
+      BROTLI_ENC_OP_EMIT_METADATA, BROTLI_ENC_OP_PROCESS,
+      BROTLI_ENC_OP_FINISH,
+  };
+  size_t lens[5] = {100, 200, 0, 300, 0};
+  lens[4] = data.meta.wi - 600;
+  uint32_t keys[1] = {BROTLI_ENC_PARAM_QUALITY};
+  uint32_t values[1] = {9};
+  CHECK_STRING(mimic_brotli_encode(&enc, &data, keys, values, 1, ops, lens, 5,
+                                   0));
+
+  wuffs_base__io_buffer c_out = ((wuffs_base__io_buffer){
+      .data = wuffs_base__make_slice_u8(g_want_slice_u8.ptr, half_w),
+  });
+  wuffs_base__io_buffer c_md = ((wuffs_base__io_buffer){
+      .data = wuffs_base__make_slice_u8(g_want_slice_u8.ptr + half_w, half_w),
+  });
+  BrotliDecoderState* state = BrotliDecoderCreateInstance(NULL, NULL, NULL);
+  if (!state) {
+    RETURN_FAIL("BrotliDecoderCreateInstance failed");
+  }
+  BrotliDecoderSetMetadataCallbacks(state, mimic_brotli_md_start_func,
+                                    mimic_brotli_md_chunk_func, &c_md);
+  size_t pos = 0;
+  BrotliDecoderResult r = BROTLI_DECODER_RESULT_NEEDS_MORE_INPUT;
+  while (r != BROTLI_DECODER_RESULT_SUCCESS) {
+    size_t end = (enc.meta.wi - pos > 5) ? pos + 5 : enc.meta.wi;
+    size_t avail_in = end - pos;
+    const uint8_t* next_in = enc.data.ptr + pos;
+    size_t avail_out = c_out.data.len - c_out.meta.wi;
+    uint8_t* next_out = c_out.data.ptr + c_out.meta.wi;
+    r = BrotliDecoderDecompressStream(state, &avail_in, &next_in, &avail_out,
+                                      &next_out, NULL);
+    pos = end - avail_in;
+    c_out.meta.wi = c_out.data.len - avail_out;
+    if ((r == BROTLI_DECODER_RESULT_ERROR) ||
+        ((r == BROTLI_DECODER_RESULT_NEEDS_MORE_INPUT) &&
+         (pos == enc.meta.wi))) {
+      BrotliDecoderDestroyInstance(state);
+      RETURN_FAIL("libbrotlidec failed");
+    }
+  }
+  BrotliDecoderDestroyInstance(state);
+  if (c_md.meta.closed) {
+    RETURN_FAIL("libbrotlidec metadata overflow");
+  }
+
+  wuffs_base__io_buffer have_out = ((wuffs_base__io_buffer){
+      .data = wuffs_base__make_slice_u8(g_have_slice_u8.ptr, half_h / 2),
+  });
+  wuffs_base__io_buffer have_md = ((wuffs_base__io_buffer){
+      .data = wuffs_base__make_slice_u8(g_have_slice_u8.ptr + half_h / 2,
+                                        half_h / 2),
+  });
+  size_t have_md_pos[BROTLI_MD_MAX_BLOCKS] = {0};
+  size_t num_md = 0;
+  CHECK_STRING(wuffs_brotli_decode_metadata(&have_out, &have_md, have_md_pos,
+                                            &num_md, enc.data.ptr, enc.meta.wi,
+                                            5, 5));
+  CHECK_STRING(check_io_buffers_equal("out", &have_out, &c_out));
+  CHECK_STRING(check_io_buffers_equal("md", &have_md, &c_md));
+  if ((num_md != 2) || (have_md_pos[0] != 100) || (have_md_pos[1] != 100)) {
+    RETURN_FAIL("md_pos: have %zu blocks at %zu, %zu; want 2 at 100, 100",
+                num_md, have_md_pos[0], have_md_pos[1]);
+  }
+  return NULL;
+}
+
+#endif  // WUFFS_MIMIC
+
 // ---------------- Encoder Mimic Tests
 
 #ifdef WUFFS_MIMIC
@@ -4618,6 +4989,7 @@ proc g_tests[] = {
     test_wuffs_brotli_decode_all,
     test_wuffs_brotli_decode_all_with_io_limits,
     test_wuffs_brotli_decode_interface,
+    test_wuffs_brotli_decode_metadata,
     test_wuffs_brotli_decode_malformed,
     test_wuffs_brotli_decode_romeo,
     test_wuffs_brotli_decode_trailing_data,
@@ -4642,6 +5014,7 @@ proc g_tests[] = {
     test_mimic_brotli_decode_all,
     test_mimic_brotli_decode_differential,
     test_mimic_brotli_decode_malformed,
+    test_mimic_brotli_decode_metadata,
     test_mimic_brotli_decode_romeo,
     test_mimic_brotli_decode_split_block_length,
 

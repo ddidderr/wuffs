@@ -30,3 +30,19 @@ pri const QUIRKS_BASE : base.u32 = 0x2AB7_9000
 // is rejected with "#unsupported large window". With this quirk, a stream that
 // does not start with that escape is decoded as standard brotli.
 pub const QUIRK_LARGE_WINDOW : base.u32 = 0x2AB7_9000 | 0x00
+
+// When this quirk is set, a positive value makes the decoder report metadata
+// blocks, like the C code's BrotliDecoderSetMetadataCallbacks. Zero (the
+// default) means that metadata blocks are skipped, like the C code without
+// callbacks.
+//
+// When reporting, at each metadata block, after all of the previously decoded
+// bytes have been written to dst, transform_io returns
+// base."@metadata reported" and metadata_length returns the block's length
+// (the C code's start callback's size argument), which can be zero. The next
+// metadata_length bytes that transform_io writes to dst (in subsequent calls)
+// are the metadata block's contents (the C code's chunk callbacks' data),
+// after which decoded bytes follow as usual.
+//
+// It must be set before decoding starts. This quirk is decoder-only.
+pub const QUIRK_REPORT_METADATA : base.u32 = 0x2AB7_9000 | 0x0A

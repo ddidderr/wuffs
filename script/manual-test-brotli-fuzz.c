@@ -31,7 +31,9 @@
 //         mostly 1 to 7 bytes), with a random large-window quirk, random
 //         (raw and serialized) dictionaries and a random workbuf length (at
 //         or above workbuf_len, or exactly the stream's minimum, or one byte
-//         less than that, which must fail).
+//         less than that, which must fail). Some decodes (with a large dst)
+//         also enable QUIRK_REPORT_METADATA and libbrotlidec's metadata
+//         callbacks and check that both report the same metadata blocks.
 //
 //   -enc  encodes random inputs with random parameters (quality, lgwin,
 //         large window, lgblock, mode, size hint, npostfix, ndirect,
@@ -1068,7 +1070,40 @@ typedef struct {
   size_t in_used;
   const char* wuffs_status;
   uint64_t calls;
+  size_t md_n;  // With report_md: the metadata bytes (see g_wmd and g_cmd).
 } dec_result;
+
+// With dec_config.report_md, the Wuffs decoder (QUIRK_REPORT_METADATA) and
+// libbrotlidec (BrotliDecoderSetMetadataCallbacks) collect each metadata
+// block (its length as 4 little-endian bytes, then its contents) in g_wmd and
+// g_cmd. A block's contents can be up to 16 MiB long.
+#define MD_CAP ((size_t)40 << 20)
+#define MAX_OUT (((size_t)2 << 20) + 4096)
+static uint8_t* g_wmd;
+static uint8_t* g_cmd;
+static size_t g_cmd_n;
+static bool g_cmd_overflow;
+
+static void  //
+c_md_start(void* opaque, size_t size) {
+  if (MD_CAP - g_cmd_n < 4) {
+    g_cmd_overflow = true;
+    return;
+  }
+  for (int i = 0; i < 4; i++) {
+    g_cmd[g_cmd_n++] = (uint8_t)(size >> (8 * i));
+  }
+}
+
+static void  //
+c_md_chunk(void* opaque, const uint8_t* data, size_t size) {
+  if (MD_CAP - g_cmd_n < size) {
+    g_cmd_overflow = true;
+    return;
+  }
+  memcpy(g_cmd + g_cmd_n, data, size);
+  g_cmd_n += size;
+}
 
 static int  //
 wuffs_status_class(const char* s) {
@@ -1143,6 +1178,7 @@ typedef struct {
   uint64_t wb_len;    // The Wuffs workbuf length.
   bool expect_bad_wb;  // wb_len is one byte too short for the stream.
   bool uninit;        // WUFFS_INITIALIZE__LEAVE_INTERNAL_BUFFERS_UNINITIALIZED.
+  bool report_md;     // QUIRK_REPORT_METADATA and metadata callbacks.
   size_t out_cap;
 } dec_config;
 
@@ -1162,6 +1198,13 @@ wuffs_attach(wuffs_brotli__decoder* dec, const dec_config* dc, size_t* n_ok) {
   if (dc->large_window) {
     status = wuffs_brotli__decoder__set_quirk(
         dec, WUFFS_BROTLI__QUIRK_LARGE_WINDOW, 1);
+    if (status.repr) {
+      return status.repr;
+    }
+  }
+  if (dc->report_md) {
+    status = wuffs_brotli__decoder__set_quirk(
+        dec, WUFFS_BROTLI__QUIRK_REPORT_METADATA, 1);
     if (status.repr) {
       return status.repr;
     }
@@ -1206,6 +1249,12 @@ wuffs_decode(const dec_config* dc,
   size_t ri = 0;
   size_t wi = 0;
   uint64_t max_calls = 3 * ((uint64_t)n + dc->out_cap) + 100;
+  // With report_md, metadata bytes are written to dst (out) and then moved to
+  // g_wmd. While md_remaining > 0, dst gets up to md_remaining bytes of slack
+  // past lout (within the physical buffer's MAX_OUT bytes), which the
+  // metadata bytes fill before any decoded bytes, so that the decoded bytes
+  // still fit in lout (like libbrotlidec's, which uses no dst for metadata).
+  size_t md_remaining = 0;
   while (true) {
     if (++res.calls > max_calls) {
       res.cls = CLS_BUG;
@@ -1215,7 +1264,12 @@ wuffs_decode(const dec_config* dc,
     wuffs_base__io_buffer src =
         wuffs_base__ptr_u8__reader((uint8_t*)in, lin, lin == n);
     src.meta.ri = ri;
-    wuffs_base__io_buffer dst = wuffs_base__ptr_u8__writer(out, lout);
+    size_t slack = 0;
+    if ((md_remaining > 0) && (lout < MAX_OUT)) {
+      slack = (md_remaining < (MAX_OUT - lout)) ? md_remaining
+                                                : (MAX_OUT - lout);
+    }
+    wuffs_base__io_buffer dst = wuffs_base__ptr_u8__writer(out, lout + slack);
     dst.meta.wi = wi;
     wuffs_base__status status =
         wuffs_brotli__decoder__transform_io(g_dec, &dst, &src, wb);
@@ -1224,9 +1278,37 @@ wuffs_decode(const dec_config* dc,
       res.wuffs_status = "went backwards";
       break;
     }
+    if (md_remaining > 0) {
+      size_t k = dst.meta.wi - wi;
+      k = (k < md_remaining) ? k : md_remaining;
+      memcpy(g_wmd + res.md_n, out + wi, k);
+      res.md_n += k;
+      md_remaining -= k;
+      memmove(out + wi, out + wi + k, dst.meta.wi - wi - k);
+      dst.meta.wi -= k;
+    }
+    if (dst.meta.wi > lout) {
+      res.cls = CLS_BUG;
+      res.wuffs_status = "decoded bytes in the metadata slack";
+      break;
+    }
     ri = src.meta.ri;
     wi = dst.meta.wi;
     res.wuffs_status = status.repr;
+    if (status.repr == wuffs_base__note__metadata_reported) {
+      uint64_t len = wuffs_brotli__decoder__metadata_length(g_dec);
+      if (!dc->report_md || (md_remaining > 0) || (len > (1 << 24)) ||
+          (MD_CAP - res.md_n < 4 + len)) {
+        res.cls = CLS_BUG;
+        res.wuffs_status = "unexpected metadata report";
+        break;
+      }
+      for (int i = 0; i < 4; i++) {
+        g_wmd[res.md_n++] = (uint8_t)(len >> (8 * i));
+      }
+      md_remaining = (size_t)len;
+      continue;
+    }
     if (g_trace) {
       printf("wuffs call %" PRIu64 ": lin=%zu lout=%zu -> ri=%zu wi=%zu %s\n",
              res.calls, lin, lout, ri, wi, status.repr ? status.repr : "ok");
@@ -1275,6 +1357,11 @@ c_decode(const dec_config* dc,
   }
   if (dc->large_window) {
     BrotliDecoderSetParameter(s, BROTLI_DECODER_PARAM_LARGE_WINDOW, 1);
+  }
+  g_cmd_n = 0;
+  g_cmd_overflow = false;
+  if (dc->report_md) {
+    BrotliDecoderSetMetadataCallbacks(s, c_md_start, c_md_chunk, NULL);
   }
   *c_attached = 0;
   for (size_t i = 0; i < dc->dicts.n; i++) {
@@ -1336,6 +1423,7 @@ c_decode(const dec_config* dc,
   BrotliDecoderDestroyInstance(s);
   res.out_n = wi;
   res.in_used = ri;
+  res.md_n = g_cmd_overflow ? SIZE_MAX : g_cmd_n;
   return res;
 }
 
@@ -1429,6 +1517,10 @@ static uint64_t g_dec_gen_wuffs;
 static uint64_t g_dec_wuffs_shorter_output;
 static uint64_t g_dec_known_block_length;
 static uint64_t g_dec_known_saved;
+static uint64_t g_dec_report_md;
+static uint64_t g_dec_md_compared;
+static uint64_t g_dec_md_blocks;
+static uint64_t g_dec_md_inconclusive;
 
 static int  //
 cls_index(int cls) {
@@ -1759,9 +1851,10 @@ run_dec(uint64_t iters, double secs) {
   const size_t tmp_cap = (8 << 20);
   uint8_t* tmp_in = xmalloc(tmp_cap);
   uint8_t* tmp_out = xmalloc(tmp_cap);
-  const size_t max_out = (2 << 20) + 4096;
-  uint8_t* wout = xmalloc(max_out);
-  uint8_t* cout = xmalloc(max_out);
+  uint8_t* wout = xmalloc(MAX_OUT);
+  uint8_t* cout = xmalloc(MAX_OUT);
+  g_wmd = xmalloc(MD_CAP);
+  g_cmd = xmalloc(MD_CAP);
   const size_t mcap = (1 << 20);
   uint8_t* m = xmalloc(mcap);
 
@@ -1821,6 +1914,10 @@ run_dec(uint64_t iters, double secs) {
     g_dec_with_dicts += (dc.dicts.n > 0);
     dc.uninit = chance(500);
     dc.out_cap = chance(900) ? ((size_t)1 << 20) + rn(1 << 20) : rn(4096);
+    // Only with a large dst: libbrotlidec reports metadata (via callbacks)
+    // even when its dst is full, but Wuffs needs dst space for it.
+    dc.report_md = (dc.out_cap >= ((size_t)1 << 20)) && chance(300);
+    g_dec_report_md += dc.report_md;
 
     // Attach the dictionaries to both decoders, checking that they agree on
     // which ones are accepted. libbrotlidec can be left in a modified state
@@ -1899,6 +1996,44 @@ run_dec(uint64_t iters, double secs) {
       size_t c_attached = 0;
       dec_result w = wuffs_decode(&dc, &ch, m, n, wout);
       dec_result c = c_decode(&dc, &ch, m, n, cout, &c_attached);
+      if (dc.report_md && (w.cls == CLS_NEEDS_MORE_OUTPUT)) {
+        // A full dst stops Wuffs at a metadata block, but not libbrotlidec,
+        // so this is inconclusive. Compare without reporting instead.
+        g_dec_md_inconclusive++;
+        dc.report_md = false;
+        w = wuffs_decode(&dc, &ch, m, n, wout);
+        c = c_decode(&dc, &ch, m, n, cout, &c_attached);
+        dc.report_md = true;
+      } else if (dc.report_md) {
+        // Before an error, both have reported the same metadata, except that
+        // one can have more of the last block's contents (or also the next
+        // block's start). After success, they agree exactly.
+        size_t k = (w.md_n < c.md_n) ? w.md_n : c.md_n;
+        const char* mwhy = NULL;
+        if (c.md_n == SIZE_MAX) {
+          mwhy = "libbrotlidec metadata overflow";
+        } else if (k && memcmp(g_wmd, g_cmd, k)) {
+          mwhy = "different metadata";
+        } else if ((w.cls == CLS_OK) && (c.cls == CLS_OK) &&
+                   (w.md_n != c.md_n)) {
+          mwhy = "different metadata lengths";
+        }
+        if ((w.cls == CLS_OK) && (c.cls == CLS_OK)) {
+          g_dec_md_compared++;
+          for (size_t j = 0; j + 4 <= w.md_n;) {
+            size_t len = (size_t)g_wmd[j] | ((size_t)g_wmd[j + 1] << 8) |
+                         ((size_t)g_wmd[j + 2] << 16) |
+                         ((size_t)g_wmd[j + 3] << 24);
+            g_dec_md_blocks++;
+            j += 4 + len;
+          }
+        }
+        if (mwhy) {
+          char desc[4096];
+          describe_dec(desc, sizeof desc, mwhy, s, &dc, &ch, &w, &c, n);
+          save_failure("md", desc, m, n, &dc.dicts);
+        }
+      }
       g_dec_decodes += 2;
       g_dec_cls_counts[pass][cls_index(c.cls)]++;
       const char* why = NULL;
@@ -1948,6 +2083,10 @@ run_dec(uint64_t iters, double secs) {
          g_dec_wuffs_shorter_output);
   printf("  known BLOCK_LENGTH_1/2 deviations (chunked)=%" PRIu64 "\n",
          g_dec_known_block_length);
+  printf("  report metadata=%" PRIu64 " (compared after success=%" PRIu64
+         ", blocks=%" PRIu64 ", inconclusive=%" PRIu64 ")\n",
+         g_dec_report_md, g_dec_md_compared, g_dec_md_blocks,
+         g_dec_md_inconclusive);
   static const char* names[23] = {
       "other",     "ok",          "needs-more-input", "needs-more-output",
       "-1",        "-2",          "-3",               "-4",

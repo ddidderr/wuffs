@@ -9253,6 +9253,8 @@ extern const char wuffs_brotli__error__unsupported_serialized_encoder_dictionary
 
 #define WUFFS_BROTLI__QUIRK_LARGE_WINDOW 716673024u
 
+#define WUFFS_BROTLI__QUIRK_REPORT_METADATA 716673034u
+
 #define WUFFS_BROTLI__ENCODER_DST_HISTORY_RETAIN_LENGTH_MAX_INCL_WORST_CASE 0u
 
 #define WUFFS_BROTLI__QUIRK_ENCODER_QUALITY 716673025u
@@ -9382,6 +9384,11 @@ wuffs_brotli__decoder__set_quirk(
     wuffs_brotli__decoder* self,
     uint32_t a_key,
     uint64_t a_value);
+
+WUFFS_BASE__GENERATED_C_CODE
+WUFFS_BASE__MAYBE_STATIC uint64_t
+wuffs_brotli__decoder__metadata_length(
+    const wuffs_brotli__decoder* self);
 
 WUFFS_BASE__GENERATED_C_CODE
 WUFFS_BASE__MAYBE_STATIC wuffs_base__optional_u63
@@ -9612,6 +9619,10 @@ struct wuffs_brotli__decoder__struct {
     uint32_t f_cmd_state;
     bool f_quirk_large_window;
     bool f_large_window;
+    bool f_quirk_report_metadata;
+    uint32_t f_md_length;
+    bool f_md_note_pending;
+    bool f_md_copying;
     bool f_started;
     uint64_t f_dict_total;
     uint32_t f_num_chunks;
@@ -9634,6 +9645,7 @@ struct wuffs_brotli__decoder__struct {
 
     uint32_t p_transform_io;
     uint32_t p_do_transform_io;
+    uint32_t p_report_metadata;
     uint32_t p_read_bits;
     uint32_t p_read_bits32;
     uint32_t p_read_symbol;
@@ -9850,6 +9862,11 @@ struct wuffs_brotli__decoder__struct {
       uint32_t a_key,
       uint64_t a_value) {
     return wuffs_brotli__decoder__set_quirk(this, a_key, a_value);
+  }
+
+  inline uint64_t
+  metadata_length() const {
+    return wuffs_brotli__decoder__metadata_length(this);
   }
 
   inline wuffs_base__optional_u63
@@ -77384,9 +77401,17 @@ WUFFS_BASE__GENERATED_C_CODE
 static wuffs_base__status
 wuffs_brotli__decoder__do_transform_io(
     wuffs_brotli__decoder* self,
+    wuffs_base__io_buffer* a_dst,
     wuffs_base__io_buffer* a_src,
     wuffs_base__slice_u8 a_workbuf,
     wuffs_base__slice_u8 a_dictbuf);
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__status
+wuffs_brotli__decoder__report_metadata(
+    wuffs_brotli__decoder* self,
+    wuffs_base__io_buffer* a_dst,
+    wuffs_base__io_buffer* a_src);
 
 WUFFS_BASE__GENERATED_C_CODE
 static wuffs_base__empty_struct
@@ -81135,6 +81160,8 @@ wuffs_brotli__decoder__get_quirk(
 
   if ((a_key == 716673024u) && self->private_impl.f_quirk_large_window) {
     return 1u;
+  } else if ((a_key == 716673034u) && self->private_impl.f_quirk_report_metadata) {
+    return 1u;
   }
   return 0u;
 }
@@ -81163,8 +81190,31 @@ wuffs_brotli__decoder__set_quirk(
     }
     self->private_impl.f_quirk_large_window = (a_value > 0u);
     return wuffs_base__make_status(NULL);
+  } else if (a_key == 716673034u) {
+    if (self->private_impl.f_started) {
+      return wuffs_base__make_status(wuffs_base__error__bad_call_sequence);
+    }
+    self->private_impl.f_quirk_report_metadata = (a_value > 0u);
+    return wuffs_base__make_status(NULL);
   }
   return wuffs_base__make_status(wuffs_base__error__unsupported_option);
+}
+
+// -------- func brotli.decoder.metadata_length
+
+WUFFS_BASE__GENERATED_C_CODE
+WUFFS_BASE__MAYBE_STATIC uint64_t
+wuffs_brotli__decoder__metadata_length(
+    const wuffs_brotli__decoder* self) {
+  if (!self) {
+    return 0;
+  }
+  if ((self->private_impl.magic != WUFFS_BASE__MAGIC) &&
+      (self->private_impl.magic != WUFFS_BASE__DISABLED)) {
+    return 0;
+  }
+
+  return ((uint64_t)(self->private_impl.f_md_length));
 }
 
 // -------- func brotli.decoder.dst_history_retain_length
@@ -81249,7 +81299,11 @@ wuffs_brotli__decoder__transform_io(
         goto exit;
       }
       {
-        wuffs_base__status t_0 = wuffs_brotli__decoder__do_transform_io(self, a_src, wuffs_base__slice_u8__subslice_i(a_workbuf, self->private_impl.f_dict_total), wuffs_base__slice_u8__subslice_j(a_workbuf, self->private_impl.f_dict_total));
+        wuffs_base__status t_0 = wuffs_brotli__decoder__do_transform_io(self,
+            a_dst,
+            a_src,
+            wuffs_base__slice_u8__subslice_i(a_workbuf, self->private_impl.f_dict_total),
+            wuffs_base__slice_u8__subslice_j(a_workbuf, self->private_impl.f_dict_total));
         v_status = t_0;
       }
       if (self->private_impl.f_dict_total > ((uint64_t)(a_workbuf.len))) {
@@ -81270,7 +81324,11 @@ wuffs_brotli__decoder__transform_io(
         status = wuffs_base__make_status(NULL);
         goto ok;
       } else if (v_status.repr == wuffs_base__suspension__short_write) {
-        if (wuffs_brotli__decoder__is_fully_flushed(self)) {
+        if (self->private_impl.f_md_note_pending) {
+          self->private_impl.f_md_note_pending = false;
+          status = wuffs_base__make_status(wuffs_base__note__metadata_reported);
+          goto ok;
+        } else if (wuffs_brotli__decoder__is_fully_flushed(self) &&  ! self->private_impl.f_md_copying) {
           continue;
         }
       } else if (v_status.repr == wuffs_base__suspension__short_read) {
@@ -81367,6 +81425,7 @@ WUFFS_BASE__GENERATED_C_CODE
 static wuffs_base__status
 wuffs_brotli__decoder__do_transform_io(
     wuffs_brotli__decoder* self,
+    wuffs_base__io_buffer* a_dst,
     wuffs_base__io_buffer* a_src,
     wuffs_base__slice_u8 a_workbuf,
     wuffs_base__slice_u8 a_dictbuf) {
@@ -81435,15 +81494,29 @@ wuffs_brotli__decoder__do_transform_io(
         }
       }
       if (self->private_impl.f_is_metadata) {
-        self->private_data.s_do_transform_io.scratch = ((uint64_t)(self->private_impl.f_mb_remaining));
-        WUFFS_BASE__COROUTINE_SUSPENSION_POINT(3);
-        if (self->private_data.s_do_transform_io.scratch > ((uint64_t)(io2_a_src - iop_a_src))) {
-          self->private_data.s_do_transform_io.scratch -= ((uint64_t)(io2_a_src - iop_a_src));
-          iop_a_src = io2_a_src;
-          status = wuffs_base__make_status(wuffs_base__suspension__short_read);
-          goto suspend;
+        if (self->private_impl.f_quirk_report_metadata) {
+          if (a_src) {
+            a_src->meta.ri = ((size_t)(iop_a_src - a_src->data.ptr));
+          }
+          WUFFS_BASE__COROUTINE_SUSPENSION_POINT(3);
+          status = wuffs_brotli__decoder__report_metadata(self, a_dst, a_src);
+          if (a_src) {
+            iop_a_src = a_src->data.ptr + a_src->meta.ri;
+          }
+          if (status.repr) {
+            goto suspend;
+          }
+        } else {
+          self->private_data.s_do_transform_io.scratch = ((uint64_t)(self->private_impl.f_mb_remaining));
+          WUFFS_BASE__COROUTINE_SUSPENSION_POINT(4);
+          if (self->private_data.s_do_transform_io.scratch > ((uint64_t)(io2_a_src - iop_a_src))) {
+            self->private_data.s_do_transform_io.scratch -= ((uint64_t)(io2_a_src - iop_a_src));
+            iop_a_src = io2_a_src;
+            status = wuffs_base__make_status(wuffs_base__suspension__short_read);
+            goto suspend;
+          }
+          iop_a_src += self->private_data.s_do_transform_io.scratch;
         }
-        iop_a_src += self->private_data.s_do_transform_io.scratch;
         self->private_impl.f_mb_remaining = 0u;
       } else if (self->private_impl.f_mb_remaining > 0u) {
         wuffs_brotli__decoder__calculate_ring_buffer_size(self);
@@ -81451,7 +81524,7 @@ wuffs_brotli__decoder__do_transform_io(
           if (a_src) {
             a_src->meta.ri = ((size_t)(iop_a_src - a_src->data.ptr));
           }
-          WUFFS_BASE__COROUTINE_SUSPENSION_POINT(4);
+          WUFFS_BASE__COROUTINE_SUSPENSION_POINT(5);
           status = wuffs_brotli__decoder__copy_uncompressed(self, a_src, a_workbuf);
           if (a_src) {
             iop_a_src = a_src->data.ptr + a_src->meta.ri;
@@ -81463,7 +81536,7 @@ wuffs_brotli__decoder__do_transform_io(
           if (a_src) {
             a_src->meta.ri = ((size_t)(iop_a_src - a_src->data.ptr));
           }
-          WUFFS_BASE__COROUTINE_SUSPENSION_POINT(5);
+          WUFFS_BASE__COROUTINE_SUSPENSION_POINT(6);
           status = wuffs_brotli__decoder__decode_compressed_metablock(self, a_src, a_workbuf, a_dictbuf);
           if (a_src) {
             iop_a_src = a_src->data.ptr + a_src->meta.ri;
@@ -81500,6 +81573,92 @@ wuffs_brotli__decoder__do_transform_io(
 
   goto exit;
   exit:
+  if (a_src && a_src->data.ptr) {
+    a_src->meta.ri = ((size_t)(iop_a_src - a_src->data.ptr));
+  }
+
+  return status;
+}
+
+// -------- func brotli.decoder.report_metadata
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__status
+wuffs_brotli__decoder__report_metadata(
+    wuffs_brotli__decoder* self,
+    wuffs_base__io_buffer* a_dst,
+    wuffs_base__io_buffer* a_src) {
+  wuffs_base__status status = wuffs_base__make_status(NULL);
+
+  uint32_t v_n = 0;
+
+  uint8_t* iop_a_dst = NULL;
+  uint8_t* io0_a_dst WUFFS_BASE__POTENTIALLY_UNUSED = NULL;
+  uint8_t* io1_a_dst WUFFS_BASE__POTENTIALLY_UNUSED = NULL;
+  uint8_t* io2_a_dst WUFFS_BASE__POTENTIALLY_UNUSED = NULL;
+  if (a_dst && a_dst->data.ptr) {
+    io0_a_dst = a_dst->data.ptr;
+    io1_a_dst = io0_a_dst + a_dst->meta.wi;
+    iop_a_dst = io1_a_dst;
+    io2_a_dst = io0_a_dst + a_dst->data.len;
+    if (a_dst->meta.closed) {
+      io2_a_dst = iop_a_dst;
+    }
+  }
+  const uint8_t* iop_a_src = NULL;
+  const uint8_t* io0_a_src WUFFS_BASE__POTENTIALLY_UNUSED = NULL;
+  const uint8_t* io1_a_src WUFFS_BASE__POTENTIALLY_UNUSED = NULL;
+  const uint8_t* io2_a_src WUFFS_BASE__POTENTIALLY_UNUSED = NULL;
+  if (a_src && a_src->data.ptr) {
+    io0_a_src = a_src->data.ptr;
+    io1_a_src = io0_a_src + a_src->meta.ri;
+    iop_a_src = io1_a_src;
+    io2_a_src = io0_a_src + a_src->meta.wi;
+  }
+
+  uint32_t coro_susp_point = self->private_impl.p_report_metadata;
+  switch (coro_susp_point) {
+    WUFFS_BASE__COROUTINE_SUSPENSION_POINT_0;
+
+    while ( ! wuffs_brotli__decoder__is_fully_flushed(self)) {
+      status = wuffs_base__make_status(wuffs_base__suspension__short_write);
+      WUFFS_BASE__COROUTINE_SUSPENSION_POINT_MAYBE_SUSPEND(1);
+    }
+    self->private_impl.f_md_length = wuffs_base__u32__min(self->private_impl.f_mb_remaining, 16777216u);
+    self->private_impl.f_md_note_pending = true;
+    status = wuffs_base__make_status(wuffs_base__suspension__short_write);
+    WUFFS_BASE__COROUTINE_SUSPENSION_POINT_MAYBE_SUSPEND(2);
+    self->private_impl.f_md_copying = true;
+    while (self->private_impl.f_mb_remaining > 0u) {
+      if (((uint64_t)(io2_a_dst - iop_a_dst)) <= 0u) {
+        status = wuffs_base__make_status(wuffs_base__suspension__short_write);
+        WUFFS_BASE__COROUTINE_SUSPENSION_POINT_MAYBE_SUSPEND(3);
+        continue;
+      } else if (((uint64_t)(io2_a_src - iop_a_src)) <= 0u) {
+        status = wuffs_base__make_status(wuffs_base__suspension__short_read);
+        WUFFS_BASE__COROUTINE_SUSPENSION_POINT_MAYBE_SUSPEND(4);
+        continue;
+      }
+      v_n = wuffs_private_impl__io_writer__limited_copy_u32_from_reader(
+          &iop_a_dst, io2_a_dst,((uint32_t)(self->private_impl.f_mb_remaining)), &iop_a_src, io2_a_src);
+      self->private_impl.f_mb_remaining -= v_n;
+    }
+    self->private_impl.f_md_copying = false;
+
+    ok:
+    self->private_impl.p_report_metadata = 0;
+    goto exit;
+  }
+
+  goto suspend;
+  suspend:
+  self->private_impl.p_report_metadata = wuffs_base__status__is_suspension(&status) ? coro_susp_point : 0;
+
+  goto exit;
+  exit:
+  if (a_dst && a_dst->data.ptr) {
+    a_dst->meta.wi = ((size_t)(iop_a_dst - a_dst->data.ptr));
+  }
   if (a_src && a_src->data.ptr) {
     a_src->meta.ri = ((size_t)(iop_a_src - a_src->data.ptr));
   }
