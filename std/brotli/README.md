@@ -440,8 +440,9 @@ as well as round trips through the decoder.
 file in `test/data/brotli`, some larger files in `test/data` (up to about
 400 KiB) and some synthetic inputs (up to 1 MiB). Its `-q=LO-HI` and
 `-shard=K/N` options select the qualities and split the inputs over several
-processes. For qualities 0 and 1 that is about 86 thousand configurations
-and for qualities 2 to 9 several hundred thousand, all byte-exact.
+processes. With `-q=0-9` (the default) it runs 718,555 configurations
+(about 86 thousand of them at qualities 0 and 1), all byte-exact against
+libbrotlienc v1.2.1 on x86-64.
 
 
 ### Encoder Differences from the C Code
