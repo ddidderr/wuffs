@@ -848,6 +848,9 @@ encode_wuffs(const enc_config* c, const dict_set* dicts, const uint8_t* src_ptr,
       goto cleanup;
     }
   }
+  if ((wlen > ENC_WB_CAP) && !c->short_workbuf && (r.min_incl <= ENC_WB_CAP)) {
+    wlen = ENC_WB_CAP;
+  }
   if (wlen > ENC_WB_CAP) {
     ret = g_too_large;
     goto cleanup;
@@ -1929,9 +1932,482 @@ main(int argc, char** argv) {
   return 2;
 }
 
+// pick_quality picks a quality in [g_qmin ..= g_qmax], weighted towards the
+// faster qualities.
+static uint32_t  //
+pick_quality(void) {
+  for (int tries = 0; tries < 100; tries++) {
+    uint64_t r = rn(1000);
+    uint32_t q;
+    if (r < 550) {
+      q = (uint32_t)rn(5);
+    } else if (r < 930) {
+      q = 5 + (uint32_t)rn(5);
+    } else {
+      q = 10 + (uint32_t)rn(2);
+    }
+    if ((g_qmin <= q) && (q <= g_qmax)) {
+      return q;
+    }
+  }
+  return g_qmin + (uint32_t)rn(g_qmax - g_qmin + 1);
+}
+
+static uint32_t  //
+weird_u32(void) {
+  static const uint32_t v[] = {0, 1, 2, 9, 31, 32, 255, 0x7FFFFFFF, 0x80000000,
+                               0xFFFFFFFE, 0xFFFFFFFF};
+  if (chance(500)) {
+    return v[rn(sizeof v / sizeof v[0])];
+  }
+  return (uint32_t)r64();
+}
+
+static void  //
+shuffle_params(enc_config* c) {
+  for (size_t i = c->num_params; i > 1; i--) {
+    size_t j = (size_t)rn(i);
+    uint32_t k = c->keys[i - 1];
+    uint32_t v = c->values[i - 1];
+    c->keys[i - 1] = c->keys[j];
+    c->values[i - 1] = c->values[j];
+    c->keys[j] = k;
+    c->values[j] = v;
+  }
+}
+
+static uint64_t g_enc_configs;
+static uint64_t g_enc_by_quality[12];
+static uint64_t g_enc_bytes_in;
+static uint64_t g_enc_both_rejected;
+static uint64_t g_enc_skipped;
+static uint64_t g_enc_roundtrips;
+static uint64_t g_enc_with_dicts;
+static uint64_t g_enc_lw;
+static uint64_t g_enc_short_checks;
+static uint64_t g_enc_wb_extra;
+static uint64_t g_enc_metadata;
+static uint64_t g_enc_flushes;
+static uint64_t g_enc_dst_limited;
+static uint64_t g_enc_stream_offset;
+static uint64_t g_enc_len_hist[5];
+static double g_enc_time[3];  // C encoder, Wuffs encoder, round trips.
+
+static double  //
+now_secs(void) {
+  struct timespec t;
+  clock_gettime(CLOCK_MONOTONIC, &t);
+  return (double)t.tv_sec + 1e-9 * (double)t.tv_nsec;
+}  // <=64Ki, <=256Ki, <=1Mi, <=4Mi, more.
+
+static void  //
+describe_enc(char* buf, size_t cap, const char* what, const enc_config* c,
+             const dict_set* ds, size_t input_len, size_t src_len) {
+  int k = snprintf(buf, cap, "%s: input_len=%zu src_len=%zu params:", what,
+                   input_len, src_len);
+  for (size_t j = 0; j < c->num_params; j++) {
+    k += snprintf(buf + k, cap - (size_t)k, " p%u=%u", c->keys[j], c->values[j]);
+  }
+  k += snprintf(buf + k, cap - (size_t)k,
+                " dst_chunk=%zu%s dst_seed=0x%" PRIX64 " workbuf_extra=%" PRIu64
+                " short_workbuf=%d dicts=%zu:",
+                c->dst_chunk, c->dst_chunk_rand ? "(rand)" : "", c->dst_seed,
+                c->workbuf_extra, (int)c->short_workbuf, ds->n);
+  for (size_t j = 0; (j < ds->n) && ((size_t)k < (cap - 64)); j++) {
+    k += snprintf(buf + k, cap - (size_t)k, " %zu", ds->d[j].len);
+  }
+  k += snprintf(buf + k, cap - (size_t)k, " steps=%zu:", c->num_steps);
+  for (size_t j = 0; (j < c->num_steps) && ((size_t)k < (cap - 64)); j++) {
+    k += snprintf(buf + k, cap - (size_t)k, " %c%zu", "PFXM"[c->step_ops[j]],
+                  c->step_lens[j]);
+  }
+  snprintf(buf + k, cap - (size_t)k, "\n");
+}
+
+// save_enc_failure saves the input (the plan's source, including any
+// metadata), the dictionaries and a description.
+static void  //
+save_enc_failure(const char* what, const enc_config* c, const dict_set* ds,
+                 const uint8_t* src, size_t src_len, size_t input_len) {
+  static char desc[1 << 16];
+  describe_enc(desc, sizeof desc, what, c, ds, input_len, src_len);
+  save_failure("enc", desc, src, src_len, ds);
+}
+
+// roundtrip_dec decodes stream with both decoders and checks that the result
+// is want.
+static const char*  //
+roundtrip_dec(const uint8_t* stream, size_t stream_len, const uint8_t* want,
+              size_t want_len, bool lw, const dict_set* ds, uint8_t* out) {
+  dec_config dc;
+  memset(&dc, 0, sizeof dc);
+  dc.large_window = lw;
+  dc.dicts = *ds;  // Not owned.
+  dc.out_cap = want_len;
+  dc.uninit = chance(500);
+  chunking ch;
+  memset(&ch, 0, sizeof ch);
+  ch.one_shot = chance(800);
+  ch.in_seed = r64();
+  ch.out_seed = r64();
+  ch.in_style = 2 + (int)rn(2);
+  ch.out_style = 2 + (int)rn(2);
+  size_t attached = 0;
+  dec_result c = c_decode(&dc, &ch, stream, stream_len, out, &attached);
+  if (c.cls != CLS_OK) {
+    return "libbrotlidec round trip failed";
+  } else if ((c.out_n != want_len) || (want_len && memcmp(out, want, want_len))) {
+    return "libbrotlidec round trip mismatch";
+  } else if (c.in_used != stream_len) {
+    return "libbrotlidec did not consume the whole stream";
+  }
+  size_t n_ok = 0;
+  if (wuffs_attach(g_dec, &dc, &n_ok)) {
+    return "Wuffs add_dictionary failed";
+  }
+  dc.wb_len = wuffs_brotli__decoder__workbuf_len(g_dec).max_incl;
+  if (dc.wb_len > DEC_WB_CAP) {
+    return "decoder workbuf_len is too large";
+  }
+  dec_result w = wuffs_decode(&dc, &ch, stream, stream_len, out);
+  if (w.cls != CLS_OK) {
+    return "Wuffs decoder round trip failed";
+  } else if ((w.out_n != want_len) || (want_len && memcmp(out, want, want_len))) {
+    return "Wuffs decoder round trip mismatch";
+  } else if (w.in_used != stream_len) {
+    return "Wuffs decoder did not consume the whole stream";
+  }
+  return NULL;
+}
+
 static int  //
 run_enc(uint64_t iters, double secs) {
-  (void)iters;
-  (void)secs;
-  return 2;
+  load_corpus();
+  load_dicts();
+  g_dec_wb = big_alloc(DEC_WB_CAP);
+  g_enc_wb = big_alloc(ENC_WB_CAP);
+  g_dec = (wuffs_brotli__decoder*)xmalloc(sizeof__wuffs_brotli__decoder());
+  const size_t in_cap = (4 << 20) + (40 << 20);
+  uint8_t* input = xmalloc(in_cap);
+  uint8_t* src = xmalloc(in_cap);
+  const size_t out_cap = in_cap + (1 << 20);
+  uint8_t* have = xmalloc(out_cap);
+  uint8_t* want = xmalloc(out_cap);
+  uint8_t* dec_out = xmalloc(in_cap);
+  enc_config c;
+  memset(&c, 0, sizeof c);
+
+  struct timespec t0;
+  clock_gettime(CLOCK_MONOTONIC, &t0);
+  uint64_t it = 0;
+  for (; it < iters; it++) {
+    if ((it & 15) == 0) {
+      struct timespec t1;
+      clock_gettime(CLOCK_MONOTONIC, &t1);
+      double elapsed = (double)(t1.tv_sec - t0.tv_sec) +
+                       1e-9 * (double)(t1.tv_nsec - t0.tv_nsec);
+      if ((secs > 0) && (elapsed > secs)) {
+        break;
+      }
+    }
+    if (g_enc_wb_touched > ((size_t)512 << 20)) {
+      big_release(g_enc_wb, ENC_WB_CAP);
+      big_release(g_dec_wb, DEC_WB_CAP);
+      g_enc_wb_touched = 0;
+    }
+
+    // Parameters.
+    c.num_params = 0;
+    c.num_steps = 0;
+    uint32_t q = pick_quality();
+    bool hq = q >= 10;
+    if (chance(990) || (q != 11)) {
+      enc_add_param(&c, 1, q);
+    }  // Otherwise the default quality, 11.
+    bool lw = chance(200);
+    if (lw) {
+      enc_add_param(&c, 6, chance(900) ? 1 : (uint32_t)(1 + rn(0xFFFFFFFE)));
+    }
+    uint32_t lgwin = 22;
+    {
+      uint64_t r = rn(1000);
+      if (r < 700) {
+        lgwin = 10 + (uint32_t)rn(15);
+        enc_add_param(&c, 2, lgwin);
+      } else if (r < 850) {
+        lgwin = 10 + (uint32_t)rn(hq ? 18 : 21);
+        enc_add_param(&c, 2, lgwin);
+      } else if (r < 900) {
+        lgwin = weird_u32();
+        if (hq && lw && (lgwin > 27) && (lgwin < 0x80000000)) {
+          lgwin = 27;
+        }
+        enc_add_param(&c, 2, lgwin);
+      }  // Otherwise the default lgwin, 22.
+    }
+    if (chance(400)) {
+      enc_add_param(&c, 3, chance(800) ? 16 + (uint32_t)rn(9)
+                                       : (chance(500) ? (uint32_t)rn(31)
+                                                      : weird_u32()));
+    }
+    if (chance(300)) {
+      enc_add_param(&c, 0, chance(950) ? (uint32_t)rn(3) : weird_u32());
+    }
+    if (chance(500)) {
+      uint64_t r = rn(3);
+      enc_add_param(&c, 5, (r == 0) ? 0 : (r == 1) ? 0xFFFFFFFF : weird_u32());
+    }
+    if (chance(300)) {
+      uint32_t np = chance(950) ? (uint32_t)rn(4) : (uint32_t)rn(8);
+      uint32_t nd = chance(900) ? ((uint32_t)rn(16) << np) : (uint32_t)rn(200);
+      enc_add_param(&c, 7, np);
+      enc_add_param(&c, 8, nd);
+    }
+    if (chance(200)) {
+      enc_add_param(&c, 4, (uint32_t)rn(2));
+    }
+    bool stream_offset = false;
+    if (chance(80)) {
+      uint32_t v = chance(500) ? (uint32_t)rn(100000)
+                               : (uint32_t)rn((1u << 30) + 1);
+      if (chance(100)) {
+        v = (1u << 30) + (uint32_t)rn(2);  // 1 << 30 is OK, one more is not.
+      }
+      enc_add_param(&c, 9, v);
+      stream_offset = v != 0;
+    }
+    shuffle_params(&c);
+
+    // Input.
+    size_t len = pick_len(chance(800)  ? (64 << 10)
+                          : hq          ? (chance(900) ? (256 << 10) : (1 << 20))
+                                        : (4 << 20));
+    gen_input(input, len);
+    // Exact size hints.
+    for (size_t j = 0; j < c.num_params; j++) {
+      if ((c.keys[j] == 5) && (c.values[j] == 0xFFFFFFFF) && chance(900)) {
+        c.values[j] = (uint32_t)len;
+      }
+    }
+
+    // Dictionaries.
+    dict_set ds = {0};
+    if ((!hq || g_hq_dicts) && chance(250)) {
+      size_t k = pick_num_dicts();
+      k = (k == 0) ? 1 : (k > 15) ? 15 : k;
+      random_raw_dicts(&ds, k, input, len);
+    }
+
+    // The plan.
+    c.dst_chunk = 0;
+    c.dst_chunk_rand = false;
+    c.dst_seed = r64();
+    {
+      uint64_t r = rn(1000);
+      if ((r < 100) && (len <= (256 << 10))) {
+        c.dst_chunk = 1 + rn(7);
+      } else if (r < 200) {
+        c.dst_chunk = 1 + rn(chance(500) ? 64 : 70000);
+        c.dst_chunk_rand = chance(500);
+      }
+    }
+    int chunk_style = (int)rn(6);
+    if ((chunk_style == 1) && (len > 4096)) {
+      chunk_style = 2;
+    }
+    if ((chunk_style == 2) && (len > (256 << 10))) {
+      chunk_style = 3;
+    }
+    bool flush_every = chance(50);
+    uint32_t flush_rate = chance(300) ? (uint32_t)rn(300) : 0;
+    uint32_t meta_rate = chance(150) ? (uint32_t)rn(100) : 0;
+    size_t src_len = 0;
+    size_t i = 0;
+    bool any_meta = false;
+    bool any_flush = false;
+    while (true) {
+      if (meta_rate && chance(meta_rate)) {
+        uint64_t r = rn(1000);
+        size_t m = (r < 300) ? 0
+                   : (r < 500) ? 1
+                   : (r < 900) ? rn(300)
+                   : (r < 995) ? rn(70000)
+                               : ((1 << 24) - 1 + rn(2));
+        if ((src_len + m + (len - i)) > in_cap) {
+          m = 0;
+        }
+        for (size_t j = 0; j < m; j++) {
+          src[src_len + j] = (uint8_t)r64();
+        }
+        src_len += m;
+        enc_add_step(&c, OP_EMIT_METADATA, m);
+        any_meta = true;
+      }
+      size_t k;
+      switch (chunk_style) {
+        case 0:
+          k = len - i;
+          break;
+        case 1:
+          k = 1;
+          break;
+        case 2:
+          k = 1 + rn(7);
+          break;
+        case 3:
+          k = 1 + rn(chance(900) ? 300 : 70000);
+          break;
+        case 4:
+          k = rn(chance(900) ? 5000 : (1 << 20));  // Can be 0.
+          break;
+        default:
+          k = rn(len + 1);
+          break;
+      }
+      if (k > (len - i)) {
+        k = len - i;
+      }
+      memcpy(src + src_len, input + i, k);
+      src_len += k;
+      i += k;
+      bool last = (i == len) && (chance(800) || (c.num_steps > 100000));
+      if (last) {
+        enc_add_step(&c, OP_FINISH, k);
+        break;
+      } else if (flush_every || (flush_rate && chance(flush_rate))) {
+        enc_add_step(&c, OP_FLUSH, k);
+        any_flush = true;
+      } else {
+        enc_add_step(&c, OP_PROCESS, k);
+      }
+    }
+    if (hq && chance(500)) {
+      uint64_t r = rn(3);
+      c.workbuf_extra = (r == 0) ? rn(1 << 20)
+                        : (r == 1) ? rn((uint64_t)1 << 32)
+                                   : UINT64_MAX;
+    } else {
+      c.workbuf_extra = 0;
+    }
+    c.short_workbuf = (q >= 2) && chance(50);
+
+    g_enc_configs++;
+    g_enc_by_quality[q]++;
+    g_enc_bytes_in += len;
+    g_enc_len_hist[(len <= (64 << 10))    ? 0
+                   : (len <= (256 << 10)) ? 1
+                   : (len <= (1 << 20))   ? 2
+                   : (len <= (4 << 20))   ? 3
+                                          : 4]++;
+    g_enc_with_dicts += (ds.n > 0);
+    g_enc_lw += lw;
+    g_enc_metadata += any_meta;
+    g_enc_flushes += any_flush;
+    g_enc_dst_limited += (c.dst_chunk > 0);
+    g_enc_stream_offset += stream_offset;
+    g_enc_wb_extra += (c.workbuf_extra > 0);
+
+    size_t have_len = 0;
+    size_t want_len = 0;
+    uint64_t wlen = 0;
+    double tt0 = now_secs();
+    const char* want_err = encode_c(&c, &ds, src, want, out_cap, &want_len);
+    double tt1 = now_secs();
+    const char* have_err = encode_wuffs(&c, &ds, src, src_len, len, have,
+                                        out_cap, &have_len, 0, &wlen);
+    double tt2 = now_secs();
+    g_enc_time[0] += tt1 - tt0;
+    g_enc_time[1] += tt2 - tt1;
+    if (have_err == g_too_large) {
+      g_enc_skipped++;
+      if (getenv("BFUZZ_VERBOSE")) {
+        static char desc[1 << 16];
+        describe_enc(desc, sizeof desc, "skipped", &c, &ds, len, src_len);
+        printf("%s", desc);
+      }
+      dict_set_free(&ds);
+      continue;
+    }
+    if (have_err || want_err) {
+      bool both_rejected =
+          have_err && want_err &&
+          (have_err == wuffs_base__error__bad_argument) &&
+          !strcmp(want_err, "BrotliEncoderSetParameter failed");
+      if (both_rejected) {
+        g_enc_both_rejected++;
+      } else {
+        char what[512];
+        snprintf(what, sizeof what, "errors: wuffs \"%s\", C \"%s\"",
+                 have_err ? have_err : "", want_err ? want_err : "");
+        save_enc_failure(what, &c, &ds, src, src_len, len);
+      }
+      dict_set_free(&ds);
+      continue;
+    }
+    if ((have_len != want_len) || memcmp(have, want, have_len)) {
+      size_t j = 0;
+      while ((j < have_len) && (j < want_len) && (have[j] == want[j])) {
+        j++;
+      }
+      char what[512];
+      snprintf(what, sizeof what,
+               "output mismatch: lengths %zu (wuffs) vs %zu (C), first "
+               "difference at %zu",
+               have_len, want_len, j);
+      save_enc_failure(what, &c, &ds, src, src_len, len);
+      dict_set_free(&ds);
+      continue;
+    }
+    if (c.short_workbuf) {
+      // One byte less than the shortest workbuf must fail.
+      size_t n2 = 0;
+      uint64_t wlen2 = 0;
+      const char* err2 = encode_wuffs(&c, &ds, src, src_len, len, have,
+                                      out_cap, &n2, 1, &wlen2);
+      if (err2 != (const char*)"no short workbuf") {
+        g_enc_short_checks++;
+        if (err2 != wuffs_base__error__bad_workbuf_length) {
+          char what[512];
+          snprintf(what, sizeof what,
+                   "a workbuf of %" PRIu64 " bytes did not fail: %s", wlen2,
+                   err2 ? err2 : "ok");
+          save_enc_failure(what, &c, &ds, src, src_len, len);
+        }
+      }
+    }
+    if (!stream_offset) {
+      g_enc_roundtrips++;
+      double tt3 = now_secs();
+      const char* err = roundtrip_dec(want, want_len, input, len, lw, &ds,
+                                      dec_out);
+      g_enc_time[2] += now_secs() - tt3;
+      if (err) {
+        save_enc_failure(err, &c, &ds, src, src_len, len);
+      }
+    }
+    dict_set_free(&ds);
+  }
+
+  printf("encoder campaign: seed=%" PRIu64 " q=%u-%u configs=%" PRIu64
+         " failures=%" PRIu64 " skipped(workbuf>3GiB)=%" PRIu64
+         " both_rejected=%" PRIu64 " roundtrips=%" PRIu64 "\n",
+         g_seed, g_qmin, g_qmax, g_enc_configs, g_num_failures, g_enc_skipped,
+         g_enc_both_rejected, g_enc_roundtrips);
+  printf("  by quality:");
+  for (int q = 0; q < 12; q++) {
+    printf(" q%d=%" PRIu64, q, g_enc_by_quality[q]);
+  }
+  printf("\n  input bytes=%" PRIu64 " lengths: <=64Ki=%" PRIu64
+         " <=256Ki=%" PRIu64 " <=1Mi=%" PRIu64 " <=4Mi=%" PRIu64 "\n",
+         g_enc_bytes_in, g_enc_len_hist[0], g_enc_len_hist[1],
+         g_enc_len_hist[2], g_enc_len_hist[3]);
+  printf("  with dicts=%" PRIu64 " large window=%" PRIu64 " metadata=%" PRIu64
+         " flushes=%" PRIu64 " dst limited=%" PRIu64 " stream offset=%" PRIu64
+         " workbuf above min=%" PRIu64 " short workbuf checks=%" PRIu64 "\n",
+         g_enc_with_dicts, g_enc_lw, g_enc_metadata, g_enc_flushes,
+         g_enc_dst_limited, g_enc_stream_offset, g_enc_wb_extra,
+         g_enc_short_checks);
+  printf("  seconds: C encoder %.1f, Wuffs encoder %.1f, round trips %.1f\n",
+         g_enc_time[0], g_enc_time[1], g_enc_time[2]);
+  return g_num_failures ? 1 : 0;
 }
