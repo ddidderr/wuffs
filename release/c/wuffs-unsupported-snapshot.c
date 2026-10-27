@@ -41205,6 +41205,13 @@ wuffs_softfloat__arith__f64_propagate_nan(
     uint64_t a_b);
 
 WUFFS_BASE__GENERATED_C_CODE
+static uint32_t
+wuffs_softfloat__arith__f64_cmp_slow(
+    const wuffs_softfloat__arith* self,
+    uint64_t a_a,
+    uint64_t a_b);
+
+WUFFS_BASE__GENERATED_C_CODE
 static uint64_t
 wuffs_softfloat__arith__f64_add_normal(
     const wuffs_softfloat__arith* self,
@@ -41266,6 +41273,13 @@ wuffs_softfloat__arith__slow_f32_sub(
 WUFFS_BASE__GENERATED_C_CODE
 static uint32_t
 wuffs_softfloat__arith__slow_f32_mul(
+    const wuffs_softfloat__arith* self,
+    uint32_t a_a,
+    uint32_t a_b);
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint32_t
+wuffs_softfloat__arith__f32_cmp_slow(
     const wuffs_softfloat__arith* self,
     uint32_t a_a,
     uint32_t a_b);
@@ -41668,6 +41682,25 @@ wuffs_softfloat__arith__f64_cmp(
     return 0;
   }
 
+  if ((a_a | a_b) <= 9218868437227405312u) {
+    if (a_a < a_b) {
+      return 0u;
+    } else if (a_a == a_b) {
+      return 1u;
+    }
+    return 2u;
+  }
+  return wuffs_softfloat__arith__f64_cmp_slow(self, a_a, a_b);
+}
+
+// -------- func softfloat.arith.f64_cmp_slow
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint32_t
+wuffs_softfloat__arith__f64_cmp_slow(
+    const wuffs_softfloat__arith* self,
+    uint64_t a_a,
+    uint64_t a_b) {
   uint64_t v_ka = 0;
   uint64_t v_kb = 0;
 
@@ -41708,7 +41741,13 @@ wuffs_softfloat__arith__f64_eq(
     return 0;
   }
 
-  if (wuffs_softfloat__arith__f64_cmp(self, a_a, a_b) == 1u) {
+  if ((a_a | a_b) <= 9218868437227405312u) {
+    if (a_a == a_b) {
+      return 1u;
+    }
+    return 0u;
+  }
+  if (wuffs_softfloat__arith__f64_cmp_slow(self, a_a, a_b) == 1u) {
     return 1u;
   }
   return 0u;
@@ -41730,7 +41769,13 @@ wuffs_softfloat__arith__f64_ne(
     return 0;
   }
 
-  if (wuffs_softfloat__arith__f64_cmp(self, a_a, a_b) == 1u) {
+  if ((a_a | a_b) <= 9218868437227405312u) {
+    if (a_a != a_b) {
+      return 1u;
+    }
+    return 0u;
+  }
+  if (wuffs_softfloat__arith__f64_cmp_slow(self, a_a, a_b) == 1u) {
     return 0u;
   }
   return 1u;
@@ -41752,7 +41797,13 @@ wuffs_softfloat__arith__f64_lt(
     return 0;
   }
 
-  if (wuffs_softfloat__arith__f64_cmp(self, a_a, a_b) == 0u) {
+  if ((a_a | a_b) <= 9218868437227405312u) {
+    if (a_a < a_b) {
+      return 1u;
+    }
+    return 0u;
+  }
+  if (wuffs_softfloat__arith__f64_cmp_slow(self, a_a, a_b) == 0u) {
     return 1u;
   }
   return 0u;
@@ -41774,7 +41825,13 @@ wuffs_softfloat__arith__f64_le(
     return 0;
   }
 
-  if (wuffs_softfloat__arith__f64_cmp(self, a_a, a_b) <= 1u) {
+  if ((a_a | a_b) <= 9218868437227405312u) {
+    if (a_a <= a_b) {
+      return 1u;
+    }
+    return 0u;
+  }
+  if (wuffs_softfloat__arith__f64_cmp_slow(self, a_a, a_b) <= 1u) {
     return 1u;
   }
   return 0u;
@@ -41796,7 +41853,13 @@ wuffs_softfloat__arith__f64_gt(
     return 0;
   }
 
-  if (wuffs_softfloat__arith__f64_cmp(self, a_a, a_b) == 2u) {
+  if ((a_a | a_b) <= 9218868437227405312u) {
+    if (a_a > a_b) {
+      return 1u;
+    }
+    return 0u;
+  }
+  if (wuffs_softfloat__arith__f64_cmp_slow(self, a_a, a_b) == 2u) {
     return 1u;
   }
   return 0u;
@@ -41820,7 +41883,13 @@ wuffs_softfloat__arith__f64_ge(
 
   uint32_t v_c = 0;
 
-  v_c = wuffs_softfloat__arith__f64_cmp(self, a_a, a_b);
+  if ((a_a | a_b) <= 9218868437227405312u) {
+    if (a_a >= a_b) {
+      return 1u;
+    }
+    return 0u;
+  }
+  v_c = wuffs_softfloat__arith__f64_cmp_slow(self, a_a, a_b);
   if ((v_c == 1u) || (v_c == 2u)) {
     return 1u;
   }
@@ -41843,7 +41912,13 @@ wuffs_softfloat__arith__f64_min(
     return 0;
   }
 
-  if (wuffs_softfloat__arith__f64_cmp(self, a_a, a_b) == 0u) {
+  if ((a_a | a_b) <= 9218868437227405312u) {
+    if (a_a < a_b) {
+      return a_a;
+    }
+    return a_b;
+  }
+  if (wuffs_softfloat__arith__f64_cmp_slow(self, a_a, a_b) == 0u) {
     return a_a;
   }
   return a_b;
@@ -41865,7 +41940,13 @@ wuffs_softfloat__arith__f64_max(
     return 0;
   }
 
-  if (wuffs_softfloat__arith__f64_cmp(self, a_a, a_b) == 2u) {
+  if ((a_a | a_b) <= 9218868437227405312u) {
+    if (a_a > a_b) {
+      return a_a;
+    }
+    return a_b;
+  }
+  if (wuffs_softfloat__arith__f64_cmp_slow(self, a_a, a_b) == 2u) {
     return a_a;
   }
   return a_b;
@@ -43057,6 +43138,25 @@ wuffs_softfloat__arith__f32_cmp(
     return 0;
   }
 
+  if ((a_a | a_b) <= 2139095040u) {
+    if (a_a < a_b) {
+      return 0u;
+    } else if (a_a == a_b) {
+      return 1u;
+    }
+    return 2u;
+  }
+  return wuffs_softfloat__arith__f32_cmp_slow(self, a_a, a_b);
+}
+
+// -------- func softfloat.arith.f32_cmp_slow
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint32_t
+wuffs_softfloat__arith__f32_cmp_slow(
+    const wuffs_softfloat__arith* self,
+    uint32_t a_a,
+    uint32_t a_b) {
   uint32_t v_ka = 0;
   uint32_t v_kb = 0;
 
@@ -43097,7 +43197,13 @@ wuffs_softfloat__arith__f32_eq(
     return 0;
   }
 
-  if (wuffs_softfloat__arith__f32_cmp(self, a_a, a_b) == 1u) {
+  if ((a_a | a_b) <= 2139095040u) {
+    if (a_a == a_b) {
+      return 1u;
+    }
+    return 0u;
+  }
+  if (wuffs_softfloat__arith__f32_cmp_slow(self, a_a, a_b) == 1u) {
     return 1u;
   }
   return 0u;
@@ -43119,7 +43225,13 @@ wuffs_softfloat__arith__f32_ne(
     return 0;
   }
 
-  if (wuffs_softfloat__arith__f32_cmp(self, a_a, a_b) == 1u) {
+  if ((a_a | a_b) <= 2139095040u) {
+    if (a_a != a_b) {
+      return 1u;
+    }
+    return 0u;
+  }
+  if (wuffs_softfloat__arith__f32_cmp_slow(self, a_a, a_b) == 1u) {
     return 0u;
   }
   return 1u;
@@ -43141,7 +43253,13 @@ wuffs_softfloat__arith__f32_lt(
     return 0;
   }
 
-  if (wuffs_softfloat__arith__f32_cmp(self, a_a, a_b) == 0u) {
+  if ((a_a | a_b) <= 2139095040u) {
+    if (a_a < a_b) {
+      return 1u;
+    }
+    return 0u;
+  }
+  if (wuffs_softfloat__arith__f32_cmp_slow(self, a_a, a_b) == 0u) {
     return 1u;
   }
   return 0u;
@@ -43163,7 +43281,13 @@ wuffs_softfloat__arith__f32_le(
     return 0;
   }
 
-  if (wuffs_softfloat__arith__f32_cmp(self, a_a, a_b) <= 1u) {
+  if ((a_a | a_b) <= 2139095040u) {
+    if (a_a <= a_b) {
+      return 1u;
+    }
+    return 0u;
+  }
+  if (wuffs_softfloat__arith__f32_cmp_slow(self, a_a, a_b) <= 1u) {
     return 1u;
   }
   return 0u;
@@ -43185,7 +43309,13 @@ wuffs_softfloat__arith__f32_gt(
     return 0;
   }
 
-  if (wuffs_softfloat__arith__f32_cmp(self, a_a, a_b) == 2u) {
+  if ((a_a | a_b) <= 2139095040u) {
+    if (a_a > a_b) {
+      return 1u;
+    }
+    return 0u;
+  }
+  if (wuffs_softfloat__arith__f32_cmp_slow(self, a_a, a_b) == 2u) {
     return 1u;
   }
   return 0u;
@@ -43209,7 +43339,13 @@ wuffs_softfloat__arith__f32_ge(
 
   uint32_t v_c = 0;
 
-  v_c = wuffs_softfloat__arith__f32_cmp(self, a_a, a_b);
+  if ((a_a | a_b) <= 2139095040u) {
+    if (a_a >= a_b) {
+      return 1u;
+    }
+    return 0u;
+  }
+  v_c = wuffs_softfloat__arith__f32_cmp_slow(self, a_a, a_b);
   if ((v_c == 1u) || (v_c == 2u)) {
     return 1u;
   }
@@ -43232,7 +43368,13 @@ wuffs_softfloat__arith__f32_min(
     return 0;
   }
 
-  if (wuffs_softfloat__arith__f32_cmp(self, a_a, a_b) == 0u) {
+  if ((a_a | a_b) <= 2139095040u) {
+    if (a_a < a_b) {
+      return a_a;
+    }
+    return a_b;
+  }
+  if (wuffs_softfloat__arith__f32_cmp_slow(self, a_a, a_b) == 0u) {
     return a_a;
   }
   return a_b;
@@ -43254,7 +43396,13 @@ wuffs_softfloat__arith__f32_max(
     return 0;
   }
 
-  if (wuffs_softfloat__arith__f32_cmp(self, a_a, a_b) == 2u) {
+  if ((a_a | a_b) <= 2139095040u) {
+    if (a_a > a_b) {
+      return a_a;
+    }
+    return a_b;
+  }
+  if (wuffs_softfloat__arith__f32_cmp_slow(self, a_a, a_b) == 2u) {
     return a_a;
   }
   return a_b;

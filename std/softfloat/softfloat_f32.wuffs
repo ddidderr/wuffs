@@ -334,6 +334,21 @@ pub func arith.f32_div(a: base.u32, b: base.u32) base.u32 {
 // f32_cmp compares a and b, returning 0 if (a < b), 1 if (a == b), 2 if (a
 // > b) and 3 if they are unordered (either is a NaN). -0 and +0 compare equal.
 pub func arith.f32_cmp(a: base.u32, b: base.u32) base.u32 {
+    if (args.a | args.b) <= F32_INF {
+        // Fast path: neither is negative (the sign bits are clear) or a NaN
+        // (both are at most +inf), so the bit patterns sort like the values.
+        if args.a < args.b {
+            return 0
+        } else if args.a == args.b {
+            return 1
+        }
+        return 2
+    }
+    return this.f32_cmp_slow(a: args.a, b: args.b)
+}
+
+// f32_cmp_slow is f32_cmp without the fast path.
+pri func arith.f32_cmp_slow(a: base.u32, b: base.u32) base.u32 {
     var ka : base.u32
     var kb : base.u32
 
@@ -364,35 +379,65 @@ pub func arith.f32_cmp(a: base.u32, b: base.u32) base.u32 {
 // true), and -0 equals +0.
 
 pub func arith.f32_eq(a: base.u32, b: base.u32) base.u32 {
-    if this.f32_cmp(a: args.a, b: args.b) == 1 {
+    if (args.a | args.b) <= F32_INF {
+        if args.a == args.b {
+            return 1
+        }
+        return 0
+    }
+    if this.f32_cmp_slow(a: args.a, b: args.b) == 1 {
         return 1
     }
     return 0
 }
 
 pub func arith.f32_ne(a: base.u32, b: base.u32) base.u32 {
-    if this.f32_cmp(a: args.a, b: args.b) == 1 {
+    if (args.a | args.b) <= F32_INF {
+        if args.a <> args.b {
+            return 1
+        }
+        return 0
+    }
+    if this.f32_cmp_slow(a: args.a, b: args.b) == 1 {
         return 0
     }
     return 1
 }
 
 pub func arith.f32_lt(a: base.u32, b: base.u32) base.u32 {
-    if this.f32_cmp(a: args.a, b: args.b) == 0 {
+    if (args.a | args.b) <= F32_INF {
+        if args.a < args.b {
+            return 1
+        }
+        return 0
+    }
+    if this.f32_cmp_slow(a: args.a, b: args.b) == 0 {
         return 1
     }
     return 0
 }
 
 pub func arith.f32_le(a: base.u32, b: base.u32) base.u32 {
-    if this.f32_cmp(a: args.a, b: args.b) <= 1 {
+    if (args.a | args.b) <= F32_INF {
+        if args.a <= args.b {
+            return 1
+        }
+        return 0
+    }
+    if this.f32_cmp_slow(a: args.a, b: args.b) <= 1 {
         return 1
     }
     return 0
 }
 
 pub func arith.f32_gt(a: base.u32, b: base.u32) base.u32 {
-    if this.f32_cmp(a: args.a, b: args.b) == 2 {
+    if (args.a | args.b) <= F32_INF {
+        if args.a > args.b {
+            return 1
+        }
+        return 0
+    }
+    if this.f32_cmp_slow(a: args.a, b: args.b) == 2 {
         return 1
     }
     return 0
@@ -401,7 +446,13 @@ pub func arith.f32_gt(a: base.u32, b: base.u32) base.u32 {
 pub func arith.f32_ge(a: base.u32, b: base.u32) base.u32 {
     var c : base.u32
 
-    c = this.f32_cmp(a: args.a, b: args.b)
+    if (args.a | args.b) <= F32_INF {
+        if args.a >= args.b {
+            return 1
+        }
+        return 0
+    }
+    c = this.f32_cmp_slow(a: args.a, b: args.b)
     if (c == 1) or (c == 2) {
         return 1
     }
@@ -412,7 +463,13 @@ pub func arith.f32_ge(a: base.u32, b: base.u32) base.u32 {
 // Note that this is not IEEE 754 minNum: f32_min(NaN, x) and f32_min(x, NaN)
 // both return the second argument, and f32_min(-0, +0) returns +0.
 pub func arith.f32_min(a: base.u32, b: base.u32) base.u32 {
-    if this.f32_cmp(a: args.a, b: args.b) == 0 {
+    if (args.a | args.b) <= F32_INF {
+        if args.a < args.b {
+            return args.a
+        }
+        return args.b
+    }
+    if this.f32_cmp_slow(a: args.a, b: args.b) == 0 {
         return args.a
     }
     return args.b
@@ -420,7 +477,13 @@ pub func arith.f32_min(a: base.u32, b: base.u32) base.u32 {
 
 // f32_max returns ((a > b) ? a : b), like brotli's BROTLI_MAX(float, a, b).
 pub func arith.f32_max(a: base.u32, b: base.u32) base.u32 {
-    if this.f32_cmp(a: args.a, b: args.b) == 2 {
+    if (args.a | args.b) <= F32_INF {
+        if args.a > args.b {
+            return args.a
+        }
+        return args.b
+    }
+    if this.f32_cmp_slow(a: args.a, b: args.b) == 2 {
         return args.a
     }
     return args.b

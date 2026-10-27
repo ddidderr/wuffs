@@ -118,6 +118,11 @@ Newsletter, 1995). The tests confirm this against hardware, including for
 subnormal `f32` results. The fast paths never produce a NaN, so NaN results
 (and their payloads) are exactly those of the "via `f64`" computation.
 
+The comparison functions (`f64_cmp`, `f64_lt`, `f64_min`, etc. and their `f32`
+counterparts) compare the bit patterns directly when neither operand is
+negative or a NaN (when `a | b` is at most the bit pattern of `+inf`), and
+otherwise call `f64_cmp_slow` or `f32_cmp_slow`.
+
 
 ## log2
 
