@@ -2095,6 +2095,7 @@ static uint64_t g_enc_configs;
 static uint64_t g_enc_by_quality[12];
 static uint64_t g_enc_bytes_in;
 static uint64_t g_enc_both_rejected;
+static uint64_t g_enc_both_flint_failed;
 static uint64_t g_enc_skipped;
 static uint64_t g_enc_roundtrips;
 static uint64_t g_enc_with_dicts;
@@ -2448,8 +2449,22 @@ run_enc(uint64_t iters, double secs) {
           have_err && want_err &&
           (have_err == wuffs_base__error__bad_argument) &&
           !strcmp(want_err, "BrotliEncoderSetParameter failed");
+      // With a stream offset, the C code's "emit flint" flush can return
+      // early with input left while a flush is pending (when dst is too
+      // short to take the flush's output), and the next call then fails
+      // (BrotliEncoderCompressStream returns BROTLI_FALSE when the stream is
+      // not in its processing state and there is input). Wuffs mirrors this
+      // with "#base: bad call sequence". Their outputs before then must
+      // agree.
+      bool both_flint_failed =
+          stream_offset && have_err && want_err &&
+          (have_err == wuffs_base__error__bad_call_sequence) &&
+          !strcmp(want_err, "BrotliEncoderCompressStream failed") &&
+          (have_len == want_len) && !memcmp(have, want, have_len);
       if (both_rejected) {
         g_enc_both_rejected++;
+      } else if (both_flint_failed) {
+        g_enc_both_flint_failed++;
       } else {
         char what[512];
         snprintf(what, sizeof what, "errors: wuffs \"%s\", C \"%s\"",
@@ -2505,9 +2520,10 @@ run_enc(uint64_t iters, double secs) {
 
   printf("encoder campaign: seed=%" PRIu64 " q=%u-%u configs=%" PRIu64
          " failures=%" PRIu64 " skipped(workbuf>3GiB)=%" PRIu64
-         " both_rejected=%" PRIu64 " roundtrips=%" PRIu64 "\n",
+         " both_rejected=%" PRIu64 " both_flint_failed=%" PRIu64
+         " roundtrips=%" PRIu64 "\n",
          g_seed, g_qmin, g_qmax, g_enc_configs, g_num_failures, g_enc_skipped,
-         g_enc_both_rejected, g_enc_roundtrips);
+         g_enc_both_rejected, g_enc_both_flint_failed, g_enc_roundtrips);
   printf("  by quality:");
   for (int q = 0; q < 12; q++) {
     printf(" q%d=%" PRIu64, q, g_enc_by_quality[q]);
