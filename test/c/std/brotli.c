@@ -633,6 +633,83 @@ test_mimic_brotli_decode_malformed() {
   return NULL;
 }
 
+// g_brotli_split_block_length is an invalid stream (found by differential
+// fuzzing) whose last metablock is overrun. In one piece, libbrotlidec
+// reports BLOCK_LENGTH_2 (and Wuffs "#bad metablock length"). Split after
+// bytes 24, 25 and 30, libbrotlidec reports BLOCK_LENGTH_1, because of its
+// internal input buffer, while Wuffs still reports "#bad metablock length".
+// This is a documented difference (see "Status Mapping" in
+// std/brotli/README.md).
+static const uint8_t g_brotli_split_block_length[36] = {
+    0x09, 0x83, 0x04, 0x00, 0x00, 0x36, 0xE0, 0x28, 0x0A, 0x61, 0xD0, 0x09,
+    0x07, 0x93, 0xE3, 0xB6, 0x38, 0xE4, 0x02, 0x00, 0xB0, 0xDC, 0x1A, 0xA5,
+    0x6F, 0x3F, 0x00, 0x20, 0x00, 0xE2, 0xB0, 0x00, 0x6A, 0xDD, 0x07, 0x00,
+};
+
+const char*  //
+test_mimic_brotli_decode_split_block_length() {
+  CHECK_FOCUS(__func__);
+  static const size_t ends[2][4] = {{36, 0, 0, 0}, {24, 25, 30, 36}};
+  static const int want_c[2] = {-10, -9};
+  for (int split = 0; split < 2; split++) {
+    // libbrotlidec.
+    BrotliDecoderState* state = BrotliDecoderCreateInstance(NULL, NULL, NULL);
+    if (!state) {
+      RETURN_FAIL("BrotliDecoderCreateInstance failed");
+    }
+    size_t pos = 0;
+    size_t total_out = 0;
+    for (int k = 0; (k < 4) && ends[split][k]; k++) {
+      size_t avail_in = ends[split][k] - pos;
+      const uint8_t* next_in = g_brotli_split_block_length + pos;
+      size_t avail_out = g_have_slice_u8.len - total_out;
+      uint8_t* next_out = g_have_slice_u8.ptr + total_out;
+      BrotliDecoderResult r = BrotliDecoderDecompressStream(
+          state, &avail_in, &next_in, &avail_out, &next_out, NULL);
+      pos = ends[split][k] - avail_in;
+      total_out = g_have_slice_u8.len - avail_out;
+      if (r != BROTLI_DECODER_RESULT_NEEDS_MORE_INPUT) {
+        break;
+      }
+    }
+    int code = (int)BrotliDecoderGetErrorCode(state);
+    BrotliDecoderDestroyInstance(state);
+    if (code != want_c[split]) {
+      RETURN_FAIL("split=%d: libbrotlidec error code: have %d, want %d", split,
+                  code, want_c[split]);
+    }
+
+    // Wuffs.
+    wuffs_brotli__decoder dec;
+    CHECK_STATUS("initialize",
+                 wuffs_brotli__decoder__initialize(
+                     &dec, sizeof dec, WUFFS_VERSION,
+                     WUFFS_INITIALIZE__LEAVE_INTERNAL_BUFFERS_UNINITIALIZED));
+    wuffs_base__io_buffer dst = ((wuffs_base__io_buffer){
+        .data = g_have_slice_u8,
+    });
+    wuffs_base__status status = wuffs_base__make_status(NULL);
+    pos = 0;
+    for (int k = 0; (k < 4) && ends[split][k]; k++) {
+      wuffs_base__io_buffer src = wuffs_base__ptr_u8__reader(
+          (uint8_t*)g_brotli_split_block_length, ends[split][k],
+          ends[split][k] == 36);
+      src.meta.ri = pos;
+      status = wuffs_brotli__decoder__transform_io(&dec, &dst, &src,
+                                                   g_work_slice_u8);
+      pos = src.meta.ri;
+      if (status.repr != wuffs_base__suspension__short_read) {
+        break;
+      }
+    }
+    if (status.repr != wuffs_brotli__error__bad_metablock_length) {
+      RETURN_FAIL("split=%d: Wuffs status: have \"%s\", want \"%s\"", split,
+                  status.repr, wuffs_brotli__error__bad_metablock_length);
+    }
+  }
+  return NULL;
+}
+
 #endif  // WUFFS_MIMIC
 
 // ---------------- Encoder Tests
@@ -4390,6 +4467,7 @@ proc g_tests[] = {
     test_mimic_brotli_decode_differential,
     test_mimic_brotli_decode_malformed,
     test_mimic_brotli_decode_romeo,
+    test_mimic_brotli_decode_split_block_length,
 
     // Large window and dictionaries.
     test_mimic_brotli_decode_ext_differential,

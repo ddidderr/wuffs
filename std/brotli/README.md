@@ -120,7 +120,27 @@ Notes:
   across `transform_io` calls. When the C code runs out of input, it first
   tries to flush its output (`WriteRingBuffer`) and that checks for an overrun
   metablock. A Wuffs `$short read` suspension corresponds to the C code's
-  running out of input.
+  running out of input. With the whole input in one call, the two always
+  agree. With split input, there is one known difference: when the C code
+  runs out of input in the middle of a command's, distance's or block
+  switch's extra bits, it rolls back to the start of that (partially read)
+  item and copies the unused input bytes into an internal buffer
+  (`BrotliDecoderState.buffer`). On the next call, it re-reads the item from
+  that buffer, appending one new input byte at a time, and every time that
+  buffer runs dry it runs out of input again (and checks for an overrun
+  metablock again), at points where the Wuffs decoder just reads on. So, for
+  an invalid stream whose overrun happens just after such a resumption,
+  libbrotlidec can report `BLOCK_LENGTH_1` (`"#bad block length"`) where this
+  package reports `"#bad metablock length"` (`BLOCK_LENGTH_2`). Mirroring
+  that would need mirroring the C code's bit reader buffering (including its
+  fast path's prefetching, which decides how many bytes are rolled back), so
+  this is a deliberate deviation. For example, the 36-byte stream `09 83 04
+  00 00 36 e0 28 0a 61 d0 09 07 93 e3 b6 38 e4 02 00 b0 dc 1a a5 6f 3f 00 20
+  00 e2 b0 00 6a dd 07 00`, split after bytes 24, 25 and 30, gives
+  `BLOCK_LENGTH_1` from libbrotlidec v1.2.1 and `"#bad metablock length"`
+  here (and `BLOCK_LENGTH_2` from both when given in one piece), as checked
+  by `test_mimic_brotli_decode_split_block_length`. Differential fuzzing
+  (see `script/manual-test-brotli-fuzz.c`) found no other difference.
 - `"#bad block switch"` needs more than `(1 << 24)` commands in one metablock.
   It is implemented but not tested.
 - The remaining libbrotlidec error codes do not apply: `DICTIONARY_NOT_SET`
