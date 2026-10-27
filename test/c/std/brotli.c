@@ -1331,7 +1331,7 @@ test_wuffs_brotli_encode_parameters() {
     dst.meta.wi = 0;
     status = wuffs_brotli__encoder__transform_io(
         enc, &dst, &src,
-        wuffs_base__make_slice_u8(g_work_slice_u8.ptr, (size_t)(wlen - 1)));
+        wuffs_base__make_slice_u8(g_work_slice_u8.ptr, (size_t)(wlen / 2)));
     BROTLI_ENC_CHECK(status.repr == wuffs_base__error__bad_workbuf_length,
                      "short workbuf at quality 2..9");
   }
@@ -1371,6 +1371,59 @@ test_wuffs_brotli_encode_parameters() {
           wlens[2] == (wlens[0] + (2ull << 30) - (2ull << 24) + (64 << 20)),
           "workbuf_len at q3w30 with large window");
     }
+  }
+
+  // At qualities 2 to 9, the ring buffer is the workbuf's last region (of
+  // (2 + (1 << rb_bits) + (1 << lgblock) + 7) bytes) and a shorter workbuf
+  // works if it holds (2 + input_length + 16) bytes of it (and the input is
+  // short enough for the ring buffer never to wrap).
+  {
+    free(enc);
+    enc = wuffs_brotli__encoder__alloc();
+    if (!enc) {
+      RETURN_FAIL("alloc failed");
+    }
+    wuffs_brotli__encoder__set_quirk(enc, WUFFS_BROTLI__QUIRK_ENCODER_QUALITY,
+                                     3);
+    wuffs_brotli__encoder__set_quirk(enc, WUFFS_BROTLI__QUIRK_LGWIN, 30);
+    wuffs_brotli__encoder__set_quirk(enc, WUFFS_BROTLI__QUIRK_LARGE_WINDOW, 1);
+    uint64_t wlen = wuffs_brotli__encoder__workbuf_len(enc).max_incl;
+    uint64_t rb_region = 2 + (2ull << 30) + (1 << 14) + 7;
+    BROTLI_ENC_CHECK(wlen > rb_region, "workbuf_len at q3w30");
+    size_t short_len = (size_t)(wlen - rb_region + 2 + 3 + 16);
+    uint8_t* short_workbuf = malloc(short_len);
+    if (!short_workbuf) {
+      RETURN_FAIL("malloc failed");
+    }
+    for (int k = 0; k < 2; k++) {
+      wuffs_brotli__encoder* e = wuffs_brotli__encoder__alloc();
+      if (!e) {
+        free(short_workbuf);
+        RETURN_FAIL("alloc failed");
+      }
+      wuffs_brotli__encoder__set_quirk(e, WUFFS_BROTLI__QUIRK_ENCODER_QUALITY,
+                                       3);
+      wuffs_brotli__encoder__set_quirk(e, WUFFS_BROTLI__QUIRK_LGWIN, 30);
+      wuffs_brotli__encoder__set_quirk(e, WUFFS_BROTLI__QUIRK_LARGE_WINDOW,
+                                       1);
+      wuffs_base__io_buffer s = make_io_buffer_from_string("abc", 3);
+      s.meta.closed = true;
+      dst.meta.wi = 0;
+      status = wuffs_brotli__encoder__transform_io(
+          e, &dst, &s,
+          wuffs_base__make_slice_u8(short_workbuf, short_len - (k ? 0 : 1)));
+      free(e);
+      if (k == 0) {
+        if (status.repr != wuffs_base__error__bad_workbuf_length) {
+          free(short_workbuf);
+          RETURN_FAIL("too short workbuf at q3w30: %s", status.repr);
+        }
+      } else if (status.repr) {
+        free(short_workbuf);
+        RETURN_FAIL("short workbuf at q3w30: %s", status.repr);
+      }
+    }
+    free(short_workbuf);
   }
 
   // Qualities 10 and 11 (and 12, which sanitizes to 11) are unsupported.

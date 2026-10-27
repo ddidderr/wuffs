@@ -17,28 +17,35 @@
 // The workbuf holds, in this order (see README.md's "Encoder Workbuf Layout"
 // section, which compute_layout_offset mirrors):
 //  - the storage (the C code's GetBrotliStorage) for one metablock,
-//  - the ring buffer (the C code's RingBuffer.data_),
 //  - the hasher's memory (the C code's common->extra),
-//  - the commands (16 bytes each), and
+//  - the commands (16 bytes each),
 //  - at qualities 4 and above, the metablock split (see
 //    encode_metablock_greedy.wuffs), the literal context map, the
-//    EncodeContextMap symbols and the block encoders' depths and bits.
+//    EncodeContextMap symbols and the block encoders' depths and bits, and
+//  - the ring buffer (the C code's RingBuffer.data_).
 
 // The workbuf layout's region indexes. LAYOUT_END's offset is the total
 // length.
+// The ring buffer is last, so that a workbuf shorter than workbuf_len works
+// for short inputs (see transform_io's rb_short_workbuf check).
 pri const LAYOUT_STORAGE    : base.u32 = 0
-pri const LAYOUT_RB         : base.u32 = 1
-pri const LAYOUT_HASH       : base.u32 = 2
-pri const LAYOUT_CMDS       : base.u32 = 3
-pri const LAYOUT_TYPES_0    : base.u32 = 4
-pri const LAYOUT_LENGTHS_0  : base.u32 = 7
-pri const LAYOUT_HISTO_0    : base.u32 = 10
-pri const LAYOUT_COMB       : base.u32 = 13
-pri const LAYOUT_CMAP       : base.u32 = 14
-pri const LAYOUT_RLE        : base.u32 = 15
-pri const LAYOUT_BE_DEPTH_0 : base.u32 = 16
-pri const LAYOUT_BE_BITS_0  : base.u32 = 19
+pri const LAYOUT_HASH       : base.u32 = 1
+pri const LAYOUT_CMDS       : base.u32 = 2
+pri const LAYOUT_TYPES_0    : base.u32 = 3
+pri const LAYOUT_LENGTHS_0  : base.u32 = 6
+pri const LAYOUT_HISTO_0    : base.u32 = 9
+pri const LAYOUT_COMB       : base.u32 = 12
+pri const LAYOUT_CMAP       : base.u32 = 13
+pri const LAYOUT_RLE        : base.u32 = 14
+pri const LAYOUT_BE_DEPTH_0 : base.u32 = 15
+pri const LAYOUT_BE_BITS_0  : base.u32 = 18
+pri const LAYOUT_RB         : base.u32 = 21
 pri const LAYOUT_END        : base.u32 = 22
+
+// RB_SHORT_SLACK is how many bytes past the input's end (in the ring buffer)
+// a short workbuf must have: the C code reads at most 7 bytes past the
+// input's end (its kSlackForEightByteHashingEverywhere), rounded up.
+pri const RB_SHORT_SLACK : base.u64 = 16
 
 // The C code's MAX_NUM_DELAYED_SYMBOLS (in quality.h).
 pri const MAX_NUM_DELAYED_SYMBOLS : base.u64 = 0x2FFF

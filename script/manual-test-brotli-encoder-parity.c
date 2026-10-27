@@ -99,6 +99,8 @@ static uint8_t* g_workbuf;  // Wuffs' workbuf.
 static size_t g_workbuf_len;
 
 static uint64_t g_num_configs;
+static uint64_t g_num_short_checks;
+static size_t g_short_workbuf_len;  // 0 means use workbuf_len.
 static size_t g_last_want_len;
 static uint64_t g_num_mismatches;
 
@@ -116,6 +118,9 @@ typedef struct {
   size_t metadata_len;
   size_t dst_chunk;  // 0 means unlimited.
   uint64_t seed;
+  // try_short is whether to also check (at qualities 2 to 9) Wuffs' output
+  // with the shortest workbuf that should work: see short_workbuf_len.
+  bool try_short;
 } config;
 
 static void  //
@@ -371,6 +376,9 @@ encode_wuffs(const config* c, size_t* have_len) {
       goto cleanup;
     }
   }
+  if ((g_short_workbuf_len > 0) && (g_short_workbuf_len < wlen)) {
+    wlen = g_short_workbuf_len;
+  }
   wuffs_base__slice_u8 workbuf =
       wuffs_base__make_slice_u8(g_workbuf, (size_t)wlen);
 
@@ -492,6 +500,63 @@ describe(char* buf, size_t n, const char* name, const config* c) {
   }
 }
 
+// short_workbuf_len returns the shortest workbuf (at qualities 2 to 9) that
+// should work for the config c and an input of len bytes, given that
+// workbuf_len is wlen, or 0 if it is not shorter than wlen. The ring buffer
+// is the workbuf's last region, of (2 + (1 << rb_bits) + (1 << lgblock) + 7)
+// bytes, and a shorter workbuf works if it holds (2 + len + 16) bytes of it
+// and (len + 16) is at most (1 << rb_bits). This mirrors SanitizeParams,
+// ComputeLgBlock and ComputeRbBits in quality.h.
+static size_t  //
+short_workbuf_len(const config* c, size_t len, uint64_t wlen) {
+  int32_t quality = 11;
+  int32_t lgwin = 22;
+  int32_t lgblock = 0;
+  bool large_window = false;
+  for (size_t j = 0; j < c->num_params; j++) {
+    int32_t v = (int32_t)(c->values[j]);
+    switch (c->keys[j]) {
+      case 1:
+        quality = v;
+        break;
+      case 2:
+        lgwin = v;
+        break;
+      case 3:
+        lgblock = v;
+        break;
+      case 6:
+        large_window = v != 0;
+        break;
+    }
+  }
+  quality = (quality < 0) ? 0 : (quality > 11) ? 11 : quality;
+  if ((quality < 2) || (quality > 9)) {
+    return 0;
+  }
+  large_window = large_window && (quality > 2);
+  int32_t max_lgwin = large_window ? 30 : 24;
+  lgwin = (lgwin < 10) ? 10 : (lgwin > max_lgwin) ? max_lgwin : lgwin;
+  if (quality < 4) {
+    lgblock = 14;
+  } else if (lgblock == 0) {
+    lgblock = 16;
+    if ((quality >= 9) && (lgwin > lgblock)) {
+      lgblock = (lgwin < 18) ? lgwin : 18;
+    }
+  } else {
+    lgblock = (lgblock < 16) ? 16 : (lgblock > 24) ? 24 : lgblock;
+  }
+  int32_t rb_bits = 1 + ((lgwin > lgblock) ? lgwin : lgblock);
+  uint64_t rb_size = (uint64_t)1 << rb_bits;
+  uint64_t rb_region = 2 + rb_size + ((uint64_t)1 << lgblock) + 7;
+  if (((len + 16) > rb_size) || (rb_region > wlen)) {
+    return 0;
+  }
+  uint64_t n = wlen - rb_region + 2 + len + 16;
+  return (n < wlen) ? (size_t)n : 0;
+}
+
 static void  //
 check(const char* name, const config* c, const uint8_t* data, size_t len) {
   char desc[512];
@@ -507,6 +572,41 @@ check(const char* name, const config* c, const uint8_t* data, size_t len) {
   const char* have_err = encode_wuffs(c, &have_len);
   const char* want_err = encode_mimic(c, &want_len);
   g_last_want_len = want_len;
+  if (c->try_short && !have_err && !want_err) {
+    // Also check the shortest workbuf that should work, and that one byte
+    // less fails.
+    wuffs_brotli__encoder* enc = wuffs_brotli__encoder__alloc();
+    uint64_t wlen = 0;
+    if (enc) {
+      for (size_t j = 0; j < c->num_params; j++) {
+        wuffs_brotli__encoder__set_quirk(enc, brotli_enc_quirk_key(c->keys[j]),
+                                         c->values[j]);
+      }
+      wlen = wuffs_brotli__encoder__workbuf_len(enc).max_incl;
+      free(enc);
+    }
+    size_t short_len = short_workbuf_len(c, len, wlen);
+    if (short_len > 0) {
+      g_num_short_checks++;
+      g_short_workbuf_len = short_len - 1;
+      size_t too_short_len = 0;
+      const char* too_short_err = encode_wuffs(c, &too_short_len);
+      g_short_workbuf_len = short_len;
+      have_err = encode_wuffs(c, &have_len);
+      g_short_workbuf_len = 0;
+      if (!too_short_err ||
+          (too_short_err != wuffs_base__error__bad_workbuf_length)) {
+        g_num_mismatches++;
+        describe(desc, sizeof desc, name, c);
+        printf("MISMATCH %s: a workbuf of %zu bytes did not fail: %s\n",
+               desc, short_len - 1, too_short_err ? too_short_err : "ok");
+        fflush(stdout);
+        return;
+      } else if (have_err) {
+        have_err = "short workbuf failed";
+      }
+    }
+  }
   if (have_err || want_err) {
     g_num_mismatches++;
     describe(desc, sizeof desc, name, c);
@@ -651,6 +751,7 @@ run_input_lw(const char* name, const uint8_t* data, size_t len, uint32_t q) {
         c.chunking = ch;
         c.flush = fl;
         c.seed = 0x10000 | (w << 8) | (ch << 4) | fl | (q << 12);
+        c.try_short = true;
         check(name, &c, data, len);
       }
     }
@@ -693,6 +794,7 @@ run_input_lw(const char* name, const uint8_t* data, size_t len, uint32_t q) {
       c.chunking = 4;
       c.flush = 2;
       c.seed = 0x20000 | i | (w << 8) | (q << 12);
+      c.try_short = true;
       check(name, &c, data, len);
     }
   }
@@ -872,6 +974,7 @@ run_input_far(const char* name, const uint8_t* data, size_t len) {
       config c = make_config(q, lgwins[w]);
       add_param(&c, 6, 1);  // BROTLI_PARAM_LARGE_WINDOW.
       c.seed = 0x40000 | (w << 8) | (q << 12);
+      c.try_short = true;
       check(name, &c, data, len);
       printf("  q=%u lgwin=%u: %zu compressed bytes\n", q, lgwins[w],
              g_last_want_len);
@@ -1075,7 +1178,8 @@ main(int argc, char** argv) {
     free(p);
   }
 
-  printf("TOTAL: %" PRIu64 " configs, %" PRIu64 " mismatches\n", g_num_configs,
-         g_num_mismatches);
+  printf("TOTAL: %" PRIu64 " configs (%" PRIu64
+         " also with a short workbuf), %" PRIu64 " mismatches\n",
+         g_num_configs, g_num_short_checks, g_num_mismatches);
   return g_num_mismatches ? 1 : 0;
 }

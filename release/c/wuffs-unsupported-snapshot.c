@@ -10010,6 +10010,7 @@ struct wuffs_brotli__encoder__struct {
     uint32_t f_rb_total_size;
     uint32_t f_rb_cur_size;
     uint32_t f_rb_pos;
+    bool f_rb_short_workbuf;
     uint32_t f_dist_alphabet_size_max;
     uint32_t f_dist_alphabet_size_limit;
     uint64_t f_dist_max_distance;
@@ -68498,29 +68499,31 @@ WUFFS_BROTLI__DICTIONARY[122784] WUFFS_BASE__POTENTIALLY_UNUSED = {
 
 #define WUFFS_BROTLI__LAYOUT_STORAGE 0u
 
-#define WUFFS_BROTLI__LAYOUT_RB 1u
+#define WUFFS_BROTLI__LAYOUT_HASH 1u
 
-#define WUFFS_BROTLI__LAYOUT_HASH 2u
+#define WUFFS_BROTLI__LAYOUT_CMDS 2u
 
-#define WUFFS_BROTLI__LAYOUT_CMDS 3u
+#define WUFFS_BROTLI__LAYOUT_TYPES_0 3u
 
-#define WUFFS_BROTLI__LAYOUT_TYPES_0 4u
+#define WUFFS_BROTLI__LAYOUT_LENGTHS_0 6u
 
-#define WUFFS_BROTLI__LAYOUT_LENGTHS_0 7u
+#define WUFFS_BROTLI__LAYOUT_HISTO_0 9u
 
-#define WUFFS_BROTLI__LAYOUT_HISTO_0 10u
+#define WUFFS_BROTLI__LAYOUT_COMB 12u
 
-#define WUFFS_BROTLI__LAYOUT_COMB 13u
+#define WUFFS_BROTLI__LAYOUT_CMAP 13u
 
-#define WUFFS_BROTLI__LAYOUT_CMAP 14u
+#define WUFFS_BROTLI__LAYOUT_RLE 14u
 
-#define WUFFS_BROTLI__LAYOUT_RLE 15u
+#define WUFFS_BROTLI__LAYOUT_BE_DEPTH_0 15u
 
-#define WUFFS_BROTLI__LAYOUT_BE_DEPTH_0 16u
+#define WUFFS_BROTLI__LAYOUT_BE_BITS_0 18u
 
-#define WUFFS_BROTLI__LAYOUT_BE_BITS_0 19u
+#define WUFFS_BROTLI__LAYOUT_RB 21u
 
 #define WUFFS_BROTLI__LAYOUT_END 22u
+
+#define WUFFS_BROTLI__RB_SHORT_SLACK 16u
 
 #define WUFFS_BROTLI__MAX_NUM_DELAYED_SYMBOLS 12287u
 
@@ -79349,6 +79352,7 @@ wuffs_brotli__encoder__transform_io(
   uint64_t v_remaining = 0;
   bool v_injected = false;
   uint64_t v_copy_input_size = 0;
+  uint64_t v_total = 0;
 
   uint8_t* iop_a_dst = NULL;
   uint8_t* io0_a_dst WUFFS_BASE__POTENTIALLY_UNUSED = NULL;
@@ -79392,8 +79396,11 @@ wuffs_brotli__encoder__transform_io(
       status = wuffs_base__make_status(wuffs_brotli__error__unsupported_encoder_quality);
       goto exit;
     } else if ((self->private_impl.f_quality >= 2u) && (((uint64_t)(a_workbuf.len)) < self->private_impl.f_workbuf_end)) {
-      status = wuffs_base__make_status(wuffs_base__error__bad_workbuf_length);
-      goto exit;
+      self->private_impl.f_rb_short_workbuf = true;
+      if (((uint64_t)(a_workbuf.len)) < ((uint64_t)(self->private_impl.f_rb_buf_off + 16u))) {
+        status = wuffs_base__make_status(wuffs_base__error__bad_workbuf_length);
+        goto exit;
+      }
     }
     while (true) {
       if (self->private_impl.f_metadata_requested) {
@@ -79491,6 +79498,13 @@ wuffs_brotli__encoder__transform_io(
         }
         if ((v_remaining != 0u) && (((uint64_t)(io2_a_src - iop_a_src)) > 0u)) {
           v_copy_input_size = wuffs_base__u64__min(v_remaining, ((uint64_t)(io2_a_src - iop_a_src)));
+          if (self->private_impl.f_rb_short_workbuf) {
+            v_total = ((uint64_t)(((uint64_t)(self->private_impl.f_input_pos + v_copy_input_size)) + 16u));
+            if ((v_total > ((uint64_t)(self->private_impl.f_rb_size))) || (((uint64_t)(self->private_impl.f_rb_buf_off + v_total)) > ((uint64_t)(a_workbuf.len)))) {
+              status = wuffs_base__make_status(wuffs_base__error__bad_workbuf_length);
+              goto exit;
+            }
+          }
           v_mark = ((uint64_t)(iop_a_src - io0_a_src));
           self->private_data.s_transform_io.scratch = v_copy_input_size;
           WUFFS_BASE__COROUTINE_SUSPENSION_POINT(4);
@@ -80502,49 +80516,49 @@ wuffs_brotli__encoder__compute_layout_offset(
     v_size = 0u;
     if (v_i == 0u) {
       v_size = ((uint64_t)(((uint64_t)(((uint64_t)(2u * v_max_len)) + 503u)) + 16u));
-    } else if (v_i == 1u) {
+    } else if (v_i == 21u) {
       v_size = ((uint64_t)(((uint64_t)((2u + (((uint64_t)(1u)) << wuffs_brotli__encoder__rb_bits(self, a_lgwin, a_lgblock))) + (((uint64_t)(1u)) << a_lgblock))) + 7u));
-    } else if (v_i == 2u) {
+    } else if (v_i == 1u) {
       v_size = wuffs_brotli__encoder__hash_region_size(self, a_quality, a_lgwin);
-    } else if (v_i == 3u) {
+    } else if (v_i == 2u) {
       v_size = ((uint64_t)(16u * v_cmds_cap));
     } else if (a_quality >= 4u) {
-      if (v_i == 4u) {
+      if (v_i == 3u) {
         v_size = ((v_max_len / 512u) + 1u);
-      } else if (v_i == 5u) {
+      } else if (v_i == 4u) {
         v_size = ((uint64_t)((v_cmds_cap / 1024u) + 1u));
-      } else if (v_i == 6u) {
+      } else if (v_i == 5u) {
         v_size = ((uint64_t)((v_cmds_cap / 512u) + 1u));
-      } else if (v_i == 7u) {
+      } else if (v_i == 6u) {
         v_size = (4u * ((v_max_len / 512u) + 1u));
-      } else if (v_i == 8u) {
+      } else if (v_i == 7u) {
         v_size = ((uint64_t)(4u * ((uint64_t)((v_cmds_cap / 1024u) + 1u))));
-      } else if (v_i == 9u) {
+      } else if (v_i == 8u) {
         v_size = ((uint64_t)(4u * ((uint64_t)((v_cmds_cap / 512u) + 1u))));
-      } else if ((10u <= v_i) && (v_i < 13u)) {
-        if (v_i == 10u) {
+      } else if ((9u <= v_i) && (v_i < 12u)) {
+        if (v_i == 9u) {
           v_size = 266240u;
-        } else if (v_i == 11u) {
+        } else if (v_i == 10u) {
           v_size = 723712u;
         } else {
           v_size = 559232u;
         }
-      } else if (v_i == 13u) {
+      } else if (v_i == 12u) {
         v_size = 26624u;
-      } else if (v_i == 14u) {
+      } else if (v_i == 13u) {
         v_size = 16384u;
-      } else if (v_i == 15u) {
+      } else if (v_i == 14u) {
         v_size = 65536u;
-      } else if ((16u <= v_i) && (v_i < 22u)) {
+      } else if ((15u <= v_i) && (v_i < 21u)) {
         v_num_histo = 256u;
         v_hlen = 256u;
-        if ((v_i == 17u) || (v_i == 20u)) {
+        if ((v_i == 16u) || (v_i == 19u)) {
           v_hlen = 704u;
-        } else if ((v_i == 18u) || (v_i == 21u)) {
+        } else if ((v_i == 17u) || (v_i == 20u)) {
           v_hlen = 544u;
         }
         v_size = ((uint64_t)(v_num_histo * v_hlen));
-        if (v_i >= 19u) {
+        if (v_i >= 18u) {
           v_size = ((uint64_t)(2u * v_size));
         }
       }
@@ -80573,18 +80587,18 @@ wuffs_brotli__encoder__compute_layout(
       v_q,
       v_lw,
       v_lb,
-      1u);
+      21u);
   self->private_impl.f_rb_buf_off = ((uint64_t)(self->private_impl.f_rb_off + 2u));
   self->private_impl.f_h_off0 = wuffs_brotli__encoder__compute_layout_offset(self,
       v_q,
       v_lw,
       v_lb,
-      2u);
+      1u);
   self->private_impl.f_cmds_off = wuffs_brotli__encoder__compute_layout_offset(self,
       v_q,
       v_lw,
       v_lb,
-      3u);
+      2u);
   self->private_impl.f_cmds_cap = wuffs_brotli__encoder__commands_capacity(self, v_q, v_lw, v_lb);
   v_c = 0u;
   while (v_c < 3u) {
@@ -80592,44 +80606,44 @@ wuffs_brotli__encoder__compute_layout(
         v_q,
         v_lw,
         v_lb,
-        (4u + v_c));
+        (3u + v_c));
     self->private_data.f_gbs_lengths_off[v_c] = wuffs_brotli__encoder__compute_layout_offset(self,
         v_q,
         v_lw,
         v_lb,
-        (7u + v_c));
+        (6u + v_c));
     self->private_data.f_gbs_histo_off_base[v_c] = wuffs_brotli__encoder__compute_layout_offset(self,
         v_q,
         v_lw,
         v_lb,
-        (10u + v_c));
+        (9u + v_c));
     self->private_data.f_be_depth_off[v_c] = wuffs_brotli__encoder__compute_layout_offset(self,
         v_q,
         v_lw,
         v_lb,
-        (16u + v_c));
+        (15u + v_c));
     self->private_data.f_be_bits_off[v_c] = wuffs_brotli__encoder__compute_layout_offset(self,
         v_q,
         v_lw,
         v_lb,
-        (19u + v_c));
+        (18u + v_c));
     v_c += 1u;
   }
   self->private_impl.f_mb_comb_off = wuffs_brotli__encoder__compute_layout_offset(self,
       v_q,
       v_lw,
       v_lb,
-      13u);
+      12u);
   self->private_impl.f_mb_cmap_off = wuffs_brotli__encoder__compute_layout_offset(self,
       v_q,
       v_lw,
       v_lb,
-      14u);
+      13u);
   self->private_impl.f_mb_rle_off = wuffs_brotli__encoder__compute_layout_offset(self,
       v_q,
       v_lw,
       v_lb,
-      15u);
+      14u);
   self->private_impl.f_workbuf_end = wuffs_brotli__encoder__compute_layout_offset(self,
       v_q,
       v_lw,
