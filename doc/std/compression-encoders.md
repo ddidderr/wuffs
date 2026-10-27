@@ -32,4 +32,8 @@ encoder has `request_flush`, `request_emit_metadata` and
 
 ## Implementations
 
-- [std/brotli](/std/brotli/README.md#encoder) (qualities 0 to 9 only).
+- [std/brotli](/std/brotli/README.md#encoder) (qualities 0 to 9 only,
+  including large-window brotli, with windows of up to 1 GiB, at qualities 3
+  to 9). Its `workbuf_len` is the worst case for the parameters (more than
+  2 GiB for large-window brotli at lgwin 30), but a shorter workbuf works for
+  short inputs: see the README's "Encoder Workbuf Layout" section.
