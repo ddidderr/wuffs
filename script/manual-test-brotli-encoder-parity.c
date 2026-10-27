@@ -12,7 +12,7 @@
 
 // manual-test-brotli-encoder-parity.c checks that Wuffs' std/brotli encoder
 // produces exactly the same bytes as libbrotlienc v1.2.1 (at qualities 0 to
-// 9) over a large parameter grid. For each test input and quality:
+// 11) over a large parameter grid. For each test input and quality:
 //   - lgwin {10, 16, 18, 22, 24}
 //   - mode {0, 1, 2}
 //   - input chunking {single, 1-byte (inputs up to 4 KiB only), 7-byte,
@@ -21,8 +21,9 @@
 // plus metadata blocks (of 0, 1, 100 and 70000 bytes, at the start, middle
 // and end), size_hint {0, exact, 1 << 30, etc}, the other parameters
 // (lgblock, disable literal context modeling, npostfix and ndirect, large
-// window, stream offset) and limited dst lengths. At qualities 2 and above,
-// inputs longer than 512 KiB use a smaller grid.
+// window, stream offset) and limited dst lengths. At qualities 2 to 9,
+// inputs longer than 512 KiB use a smaller grid (and at qualities 10 and 11,
+// inputs longer than 64 KiB do).
 //
 // The test inputs are the files named on the command line (or, by default,
 // every file in test/data/brotli plus test/data/{256.bytes,enwik5,romeo.txt,
@@ -32,7 +33,7 @@
 // pseudo-random lengths 0 to 40).
 //
 // Options (before any file names):
-//   -q=LO-HI   only check qualities LO to HI (default 0-9).
+//   -q=LO-HI   only check qualities LO to HI (default 0-9, at most 0-11).
 //   -shard=K/N only check the inputs whose index i satisfies (i % N) == K,
 //              so that N processes can split the work.
 //
@@ -545,12 +546,14 @@ run_input_q01(const char* name, const uint8_t* data, size_t len, uint32_t q) {
   }
 }
 
-// run_input_q2 runs the grid for a quality from 2 to 9.
+// run_input_q2 runs the grid for a quality from 2 to 11.
 static void  //
 run_input_q2(const char* name, const uint8_t* data, size_t len, uint32_t q) {
   static const uint32_t lgwins[] = {10, 16, 18, 22, 24};
   static const size_t metadata_lens[] = {0, 1, 100, 70000};
-  bool big = len > (512 << 10);
+  // At qualities 10 and 11 (which are much slower), inputs longer than 64
+  // KiB use the smaller grid.
+  bool big = len > ((q >= 10) ? (64 << 10) : (512 << 10));
 
   // The main grid.
   for (size_t w = 0; w < 5; w++) {
