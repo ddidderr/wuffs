@@ -46,7 +46,9 @@
 //   -n=N         the number of iterations (default 1000).
 //   -secs=T      stop after about T seconds.
 //   -q=LO-HI     (-enc only) restrict the quality to LO ..= HI.
-//   -hq          (-enc only) allow dictionaries at qualities 10 and 11.
+//   -nohq        (-enc only) no dictionaries at qualities 10 and 11 (by
+//                default, 10% of the q10-11 configs get small inputs and
+//                dictionaries).
 //   -out=DIR     where to save failing cases (default ".").
 //   -data=DIR    the test/data directory (default "test/data").
 //
@@ -135,7 +137,7 @@ static const char* g_data_dir = "test/data";
 static uint64_t g_num_failures = 0;
 static uint32_t g_qmin = 0;
 static uint32_t g_qmax = 11;
-static bool g_hq_dicts = false;
+static bool g_hq_dicts = true;
 
 static uint8_t*  //
 xmalloc(size_t n) {
@@ -2025,8 +2027,8 @@ main(int argc, char** argv) {
       }
       g_qmin = lo;
       g_qmax = hi;
-    } else if (!strcmp(argv[i], "-hq")) {
-      g_hq_dicts = true;
+    } else if (!strcmp(argv[i], "-nohq")) {
+      g_hq_dicts = false;
     } else {
       fprintf(stderr, "unknown option %s\n", argv[i]);
       return 2;
@@ -2099,6 +2101,7 @@ static uint64_t g_enc_both_flint_failed;
 static uint64_t g_enc_skipped;
 static uint64_t g_enc_roundtrips;
 static uint64_t g_enc_with_dicts;
+static uint64_t g_enc_hq_with_dicts;
 static uint64_t g_enc_lw;
 static uint64_t g_enc_short_checks;
 static uint64_t g_enc_wb_extra;
@@ -2295,9 +2298,13 @@ run_enc(uint64_t iters, double secs) {
     shuffle_params(&c);
 
     // Input.
-    size_t len = pick_len(chance(800)  ? (64 << 10)
-                          : hq          ? (chance(900) ? (256 << 10) : (1 << 20))
-                                        : (4 << 20));
+    // At q10-11, dictionaries go with small inputs (the Zopfli encoder is
+    // slow), and only in 10% of the configs.
+    bool with_dicts = hq ? (g_hq_dicts && chance(100)) : chance(250);
+    size_t len = pick_len((hq && with_dicts) ? (chance(950) ? (16 << 10) : (64 << 10))
+                          : chance(800)        ? (64 << 10)
+                          : hq                 ? (chance(900) ? (256 << 10) : (1 << 20))
+                                               : (4 << 20));
     gen_input(input, len);
     // Exact size hints.
     for (size_t j = 0; j < c.num_params; j++) {
@@ -2308,7 +2315,7 @@ run_enc(uint64_t iters, double secs) {
 
     // Dictionaries.
     dict_set ds = {0};
-    if ((!hq || g_hq_dicts) && chance(250)) {
+    if (with_dicts) {
       size_t k = pick_num_dicts();
       k = (k == 0) ? 1 : (k > 15) ? 15 : k;
       random_raw_dicts(&ds, k, input, len);
@@ -2416,6 +2423,7 @@ run_enc(uint64_t iters, double secs) {
                    : (len <= (4 << 20))   ? 3
                                           : 4]++;
     g_enc_with_dicts += (ds.n > 0);
+    g_enc_hq_with_dicts += (hq && (ds.n > 0));
     g_enc_lw += lw;
     g_enc_metadata += any_meta;
     g_enc_flushes += any_flush;
@@ -2532,10 +2540,10 @@ run_enc(uint64_t iters, double secs) {
          " <=256Ki=%" PRIu64 " <=1Mi=%" PRIu64 " <=4Mi=%" PRIu64 "\n",
          g_enc_bytes_in, g_enc_len_hist[0], g_enc_len_hist[1],
          g_enc_len_hist[2], g_enc_len_hist[3]);
-  printf("  with dicts=%" PRIu64 " large window=%" PRIu64 " metadata=%" PRIu64
+  printf("  with dicts=%" PRIu64 " (q10-11: %" PRIu64 ") large window=%" PRIu64 " metadata=%" PRIu64
          " flushes=%" PRIu64 " dst limited=%" PRIu64 " stream offset=%" PRIu64
          " workbuf above min=%" PRIu64 " short workbuf checks=%" PRIu64 "\n",
-         g_enc_with_dicts, g_enc_lw, g_enc_metadata, g_enc_flushes,
+         g_enc_with_dicts, g_enc_hq_with_dicts, g_enc_lw, g_enc_metadata, g_enc_flushes,
          g_enc_dst_limited, g_enc_stream_offset, g_enc_wb_extra,
          g_enc_short_checks);
   printf("  seconds: C encoder %.1f, Wuffs encoder %.1f, round trips %.1f\n",
