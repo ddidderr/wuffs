@@ -891,8 +891,15 @@ test_build_meta_block(block_t* b, int quality, bool disable_lcm,
   }
   {
     uint64_t used = wuffs_brotli__metablock_tester__get(g_tester, 29);
+    uint64_t worst = wuffs_brotli__metablock_tester__get(g_tester, 30);
     if (g_max_workbuf_used < used) {
       g_max_workbuf_used = used;
+    }
+    g_num_checks++;
+    if (used > worst) {
+      g_num_mismatches++;
+      printf("workbuf used (%" PRIu64 ") > worst case (%" PRIu64 ") (%s)\n",
+             used, worst, g_config_name);
     }
   }
 
@@ -1080,6 +1087,7 @@ test_cluster_histograms(int iters) {
 // ---------------- Configurations
 
 static block_t g_block;
+static uint32_t g_force_shift_max = 0;
 
 
 static void  //
@@ -1105,7 +1113,9 @@ run_config(size_t total, int style, int cmd_mode, bool do_split,
   if (rng_below(8) == 0) {
     quality = 4 + (int)rng_below(6);
   }
-  g_shift_max = rng_below(2) ? 8192 : 64 + rng_below(2000);
+  g_shift_max = g_force_shift_max ? g_force_shift_max
+                : rng_below(2) ? 8192
+                               : 64 + rng_below(2000);
   g_dist_style = (int)rng_below(3);
   g_dist_shift = 1 + rng_below(3);
   g_dist_residue = rng_below(1u << g_dist_shift);
@@ -1152,6 +1162,7 @@ int  //
 main(int argc, char** argv) {
   bool quick = false;
   int n_bitcost = 200000, n_clusters = 3000, n_configs = 20000, n_large = 8;
+  int large_off = 0, n_many_types = 0, n_edge = 64;
   int i;
   for (i = 1; i < argc; i++) {
     if (!strcmp(argv[i], "-quick")) {
@@ -1168,6 +1179,12 @@ main(int argc, char** argv) {
       n_configs = atoi(argv[i] + 9);
     } else if (!strncmp(argv[i], "-large=", 7)) {
       n_large = atoi(argv[i] + 7);
+    } else if (!strncmp(argv[i], "-largeoff=", 10)) {
+      large_off = atoi(argv[i] + 10);
+    } else if (!strncmp(argv[i], "-manytypes=", 11)) {
+      n_many_types = atoi(argv[i] + 11);
+    } else if (!strncmp(argv[i], "-edge=", 6)) {
+      n_edge = atoi(argv[i] + 6);
     } else if (!strncmp(argv[i], "-seed=", 6)) {
       g_rng_state = strtoull(argv[i] + 6, NULL, 0) | 1;
     }
@@ -1199,14 +1216,14 @@ main(int argc, char** argv) {
   test_cluster_histograms(n_clusters);
   // Edge cases: no commands, one command, one literal, all identical bytes,
   // in every literal context mode.
-  for (i = 0; i < 64; i++) {
+  for (i = 0; i < n_edge; i++) {
     static const size_t totals[8] = {0, 1, 2, 5, 127, 128, 129, 3000};
     run_config(totals[i & 7], (i & 8) ? STYLE_IDENTICAL : STYLE_RANDOM,
                (i >> 4) % 3, true, true);
   }
   // Large configurations: at least 1 MiB of literals, and at least 100k
   // commands.
-  for (i = 0; i < n_large; i++) {
+  for (i = large_off; i < large_off + n_large; i++) {
     static const int styles[4] = {STYLE_FILE, STYLE_RANDOM, STYLE_SHIFTING,
                                   STYLE_UTF8};
     if (i & 1) {
@@ -1217,6 +1234,19 @@ main(int argc, char** argv) {
                  1, false, true);
     }
     printf("large configuration %d done, %" PRIu64 " mismatches so far\n",
+           i, g_num_mismatches);
+    fflush(stdout);
+  }
+  // Inputs whose byte distribution changes every few hundred bytes, which
+  // push the number of block types towards the 256 maximum (and the number
+  // of FindBlocks histograms towards kMaxLiteralHistograms).
+  for (i = 0; i < n_many_types; i++) {
+    g_force_shift_max = 64 + rng_below(600);
+    run_config((size_t)1 << (17 + rng_below(4)), STYLE_SHIFTING,
+               (int)rng_below(2), true, true);
+    g_force_shift_max = 0;
+    printf("many-types configuration %d done, %" PRIu64
+           " mismatches so far\n",
            i, g_num_mismatches);
     fflush(stdout);
   }

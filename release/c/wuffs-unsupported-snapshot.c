@@ -10155,7 +10155,7 @@ struct wuffs_brotli__metablock_tester__struct {
     uint32_t active_coroutine;
     wuffs_base__vtable null_vtable;
 
-    uint32_t f_dummy;
+    uint64_t f_worst_case;
   } private_impl;
 
   struct {
@@ -61508,6 +61508,29 @@ wuffs_brotli__metablock_builder__optimize_huffman_counts_for_rle(
     uint64_t a_counts,
     uint64_t a_length);
 
+WUFFS_BASE__GENERATED_C_CODE
+static uint64_t
+wuffs_brotli__metablock_builder__sbv_scratch_len(
+    const wuffs_brotli__metablock_builder* self,
+    uint64_t a_length,
+    uint64_t a_hs,
+    uint64_t a_symbols_per_histogram,
+    uint64_t a_max_histograms);
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint64_t
+wuffs_brotli__metablock_builder__cluster_scratch_len(
+    const wuffs_brotli__metablock_builder* self,
+    uint64_t a_in_size,
+    uint64_t a_hs);
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint64_t
+wuffs_brotli__metablock_builder__workbuf_len_worst_case(
+    const wuffs_brotli__metablock_builder* self,
+    uint64_t a_num_literals,
+    uint64_t a_num_commands);
+
 // ---------------- VTables
 
 const wuffs_base__io_transformer__func_ptrs
@@ -72490,6 +72513,93 @@ wuffs_brotli__metablock_builder__optimize_huffman_counts_for_rle(
   return wuffs_base__make_empty_struct();
 }
 
+// -------- func brotli.metablock_builder.sbv_scratch_len
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint64_t
+wuffs_brotli__metablock_builder__sbv_scratch_len(
+    const wuffs_brotli__metablock_builder* self,
+    uint64_t a_length,
+    uint64_t a_hs,
+    uint64_t a_symbols_per_histogram,
+    uint64_t a_max_histograms) {
+  uint64_t v_nh = 0;
+  uint64_t v_a = 0;
+  uint64_t v_b = 0;
+  uint64_t v_nb = 0;
+
+  if (a_length < 128u) {
+    return 0u;
+  }
+  v_nh = wuffs_base__u64__sat_add((a_length / wuffs_base__u64__max(a_symbols_per_histogram, 1u)), 1u);
+  v_nh = wuffs_base__u64__min(v_nh, a_max_histograms);
+  v_a = wuffs_base__u64__sat_add(((uint64_t)(wuffs_base__u64__sat_add(v_nh, 1u) * a_hs)), ((uint64_t)(a_length * (wuffs_base__u64__sat_add(v_nh, 7u) >> 3u))));
+  v_nb = a_length;
+  v_b = wuffs_base__u64__sat_add(((uint64_t)(v_nb * wuffs_base__u64__sat_add(a_hs, 24u))), 1024u);
+  wuffs_private_impl__u64__sat_add_indirect(&v_b, ((uint64_t)(wuffs_base__u64__min(v_nb, 64u) * a_hs)));
+  wuffs_private_impl__u64__sat_add_indirect(&v_b, wuffs_base__u64__sat_add(49176u, ((uint64_t)(2u * a_hs))));
+  v_nb = ((uint64_t)(64u * a_length));
+  v_nb = wuffs_base__u64__min(v_nb, ((uint64_t)((a_length / 2u) * a_length)));
+  wuffs_private_impl__u64__sat_add_indirect(&v_b, ((uint64_t)(wuffs_base__u64__sat_add(v_nb, 1u) * 24u)));
+  return wuffs_base__u64__sat_add(a_length, wuffs_base__u64__max(v_a, v_b));
+}
+
+// -------- func brotli.metablock_builder.cluster_scratch_len
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint64_t
+wuffs_brotli__metablock_builder__cluster_scratch_len(
+    const wuffs_brotli__metablock_builder* self,
+    uint64_t a_in_size,
+    uint64_t a_hs) {
+  uint64_t v_n = 0;
+  uint64_t v_p = 0;
+
+  v_n = wuffs_base__u64__sat_add(wuffs_base__u64__sat_add(((uint64_t)(12u * a_in_size)), 49176u), a_hs);
+  v_p = ((uint64_t)(64u * a_in_size));
+  v_p = wuffs_base__u64__min(v_p, ((uint64_t)((a_in_size / 2u) * a_in_size)));
+  wuffs_private_impl__u64__sat_add_indirect(&v_n, ((uint64_t)(wuffs_base__u64__sat_add(v_p, 1u) * 24u)));
+  return wuffs_base__u64__sat_add(v_n, ((uint64_t)(a_in_size * a_hs)));
+}
+
+// -------- func brotli.metablock_builder.workbuf_len_worst_case
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint64_t
+wuffs_brotli__metablock_builder__workbuf_len_worst_case(
+    const wuffs_brotli__metablock_builder* self,
+    uint64_t a_num_literals,
+    uint64_t a_num_commands) {
+  uint64_t v_l = 0;
+  uint64_t v_c = 0;
+  uint64_t v_n = 0;
+  uint64_t v_split = 0;
+
+  v_l = wuffs_base__u64__min(a_num_literals, 4294967295u);
+  v_c = wuffs_base__u64__min(a_num_commands, 4294967295u);
+  v_n = wuffs_base__u64__sat_add(((uint64_t)(5u * wuffs_base__u64__max(v_l, 1u))), ((uint64_t)(10u * wuffs_base__u64__max(v_c, 1u))));
+  v_split = wuffs_base__u64__sat_add(v_l, wuffs_brotli__metablock_builder__sbv_scratch_len(self,
+      v_l,
+      1040u,
+      544u,
+      100u));
+  v_split = wuffs_base__u64__max(v_split, wuffs_base__u64__sat_add(((uint64_t)(2u * v_c)), wuffs_brotli__metablock_builder__sbv_scratch_len(self,
+      v_c,
+      2832u,
+      530u,
+      50u)));
+  v_split = wuffs_base__u64__max(v_split, wuffs_base__u64__sat_add(((uint64_t)(2u * v_c)), wuffs_brotli__metablock_builder__sbv_scratch_len(self,
+      v_c,
+      2192u,
+      544u,
+      50u)));
+  wuffs_private_impl__u64__sat_add_indirect(&v_n, wuffs_base__u64__max(v_split, 2192u));
+  wuffs_private_impl__u64__sat_add_indirect(&v_n, 20078592u);
+  wuffs_private_impl__u64__sat_add_indirect(&v_n, 19283968u);
+  wuffs_private_impl__u64__sat_add_indirect(&v_n, wuffs_base__u64__max(wuffs_brotli__metablock_builder__cluster_scratch_len(self, 16384u, 1040u), wuffs_brotli__metablock_builder__cluster_scratch_len(self, 1024u, 2192u)));
+  return v_n;
+}
+
 // -------- func brotli.metablock_tester.bits_entropy
 
 WUFFS_BASE__GENERATED_C_CODE
@@ -72691,7 +72801,15 @@ wuffs_brotli__metablock_tester__build_meta_block(
   }
 
   wuffs_base__status v_status = wuffs_base__make_status(NULL);
+  uint64_t v_i = 0;
+  uint64_t v_literals = 0;
 
+  v_i = 0u;
+  while (v_i < a_num_commands) {
+    v_literals += ((uint64_t)(wuffs_brotli__metablock_builder__ld32(&self->private_data.f_mb, a_cmds, ((uint64_t)(v_i * 16u)))));
+    v_i += 1u;
+  }
+  self->private_impl.f_worst_case = wuffs_brotli__metablock_builder__workbuf_len_worst_case(&self->private_data.f_mb, v_literals, a_num_commands);
   wuffs_brotli__metablock_builder__set_params(&self->private_data.f_mb, a_quality, (a_large_window != 0u), (a_disable_literal_context_modeling != 0u));
   wuffs_brotli__metablock_builder__init_distance_params(&self->private_data.f_mb, a_npostfix, a_ndirect, (a_large_window != 0u));
   v_status = wuffs_brotli__metablock_builder__build_meta_block(&self->private_data.f_mb,
@@ -72775,6 +72893,8 @@ wuffs_brotli__metablock_tester__get(
     return self->private_data.f_mb.private_impl.f_dist_max_distance;
   } else if (a_key == 29u) {
     return self->private_data.f_mb.private_impl.f_wb_high;
+  } else if (a_key == 30u) {
+    return self->private_impl.f_worst_case;
   }
   return 0u;
 }

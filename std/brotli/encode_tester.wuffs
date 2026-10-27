@@ -18,7 +18,9 @@
 // their semantics may change at any time.
 
 pub struct metablock_tester?(
-        dummy : base.u32,
+        // worst_case is the workbuf_len_worst_case for the last
+        // build_meta_block call.
+        worst_case : base.u64,
 ) + (
         // Wuffs' C code generator expects same-package struct fields to be in
         // the private_data section (after the "+").
@@ -129,8 +131,16 @@ pub func metablock_tester.build_meta_block!(workbuf: slice base.u8, ringbuffer: 
         prev_byte: base.u8, prev_byte2: base.u8, cmds: slice base.u8, num_commands: base.u64,
         literal_context_mode: base.u32, quality: base.u32, large_window: base.u32,
         disable_literal_context_modeling: base.u32, npostfix: base.u32, ndirect: base.u32) base.status {
-    var status : base.status
+    var status   : base.status
+    var i        : base.u64
+    var literals : base.u64
 
+    i = 0
+    while i < args.num_commands {
+        literals ~mod+= this.mb.ld32(wb: args.cmds, i: i ~mod* 16) as base.u64
+        i ~mod+= 1
+    }
+    this.worst_case = this.mb.workbuf_len_worst_case(num_literals: literals, num_commands: args.num_commands)
     this.mb.set_params!(quality: args.quality, large_window: args.large_window <> 0,
             disable_literal_context_modeling: args.disable_literal_context_modeling <> 0)
     this.mb.init_distance_params!(npostfix: args.npostfix, ndirect: args.ndirect, large_window: args.large_window <> 0)
@@ -160,6 +170,7 @@ pub func metablock_tester.optimize_histograms!(workbuf: slice base.u8, num_dista
 //     num_direct_distance_codes, alphabet_size_max, alphabet_size_limit and
 //     max_distance.
 //   - 29: the highest workbuf offset used (the workbuf length needed).
+//   - 30: the workbuf_len_worst_case for the last build_meta_block call.
 pub func metablock_tester.get(key: base.u32) base.u64 {
     var c : base.u32[..= 2]
 
@@ -195,6 +206,8 @@ pub func metablock_tester.get(key: base.u32) base.u64 {
         return this.mb.dist_max_distance
     } else if args.key == 29 {
         return this.mb.wb_high
+    } else if args.key == 30 {
+        return this.worst_case
     }
     return 0
 }
