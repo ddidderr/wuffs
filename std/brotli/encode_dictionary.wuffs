@@ -1,0 +1,568 @@
+// Copyright 2026 The Wuffs Authors.
+//
+// Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
+// https://www.apache.org/licenses/LICENSE-2.0> or the MIT license
+// <LICENSE-MIT or https://opensource.org/licenses/MIT>, at your
+// option. This file may not be copied, modified, or distributed
+// except according to those terms.
+//
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+
+// --------
+
+// This file mirrors the encoder's raw (prefix) dictionaries: compound
+// dictionary.c (CreatePreparedDictionary and AttachPreparedDictionary), the
+// BROTLI_SHARED_DICTIONARY_RAW cases of BrotliEncoderPrepareDictionary and
+// BrotliEncoderAttachPreparedDictionary in encode.c and the compound
+// dictionary search of hash.h (FindCompoundDictionaryMatch and
+// LookupCompoundDictionaryMatch).
+//
+// The dictionaries live at the start of the workbuf (see README.md). Each
+// one (a "chunk", the C code's PreparedDictionary) is, starting at its
+// dc_src_off workbuf offset:
+//  - the dictionary bytes (the C code's source, dc_size bytes),
+//  - slot_offsets: (1 << dc_slot_bits) u32le values,
+//  - heads: (1 << dc_bucket_bits) u16le values and
+//  - items: dc_num_items u32le values.
+
+pub status "#unsupported serialized encoder dictionary"
+
+// ENCODER_DICTIONARY_CHUNKS_MAX mirrors SHARED_BROTLI_MAX_COMPOUND_DICTS in
+// shared_dictionary.h.
+pri const ENCODER_DICTIONARY_CHUNKS_MAX : base.u32 = 15
+
+// Mirrors kPreparedDictionaryHashMul64Long in compound_dictionary.h.
+pri const PREPARED_DICTIONARY_HASH_MUL_64_LONG : base.u64 = 0x1FE3_5A7B_D357_9BD3
+
+// add_dictionary attaches a raw (LZ77 prefix) dictionary, like
+// BrotliEncoderPrepareDictionary (with BROTLI_SHARED_DICTIONARY_RAW)
+// followed by BrotliEncoderAttachPreparedDictionary in encode.c. It must be
+// called before the first transform_io call. It can be called up to 15 times
+// (the C code's SHARED_BROTLI_MAX_COMPOUND_DICTS).
+//
+// args.dict_type is DICTIONARY_TYPE_RAW or DICTIONARY_TYPE_SERIALIZED. Like
+// a default (not BROTLI_EXPERIMENTAL) libbrotlienc build, whose
+// BrotliEncoderPrepareDictionary returns NULL for a serialized dictionary,
+// serialized dictionaries are rejected.
+//
+// Wuffs structs cannot hold pointers, so the dictionary's bytes are copied
+// into the workbuf, followed by its prepared hash tables (the C code's
+// PreparedDictionary), after the dictionaries added so far. args.workbuf must
+// be at least add_dictionary_workbuf_len(args.dict.length()) bytes long
+// (preparing the hash tables needs some scratch space after them) and every
+// later add_dictionary and transform_io call must be passed the same workbuf
+// (or at least one whose prefix holds the same bytes). After the last
+// add_dictionary call, workbuf_len gives the workbuf length that
+// transform_io needs.
+//
+// On failure, the encoder's state is unchanged.
+pub func encoder.add_dictionary!(dict_type: base.u32, dict: roslice base.u8, workbuf: slice base.u8) base.status {
+    var n           : base.u64
+    var lo          : base.u64
+    var hi          : base.u64
+    var bucket_bits : base.u32[..= 22]
+    var slot_bits   : base.u32[..= 12]
+    var num_items   : base.u64
+    var c           : base.u32
+
+    if this.is_initialized {
+        return base."#bad call sequence"
+    } else if args.dict_type == DICTIONARY_TYPE_SERIALIZED {
+        return "#unsupported serialized encoder dictionary"
+    } else if args.dict_type <> DICTIONARY_TYPE_RAW {
+        return base."#bad argument"
+    } else if this.dict_num_chunks >= ENCODER_DICTIONARY_CHUNKS_MAX {
+        // Mirrors AttachPreparedDictionary in compound_dictionary.c.
+        return "#too many compound dictionaries"
+    }
+    n = args.dict.length()
+    if (n > DICT_TOTAL_MAX) or ((this.dict_total_size ~sat+ n) > DICT_TOTAL_MAX) {
+        return "#too much dictionary data"
+    } else if this.add_dictionary_workbuf_len(dict_len: n) > args.workbuf.length() {
+        return base."#bad workbuf length"
+    }
+
+    // Mirrors CreatePreparedDictionary in compound_dictionary.c.
+    bucket_bits = 17
+    while (((0x10 as base.u64) << bucket_bits) < n) and (bucket_bits < 22) {
+        bucket_bits += 1
+    }
+    if bucket_bits >= 10 {
+        slot_bits = bucket_bits - 10
+    }
+
+    // Copy the dictionary bytes into the workbuf.
+    lo = this.dict_end
+    hi = lo ~mod+ n
+    if (lo > hi) or (hi > args.workbuf.length()) {
+        return "#internal error: inconsistent encoder state"
+    }
+    args.workbuf[lo .. hi].copy_from_slice!(s: args.dict)
+
+    num_items = this.prepare_dictionary!(wb: args.workbuf, src_off: lo, n: n,
+            bucket_bits: bucket_bits, slot_bits: slot_bits)
+
+    // Mirrors AttachPreparedDictionary in compound_dictionary.c.
+    c = this.dict_num_chunks
+    if c >= 15 {
+        return "#internal error: inconsistent encoder state"
+    }
+    this.dc_src_off[c] = lo
+    this.dc_size[c] = n
+    this.dc_bucket_bits[c] = bucket_bits
+    this.dc_slot_bits[c] = slot_bits
+    this.dc_num_items[c] = num_items
+    this.dict_total_size ~mod+= n
+    this.dict_chunk_offsets[c + 1] = this.dict_total_size
+    this.dict_num_chunks = c + 1
+    this.dict_end = ((hi ~mod+ ((4 as base.u64) << slot_bits)) ~mod+
+            ((2 as base.u64) << bucket_bits)) ~mod+ (4 ~mod* num_items)
+    return ok
+}
+
+// add_dictionary_workbuf_len returns the workbuf length that an
+// add_dictionary call, for a dictionary of dict_len bytes, needs: the
+// dictionaries added so far, plus that dictionary's bytes, its hash tables
+// (assuming the most items) and the scratch space for preparing them. It
+// returns 0xFFFF_FFFF_FFFF_FFFF if dict_len is too large.
+pub func encoder.add_dictionary_workbuf_len(dict_len: base.u64) base.u64 {
+    var bucket_bits : base.u32[..= 22]
+    var slot_bits   : base.u32[..= 12]
+    var n           : base.u64
+    var max_items   : base.u64
+
+    if args.dict_len > DICT_TOTAL_MAX {
+        return 0xFFFF_FFFF_FFFF_FFFF
+    }
+    n = args.dict_len
+    bucket_bits = 17
+    while (((0x10 as base.u64) << bucket_bits) < n) and (bucket_bits < 22) {
+        bucket_bits += 1
+    }
+    if bucket_bits >= 10 {
+        slot_bits = bucket_bits - 10
+    }
+    if n > 7 {
+        max_items = n - 7
+    }
+    // The dictionary bytes, slot_offsets, heads and (at most) items, then the
+    // scratch space: num (u16), bucket_heads (u32) and next_bucket (u32).
+    return ((((this.dict_end ~sat+ n) ~sat+ ((4 as base.u64) << slot_bits)) ~sat+
+            ((2 as base.u64) << bucket_bits)) ~sat+ (4 ~mod* max_items)) ~sat+
+            (((6 as base.u64) << bucket_bits) ~sat+ (4 ~mod* n))
+}
+
+// prepare_dictionary mirrors CreatePreparedDictionaryWithParams in
+// compound_dictionary.c, with hash_bits 40 and bucket_limit 32, for the n
+// dictionary bytes at args.wb[args.src_off ..]. It writes the slot_offsets,
+// heads and items arrays after those bytes (with the scratch space after the
+// largest possible items array) and returns the number of items.
+pri func encoder.prepare_dictionary!(wb: slice base.u8, src_off: base.u64, n: base.u64, bucket_bits: base.u32[..= 22], slot_bits: base.u32[..= 12]) base.u64 {
+    var num_slots   : base.u64
+    var num_buckets : base.u64
+    var slot_mask   : base.u64
+    var slot_off    : base.u64
+    var heads_off   : base.u64
+    var items_off   : base.u64
+    var num_off     : base.u64
+    var bh_off      : base.u64
+    var nb_off      : base.u64
+    var max_items   : base.u64
+    var i           : base.u64
+    var j           : base.u64
+    var h           : base.u64
+    var key         : base.u64
+    var count       : base.u32
+    var limit       : base.u32
+    var size        : base.u32
+    var overflow    : base.bool
+    var total_items : base.u64
+    var slot        : base.u64
+    var cursor      : base.u64
+    var pos         : base.u64
+    var k           : base.u32
+
+    num_slots = (1 as base.u64) << args.slot_bits
+    num_buckets = (1 as base.u64) << args.bucket_bits
+    slot_mask = num_slots - 1
+    if args.n > 7 {
+        max_items = args.n - 7
+    }
+    slot_off = args.src_off ~mod+ args.n
+    heads_off = slot_off ~mod+ (4 ~mod* num_slots)
+    items_off = heads_off ~mod+ (2 ~mod* num_buckets)
+    num_off = items_off ~mod+ (4 ~mod* max_items)
+    bh_off = num_off ~mod+ (2 ~mod* num_buckets)
+    nb_off = bh_off ~mod+ (4 ~mod* num_buckets)
+
+    // Step 1: create "bloated" hasher.
+    this.fill_bytes!(s: args.wb, i: num_off, n: 2 ~mod* num_buckets, v: 0)
+    i = 0
+    while (i ~mod+ 7) < args.n {
+        h = (this.load64le(s: args.wb, i: args.src_off ~mod+ i) & 0xFF_FFFF_FFFF) ~mod*
+                PREPARED_DICTIONARY_HASH_MUL_64_LONG
+        key = (h >> 32) >> (32 - args.bucket_bits)
+        count = this.peek_u16(s: args.wb, i: num_off ~mod+ (2 ~mod* key)) as base.u32
+        if count == 0 {
+            this.poke_u32!(s: args.wb, i: nb_off ~mod+ (4 ~mod* i), v: 0xFFFF_FFFF)
+        } else {
+            this.poke_u32!(s: args.wb, i: nb_off ~mod+ (4 ~mod* i),
+                    v: this.load32le(s: args.wb, i: bh_off ~mod+ (4 ~mod* key)))
+        }
+        this.poke_u32!(s: args.wb, i: bh_off ~mod+ (4 ~mod* key), v: (i & 0xFFFF_FFFF) as base.u32)
+        count ~mod+= 1
+        if count > 32 {
+            count = 32
+        }
+        this.poke_u16!(s: args.wb, i: num_off ~mod+ (2 ~mod* key), v: (count & 0xFFFF) as base.u16)
+        i ~mod+= 1
+    }
+
+    // Step 2: find slot limits.
+    i = 0
+    while i < num_slots {
+        limit = 32
+        while true {
+            count = 0
+            overflow = false
+            j = i
+            while j < num_buckets {
+                size = this.peek_u16(s: args.wb, i: num_off ~mod+ (2 ~mod* j)) as base.u32
+                // Last chain may span behind 64K limit; overflow happens
+                // only if we are about to use 0xFFFF+ as item offset.
+                if count >= 0xFFFF {
+                    overflow = true
+                    break
+                }
+                if size > limit {
+                    size = limit
+                }
+                count ~mod+= size
+                j ~mod+= num_slots
+            }
+            if not overflow {
+                this.dp_slot_size[i & 4095] = count
+                total_items ~mod+= count as base.u64
+                break
+            } else if limit == 0 {
+                // Unreachable: with a zero limit, count stays zero.
+                this.dp_slot_size[i & 4095] = 0
+                break
+            }
+            limit -= 1
+        }
+        this.dp_slot_limit[i & 4095] = limit
+        i ~mod+= 1
+    }
+
+    // Step 3: transfer data to "slim" hasher.
+    total_items = 0
+    i = 0
+    while i < num_slots {
+        this.poke_u32!(s: args.wb, i: slot_off ~mod+ (4 ~mod* i), v: (total_items & 0xFFFF_FFFF) as base.u32)
+        this.dp_slot_off[i & 4095] = (total_items & 0xFFFF_FFFF) as base.u32
+        total_items ~mod+= this.dp_slot_size[i & 4095] as base.u64
+        this.dp_slot_size[i & 4095] = 0
+        i ~mod+= 1
+    }
+    i = 0
+    while i < num_buckets {
+        slot = i & slot_mask & 4095
+        count = this.peek_u16(s: args.wb, i: num_off ~mod+ (2 ~mod* i)) as base.u32
+        if count > this.dp_slot_limit[slot] {
+            count = this.dp_slot_limit[slot]
+        }
+        if count == 0 {
+            this.poke_u16!(s: args.wb, i: heads_off ~mod+ (2 ~mod* i), v: 0xFFFF)
+            i ~mod+= 1
+            continue
+        }
+        cursor = this.dp_slot_size[slot] as base.u64
+        this.poke_u16!(s: args.wb, i: heads_off ~mod+ (2 ~mod* i), v: (cursor & 0xFFFF) as base.u16)
+        cursor ~mod+= this.dp_slot_off[slot] as base.u64
+        this.dp_slot_size[slot] ~mod+= count
+        pos = this.load32le(s: args.wb, i: bh_off ~mod+ (4 ~mod* i)) as base.u64
+        k = 0
+        while k < count {
+            this.poke_u32!(s: args.wb, i: items_off ~mod+ (4 ~mod* cursor), v: (pos & 0xFFFF_FFFF) as base.u32)
+            cursor ~mod+= 1
+            pos = this.load32le(s: args.wb, i: nb_off ~mod+ (4 ~mod* pos)) as base.u64
+            k ~mod+= 1
+        }
+        cursor ~mod-= 1
+        this.poke_u32!(s: args.wb, i: items_off ~mod+ (4 ~mod* cursor),
+                v: this.load32le(s: args.wb, i: items_off ~mod+ (4 ~mod* cursor)) | 0x8000_0000)
+        i ~mod+= 1
+    }
+    return total_items
+}
+
+// compound_dictionary_enabled returns whether BrotliCreateBackwardReferences
+// in backward_references.c uses its ENABLE_COMPOUND_DICTIONARY variant: when
+// any dictionary is attached and the hasher is H5, H6, H58, H68, H40, H41,
+// H42, H55 or H65 (H55 and H65 are the composite hashers H54 and H6 plus a
+// rolling hasher). The other hashers (H2, H3, H4, H54 and H35) ignore the
+// compound dictionary (but not its total size).
+pri func encoder.compound_dictionary_enabled() base.bool {
+    var htype : base.u32
+
+    if this.dict_num_chunks == 0 {
+        return false
+    }
+    htype = this.hasher_type
+    return (htype == 5) or (htype == 6) or (htype == 58) or (htype == 68) or
+            (htype == 40) or (htype == 41) or (htype == 42) or
+            ((htype == 54) and (this.hr_jump <> 0))
+}
+
+// Mirrors LookupCompoundDictionaryMatch in hash.h. args.data is the ring
+// buffer (the C code's data) and args.dwb holds the dictionaries.
+pri func encoder.lookup_compound_dictionary_match!(data: roslice base.u8, dwb: roslice base.u8, cur_ix: base.u64, max_length: base.u64, max_ring_buffer_distance: base.u64, max_distance: base.u64) {
+    var base_offset : base.u64
+    var d           : base.u32
+
+    base_offset = args.max_ring_buffer_distance ~mod+ this.dict_total_size
+    d = 0
+    while d < this.dict_num_chunks {
+        assert d < 15 via "a < b: a < c; c <= b"(c: this.dict_num_chunks)
+        this.find_compound_dictionary_match!(data: args.data, dwb: args.dwb, d: d,
+                cur_ix: args.cur_ix, max_length: args.max_length,
+                distance_offset: base_offset ~mod- this.dict_chunk_offsets[d],
+                max_distance: args.max_distance)
+        d += 1
+    }
+}
+
+// Mirrors FindCompoundDictionaryMatch in hash.h, for the d'th chunk. The
+// search result is in (and starts from) the this.sr_etc fields.
+pri func encoder.find_compound_dictionary_match!(data: roslice base.u8, dwb: roslice base.u8, d: base.u32[..= 14], cur_ix: base.u64, max_length: base.u64, distance_offset: base.u64, max_distance: base.u64) {
+    var source_size   : base.u64
+    var boundary      : base.u64
+    var src_off       : base.u64
+    var slot_off      : base.u64
+    var heads_off     : base.u64
+    var items_off     : base.u64
+    var source        : roslice base.u8
+    var cur           : roslice base.u8
+    var cur_ix_masked : base.u64
+    var mask          : base.u64
+    var best_score    : base.u64
+    var best_len      : base.u64
+    var i             : base.u32
+    var h             : base.u64
+    var key           : base.u64
+    var slot          : base.u64
+    var head          : base.u64
+    var chain         : base.u64
+    var item          : base.u32
+    var distance      : base.u64
+    var offset        : base.u64
+    var limit         : base.u64
+    var len           : base.u64
+    var score         : base.u64
+    var num_items     : base.u64
+    var bb            : base.u32[..= 22]
+    var sb            : base.u32[..= 12]
+
+    bb = this.dc_bucket_bits[args.d].min(no_more_than: 22)
+    sb = this.dc_slot_bits[args.d].min(no_more_than: 12)
+    num_items = this.dc_num_items[args.d]
+    source_size = this.dc_size[args.d]
+    boundary = args.distance_offset ~mod- source_size
+    src_off = this.dc_src_off[args.d]
+    slot_off = src_off ~mod+ source_size
+    heads_off = slot_off ~mod+ ((4 as base.u64) << sb)
+    items_off = heads_off ~mod+ ((2 as base.u64) << bb)
+    if (src_off > slot_off) or (slot_off > args.dwb.length()) {
+        return nothing
+    }
+    source = args.dwb[src_off .. slot_off]
+
+    mask = this.rb_mask as base.u64
+    cur_ix_masked = args.cur_ix & mask
+    if cur_ix_masked > args.data.length() {
+        return nothing
+    }
+    cur = args.data[cur_ix_masked ..]
+    best_score = this.sr_score
+    best_len = this.sr_len
+    h = (this.load64le(s: args.data, i: cur_ix_masked) & 0xFF_FFFF_FFFF) ~mod*
+            PREPARED_DICTIONARY_HASH_MUL_64_LONG
+    key = (h >> 32) >> (32 - bb)
+    slot = key & (((1 as base.u64) << sb) - 1)
+    head = this.peek_u16(s: args.dwb, i: heads_off ~mod+ (2 ~mod* key)) as base.u64
+    chain = (this.load32le(s: args.dwb, i: slot_off ~mod+ (4 ~mod* slot)) as base.u64) ~mod+ head
+    item = 0
+    if head == 0xFFFF {
+        item = 1
+    }
+
+    i = 0
+    while i < 4 {
+        distance = this.dist_cache_u64(i: i)
+        if (distance <= boundary) or (distance > args.distance_offset) {
+            i ~mod+= 1
+            continue
+        }
+        offset = args.distance_offset ~mod- distance
+        limit = source_size ~mod- offset
+        limit = limit.min(no_more_than: args.max_length)
+        len = 0
+        if offset <= source.length() {
+            len = this.find_match_length_2(a: source[offset ..], b: cur, limit: limit)
+        }
+        if len >= 2 {
+            score = this.backward_reference_score_using_last_distance(copy_length: len)
+            if best_score < score {
+                if i <> 0 {
+                    score ~mod-= this.backward_reference_penalty_using_last_distance(distance_short_code: i as base.u64)
+                }
+                if best_score < score {
+                    best_score = score
+                    if len > best_len {
+                        best_len = len
+                    }
+                    this.sr_len = len
+                    this.sr_len_code_delta = 0
+                    this.sr_distance = distance
+                    this.sr_score = best_score
+                }
+            }
+        }
+        i ~mod+= 1
+    }
+    // we require matches of len >4, so increase best_len to 3, so we can
+    // compare 4 bytes all the time.
+    if best_len < 3 {
+        best_len = 3
+    }
+    while item == 0 {
+        if chain >= num_items {
+            // Unreachable: every chain ends with a 0x8000_0000 bit.
+            break
+        }
+        item = this.load32le(s: args.dwb, i: items_off ~mod+ (4 ~mod* chain))
+        chain ~mod+= 1
+        offset = (item & 0x7FFF_FFFF) as base.u64
+        item &= 0x8000_0000
+        distance = args.distance_offset ~mod- offset
+        limit = source_size ~mod- offset
+        limit = limit.min(no_more_than: args.max_length)
+        if distance > args.max_distance {
+            continue
+        }
+        if ((cur_ix_masked ~mod+ best_len) > mask) or (best_len >= limit) or
+                (this.load32le(s: args.data, i: (cur_ix_masked ~mod+ best_len) ~mod- 3) <>
+                this.load32le(s: source, i: (offset ~mod+ best_len) ~mod- 3)) {
+            continue
+        }
+        len = 0
+        if offset <= source.length() {
+            len = this.find_match_length_2(a: source[offset ..], b: cur, limit: limit)
+        }
+        if len >= 4 {
+            score = this.backward_reference_score(copy_length: len, backward_reference_offset: distance)
+            if best_score < score {
+                best_score = score
+                best_len = len
+                this.sr_len = best_len
+                this.sr_len_code_delta = 0
+                this.sr_distance = distance
+                this.sr_score = best_score
+            }
+        }
+    }
+}
+
+// find_match_length_2 mirrors FindMatchLengthWithLimit in
+// find_match_length.h: the length of the common prefix of a and b, up to
+// limit bytes.
+pri func encoder.find_match_length_2(a: roslice base.u8, b: roslice base.u8, limit: base.u64) base.u64 {
+    var matched : base.u64
+    var n       : base.u64
+    var a       : roslice base.u8
+    var b       : roslice base.u8
+    var x       : base.u64
+
+    a = args.a
+    b = args.b
+    n = args.limit
+    while (n >= 8) and (a.length() >= 8) and (b.length() >= 8) {
+        x = a.peek_u64le() ^ b.peek_u64le()
+        if x <> 0 {
+            while (x & 0xFF) == 0 {
+                matched ~mod+= 1
+                x >>= 8
+            }
+            return matched
+        }
+        matched ~mod+= 8
+        n -= 8
+        a = a[8 ..]
+        b = b[8 ..]
+    }
+    while (n > 0) and (a.length() > 0) and (b.length() > 0) {
+        if a[0] <> b[0] {
+            break
+        }
+        matched ~mod+= 1
+        n -= 1
+        a = a[1 ..]
+        b = b[1 ..]
+    }
+    return matched
+}
+
+// extend_last_command_compound mirrors the compound dictionary branch of
+// ExtendLastCommand in encode.c: extending the last command's copy (of
+// distance cmd_dist, beyond max_distance) from the compound dictionary. It
+// returns how many bytes it extended the copy by.
+pri func encoder.extend_last_command_compound(wb: roslice base.u8, dwb: roslice base.u8, bytes: base.u64, wrapped_last_processed_pos: base.u64, cmd_dist: base.u64, max_distance: base.u64, last_copy_len: base.u64) base.u64 {
+    var address      : base.u64
+    var br_index     : base.u32
+    var br_offset    : base.u64
+    var chunk_length : base.u64
+    var n            : base.u64
+    var p            : base.u64
+
+    if ((args.cmd_dist ~mod- args.max_distance) ~mod- 1) >= this.dict_total_size {
+        return 0
+    } else if args.last_copy_len >= (args.cmd_dist ~mod- args.max_distance) {
+        return 0
+    }
+    address = (this.dict_total_size ~mod- (args.cmd_dist ~mod- args.max_distance)) ~mod+ args.last_copy_len
+    br_index = 0
+    while (br_index < 15) and (address >= this.dict_chunk_offsets[br_index + 1]) {
+        br_index += 1
+    }
+    if br_index >= 15 {
+        return 0
+    }
+    br_offset = address ~mod- this.dict_chunk_offsets[br_index]
+    chunk_length = this.dict_chunk_offsets[br_index + 1] ~mod- this.dict_chunk_offsets[br_index]
+    p = args.wrapped_last_processed_pos
+    while n < args.bytes {
+        // The C code reads past an empty chunk's end. Here, such a read
+        // stops the extension (see README.md).
+        if (br_offset >= chunk_length) or (br_index >= 15) {
+            break
+        }
+        if this.rb_byte(wb: args.wb, pos: p) <>
+                this.byte_at(s: args.dwb, i: this.dc_src_off[br_index] ~mod+ br_offset) {
+            break
+        }
+        n ~mod+= 1
+        p = (p ~mod+ 1) & 0xFFFF_FFFF
+        br_offset ~mod+= 1
+        if br_offset == chunk_length {
+            br_index += 1
+            br_offset = 0
+            if (br_index < this.dict_num_chunks) and (br_index < 15) {
+                chunk_length = this.dict_chunk_offsets[br_index + 1] ~mod- this.dict_chunk_offsets[br_index]
+            } else {
+                break
+            }
+        }
+    }
+    return n
+}
