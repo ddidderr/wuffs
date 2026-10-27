@@ -2062,7 +2062,12 @@ main(int argc, char** argv) {
     }
   }
   g_seed = seed;
-  g_rng_state = seed * 0x9E3779B97F4A7C15ull;
+  // Hash the seed: SplitMix64 adds 0x9E3779B97F4A7C15 to its state per
+  // number, so a starting state of (seed * 0x9E3779B97F4A7C15) would make
+  // seed N+1's sequence that of seed N shifted by one number, and shards with
+  // consecutive seeds would soon generate the same cases.
+  g_rng_state = seed;
+  g_rng_state = r64();
   if (!strncmp(argv[1], "-replay=", 8)) {
     return replay_dec(argv[1] + 8);
   } else if (!strcmp(argv[1], "-dec")) {
