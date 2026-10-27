@@ -43,9 +43,17 @@
 //       -o /tmp/sfsweep
 //
 // (as one command line), then run /tmp/sfsweep (or /tmp/sfsweep OPNAME to run
-// only one op: f32_add, f32_sub, f32_mul, f32_div, f64_to_f32, f32_to_f64,
-// f32_from_u32, f32_from_i32 or f32_from_u64). It exits with a non-zero
-// status if there were any mismatches.
+// only one op: f32_add, f32_sub, f32_mul, f32_div, f64_add, f64_sub, f64_mul,
+// f64_div, f64_to_f32, f32_to_f64, f32_from_u32, f32_from_i32, f32_from_u64,
+// f32_compare or f64_compare). It exits with a non-zero status if there were
+// any mismatches.
+//
+// The f32_compare and f64_compare checks run the cmp, eq, ne, lt, le, gt, ge,
+// min and max functions on every pair of a set of values (both signs, zero,
+// subnormal, normal and maximal exponents, boundary mantissas and their
+// neighbors, infinities and NaNs), against the hardware's comparison
+// operators. For min and max, the result must be the bits of
+// ((a < b) ? a : b) and ((a > b) ? a : b).
 
 #define _POSIX_C_SOURCE 200809L
 
@@ -464,6 +472,99 @@ static const struct {
     {"f32_from_u64", ((uint64_t)64) << 26},
 };
 
+static uint64_t  //
+check_compare32() {
+  static const uint32_t exps[] = {0, 1, 2, 126, 127, 128, 253, 254, 255};
+  static const uint32_t mans[] = {0x000000, 0x000001, 0x000002, 0x000003,
+                                  0x3FFFFF, 0x400000, 0x400001, 0x7FFFFE,
+                                  0x7FFFFF, 0x123456, 0x654321};
+  static uint32_t v[2 * 9 * 11 * 3];
+  uint32_t n = 0;
+  for (uint32_t s = 0; s < 2; s++) {
+    for (uint32_t e = 0; e < 9; e++) {
+      for (uint32_t m = 0; m < 11; m++) {
+        uint32_t x = (s << 31) | (exps[e] << 23) | mans[m];
+        v[n++] = x;
+        v[n++] = x + 1;
+        v[n++] = (x & 0x7FFFFFFF) ? (x - 1) : x;
+      }
+    }
+  }
+  uint64_t mismatches = 0;
+  for (uint32_t i = 0; i < n; i++) {
+    for (uint32_t j = 0; j < n; j++) {
+      uint32_t a = v[i];
+      uint32_t b = v[j];
+      float x = f_of(a);
+      float y = f_of(b);
+      uint32_t c = ((x != x) || (y != y)) ? 3 : (x < y) ? 0 : (x == y) ? 1 : 2;
+      bool ok = (wuffs_softfloat__arith__f32_cmp(&g_sf, a, b) == c) &&
+                (wuffs_softfloat__arith__f32_eq(&g_sf, a, b) == (x == y)) &&
+                (wuffs_softfloat__arith__f32_ne(&g_sf, a, b) == (x != y)) &&
+                (wuffs_softfloat__arith__f32_lt(&g_sf, a, b) == (x < y)) &&
+                (wuffs_softfloat__arith__f32_le(&g_sf, a, b) == (x <= y)) &&
+                (wuffs_softfloat__arith__f32_gt(&g_sf, a, b) == (x > y)) &&
+                (wuffs_softfloat__arith__f32_ge(&g_sf, a, b) == (x >= y)) &&
+                (wuffs_softfloat__arith__f32_min(&g_sf, a, b) ==
+                 ((x < y) ? a : b)) &&
+                (wuffs_softfloat__arith__f32_max(&g_sf, a, b) ==
+                 ((x > y) ? a : b));
+      if (!ok && (mismatches++ < 5)) {
+        printf("MISMATCH f32_compare(0x%08" PRIX32 ", 0x%08" PRIX32 ")\n", a,
+               b);
+      }
+    }
+  }
+  return mismatches;
+}
+
+static uint64_t  //
+check_compare64() {
+  static const uint64_t exps[] = {0, 1, 2, 1022, 1023, 1024, 2045, 2046, 2047};
+  static const uint64_t mans[] = {
+      0x0000000000000, 0x0000000000001, 0x0000000000002, 0x0000000000003,
+      0x7FFFFFFFFFFFF, 0x8000000000000, 0x8000000000001, 0xFFFFFFFFFFFFE,
+      0xFFFFFFFFFFFFF, 0x0123456789ABC, 0xFEDCBA9876543};
+  static uint64_t v[2 * 9 * 11 * 3];
+  uint32_t n = 0;
+  for (uint64_t s = 0; s < 2; s++) {
+    for (uint32_t e = 0; e < 9; e++) {
+      for (uint32_t m = 0; m < 11; m++) {
+        uint64_t x = (s << 63) | (exps[e] << 52) | mans[m];
+        v[n++] = x;
+        v[n++] = x + 1;
+        v[n++] = (x & 0x7FFFFFFFFFFFFFFFull) ? (x - 1) : x;
+      }
+    }
+  }
+  uint64_t mismatches = 0;
+  for (uint32_t i = 0; i < n; i++) {
+    for (uint32_t j = 0; j < n; j++) {
+      uint64_t a = v[i];
+      uint64_t b = v[j];
+      double x = d_of(a);
+      double y = d_of(b);
+      uint32_t c = ((x != x) || (y != y)) ? 3 : (x < y) ? 0 : (x == y) ? 1 : 2;
+      bool ok = (wuffs_softfloat__arith__f64_cmp(&g_sf, a, b) == c) &&
+                (wuffs_softfloat__arith__f64_eq(&g_sf, a, b) == (x == y)) &&
+                (wuffs_softfloat__arith__f64_ne(&g_sf, a, b) == (x != y)) &&
+                (wuffs_softfloat__arith__f64_lt(&g_sf, a, b) == (x < y)) &&
+                (wuffs_softfloat__arith__f64_le(&g_sf, a, b) == (x <= y)) &&
+                (wuffs_softfloat__arith__f64_gt(&g_sf, a, b) == (x > y)) &&
+                (wuffs_softfloat__arith__f64_ge(&g_sf, a, b) == (x >= y)) &&
+                (wuffs_softfloat__arith__f64_min(&g_sf, a, b) ==
+                 ((x < y) ? a : b)) &&
+                (wuffs_softfloat__arith__f64_max(&g_sf, a, b) ==
+                 ((x > y) ? a : b));
+      if (!ok && (mismatches++ < 5)) {
+        printf("MISMATCH f64_compare(0x%016" PRIX64 ", 0x%016" PRIX64 ")\n", a,
+               b);
+      }
+    }
+  }
+  return mismatches;
+}
+
 static double  //
 now() {
   struct timespec t;
@@ -561,6 +662,21 @@ main(int argc, char** argv) {
     printf("%-14s %12" PRIu64 " operands,      %8" PRIu64
            " mismatches, %6.1f seconds\n",
            g_convs[w].name, count, mismatches, now() - t0);
+    fflush(stdout);
+  }
+
+  for (int w = 0; w < 2; w++) {
+    const char* name = w ? "f64_compare" : "f32_compare";
+    if (only && strcmp(only, name)) {
+      continue;
+    }
+    double t0 = now();
+    uint64_t mismatches = w ? check_compare64() : check_compare32();
+    total_mismatches += mismatches;
+    printf("%-14s %12" PRIu64 " operand pairs, %8" PRIu64
+           " mismatches, %6.1f seconds\n",
+           name, (uint64_t)(2 * 9 * 11 * 3) * (2 * 9 * 11 * 3), mismatches,
+           now() - t0);
     fflush(stdout);
   }
 

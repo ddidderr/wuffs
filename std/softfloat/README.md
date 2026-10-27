@@ -219,8 +219,12 @@ operations (every pair of exponents in `[0 ..= 2047]`, 9 x 9 mantissa
 patterns, NaN results checked bit-for-bit against the NaN rule above), and
 checks `f64_to_f32` (326 exponents times 2²⁰ fraction patterns times both
 signs), `f32_to_f64` (every `f32`), `f32_from_u32` and `f32_from_i32` (every
-32-bit integer) and `f32_from_u64` (2³² structured values). Result (x86-64,
-gcc 13 `-O2`, 4 threads):
+32-bit integer) and `f32_from_u64` (2³² structured values). It also checks
+the `f32` and `f64` cmp, eq, ne, lt, le, gt, ge, min and max functions on
+every pair of 594 values (both signs, zero, subnormal, normal and maximal
+exponents, boundary mantissas and their neighbors, infinities and NaNs)
+against the hardware's comparison operators. Result (x86-64, gcc 13 `-O2`, 4
+threads):
 
     f32_add            419430400 operand pairs,        0 mismatches
     f32_sub            419430400 operand pairs,        0 mismatches
@@ -235,4 +239,6 @@ gcc 13 `-O2`, 4 threads):
     f32_from_u32      4294967296 operands,             0 mismatches
     f32_from_i32      4294967296 operands,             0 mismatches
     f32_from_u64      4294967296 operands,             0 mismatches
+    f32_compare           352836 operand pairs,        0 mismatches
+    f64_compare           352836 operand pairs,        0 mismatches
     PASS: 0 mismatches in total
