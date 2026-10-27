@@ -48,9 +48,42 @@ pri const F64_HUGE_VAL : base.u64 = 0x7FF0_0000_0000_0000
 // F64_1E99 is the C code's 1e99.
 pri const F64_1E99 : base.u64 = 0x547D_42AE_A287_9F2E
 
+// LOG2_CACHE_SIZE is the size of the bit_cost.log2_cache table.
+pri const LOG2_CACHE_SIZE : base.u64 = 65536
+
 pri struct bit_cost?(
+        // log2_cache_ready is whether log2_cache has been filled (by
+        // init_log2_cache).
+        log2_cache_ready : base.bool,
+
         sf : softfloat.arith,
+) + (
+        // log2_cache[v] is FastLog2(v), for v < LOG2_CACHE_SIZE. It is only a
+        // speed optimization (glibc's log2 is expensive to emulate): the
+        // values are computed by the same functions, so the results are
+        // identical with or without it.
+        log2_cache : array[65536] base.u64,
 )
+
+// init_log2_cache fills the log2_cache table (if it is not already filled).
+// Calling it is optional, but it makes fast_log2 faster.
+pri func bit_cost.init_log2_cache!() {
+    var v : base.u64
+
+    if this.log2_cache_ready {
+        return nothing
+    }
+    v = 0
+    while v < 256 {
+        this.log2_cache[v] = LOG2_TABLE[v]
+        v += 1
+    }
+    while v < 65536 {
+        this.log2_cache[v] = this.sf.log2_u64(v: v)
+        v += 1
+    }
+    this.log2_cache_ready = true
+}
 
 // ld32 returns the u32le at s[i ..], or 0 if that is out of bounds (which
 // the callers never do).
@@ -109,6 +142,8 @@ pri func bit_cost.st64!(s: slice base.u8, i: base.u64, v: base.u64) {
 pri func bit_cost.fast_log2(v: base.u64) base.u64 {
     if args.v < 256 {
         return LOG2_TABLE[args.v]
+    } else if this.log2_cache_ready and (args.v < 65536) {
+        return this.log2_cache[args.v]
     }
     return this.sf.log2_u64(v: args.v)
 }

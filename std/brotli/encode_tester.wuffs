@@ -23,6 +23,7 @@ pub struct metablock_tester?(
         // Wuffs' C code generator expects same-package struct fields to be in
         // the private_data section (after the "+").
         bc : bit_cost,
+        mb : metablock_builder,
 )
 
 // bits_entropy mirrors BrotliBitsEntropy. population holds size u32le values.
@@ -42,6 +43,158 @@ pub func metablock_tester.population_cost(histogram: roslice base.u8, data_size:
         return this.bc.population_cost(histogram: args.histogram, data_size: 704)
     } else if args.data_size == 544 {
         return this.bc.population_cost(histogram: args.histogram, data_size: 544)
+    }
+    return 0
+}
+
+// init_distance_params mirrors BrotliInitDistanceParams. Its results are
+// returned by get (keys 24 to 28).
+pub func metablock_tester.init_distance_params!(npostfix: base.u32, ndirect: base.u32, large_window: base.u32) {
+    this.mb.init_distance_params!(npostfix: args.npostfix, ndirect: args.ndirect, large_window: args.large_window <> 0)
+}
+
+// split_block mirrors BrotliSplitBlock (on a fresh MetaBlockSplit), with the
+// given quality (the only BrotliEncoderParams field it uses). Its results
+// are returned by get (keys 0 to 11) and are in workbuf.
+pub func metablock_tester.split_block!(cmds: roslice base.u8, num_commands: base.u64,
+        data: roslice base.u8, pos: base.u64, mask: base.u64, quality: base.u32, workbuf: slice base.u8) base.status {
+    this.mb.set_params!(quality: args.quality, large_window: false, disable_literal_context_modeling: false)
+    this.mb.reset_arena!(wb_len: args.workbuf.length())
+    this.mb.bc.init_log2_cache!()
+    this.mb.alloc_block_splits!(cmds: args.cmds, num_commands: args.num_commands)
+    if this.mb.oom {
+        return base."#bad workbuf length"
+    }
+    this.mb.split_block!(wb: args.workbuf, cmds: args.cmds, num_commands: args.num_commands,
+            data: args.data, pos: args.pos, mask: args.mask)
+    if this.mb.oom {
+        return base."#bad workbuf length"
+    }
+    return ok
+}
+
+// cluster_histograms mirrors BrotliClusterHistogramsLiteral (data_size 256),
+// BrotliClusterHistogramsCommand (704) and BrotliClusterHistogramsDistance
+// (544). The in_size input histograms are copied to the start of workbuf.
+// The output histograms (with room for in_size histograms) and
+// histogram_symbols (in_size u32les) are at the workbuf offsets returned by
+// get (keys 18 and 12). It returns the C code's *out_size, or 0xFFFF_FFFF_FFFF_FFFF
+// if workbuf is too short or data_size is invalid.
+pub func metablock_tester.cluster_histograms!(data_size: base.u32, in_histos: roslice base.u8, in_size: base.u64,
+        max_histograms: base.u64, workbuf: slice base.u8) base.u64 {
+    var ds       : base.u32[..= 704]
+    var hs       : base.u64
+    var n        : base.u64
+    var in_off   : base.u64
+    var out_off  : base.u64
+    var sym_off  : base.u64
+    var out_size : base.u64
+
+    if args.data_size == 256 {
+        ds = 256
+    } else if args.data_size == 704 {
+        ds = 704
+    } else if args.data_size == 544 {
+        ds = 544
+    } else {
+        return 0xFFFF_FFFF_FFFF_FFFF
+    }
+    hs = this.mb.hsize(ds: ds)
+    this.mb.bc.init_log2_cache!()
+    this.mb.reset_arena!(wb_len: args.workbuf.length())
+    n = args.in_size ~mod* hs
+    in_off = this.mb.alloc!(n: n)
+    out_off = this.mb.alloc!(n: n)
+    sym_off = this.mb.alloc!(n: args.in_size ~mod* 4)
+    if this.mb.oom or (n > args.in_histos.length()) or (n > args.workbuf.length()) {
+        return 0xFFFF_FFFF_FFFF_FFFF
+    }
+    args.workbuf[.. n].copy_from_slice!(s: args.in_histos[.. n])
+    out_size = this.mb.cluster_histograms!(wb: args.workbuf, ds: ds, in_histos: in_off, in_size: args.in_size,
+            max_histograms: args.max_histograms, out_histos: out_off, histogram_symbols: sym_off)
+    if this.mb.oom {
+        return 0xFFFF_FFFF_FFFF_FFFF
+    }
+    this.mb.histograms_off[0] = out_off
+    this.mb.context_map_off[0] = sym_off
+    return out_size
+}
+
+// build_meta_block mirrors BrotliBuildMetaBlock. The params are the given
+// quality, large_window, disable_literal_context_modeling and distance params
+// (as set by BrotliInitDistanceParams(npostfix, ndirect, large_window)). Like
+// the C code, it rewrites the commands' distance prefixes and extra bits. Its
+// results are returned by get and are in workbuf.
+pub func metablock_tester.build_meta_block!(workbuf: slice base.u8, ringbuffer: roslice base.u8, pos: base.u64, mask: base.u64,
+        prev_byte: base.u8, prev_byte2: base.u8, cmds: slice base.u8, num_commands: base.u64,
+        literal_context_mode: base.u32, quality: base.u32, large_window: base.u32,
+        disable_literal_context_modeling: base.u32, npostfix: base.u32, ndirect: base.u32) base.status {
+    var status : base.status
+
+    this.mb.set_params!(quality: args.quality, large_window: args.large_window <> 0,
+            disable_literal_context_modeling: args.disable_literal_context_modeling <> 0)
+    this.mb.init_distance_params!(npostfix: args.npostfix, ndirect: args.ndirect, large_window: args.large_window <> 0)
+    status = this.mb.build_meta_block!(wb: args.workbuf, ringbuffer: args.ringbuffer, pos: args.pos, mask: args.mask,
+            prev_byte: args.prev_byte, prev_byte2: args.prev_byte2, cmds: args.cmds, num_commands: args.num_commands,
+            literal_context_mode: args.literal_context_mode)
+    return status
+}
+
+// optimize_histograms mirrors BrotliOptimizeHistograms, on the
+// MetaBlockSplit from the last build_meta_block call (in workbuf).
+pub func metablock_tester.optimize_histograms!(workbuf: slice base.u8, num_distance_codes: base.u32) {
+    this.mb.optimize_histograms!(wb: args.workbuf, num_distance_codes: args.num_distance_codes)
+}
+
+// get returns one of the metablock_builder's fields:
+//   - 4 * c + 0: split_num_types[c], for c (the category) in 0, 1, 2
+//     (literal, command, distance).
+//   - 4 * c + 1: split_num_blocks[c].
+//   - 4 * c + 2: split_types_off[c].
+//   - 4 * c + 3: split_lengths_off[c].
+//   - 12 + c: context_map_off[c].
+//   - 15 + c: context_map_size[c].
+//   - 18 + c: histograms_off[c].
+//   - 21 + c: histograms_size[c].
+//   - 24 to 28: the distance params' distance_postfix_bits,
+//     num_direct_distance_codes, alphabet_size_max, alphabet_size_limit and
+//     max_distance.
+//   - 29: the highest workbuf offset used (the workbuf length needed).
+pub func metablock_tester.get(key: base.u32) base.u64 {
+    var c : base.u32[..= 2]
+
+    if args.key < 12 {
+        c = ((args.key / 4) % 3) as base.u32
+        if (args.key % 4) == 0 {
+            return this.mb.split_num_types[c]
+        } else if (args.key % 4) == 1 {
+            return this.mb.split_num_blocks[c]
+        } else if (args.key % 4) == 2 {
+            return this.mb.split_types_off[c]
+        }
+        return this.mb.split_lengths_off[c]
+    } else if args.key < 24 {
+        c = ((args.key % 3) as base.u32)
+        if args.key < 15 {
+            return this.mb.context_map_off[c]
+        } else if args.key < 18 {
+            return this.mb.context_map_size[c]
+        } else if args.key < 21 {
+            return this.mb.histograms_off[c]
+        }
+        return this.mb.histograms_size[c]
+    } else if args.key == 24 {
+        return this.mb.dist_postfix_bits as base.u64
+    } else if args.key == 25 {
+        return this.mb.dist_num_direct_codes as base.u64
+    } else if args.key == 26 {
+        return this.mb.dist_alphabet_size_max as base.u64
+    } else if args.key == 27 {
+        return this.mb.dist_alphabet_size_limit as base.u64
+    } else if args.key == 28 {
+        return this.mb.dist_max_distance
+    } else if args.key == 29 {
+        return this.mb.wb_high
     }
     return 0
 }
