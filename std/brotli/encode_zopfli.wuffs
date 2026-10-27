@@ -35,8 +35,6 @@
 // The ZopfliCostModel's other arrays and the StartPosQueue are encoder
 // fields (z_etc and zq_etc).
 
-pri status "#insufficient workbuf length"
-
 // Mirrors kInfinity in backward_references_hq.c: 1.7e38f.
 pri const Z_INFINITY : base.u32 = 0x7EFF_C99E
 
@@ -1011,7 +1009,7 @@ pri func encoder.create_zopfli_backward_references!(wb: slice base.u8, num_bytes
 
     ok_offsets = this.z_set_offsets!(wb_len: args.wb.length(), num_bytes: args.num_bytes)
     if not ok_offsets {
-        return "#insufficient workbuf length"
+        return base."#bad workbuf length"
     }
     cmds_base = this.num_cmds
     this.init_zopfli_nodes!(wb: args.wb, length: args.num_bytes ~mod+ 1)
@@ -1051,7 +1049,7 @@ pri func encoder.create_hq_zopfli_backward_references!(wb: slice base.u8, num_by
 
     ok_offsets = this.z_set_offsets!(wb_len: args.wb.length(), num_bytes: args.num_bytes)
     if not ok_offsets {
-        return "#insufficient workbuf length"
+        return base."#bad workbuf length"
     }
     max_backward_limit = ((1 as base.u64) << this.lgwin) ~mod- 16
     store_end = args.position
@@ -1066,7 +1064,7 @@ pri func encoder.create_hq_zopfli_backward_references!(wb: slice base.u8, num_by
         max_length = args.num_bytes ~mod- i
         // Ensure that we have enough free slots.
         if (cur_match_pos ~mod+ MAX_NUM_MATCHES_H10) > this.z_m_cap {
-            return "#insufficient workbuf length"
+            return base."#bad workbuf length"
         }
         num_found_matches = this.h10_find_all_matches!(wb: args.wb, cur_ix: pos, max_length: max_length,
                 max_backward: max_distance, dictionary_distance: dictionary_start,

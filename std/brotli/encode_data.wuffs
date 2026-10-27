@@ -987,7 +987,7 @@ pri func encoder.encode_data!(wb: slice base.u8, is_last: base.bool, force_flush
             is_last: args.is_last, prev_byte: this.prev_byte, prev_byte2: this.prev_byte2,
             s: args.wb[.. storage_len])
     if this.hq_insufficient {
-        return "#insufficient workbuf length"
+        return base."#bad workbuf length"
     }
     ix = this.bw_ix >> 3
     this.last_bytes = this.byte_at(s: args.wb, i: ix) as base.u32

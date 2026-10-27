@@ -43031,7 +43031,6 @@ const char wuffs_brotli__error__internal_error_inconsistent_huffman_table[] = "#
 const char wuffs_brotli__error__internal_error_inconsistent_ring_buffer[] = "#brotli: internal error: inconsistent ring buffer";
 const char wuffs_brotli__error__unsupported_encoder_quality[] = "#brotli: unsupported encoder quality";
 const char wuffs_brotli__error__internal_error_inconsistent_encoder_state[] = "#brotli: internal error: inconsistent encoder state";
-const char wuffs_brotli__error__insufficient_workbuf_length[] = "#brotli: insufficient workbuf length";
 
 // ---------------- Private Consts
 
@@ -90151,7 +90150,7 @@ wuffs_brotli__encoder__encode_data(
       self->private_impl.f_prev_byte2,
       wuffs_base__slice_u8__subslice_j(a_wb, v_storage_len));
   if (self->private_impl.f_hq_insufficient) {
-    return wuffs_base__make_status(wuffs_brotli__error__insufficient_workbuf_length);
+    return wuffs_base__make_status(wuffs_base__error__bad_workbuf_length);
   }
   v_ix = (self->private_impl.f_bw_ix >> 3u);
   self->private_impl.f_last_bytes = ((uint32_t)(wuffs_brotli__encoder__byte_at(self, a_wb, v_ix)));
@@ -99409,7 +99408,7 @@ wuffs_brotli__encoder__create_zopfli_backward_references(
 
   v_ok_offsets = wuffs_brotli__encoder__z_set_offsets(self, ((uint64_t)(a_wb.len)), a_num_bytes);
   if ( ! v_ok_offsets) {
-    return wuffs_base__make_status(wuffs_brotli__error__insufficient_workbuf_length);
+    return wuffs_base__make_status(wuffs_base__error__bad_workbuf_length);
   }
   v_cmds_base = self->private_impl.f_num_cmds;
   wuffs_brotli__encoder__init_zopfli_nodes(self, a_wb, ((uint64_t)(a_num_bytes + 1u)));
@@ -99459,7 +99458,7 @@ wuffs_brotli__encoder__create_hq_zopfli_backward_references(
 
   v_ok_offsets = wuffs_brotli__encoder__z_set_offsets(self, ((uint64_t)(a_wb.len)), a_num_bytes);
   if ( ! v_ok_offsets) {
-    return wuffs_base__make_status(wuffs_brotli__error__insufficient_workbuf_length);
+    return wuffs_base__make_status(wuffs_base__error__bad_workbuf_length);
   }
   v_max_backward_limit = ((uint64_t)((((uint64_t)(1u)) << self->private_impl.f_lgwin) - 16u));
   v_store_end = a_position;
@@ -99473,7 +99472,7 @@ wuffs_brotli__encoder__create_hq_zopfli_backward_references(
     v_dictionary_start = wuffs_brotli__encoder__min64(self, ((uint64_t)(v_pos + ((uint64_t)(self->private_impl.f_stream_offset)))), v_max_backward_limit);
     v_max_length = ((uint64_t)(a_num_bytes - v_i));
     if (((uint64_t)(v_cur_match_pos + 128u)) > self->private_impl.f_z_m_cap) {
-      return wuffs_base__make_status(wuffs_brotli__error__insufficient_workbuf_length);
+      return wuffs_base__make_status(wuffs_base__error__bad_workbuf_length);
     }
     v_num_found_matches = wuffs_brotli__encoder__h10_find_all_matches(self,
         a_wb,
