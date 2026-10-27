@@ -35,6 +35,13 @@
 //   -q=LO-HI   only check qualities LO to HI (default 0-9).
 //   -shard=K/N only check the inputs whose index i satisfies (i % N) == K,
 //              so that N processes can split the work.
+//   -lw        only run the large-window grid (BROTLI_PARAM_LARGE_WINDOW
+//              with lgwin 10 to 30, see run_input_lw), at qualities 2 and
+//              above.
+//   -big       instead of the usual inputs, check synthetic inputs of 3 to
+//              12 MiB (with the usual or, with -lw, the large-window grid)
+//              and of 24 to 70 MiB (with a few large-window configurations
+//              each), with repeats at distances of up to 40 MiB.
 //
 // The test/c/std/brotli.c test program (run by "wuffs test -mimic
 // std/brotli") checks a subset of this grid.
@@ -77,8 +84,8 @@
 
 #define MAX_STEPS (1 << 22)
 #define MAX_PARAMS 16
-#define MAX_INPUT (16 << 20)
-#define MAX_OUTPUT (64 << 20)
+#define MAX_INPUT (80 << 20)
+#define MAX_OUTPUT (96 << 20)
 
 static uint32_t g_step_ops[MAX_STEPS];
 static size_t g_step_lens[MAX_STEPS];
@@ -92,6 +99,7 @@ static uint8_t* g_workbuf;  // Wuffs' workbuf.
 static size_t g_workbuf_len;
 
 static uint64_t g_num_configs;
+static size_t g_last_want_len;
 static uint64_t g_num_mismatches;
 
 static uint32_t g_qmin = 0;
@@ -133,6 +141,77 @@ fill_random(uint8_t* p, size_t n, uint64_t seed) {
   uint64_t state = seed;
   for (size_t i = 0; i < n; i++) {
     p[i] = (uint8_t)(rand64(&state) >> 56);
+  }
+}
+
+// fill_mixed fills p[0 .. n] with a mixture of text (from a small
+// vocabulary, so that there are many matches), runs and binary noise.
+static void  //
+fill_mixed(uint8_t* p, size_t n_max, uint64_t seed) {
+  static const char* words[] = {"the ",    "brotli ", "wuffs ", "of ",
+                                "and ",    "data\n",  "time ",  "<a>",
+                                "encoder", ", ",       "zebra ", "1234"};
+  uint64_t state = seed;
+  size_t n = 0;
+  while (n < n_max) {
+    uint64_t r = rand64(&state);
+    if ((r & 0xFF) < 200) {
+      const char* w = words[(r >> 8) % 12];
+      size_t k = strlen(w);
+      while (k-- && (n < n_max)) {
+        p[n++] = (uint8_t)(*w++);
+      }
+    } else if ((r & 0xFF) < 230) {
+      size_t k = (size_t)((r >> 8) % 300);
+      while (k-- && (n < n_max)) {
+        p[n++] = (uint8_t)(r >> 40);
+      }
+    } else {
+      size_t k = (size_t)((r >> 8) % 2000);
+      while (k-- && (n < n_max)) {
+        p[n++] = (uint8_t)(rand64(&state) >> 56);
+      }
+    }
+  }
+}
+
+// fill_far_repeats fills p[0 .. n] with 1 MiB blocks: most are fresh
+// pseudo-random bytes or fill_mixed data (with a per-block seed), but some
+// repeat (with sparse changes) the block that is near or far
+// (near_mib or far_mib MiB) before them, so that encoders with a large
+// enough window find matches at those distances. When far_mib is a multiple
+// of 4 and near_mib is not 2 modulo 4, the far copies' sources are fresh
+// blocks that are not also copied (or copies) nearer by.
+static void  //
+fill_far_repeats(uint8_t* p, size_t n, size_t near_mib, size_t far_mib,
+                 uint64_t seed) {
+  const size_t mib = 1 << 20;
+  for (size_t b = 0; (b * mib) < n; b++) {
+    uint8_t* q = p + (b * mib);
+    size_t k = ((n - (b * mib)) < mib) ? (n - (b * mib)) : mib;
+    size_t from = SIZE_MAX;
+    if ((b >= near_mib) && ((b % 4) == 1)) {
+      from = b - near_mib;
+    } else if ((b >= far_mib) && ((b % 4) == 3)) {
+      from = b - far_mib;
+    }
+    if (from != SIZE_MAX) {
+      // A shifted copy: the distance is not a multiple of 1 MiB (but, for
+      // odd b, it is a multiple of 4, which the HROLLING_FAST hasher, used
+      // by H35 and H55, needs to find it).
+      size_t shift = (size_t)(seed % 250) + (b * 7);
+      if (b & 1) {
+        shift *= 4;
+      }
+      memcpy(q, p + (from * mib) + shift, k);
+      for (size_t i = 4093; i < k; i += 65521) {
+        q[i] ^= 0x55;
+      }
+    } else if ((b % 3) == 0) {
+      fill_random(q, k, seed + b);
+    } else {
+      fill_mixed(q, k, seed + b);
+    }
   }
 }
 
@@ -427,6 +506,7 @@ check(const char* name, const config* c, const uint8_t* data, size_t len) {
   size_t want_len = 0;
   const char* have_err = encode_wuffs(c, &have_len);
   const char* want_err = encode_mimic(c, &want_len);
+  g_last_want_len = want_len;
   if (have_err || want_err) {
     g_num_mismatches++;
     describe(desc, sizeof desc, name, c);
@@ -779,6 +859,40 @@ run_input(const char* name, const uint8_t* data, size_t len) {
   fflush(stdout);
 }
 
+// run_input_far checks a few large-window configurations (one-shot and
+// streaming) for a very long input.
+static void  //
+run_input_far(const char* name, const uint8_t* data, size_t len) {
+  uint64_t configs0 = g_num_configs;
+  uint64_t mismatches0 = g_num_mismatches;
+  time_t start = time(NULL);
+  for (uint32_t q = (g_qmin > 2) ? g_qmin : 2; q <= g_qmax; q++) {
+    static const uint32_t lgwins[] = {24, 25, 26, 30};
+    for (size_t w = 0; w < 4; w++) {
+      config c = make_config(q, lgwins[w]);
+      add_param(&c, 6, 1);  // BROTLI_PARAM_LARGE_WINDOW.
+      c.seed = 0x40000 | (w << 8) | (q << 12);
+      check(name, &c, data, len);
+      printf("  q=%u lgwin=%u: %zu compressed bytes\n", q, lgwins[w],
+             g_last_want_len);
+    }
+    // Streaming, with a flush and a size hint below 1 MiB (so H35 at
+    // quality 3 and H58 or H5 at qualities 5 to 9, but H3 at quality 4).
+    config c = make_config(q, 30);
+    add_param(&c, 6, 1);       // BROTLI_PARAM_LARGE_WINDOW.
+    add_param(&c, 5, 12345);  // BROTLI_PARAM_SIZE_HINT.
+    c.chunking = 4;
+    c.flush = 2;
+    c.seed = 0x50000 | (q << 12);
+    check(name, &c, data, len);
+  }
+  printf("%-50s %8zu bytes: %6" PRIu64 " configs, %" PRIu64
+         " mismatches (%lds)\n",
+         name, len, g_num_configs - configs0, g_num_mismatches - mismatches0,
+         (long)(time(NULL) - start));
+  fflush(stdout);
+}
+
 static uint8_t*  //
 read_whole_file(const char* path, size_t* len) {
   FILE* f = fopen(path, "rb");
@@ -817,6 +931,7 @@ main(int argc, char** argv) {
 
   int shard_k = 0;
   int shard_n = 1;
+  bool big = false;
   int argi = 1;
   for (; argi < argc; argi++) {
     unsigned a = 0;
@@ -826,6 +941,8 @@ main(int argc, char** argv) {
       g_qmax = (b < 9) ? b : 9;
     } else if (strcmp(argv[argi], "-lw") == 0) {
       g_lw_only = true;
+    } else if (strcmp(argv[argi], "-big") == 0) {
+      big = true;
     } else if (sscanf(argv[argi], "-shard=%u/%u", &a, &b) == 2) {
       shard_k = (int)a;
       shard_n = (b > 0) ? (int)b : 1;
@@ -870,6 +987,42 @@ main(int argc, char** argv) {
   }
 
   int input_index = 0;
+  if (big) {
+    // Synthetic inputs of several MiB (with the usual grid) and of 24 to 70
+    // MiB (with run_input_far's configurations), with repeats at distances
+    // above 16 MiB (1 << 24, the largest non-large-window window).
+    num_names = 0;
+    uint8_t* p = malloc(70 << 20);
+    if (!p) {
+      return 1;
+    }
+    static const struct {
+      size_t mib;
+      size_t near_mib;
+      size_t far_mib;
+      bool far;
+    } bigs[] = {
+        {3, 2, 2, false},     {6, 2, 5, false},    {12, 3, 10, false},
+        {24, 3, 20, true},    {40, 3, 32, true},   {70, 5, 40, true},
+    };
+    for (size_t j = 0; j < sizeof bigs / sizeof bigs[0]; j++) {
+      if (((input_index++) % shard_n) != shard_k) {
+        continue;
+      }
+      size_t n = (bigs[j].mib << 20) - 12345;
+      fill_far_repeats(p, n, bigs[j].near_mib, bigs[j].far_mib, 0x777 + j);
+      char name[96];
+      snprintf(name, sizeof name,
+               "synthetic: %zu MiB with repeats at %zu and %zu MiB",
+               bigs[j].mib, bigs[j].near_mib, bigs[j].far_mib);
+      if (bigs[j].far) {
+        run_input_far(name, p, n);
+      } else {
+        run_input(name, p, n);
+      }
+    }
+    free(p);
+  }
   for (int i = 0; i < num_names; i++) {
     if (((input_index++) % shard_n) != shard_k) {
       continue;
@@ -884,7 +1037,7 @@ main(int argc, char** argv) {
     free(data);
   }
 
-  if (argi >= argc) {
+  if ((argi >= argc) && !big) {
     // Synthetic inputs.
     uint8_t* p = malloc(1 << 20);
     if (!p) {
@@ -907,34 +1060,8 @@ main(int argc, char** argv) {
       run_input("synthetic: a repeated 100-byte pattern", p, 64 << 10);
     }
     if (((input_index++) % shard_n) == shard_k) {
-      // A mixture of text (from a small vocabulary, so that there are many
-      // matches), runs and binary noise.
-      static const char* words[] = {"the ",    "brotli ", "wuffs ", "of ",
-                                    "and ",    "data\n",  "time ",  "<a>",
-                                    "encoder", ", ",       "zebra ", "1234"};
-      uint64_t state = 0xABCD;
-      size_t n = 0;
-      while (n < (600 << 10)) {
-        uint64_t r = rand64(&state);
-        if ((r & 0xFF) < 200) {
-          const char* w = words[(r >> 8) % 12];
-          size_t k = strlen(w);
-          while (k-- && (n < (600 << 10))) {
-            p[n++] = (uint8_t)(*w++);
-          }
-        } else if ((r & 0xFF) < 230) {
-          size_t k = (size_t)((r >> 8) % 300);
-          while (k-- && (n < (600 << 10))) {
-            p[n++] = (uint8_t)(r >> 40);
-          }
-        } else {
-          size_t k = (size_t)((r >> 8) % 2000);
-          while (k-- && (n < (600 << 10))) {
-            p[n++] = (uint8_t)(rand64(&state) >> 56);
-          }
-        }
-      }
-      run_input("synthetic: 600 KiB of mixed text and binary", p, n);
+      fill_mixed(p, 600 << 10, 0xABCD);
+      run_input("synthetic: 600 KiB of mixed text and binary", p, 600 << 10);
     }
     for (size_t n = 0; n <= 40; n++) {
       if (((input_index++) % shard_n) != shard_k) {
