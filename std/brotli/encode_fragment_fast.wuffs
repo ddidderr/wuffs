@@ -1,0 +1,716 @@
+// Copyright 2026 The Wuffs Authors.
+//
+// Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
+// https://www.apache.org/licenses/LICENSE-2.0> or the MIT license
+// <LICENSE-MIT or https://opensource.org/licenses/MIT>, at your
+// option. This file may not be copied, modified, or distributed
+// except according to those terms.
+//
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+
+// --------
+
+// This file mirrors compress_fragment.c, the quality 0 (one-pass) encoder.
+//
+// The C code's input pointers (input, ip, next_emit, candidate, etc.) are
+// base.u64 offsets from the start of the fragment (the C code's base_ip).
+// The hash table holds the same offsets. The C code's last_distance is -1 or
+// positive. Here, 0 means -1.
+
+// FRAGMENT_MAX_DISTANCE is the C code's MAX_DISTANCE,
+// BROTLI_MAX_BACKWARD_LIMIT(18).
+pri const FRAGMENT_MAX_DISTANCE : base.u64 = 262128
+
+// HASH_MUL32 is kHashMul32 in hash_base.h.
+pri const HASH_MUL32 : base.u64 = 0x1E35_A7BD
+
+// Mirrors Hash in compress_fragment.c.
+pri func encoder.hash_fast(input: roslice base.u8, i: base.u64, shift: base.u32) base.u32 {
+    var h : base.u64
+
+    h = (this.load64le(s: args.input, i: args.i) ~mod<< 24) ~mod* HASH_MUL32
+    return ((h >> (args.shift & 63)) & 0xFFFF_FFFF) as base.u32
+}
+
+// Mirrors HashBytesAtOffset in compress_fragment.c.
+pri func encoder.hash_bytes_at_offset_fast(v: base.u64, offset: base.u32, shift: base.u32) base.u32 {
+    var h : base.u64
+
+    h = ((args.v >> ((8 ~mod* args.offset) & 63)) ~mod<< 24) ~mod* HASH_MUL32
+    return ((h >> (args.shift & 63)) & 0xFFFF_FFFF) as base.u32
+}
+
+// Mirrors IsMatch in compress_fragment.c.
+pri func encoder.is_match_fast(input: roslice base.u8, i1: base.u64, i2: base.u64) base.bool {
+    if (args.i1 >= args.input.length()) or (args.i2 >= args.input.length()) {
+        return false
+    }
+    if this.load32le(s: args.input, i: args.i1) <> this.load32le(s: args.input, i: args.i2) {
+        return false
+    }
+    if ((args.i1 ~mod+ 4) >= args.input.length()) or ((args.i2 ~mod+ 4) >= args.input.length()) {
+        return false
+    }
+    return args.input[args.i1 ~mod+ 4] == args.input[args.i2 ~mod+ 4]
+}
+
+// Mirrors BuildAndStoreLiteralPrefixCode in compress_fragment.c, for the
+// input_size bytes at args.input[args.from ..].
+pri func encoder.build_and_store_literal_prefix_code!(input: roslice base.u8, from: base.u64, input_size: base.u64, s: slice base.u8) base.u64 {
+    var histogram_total : base.u64
+    var i               : base.u64
+    var j               : base.u32
+    var adjust          : base.u32
+    var literal_ratio   : base.u64
+    var h               : base.u32
+
+    j = 0
+    while j < 256 {
+        this.histogram[j] = 0
+        j ~mod+= 1
+    }
+
+    if args.input_size < 0x8000 {
+        i = 0
+        while i < args.input_size {
+            if (args.from ~mod+ i) < args.input.length() {
+                this.histogram[args.input[args.from ~mod+ i]] ~mod+= 1
+            }
+            i ~mod+= 1
+        }
+        histogram_total = args.input_size
+        j = 0
+        while j < 256 {
+            // We weigh the first 11 samples with weight 3 to account for the
+            // balancing effect of the LZ77 phase on the histogram.
+            adjust = 2 * this.histogram[j].min(no_more_than: 11)
+            this.histogram[j] ~mod+= adjust
+            histogram_total ~mod+= adjust as base.u64
+            j ~mod+= 1
+        }
+    } else {
+        i = 0
+        while i < args.input_size {
+            if (args.from ~mod+ i) < args.input.length() {
+                this.histogram[args.input[args.from ~mod+ i]] ~mod+= 1
+            }
+            i ~mod+= 29
+        }
+        histogram_total = (args.input_size ~mod+ 28) / 29
+        j = 0
+        while j < 256 {
+            // We add 1 to each population count to avoid 0 bit depths (since
+            // this is only a sample and we don't know if the symbol appears
+            // or not), and we weigh the first 11 samples with weight 3 to
+            // account for the balancing effect of the LZ77 phase on the
+            // histogram (more frequent symbols are more likely to be in
+            // backward references instead as literals).
+            adjust = 1 + (2 * this.histogram[j].min(no_more_than: 11))
+            this.histogram[j] ~mod+= adjust
+            histogram_total ~mod+= adjust as base.u64
+            j ~mod+= 1
+        }
+    }
+    this.build_and_store_huffman_tree_fast!(histogram_total: histogram_total, max_bits: 8, s: args.s)
+
+    j = 0
+    while j < 256 {
+        h = this.histogram[j]
+        if h <> 0 {
+            literal_ratio ~mod+= ((h ~mod* (this.lit_depth[j] as base.u32)) as base.u64)
+        }
+        j ~mod+= 1
+    }
+    // Estimated encoding ratio, millibytes per symbol.
+    if histogram_total == 0 {
+        return 0
+    }
+    return (literal_ratio ~mod* 125) / histogram_total
+}
+
+// Mirrors BuildAndStoreCommandPrefixCode in compress_fragment.c.
+pri func encoder.build_and_store_command_prefix_code_fast!(s: slice base.u8) {
+    var i : base.u32
+
+    this.tmp_depth[.. 704].bulk_memset!(byte_value: 0)
+
+    this.create_huffman_tree!(src: 0, off: 0, length: 64, tree_limit: 15, depth: this.cmd_depth[.. 64])
+    this.create_huffman_tree!(src: 0, off: 64, length: 64, tree_limit: 14, depth: this.cmd_depth[64 ..])
+    // We have to jump through a few hoops here in order to compute the
+    // command bits because the symbols are in a different order than in the
+    // full alphabet. This looks complicated, but having the symbols in this
+    // order in the command bits saves a few branches in the Emit* functions.
+    this.tmp_depth[0 .. 24].copy_from_slice!(s: this.cmd_depth[0 .. 24])
+    this.tmp_depth[24 .. 32].copy_from_slice!(s: this.cmd_depth[40 .. 48])
+    this.tmp_depth[32 .. 40].copy_from_slice!(s: this.cmd_depth[24 .. 32])
+    this.tmp_depth[40 .. 48].copy_from_slice!(s: this.cmd_depth[48 .. 56])
+    this.tmp_depth[48 .. 56].copy_from_slice!(s: this.cmd_depth[32 .. 40])
+    this.tmp_depth[56 .. 64].copy_from_slice!(s: this.cmd_depth[56 .. 64])
+    this.convert_bit_depths_to_symbols!(depth: this.tmp_depth[..], len: 64, dst: 0)
+    this.copy_tmp_bits_to_cmd_bits!(dst: 0, src: 0, n: 24)
+    this.copy_tmp_bits_to_cmd_bits!(dst: 24, src: 32, n: 8)
+    this.copy_tmp_bits_to_cmd_bits!(dst: 32, src: 48, n: 8)
+    this.copy_tmp_bits_to_cmd_bits!(dst: 40, src: 24, n: 8)
+    this.copy_tmp_bits_to_cmd_bits!(dst: 48, src: 40, n: 8)
+    this.copy_tmp_bits_to_cmd_bits!(dst: 56, src: 56, n: 8)
+    this.convert_bit_depths_to_symbols!(depth: this.cmd_depth[64 ..], len: 64, dst: 1)
+
+    // Create the bit length array for the full command alphabet.
+    this.tmp_depth[.. 64].bulk_memset!(byte_value: 0)
+    this.tmp_depth[0 .. 8].copy_from_slice!(s: this.cmd_depth[0 .. 8])
+    this.tmp_depth[64 .. 72].copy_from_slice!(s: this.cmd_depth[8 .. 16])
+    this.tmp_depth[128 .. 136].copy_from_slice!(s: this.cmd_depth[16 .. 24])
+    this.tmp_depth[192 .. 200].copy_from_slice!(s: this.cmd_depth[24 .. 32])
+    this.tmp_depth[384 .. 392].copy_from_slice!(s: this.cmd_depth[32 .. 40])
+    i = 0
+    while i < 8 {
+        this.tmp_depth[128 + (8 * i)] = this.cmd_depth[40 + i]
+        this.tmp_depth[256 + (8 * i)] = this.cmd_depth[48 + i]
+        this.tmp_depth[448 + (8 * i)] = this.cmd_depth[56 + i]
+        i ~mod+= 1
+    }
+    this.store_huffman_tree!(depths: this.tmp_depth[..], num: 704, s: args.s)
+    this.store_huffman_tree!(depths: this.cmd_depth[64 ..], num: 64, s: args.s)
+}
+
+// emit_cmd_fast writes the command (or distance) prefix code symbol and
+// updates its histogram count. It is the C code's "BrotliWriteBits(depth[code],
+// bits[code], storage_ix, storage); ++histo[code];".
+pri func encoder.emit_cmd_fast!(code: base.u64, s: slice base.u8) {
+    this.write_bits!(
+            n_bits: this.cmd_depth[args.code & 127] as base.u32,
+            bits: this.cmd_bits[args.code & 127] as base.u64,
+            s: args.s)
+    this.cmd_histo[args.code & 127] ~mod+= 1
+}
+
+// Mirrors EmitInsertLen in compress_fragment.c.
+pri func encoder.emit_insert_len_fast!(insertlen: base.u64, s: slice base.u8) {
+    var tail   : base.u64
+    var nbits  : base.u32
+    var prefix : base.u64
+
+    if args.insertlen < 6 {
+        this.emit_cmd_fast!(code: args.insertlen + 40, s: args.s)
+    } else if args.insertlen < 130 {
+        tail = args.insertlen - 2
+        nbits = this.log2_floor_non_zero(n: tail) ~mod- 1
+        prefix = tail >> (nbits & 63)
+        this.emit_cmd_fast!(code: (((nbits as base.u64) ~mod<< 1) ~mod+ prefix) ~mod+ 42, s: args.s)
+        this.write_bits!(n_bits: nbits, bits: tail ~mod- (prefix ~mod<< (nbits & 63)), s: args.s)
+    } else if args.insertlen < 2114 {
+        tail = args.insertlen - 66
+        nbits = this.log2_floor_non_zero(n: tail)
+        this.emit_cmd_fast!(code: (nbits as base.u64) + 50, s: args.s)
+        this.write_bits!(n_bits: nbits, bits: tail ~mod- ((1 as base.u64) << nbits), s: args.s)
+    } else {
+        this.emit_cmd_fast!(code: 61, s: args.s)
+        this.write_bits!(n_bits: 12, bits: args.insertlen ~mod- 2114, s: args.s)
+    }
+}
+
+// Mirrors EmitLongInsertLen in compress_fragment.c.
+pri func encoder.emit_long_insert_len_fast!(insertlen: base.u64, s: slice base.u8) {
+    if args.insertlen < 22594 {
+        this.emit_cmd_fast!(code: 62, s: args.s)
+        this.write_bits!(n_bits: 14, bits: args.insertlen ~mod- 6210, s: args.s)
+    } else {
+        this.emit_cmd_fast!(code: 63, s: args.s)
+        this.write_bits!(n_bits: 24, bits: args.insertlen ~mod- 22594, s: args.s)
+    }
+}
+
+// Mirrors EmitCopyLen in compress_fragment.c.
+pri func encoder.emit_copy_len_fast!(copylen: base.u64, s: slice base.u8) {
+    var tail   : base.u64
+    var nbits  : base.u32
+    var prefix : base.u64
+
+    if args.copylen < 10 {
+        this.emit_cmd_fast!(code: args.copylen + 14, s: args.s)
+    } else if args.copylen < 134 {
+        tail = args.copylen - 6
+        nbits = this.log2_floor_non_zero(n: tail) ~mod- 1
+        prefix = tail >> (nbits & 63)
+        this.emit_cmd_fast!(code: (((nbits as base.u64) ~mod<< 1) ~mod+ prefix) ~mod+ 20, s: args.s)
+        this.write_bits!(n_bits: nbits, bits: tail ~mod- (prefix ~mod<< (nbits & 63)), s: args.s)
+    } else if args.copylen < 2118 {
+        tail = args.copylen - 70
+        nbits = this.log2_floor_non_zero(n: tail)
+        this.emit_cmd_fast!(code: (nbits as base.u64) + 28, s: args.s)
+        this.write_bits!(n_bits: nbits, bits: tail ~mod- ((1 as base.u64) << nbits), s: args.s)
+    } else {
+        this.emit_cmd_fast!(code: 39, s: args.s)
+        this.write_bits!(n_bits: 24, bits: args.copylen ~mod- 2118, s: args.s)
+    }
+}
+
+// Mirrors EmitCopyLenLastDistance in compress_fragment.c.
+pri func encoder.emit_copy_len_last_distance_fast!(copylen: base.u64, s: slice base.u8) {
+    var tail   : base.u64
+    var nbits  : base.u32
+    var prefix : base.u64
+
+    if args.copylen < 12 {
+        this.emit_cmd_fast!(code: args.copylen ~mod- 4, s: args.s)
+    } else if args.copylen < 72 {
+        tail = args.copylen - 8
+        nbits = this.log2_floor_non_zero(n: tail) ~mod- 1
+        prefix = tail >> (nbits & 63)
+        this.emit_cmd_fast!(code: (((nbits as base.u64) ~mod<< 1) ~mod+ prefix) ~mod+ 4, s: args.s)
+        this.write_bits!(n_bits: nbits, bits: tail ~mod- (prefix ~mod<< (nbits & 63)), s: args.s)
+    } else if args.copylen < 136 {
+        tail = args.copylen - 8
+        this.emit_cmd_fast!(code: (tail >> 5) + 30, s: args.s)
+        this.write_bits!(n_bits: 5, bits: tail & 31, s: args.s)
+        this.emit_cmd_fast!(code: 64, s: args.s)
+    } else if args.copylen < 2120 {
+        tail = args.copylen - 72
+        nbits = this.log2_floor_non_zero(n: tail)
+        this.emit_cmd_fast!(code: (nbits as base.u64) + 28, s: args.s)
+        this.write_bits!(n_bits: nbits, bits: tail ~mod- ((1 as base.u64) << nbits), s: args.s)
+        this.emit_cmd_fast!(code: 64, s: args.s)
+    } else {
+        this.emit_cmd_fast!(code: 39, s: args.s)
+        this.write_bits!(n_bits: 24, bits: args.copylen ~mod- 2120, s: args.s)
+        this.emit_cmd_fast!(code: 64, s: args.s)
+    }
+}
+
+// Mirrors EmitDistance in compress_fragment.c.
+pri func encoder.emit_distance_fast!(distance: base.u64, s: slice base.u8) {
+    var d      : base.u64
+    var nbits  : base.u32
+    var prefix : base.u64
+    var offset : base.u64
+
+    d = args.distance ~mod+ 3
+    nbits = this.log2_floor_non_zero(n: d) ~mod- 1
+    prefix = (d >> (nbits & 63)) & 1
+    offset = (2 + prefix) ~mod<< (nbits & 63)
+    this.emit_cmd_fast!(code: (((2 * ((nbits ~mod- 1) as base.u64)) ~mod+ prefix) ~mod+ 80), s: args.s)
+    this.write_bits!(n_bits: nbits, bits: d ~mod- offset, s: args.s)
+}
+
+// Mirrors EmitLiterals in compress_fragment.c.
+pri func encoder.emit_literals!(input: roslice base.u8, from: base.u64, len: base.u64, s: slice base.u8) {
+    var j   : base.u64
+    var lit : base.u8
+
+    j = 0
+    while j < args.len {
+        if (args.from ~mod+ j) >= args.input.length() {
+            break
+        }
+        lit = args.input[args.from ~mod+ j]
+        this.write_bits!(n_bits: this.lit_depth[lit] as base.u32, bits: this.lit_bits[lit] as base.u64, s: args.s)
+        j ~mod+= 1
+    }
+}
+
+// Mirrors ShouldMergeBlock in compress_fragment.c, for the len bytes at
+// args.input[args.from ..].
+pri func encoder.should_merge_block!(input: roslice base.u8, from: base.u64, len: base.u64) base.bool {
+    var i     : base.u64
+    var j     : base.u32
+    var total : base.u64
+    var r     : base.u64
+    var h     : base.u64
+
+    j = 0
+    while j < 256 {
+        this.histogram[j] = 0
+        j ~mod+= 1
+    }
+    i = 0
+    while i < args.len {
+        if (args.from ~mod+ i) < args.input.length() {
+            this.histogram[args.input[args.from ~mod+ i]] ~mod+= 1
+        }
+        i ~mod+= 43
+    }
+
+    total = (args.len ~mod+ 42) / 43
+    // r = (FastLog2(total) + 0.5) * (double)total + 200.
+    r = this.sf.f64_add(
+            a: this.sf.f64_mul(
+            a: this.sf.f64_add(a: this.fast_log2(v: total), b: 0x3FE0_0000_0000_0000),
+            b: this.sf.f64_from_u64(a: total)),
+            b: 0x4069_0000_0000_0000)
+    j = 0
+    while j < 256 {
+        // r -= (double)histo[i] * (depths[i] + FastLog2(histo[i])).
+        h = this.histogram[j] as base.u64
+        r = this.sf.f64_sub(
+                a: r,
+                b: this.sf.f64_mul(
+                a: this.sf.f64_from_u64(a: h),
+                b: this.sf.f64_add(
+                a: this.sf.f64_from_u32(a: this.lit_depth[j] as base.u32),
+                b: this.fast_log2(v: h))))
+        j ~mod+= 1
+    }
+    return this.sf.f64_ge(a: r, b: 0) <> 0
+}
+
+// Mirrors ShouldUseUncompressedMode in compress_fragment.c.
+pri func encoder.should_use_uncompressed_mode(metablock_start: base.u64, next_emit: base.u64, insertlen: base.u64, literal_ratio: base.u64) base.bool {
+    var compressed : base.u64
+
+    compressed = args.next_emit ~mod- args.metablock_start
+    if (compressed ~mod* 50) > args.insertlen {
+        return false
+    }
+    // MIN_RATIO is 980.
+    return args.literal_ratio > 980
+}
+
+// Mirrors EmitUncompressedMetaBlock in compress_fragment.c.
+pri func encoder.emit_uncompressed_meta_block_fast!(input: roslice base.u8, begin: base.u64, end: base.u64, storage_ix_start: base.u64, s: slice base.u8) {
+    var len : base.u64
+    var p   : base.u64
+
+    len = args.end ~mod- args.begin
+    this.rewind_bit_position!(new_ix: args.storage_ix_start, s: args.s)
+    this.store_meta_block_header!(len: len, is_uncompressed: true, s: args.s)
+    this.align_to_byte!()
+    this.copy_bytes!(input: args.input, begin: args.begin, end: args.end, s: args.s)
+    this.bw_ix ~mod+= len ~mod<< 3
+    p = this.bw_ix >> 3
+    if p < args.s.length() {
+        args.s[p] = 0
+    }
+}
+
+// copy_bytes is the C code's "memcpy(&storage[*storage_ix >> 3], begin,
+// len)", where bw_ix is byte-aligned.
+pri func encoder.copy_bytes!(input: roslice base.u8, begin: base.u64, end: base.u64, s: slice base.u8) {
+    var p : base.u64
+
+    p = this.bw_ix >> 3
+    if (args.begin <= args.end) and (args.end <= args.input.length()) and (p <= args.s.length()) {
+        args.s[p ..].copy_from_slice!(s: args.input[args.begin .. args.end])
+    }
+}
+
+// update_table_fast updates the hash table with the hashes of some positions
+// within the last copy (ending at ip), and returns the next candidate. It is
+// the C code's "We could immediately start working at ip now, but to improve
+// compression we first update table with the hashes..." block.
+pri func encoder.update_table_fast!(input: roslice base.u8, ip: base.u64, shift: base.u32) base.u64 {
+    var input_bytes : base.u64
+    var prev_hash   : base.u32
+    var cur_hash    : base.u32
+    var candidate   : base.u64
+
+    input_bytes = this.load64le(s: args.input, i: args.ip ~mod- 3)
+    prev_hash = this.hash_bytes_at_offset_fast(v: input_bytes, offset: 0, shift: args.shift)
+    cur_hash = this.hash_bytes_at_offset_fast(v: input_bytes, offset: 3, shift: args.shift)
+    this.hash_table[prev_hash & 0x1_FFFF] = ((args.ip ~mod- 3) & 0xFFFF_FFFF) as base.u32
+    prev_hash = this.hash_bytes_at_offset_fast(v: input_bytes, offset: 1, shift: args.shift)
+    this.hash_table[prev_hash & 0x1_FFFF] = ((args.ip ~mod- 2) & 0xFFFF_FFFF) as base.u32
+    prev_hash = this.hash_bytes_at_offset_fast(v: input_bytes, offset: 2, shift: args.shift)
+    this.hash_table[prev_hash & 0x1_FFFF] = ((args.ip ~mod- 1) & 0xFFFF_FFFF) as base.u32
+
+    candidate = this.hash_table[cur_hash & 0x1_FFFF] as base.u64
+    this.hash_table[cur_hash & 0x1_FFFF] = (args.ip & 0xFFFF_FFFF) as base.u32
+    return candidate
+}
+
+// Mirrors BrotliCompressFragmentFast in compress_fragment.c.
+pri func encoder.compress_fragment_fast!(input: roslice base.u8, is_last: base.bool, table_bits: base.u32, s: slice base.u8) {
+    var initial_ix : base.u64
+    var input_size : base.u64
+
+    initial_ix = this.bw_ix
+    input_size = args.input.length()
+
+    if input_size == 0 {
+        this.write_bits!(n_bits: 1, bits: 1, s: args.s)  // islast
+        this.write_bits!(n_bits: 1, bits: 1, s: args.s)  // isempty
+        this.align_to_byte!()
+        return nothing
+    }
+
+    this.compress_fragment_fast_impl!(input: args.input, is_last: args.is_last, table_bits: args.table_bits, s: args.s)
+
+    // If output is larger than single uncompressed block, rewrite it.
+    if (this.bw_ix ~mod- initial_ix) > (31 ~mod+ (input_size ~mod<< 3)) {
+        this.emit_uncompressed_meta_block_fast!(
+                input: args.input, begin: 0, end: input_size, storage_ix_start: initial_ix, s: args.s)
+    }
+
+    if args.is_last {
+        this.write_bits!(n_bits: 1, bits: 1, s: args.s)  // islast
+        this.write_bits!(n_bits: 1, bits: 1, s: args.s)  // isempty
+        this.align_to_byte!()
+    }
+}
+
+// Mirrors BrotliCompressFragmentFastImpl in compress_fragment.c. The C code's
+// gotos (to emit_commands, trawl, emit_remainder and next_block) are labeled
+// loops and the goto_next_block bool.
+pri func encoder.compress_fragment_fast_impl!(input: roslice base.u8, is_last: base.bool, table_bits: base.u32, s: slice base.u8) {
+    var in_off           : base.u64
+    var in_size          : base.u64
+    var next_emit        : base.u64
+    var metablock_start  : base.u64
+    var block_size       : base.u64
+    var total_block_size : base.u64
+    var mlen_storage_ix  : base.u64
+    var literal_ratio    : base.u64
+    var shift            : base.u32
+    var i                : base.u64
+    var ip               : base.u64
+    var ip_end           : base.u64
+    var ip_limit         : base.u64
+    var len_limit        : base.u64
+    var next_ip          : base.u64
+    var candidate        : base.u64
+    var base_ip          : base.u64
+    var matched          : base.u64
+    var distance         : base.u64
+    var insert           : base.u64
+    var last_distance    : base.u64
+    var skip             : base.u32
+    var hash             : base.u32
+    var next_hash        : base.u32
+    var goto_next_block  : base.bool
+    var merge            : base.bool
+    var saved_ix         : base.u64
+
+    shift = 64 ~mod- args.table_bits
+
+    in_size = args.input.length()
+    block_size = in_size.min(no_more_than: 98304)  // kFirstBlockSize is (3 << 15).
+    total_block_size = block_size
+    // Save the bit position of the MLEN field of the meta-block header, so
+    // that we can update it later if we decide to extend this meta-block.
+    mlen_storage_ix = this.bw_ix ~mod+ 3
+
+    this.store_meta_block_header!(len: block_size, is_uncompressed: false, s: args.s)
+    // No block splits, no contexts.
+    this.write_bits!(n_bits: 13, bits: 0, s: args.s)
+
+    literal_ratio = this.build_and_store_literal_prefix_code!(
+            input: args.input, from: in_off, input_size: block_size, s: args.s)
+
+    // Store the pre-compressed command and distance prefix codes.
+    i = 0
+    while (i ~mod+ 7) < this.cmd_code_numbits {
+        this.write_bits!(n_bits: 8, bits: this.cmd_code[(i >> 3) & 511] as base.u64, s: args.s)
+        i ~mod+= 8
+    }
+    this.write_bits!(
+            n_bits: (this.cmd_code_numbits & 7) as base.u32,
+            bits: this.cmd_code[(this.cmd_code_numbits >> 3) & 511] as base.u64,
+            s: args.s)
+
+    while.emit_commands true {
+        // Initialize the command and distance histograms. We will gather
+        // statistics of command and distance codes during the processing of
+        // this block and use it to update the command and distance prefix
+        // codes for the next block.
+        i = 0
+        while i < 128 {
+            this.cmd_histo[i] = CMD_HISTO_SEED[i]
+            i ~mod+= 1
+        }
+
+        ip = in_off
+        last_distance = 0
+        ip_end = in_off ~mod+ block_size
+        goto_next_block = false
+
+        if block_size >= 16 {
+            // For the last block, we need to keep a 16 bytes margin so that
+            // we can be sure that all distances are at most window size - 16.
+            // For all other blocks, we only need to keep a margin of 5 bytes
+            // so that we don't go over the block size with a copy.
+            len_limit = block_size ~mod- 5
+            len_limit = len_limit.min(no_more_than: in_size ~mod- 16)
+            ip_limit = in_off ~mod+ len_limit
+
+            ip ~mod+= 1
+            next_hash = this.hash_fast(input: args.input, i: ip, shift: shift)
+            while.outer true {
+                // Step 1: Scan forward in the input looking for a 5-byte-long
+                // match. If we get close to exhausting the input then goto
+                // emit_remainder.
+                skip = 32
+                next_ip = ip
+
+                while.trawl true {
+                    hash = next_hash
+                    ip = next_ip
+                    next_ip = ip ~mod+ ((skip >> 5) as base.u64)
+                    skip ~mod+= 1
+                    if next_ip > ip_limit {
+                        break.outer
+                    }
+                    next_hash = this.hash_fast(input: args.input, i: next_ip, shift: shift)
+                    if (last_distance > 0) and (last_distance <= ip) {
+                        candidate = ip ~mod- last_distance
+                        if this.is_match_fast(input: args.input, i1: ip, i2: candidate) {
+                            this.hash_table[hash & 0x1_FFFF] = (ip & 0xFFFF_FFFF) as base.u32
+                            // Check copy distance. If candidate is not
+                            // feasible, continue search.
+                            if (ip ~mod- candidate) > FRAGMENT_MAX_DISTANCE {
+                                continue.trawl
+                            }
+                            break.trawl
+                        }
+                    }
+                    candidate = this.hash_table[hash & 0x1_FFFF] as base.u64
+                    this.hash_table[hash & 0x1_FFFF] = (ip & 0xFFFF_FFFF) as base.u32
+                    if this.is_match_fast(input: args.input, i1: ip, i2: candidate) {
+                        if (ip ~mod- candidate) > FRAGMENT_MAX_DISTANCE {
+                            continue.trawl
+                        }
+                        break.trawl
+                    }
+                }.trawl
+
+                // Step 2: Emit the found match together with the literal bytes
+                // from "next_emit" to the bit stream, and then see if we can
+                // find a next match immediately afterwards. Repeat until we
+                // find no match for the input without emitting some literal
+                // bytes.
+                base_ip = ip
+                matched = 5 ~mod+ this.find_match_length_with_limit(
+                        s: args.input, i1: candidate ~mod+ 5, i2: ip ~mod+ 5, limit: (ip_end ~mod- ip) ~mod- 5)
+                distance = base_ip ~mod- candidate
+                insert = base_ip ~mod- next_emit
+                ip ~mod+= matched
+                if insert < 6210 {
+                    this.emit_insert_len_fast!(insertlen: insert, s: args.s)
+                } else if this.should_use_uncompressed_mode(
+                        metablock_start: metablock_start, next_emit: next_emit,
+                        insertlen: insert, literal_ratio: literal_ratio) {
+                    this.emit_uncompressed_meta_block_fast!(
+                            input: args.input, begin: metablock_start, end: base_ip,
+                            storage_ix_start: mlen_storage_ix ~mod- 3, s: args.s)
+                    in_size ~mod-= base_ip ~mod- in_off
+                    in_off = base_ip
+                    next_emit = in_off
+                    goto_next_block = true
+                    break.outer
+                } else {
+                    this.emit_long_insert_len_fast!(insertlen: insert, s: args.s)
+                }
+                this.emit_literals!(input: args.input, from: next_emit, len: insert, s: args.s)
+                if distance == last_distance {
+                    this.emit_cmd_fast!(code: 64, s: args.s)
+                } else {
+                    this.emit_distance_fast!(distance: distance, s: args.s)
+                    last_distance = distance
+                }
+                this.emit_copy_len_last_distance_fast!(copylen: matched, s: args.s)
+
+                next_emit = ip
+                if ip >= ip_limit {
+                    break.outer
+                }
+                candidate = this.update_table_fast!(input: args.input, ip: ip, shift: shift)
+
+                while.inner this.is_match_fast(input: args.input, i1: ip, i2: candidate) {
+                    // We have a 5-byte match at ip, and no need to emit any
+                    // literal bytes prior to ip.
+                    base_ip = ip
+                    matched = 5 ~mod+ this.find_match_length_with_limit(
+                            s: args.input, i1: candidate ~mod+ 5, i2: ip ~mod+ 5, limit: (ip_end ~mod- ip) ~mod- 5)
+                    if (ip ~mod- candidate) > FRAGMENT_MAX_DISTANCE {
+                        break.inner
+                    }
+                    ip ~mod+= matched
+                    last_distance = base_ip ~mod- candidate
+                    this.emit_copy_len_fast!(copylen: matched, s: args.s)
+                    this.emit_distance_fast!(distance: last_distance, s: args.s)
+
+                    next_emit = ip
+                    if ip >= ip_limit {
+                        break.outer
+                    }
+                    candidate = this.update_table_fast!(input: args.input, ip: ip, shift: shift)
+                }.inner
+
+                ip ~mod+= 1
+                next_hash = this.hash_fast(input: args.input, i: ip, shift: shift)
+            }.outer
+        }
+
+        if not goto_next_block {
+            // emit_remainder:
+            in_off ~mod+= block_size
+            in_size ~mod-= block_size
+            block_size = in_size.min(no_more_than: 0x1_0000)  // kMergeBlockSize.
+
+            // Decide if we want to continue this meta-block instead of
+            // emitting the last insert-only command.
+            merge = false
+            if (in_size > 0) and ((total_block_size ~mod+ block_size) <= 0x10_0000) {
+                merge = this.should_merge_block!(input: args.input, from: in_off, len: block_size)
+            }
+            if merge {
+                // Update the size of the current meta-block and continue
+                // emitting commands. We can do this because the current size
+                // and the new size both have 5 nibbles.
+                total_block_size ~mod+= block_size
+                this.update_bits!(
+                        n_bits: 20,
+                        bits: ((total_block_size ~mod- 1) & 0xFFFF_FFFF) as base.u32,
+                        pos: mlen_storage_ix,
+                        s: args.s)
+                continue.emit_commands
+            }
+
+            // Emit the remaining bytes as literals.
+            if next_emit < ip_end {
+                insert = ip_end ~mod- next_emit
+                if insert < 6210 {
+                    this.emit_insert_len_fast!(insertlen: insert, s: args.s)
+                    this.emit_literals!(input: args.input, from: next_emit, len: insert, s: args.s)
+                } else if this.should_use_uncompressed_mode(
+                        metablock_start: metablock_start, next_emit: next_emit,
+                        insertlen: insert, literal_ratio: literal_ratio) {
+                    this.emit_uncompressed_meta_block_fast!(
+                            input: args.input, begin: metablock_start, end: ip_end,
+                            storage_ix_start: mlen_storage_ix ~mod- 3, s: args.s)
+                } else {
+                    this.emit_long_insert_len_fast!(insertlen: insert, s: args.s)
+                    this.emit_literals!(input: args.input, from: next_emit, len: insert, s: args.s)
+                }
+            }
+            next_emit = ip_end
+        }
+
+        // next_block:
+        // If we have more data, write a new meta-block header and prefix
+        // codes and then continue emitting commands.
+        if in_size > 0 {
+            metablock_start = in_off
+            block_size = in_size.min(no_more_than: 98304)
+            total_block_size = block_size
+            mlen_storage_ix = this.bw_ix ~mod+ 3
+            this.store_meta_block_header!(len: block_size, is_uncompressed: false, s: args.s)
+            // No block splits, no contexts.
+            this.write_bits!(n_bits: 13, bits: 0, s: args.s)
+            literal_ratio = this.build_and_store_literal_prefix_code!(
+                    input: args.input, from: in_off, input_size: block_size, s: args.s)
+            this.build_and_store_command_prefix_code_fast!(s: args.s)
+            continue.emit_commands
+        }
+        break.emit_commands
+    }.emit_commands
+
+    if not args.is_last {
+        // If this is not the last block, update the command and distance
+        // prefix codes for the next block and store the compressed forms.
+        this.cmd_code[0] = 0
+        saved_ix = this.bw_ix
+        this.bw_ix = 0
+        this.build_and_store_command_prefix_code_fast!(s: this.cmd_code[..])
+        this.cmd_code_numbits = this.bw_ix
+        this.bw_ix = saved_ix
+    }
+}

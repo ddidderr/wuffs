@@ -1,0 +1,483 @@
+// Copyright 2026 The Wuffs Authors.
+//
+// Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
+// https://www.apache.org/licenses/LICENSE-2.0> or the MIT license
+// <LICENSE-MIT or https://opensource.org/licenses/MIT>, at your
+// option. This file may not be copied, modified, or distributed
+// except according to those terms.
+//
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+
+// --------
+
+// This file mirrors cluster.h, cluster.c and cluster_inc.h. The functions are
+// metablock_builder methods. The C code's templated functions (FN(X), for X
+// in Literal, Command and Distance) are one Wuffs function each, with a ds
+// argument (the histogram's data size: 256, 704 or 544).
+//
+// Arrays (histograms, uint32_t arrays and HistogramPair arrays) are given as
+// offsets into wb. A HistogramPair is HISTOGRAM_PAIR_SIZE bytes: idx1
+// (u32le), idx2 (u32le), cost_combo (f64 bits, u64le), cost_diff (f64 bits,
+// u64le).
+
+// Mirrors HistogramPairIsLess in cluster.c, given the two pairs' cost_diff,
+// idx1 and idx2 fields.
+pri func metablock_builder.histogram_pair_is_less(
+        p1_cost_diff: base.u64, p1_idx1: base.u32, p1_idx2: base.u32,
+        p2_cost_diff: base.u64, p2_idx1: base.u32, p2_idx2: base.u32) base.bool {
+    if this.sf.f64_ne(a: args.p1_cost_diff, b: args.p2_cost_diff) <> 0 {
+        return this.sf.f64_gt(a: args.p1_cost_diff, b: args.p2_cost_diff) <> 0
+    }
+    return (args.p1_idx2 ~mod- args.p1_idx1) > (args.p2_idx2 ~mod- args.p2_idx1)
+}
+
+// Mirrors ClusterCostDiff in cluster.c.
+pri func metablock_builder.cluster_cost_diff(size_a: base.u64, size_b: base.u64) base.u64 {
+    var size_c : base.u64
+
+    size_c = args.size_a ~mod+ args.size_b
+    return this.sf.f64_sub(
+            a: this.sf.f64_add(
+            a: this.sf.f64_mul(a: this.sf.f64_from_u64(a: args.size_a), b: this.bc.fast_log2(v: args.size_a)),
+            b: this.sf.f64_mul(a: this.sf.f64_from_u64(a: args.size_b), b: this.bc.fast_log2(v: args.size_b))),
+            b: this.sf.f64_mul(a: this.sf.f64_from_u64(a: size_c), b: this.bc.fast_log2(v: size_c)))
+}
+
+// pair_copy is the struct assignment pairs[dst] = pairs[src], where dst and
+// src are byte offsets in wb.
+pri func metablock_builder.pair_copy!(wb: slice base.u8, dst: base.u64, src: base.u64) {
+    this.st64!(wb: args.wb, i: args.dst, v: this.ld64(wb: args.wb, i: args.src))
+    this.st64!(wb: args.wb, i: args.dst ~mod+ 8, v: this.ld64(wb: args.wb, i: args.src ~mod+ 8))
+    this.st64!(wb: args.wb, i: args.dst ~mod+ 16, v: this.ld64(wb: args.wb, i: args.src ~mod+ 16))
+}
+
+// pair_set sets the pair at wb[dst ..].
+pri func metablock_builder.pair_set!(wb: slice base.u8, dst: base.u64, idx1: base.u32, idx2: base.u32, cost_combo: base.u64, cost_diff: base.u64) {
+    this.st32!(wb: args.wb, i: args.dst, v: args.idx1)
+    this.st32!(wb: args.wb, i: args.dst ~mod+ 4, v: args.idx2)
+    this.st64!(wb: args.wb, i: args.dst ~mod+ 8, v: args.cost_combo)
+    this.st64!(wb: args.wb, i: args.dst ~mod+ 16, v: args.cost_diff)
+}
+
+// Mirrors FN(BrotliCompareAndPushToQueue) in cluster_inc.h. The C code's
+// *num_pairs is this.num_pairs.
+pri func metablock_builder.compare_and_push_to_queue!(wb: slice base.u8, ds: base.u32[..= 704], out: base.u64, tmp: base.u64,
+        cluster_size: base.u64, idx1: base.u32, idx2: base.u32, max_num_pairs: base.u64, pairs: base.u64) {
+    var hs           : base.u64
+    var is_good_pair : base.bool
+    var idx1         : base.u32
+    var idx2         : base.u32
+    var t            : base.u32
+    var cost_diff    : base.u64
+    var cost_combo   : base.u64
+    var threshold    : base.u64
+    var h1           : base.u64
+    var h2           : base.u64
+    var c            : base.u64
+
+    hs = this.hsize(ds: args.ds)
+    if args.idx1 == args.idx2 {
+        return nothing
+    }
+    idx1 = args.idx1
+    idx2 = args.idx2
+    if idx2 < idx1 {
+        t = idx2
+        idx2 = idx1
+        idx1 = t
+    }
+    h1 = args.out ~mod+ ((idx1 as base.u64) ~mod* hs)
+    h2 = args.out ~mod+ ((idx2 as base.u64) ~mod* hs)
+    cost_diff = this.sf.f64_mul(a: 0x3FE0_0000_0000_0000, b: this.cluster_cost_diff(
+            size_a: this.ld32(wb: args.wb, i: args.cluster_size ~mod+ ((idx1 as base.u64) ~mod* 4)) as base.u64,
+            size_b: this.ld32(wb: args.wb, i: args.cluster_size ~mod+ ((idx2 as base.u64) ~mod* 4)) as base.u64))
+    cost_diff = this.sf.f64_sub(a: cost_diff, b: this.h_bit_cost(wb: args.wb, h: h1, ds: args.ds))
+    cost_diff = this.sf.f64_sub(a: cost_diff, b: this.h_bit_cost(wb: args.wb, h: h2, ds: args.ds))
+
+    if this.h_total(wb: args.wb, h: h1, ds: args.ds) == 0 {
+        cost_combo = this.h_bit_cost(wb: args.wb, h: h2, ds: args.ds)
+        is_good_pair = true
+    } else if this.h_total(wb: args.wb, h: h2, ds: args.ds) == 0 {
+        cost_combo = this.h_bit_cost(wb: args.wb, h: h1, ds: args.ds)
+        is_good_pair = true
+    } else {
+        if this.num_pairs == 0 {
+            threshold = F64_1E99
+        } else {
+            threshold = this.sf.f64_max(a: 0, b: this.ld64(wb: args.wb, i: args.pairs ~mod+ 16))
+        }
+        this.h_copy!(wb: args.wb, h: args.tmp, v: h1, ds: args.ds)
+        this.h_add_histogram!(wb: args.wb, h: args.tmp, v: h2, ds: args.ds)
+        c = this.h_population_cost!(wb: args.wb, h: args.tmp, ds: args.ds)
+        if this.sf.f64_lt(a: c, b: this.sf.f64_sub(a: threshold, b: cost_diff)) <> 0 {
+            cost_combo = c
+            is_good_pair = true
+        }
+    }
+    if is_good_pair {
+        cost_diff = this.sf.f64_add(a: cost_diff, b: cost_combo)
+        if (this.num_pairs > 0) and this.histogram_pair_is_less(
+                p1_cost_diff: this.ld64(wb: args.wb, i: args.pairs ~mod+ 16),
+                p1_idx1: this.ld32(wb: args.wb, i: args.pairs),
+                p1_idx2: this.ld32(wb: args.wb, i: args.pairs ~mod+ 4),
+                p2_cost_diff: cost_diff,
+                p2_idx1: idx1,
+                p2_idx2: idx2) {
+            // Replace the top of the queue if needed.
+            if this.num_pairs < args.max_num_pairs {
+                this.pair_copy!(wb: args.wb, dst: args.pairs ~mod+ (this.num_pairs ~mod* HISTOGRAM_PAIR_SIZE), src: args.pairs)
+                this.num_pairs ~mod+= 1
+            }
+            this.pair_set!(wb: args.wb, dst: args.pairs, idx1: idx1, idx2: idx2, cost_combo: cost_combo, cost_diff: cost_diff)
+        } else if this.num_pairs < args.max_num_pairs {
+            this.pair_set!(wb: args.wb, dst: args.pairs ~mod+ (this.num_pairs ~mod* HISTOGRAM_PAIR_SIZE),
+                    idx1: idx1, idx2: idx2, cost_combo: cost_combo, cost_diff: cost_diff)
+            this.num_pairs ~mod+= 1
+        }
+    }
+}
+
+// Mirrors FN(BrotliHistogramCombine) in cluster_inc.h. out, tmp,
+// cluster_size, symbols, clusters and pairs are offsets in wb.
+pri func metablock_builder.histogram_combine!(wb: slice base.u8, ds: base.u32[..= 704], out: base.u64, tmp: base.u64,
+        cluster_size: base.u64, symbols: base.u64, clusters: base.u64, pairs: base.u64,
+        num_clusters: base.u64, symbols_size: base.u64, max_clusters: base.u64, max_num_pairs: base.u64) base.u64 {
+    var hs                  : base.u64
+    var cost_diff_threshold : base.u64
+    var min_cluster_size    : base.u64
+    var num_clusters        : base.u64
+    var idx1                : base.u64
+    var idx2                : base.u64
+    var best_idx1           : base.u32
+    var best_idx2           : base.u32
+    var i                   : base.u64
+    var j                   : base.u64
+    var copy_to_idx         : base.u64
+    var p                   : base.u64
+    var p_idx1              : base.u32
+    var p_idx2              : base.u32
+    var p_cost_combo        : base.u64
+    var p_cost_diff         : base.u64
+
+    hs = this.hsize(ds: args.ds)
+    cost_diff_threshold = 0
+    min_cluster_size = 1
+    num_clusters = args.num_clusters
+    this.num_pairs = 0
+
+    // We maintain a vector of histogram pairs, with the property that the
+    // pair with the maximum bit cost reduction is the first.
+    idx1 = 0
+    while idx1 < num_clusters {
+        idx2 = idx1 ~mod+ 1
+        while idx2 < num_clusters {
+            this.compare_and_push_to_queue!(wb: args.wb, ds: args.ds, out: args.out, tmp: args.tmp,
+                    cluster_size: args.cluster_size,
+                    idx1: this.ld32(wb: args.wb, i: args.clusters ~mod+ (idx1 ~mod* 4)),
+                    idx2: this.ld32(wb: args.wb, i: args.clusters ~mod+ (idx2 ~mod* 4)),
+                    max_num_pairs: args.max_num_pairs, pairs: args.pairs)
+            idx2 ~mod+= 1
+        }
+        idx1 ~mod+= 1
+    }
+
+    while num_clusters > min_cluster_size {
+        if this.sf.f64_ge(a: this.ld64(wb: args.wb, i: args.pairs ~mod+ 16), b: cost_diff_threshold) <> 0 {
+            cost_diff_threshold = F64_1E99
+            min_cluster_size = args.max_clusters
+            continue
+        }
+        // Take the best pair from the top of heap.
+        best_idx1 = this.ld32(wb: args.wb, i: args.pairs)
+        best_idx2 = this.ld32(wb: args.wb, i: args.pairs ~mod+ 4)
+        this.h_add_histogram!(wb: args.wb,
+                h: args.out ~mod+ ((best_idx1 as base.u64) ~mod* hs),
+                v: args.out ~mod+ ((best_idx2 as base.u64) ~mod* hs), ds: args.ds)
+        this.h_set_bit_cost!(wb: args.wb, h: args.out ~mod+ ((best_idx1 as base.u64) ~mod* hs), ds: args.ds,
+                bit_cost: this.ld64(wb: args.wb, i: args.pairs ~mod+ 8))
+        this.st32!(wb: args.wb, i: args.cluster_size ~mod+ ((best_idx1 as base.u64) ~mod* 4),
+                v: this.ld32(wb: args.wb, i: args.cluster_size ~mod+ ((best_idx1 as base.u64) ~mod* 4)) ~mod+
+                this.ld32(wb: args.wb, i: args.cluster_size ~mod+ ((best_idx2 as base.u64) ~mod* 4)))
+        i = 0
+        while i < args.symbols_size {
+            if this.ld32(wb: args.wb, i: args.symbols ~mod+ (i ~mod* 4)) == best_idx2 {
+                this.st32!(wb: args.wb, i: args.symbols ~mod+ (i ~mod* 4), v: best_idx1)
+            }
+            i ~mod+= 1
+        }
+        i = 0
+        while i < num_clusters {
+            if this.ld32(wb: args.wb, i: args.clusters ~mod+ (i ~mod* 4)) == best_idx2 {
+                // memmove(&clusters[i], &clusters[i + 1], ...).
+                j = i
+                while (j ~mod+ 1) < num_clusters {
+                    this.st32!(wb: args.wb, i: args.clusters ~mod+ (j ~mod* 4),
+                            v: this.ld32(wb: args.wb, i: args.clusters ~mod+ ((j ~mod+ 1) ~mod* 4)))
+                    j ~mod+= 1
+                }
+                break
+            }
+            i ~mod+= 1
+        }
+        num_clusters ~mod-= 1
+
+        // Remove pairs intersecting the just combined best pair.
+        copy_to_idx = 0
+        i = 0
+        while i < this.num_pairs {
+            p = args.pairs ~mod+ (i ~mod* HISTOGRAM_PAIR_SIZE)
+            p_idx1 = this.ld32(wb: args.wb, i: p)
+            p_idx2 = this.ld32(wb: args.wb, i: p ~mod+ 4)
+            p_cost_combo = this.ld64(wb: args.wb, i: p ~mod+ 8)
+            p_cost_diff = this.ld64(wb: args.wb, i: p ~mod+ 16)
+            if (p_idx1 == best_idx1) or (p_idx2 == best_idx1) or (p_idx1 == best_idx2) or (p_idx2 == best_idx2) {
+                // Remove invalid pair from the queue.
+                i ~mod+= 1
+                continue
+            }
+            if this.histogram_pair_is_less(
+                    p1_cost_diff: this.ld64(wb: args.wb, i: args.pairs ~mod+ 16),
+                    p1_idx1: this.ld32(wb: args.wb, i: args.pairs),
+                    p1_idx2: this.ld32(wb: args.wb, i: args.pairs ~mod+ 4),
+                    p2_cost_diff: p_cost_diff,
+                    p2_idx1: p_idx1,
+                    p2_idx2: p_idx2) {
+                // Replace the top of the queue if needed.
+                this.pair_copy!(wb: args.wb, dst: args.pairs ~mod+ (copy_to_idx ~mod* HISTOGRAM_PAIR_SIZE), src: args.pairs)
+                this.pair_set!(wb: args.wb, dst: args.pairs, idx1: p_idx1, idx2: p_idx2, cost_combo: p_cost_combo, cost_diff: p_cost_diff)
+            } else {
+                this.pair_set!(wb: args.wb, dst: args.pairs ~mod+ (copy_to_idx ~mod* HISTOGRAM_PAIR_SIZE),
+                        idx1: p_idx1, idx2: p_idx2, cost_combo: p_cost_combo, cost_diff: p_cost_diff)
+            }
+            copy_to_idx ~mod+= 1
+            i ~mod+= 1
+        }
+        this.num_pairs = copy_to_idx
+
+        // Push new pairs formed with the combined histogram to the heap.
+        i = 0
+        while i < num_clusters {
+            this.compare_and_push_to_queue!(wb: args.wb, ds: args.ds, out: args.out, tmp: args.tmp,
+                    cluster_size: args.cluster_size,
+                    idx1: best_idx1,
+                    idx2: this.ld32(wb: args.wb, i: args.clusters ~mod+ (i ~mod* 4)),
+                    max_num_pairs: args.max_num_pairs, pairs: args.pairs)
+            i ~mod+= 1
+        }
+    }
+    return num_clusters
+}
+
+// Mirrors FN(BrotliHistogramBitCostDistance) in cluster_inc.h.
+pri func metablock_builder.histogram_bit_cost_distance!(wb: slice base.u8, ds: base.u32[..= 704],
+        histogram: base.u64, candidate: base.u64, tmp: base.u64) base.u64 {
+    var c : base.u64
+
+    if this.h_total(wb: args.wb, h: args.histogram, ds: args.ds) == 0 {
+        return 0
+    }
+    this.h_copy!(wb: args.wb, h: args.tmp, v: args.histogram, ds: args.ds)
+    this.h_add_histogram!(wb: args.wb, h: args.tmp, v: args.candidate, ds: args.ds)
+    c = this.h_population_cost!(wb: args.wb, h: args.tmp, ds: args.ds)
+    return this.sf.f64_sub(a: c, b: this.h_bit_cost(wb: args.wb, h: args.candidate, ds: args.ds))
+}
+
+// Mirrors FN(BrotliHistogramRemap) in cluster_inc.h.
+pri func metablock_builder.histogram_remap!(wb: slice base.u8, ds: base.u32[..= 704], in_histos: base.u64, in_size: base.u64,
+        clusters: base.u64, num_clusters: base.u64, out: base.u64, tmp: base.u64, symbols: base.u64) {
+    var hs        : base.u64
+    var i         : base.u64
+    var j         : base.u64
+    var best_out  : base.u32
+    var best_bits : base.u64
+    var cur_bits  : base.u64
+    var c         : base.u32
+
+    hs = this.hsize(ds: args.ds)
+    i = 0
+    while i < args.in_size {
+        if i == 0 {
+            best_out = this.ld32(wb: args.wb, i: args.symbols)
+        } else {
+            best_out = this.ld32(wb: args.wb, i: args.symbols ~mod+ ((i ~mod- 1) ~mod* 4))
+        }
+        best_bits = this.histogram_bit_cost_distance!(wb: args.wb, ds: args.ds,
+                histogram: args.in_histos ~mod+ (i ~mod* hs),
+                candidate: args.out ~mod+ ((best_out as base.u64) ~mod* hs), tmp: args.tmp)
+        j = 0
+        while j < args.num_clusters {
+            c = this.ld32(wb: args.wb, i: args.clusters ~mod+ (j ~mod* 4))
+            cur_bits = this.histogram_bit_cost_distance!(wb: args.wb, ds: args.ds,
+                    histogram: args.in_histos ~mod+ (i ~mod* hs),
+                    candidate: args.out ~mod+ ((c as base.u64) ~mod* hs), tmp: args.tmp)
+            if this.sf.f64_lt(a: cur_bits, b: best_bits) <> 0 {
+                best_bits = cur_bits
+                best_out = c
+            }
+            j ~mod+= 1
+        }
+        this.st32!(wb: args.wb, i: args.symbols ~mod+ (i ~mod* 4), v: best_out)
+        i ~mod+= 1
+    }
+
+    // Recompute each out based on raw and symbols.
+    i = 0
+    while i < args.num_clusters {
+        c = this.ld32(wb: args.wb, i: args.clusters ~mod+ (i ~mod* 4))
+        this.h_clear!(wb: args.wb, h: args.out ~mod+ ((c as base.u64) ~mod* hs), ds: args.ds)
+        i ~mod+= 1
+    }
+    i = 0
+    while i < args.in_size {
+        c = this.ld32(wb: args.wb, i: args.symbols ~mod+ (i ~mod* 4))
+        this.h_add_histogram!(wb: args.wb,
+                h: args.out ~mod+ ((c as base.u64) ~mod* hs),
+                v: args.in_histos ~mod+ (i ~mod* hs), ds: args.ds)
+        i ~mod+= 1
+    }
+}
+
+// Mirrors FN(BrotliHistogramReindex) in cluster_inc.h.
+pri func metablock_builder.histogram_reindex!(wb: slice base.u8, ds: base.u32[..= 704], out: base.u64, symbols: base.u64, length: base.u64) base.u64 {
+    var hs         : base.u64
+    var mark       : base.u64
+    var new_index  : base.u64
+    var next_index : base.u32
+    var tmp        : base.u64
+    var i          : base.u64
+    var s          : base.u32
+    var ni         : base.u32
+
+    hs = this.hsize(ds: args.ds)
+    mark = this.wb_top
+    new_index = this.alloc!(n: args.length ~mod* 4)
+    if this.oom {
+        return 0
+    }
+    this.fill32!(wb: args.wb, i: new_index, n: args.length, v: INVALID_INDEX)
+    next_index = 0
+    i = 0
+    while i < args.length {
+        s = this.ld32(wb: args.wb, i: args.symbols ~mod+ (i ~mod* 4))
+        if this.ld32(wb: args.wb, i: new_index ~mod+ ((s as base.u64) ~mod* 4)) == INVALID_INDEX {
+            this.st32!(wb: args.wb, i: new_index ~mod+ ((s as base.u64) ~mod* 4), v: next_index)
+            next_index ~mod+= 1
+        }
+        i ~mod+= 1
+    }
+    tmp = this.alloc!(n: (next_index as base.u64) ~mod* hs)
+    if this.oom {
+        return 0
+    }
+    next_index = 0
+    i = 0
+    while i < args.length {
+        s = this.ld32(wb: args.wb, i: args.symbols ~mod+ (i ~mod* 4))
+        ni = this.ld32(wb: args.wb, i: new_index ~mod+ ((s as base.u64) ~mod* 4))
+        if ni == next_index {
+            this.h_copy!(wb: args.wb, h: tmp ~mod+ ((next_index as base.u64) ~mod* hs), v: args.out ~mod+ ((s as base.u64) ~mod* hs), ds: args.ds)
+            next_index ~mod+= 1
+        }
+        this.st32!(wb: args.wb, i: args.symbols ~mod+ (i ~mod* 4), v: ni)
+        i ~mod+= 1
+    }
+    i = 0
+    while i < (next_index as base.u64) {
+        this.h_copy!(wb: args.wb, h: args.out ~mod+ (i ~mod* hs), v: tmp ~mod+ (i ~mod* hs), ds: args.ds)
+        i ~mod+= 1
+    }
+    this.wb_top = mark
+    return next_index as base.u64
+}
+
+// Mirrors FN(BrotliClusterHistograms) in cluster_inc.h. The in_size input
+// histograms are at in_histos, the output histograms (with room for in_size
+// histograms) at out_histos and the histogram_symbols (in_size u32les) at
+// histogram_symbols. It returns the C code's *out_size.
+pri func metablock_builder.cluster_histograms!(wb: slice base.u8, ds: base.u32[..= 704], in_histos: base.u64, in_size: base.u64,
+        max_histograms: base.u64, out_histos: base.u64, histogram_symbols: base.u64) base.u64 {
+    var c                : base.u64
+    var hs               : base.u64
+    var mark             : base.u64
+    var cluster_size     : base.u64
+    var clusters         : base.u64
+    var num_clusters     : base.u64
+    var pairs_capacity   : base.u64
+    var pairs            : base.u64
+    var tmp              : base.u64
+    var i                : base.u64
+    var j                : base.u64
+    var num_to_combine   : base.u64
+    var num_new_clusters : base.u64
+    var max_num_pairs    : base.u64
+    var out_size         : base.u64
+
+    hs = this.hsize(ds: args.ds)
+    mark = this.wb_top
+    cluster_size = this.alloc!(n: args.in_size ~mod* 4)
+    clusters = this.alloc!(n: args.in_size ~mod* 4)
+    // max_input_histograms is 64.
+    pairs_capacity = (64 * 64) / 2
+    pairs = this.alloc!(n: (pairs_capacity + 1) * HISTOGRAM_PAIR_SIZE)
+    tmp = this.alloc!(n: hs)
+    if this.oom {
+        return 0
+    }
+
+    this.fill32!(wb: args.wb, i: cluster_size, n: args.in_size, v: 1)
+    i = 0
+    while i < args.in_size {
+        this.h_copy!(wb: args.wb, h: args.out_histos ~mod+ (i ~mod* hs), v: args.in_histos ~mod+ (i ~mod* hs), ds: args.ds)
+        c = this.h_population_cost!(wb: args.wb, h: args.in_histos ~mod+ (i ~mod* hs), ds: args.ds)
+        this.h_set_bit_cost!(wb: args.wb, h: args.out_histos ~mod+ (i ~mod* hs), ds: args.ds, bit_cost: c)
+        this.st32!(wb: args.wb, i: args.histogram_symbols ~mod+ (i ~mod* 4), v: (i & 0xFFFF_FFFF) as base.u32)
+        i ~mod+= 1
+    }
+
+    i = 0
+    while i < args.in_size {
+        num_to_combine = args.in_size ~mod- i
+        num_to_combine = num_to_combine.min(no_more_than: 64)
+        j = 0
+        while j < num_to_combine {
+            this.st32!(wb: args.wb, i: clusters ~mod+ ((num_clusters ~mod+ j) ~mod* 4), v: ((i ~mod+ j) & 0xFFFF_FFFF) as base.u32)
+            j ~mod+= 1
+        }
+        num_new_clusters = this.histogram_combine!(wb: args.wb, ds: args.ds, out: args.out_histos, tmp: tmp,
+                cluster_size: cluster_size, symbols: args.histogram_symbols ~mod+ (i ~mod* 4),
+                clusters: clusters ~mod+ (num_clusters ~mod* 4), pairs: pairs,
+                num_clusters: num_to_combine, symbols_size: num_to_combine,
+                max_clusters: args.max_histograms, max_num_pairs: pairs_capacity)
+        num_clusters ~mod+= num_new_clusters
+        i ~mod+= 64
+    }
+
+    // For the second pass, we limit the total number of histogram pairs.
+    // After this limit is reached, we only keep searching for the best pair.
+    max_num_pairs = 64 ~mod* num_clusters
+    max_num_pairs = max_num_pairs.min(no_more_than: (num_clusters / 2) ~mod* num_clusters)
+    if pairs_capacity < (max_num_pairs ~mod+ 1) {
+        // BROTLI_ENSURE_CAPACITY. The C code copies the old pairs, but the
+        // second BrotliHistogramCombine call never reads them.
+        pairs = this.alloc!(n: (max_num_pairs ~mod+ 1) ~mod* HISTOGRAM_PAIR_SIZE)
+        if this.oom {
+            return 0
+        }
+    }
+
+    // Collapse similar histograms.
+    num_clusters = this.histogram_combine!(wb: args.wb, ds: args.ds, out: args.out_histos, tmp: tmp,
+            cluster_size: cluster_size, symbols: args.histogram_symbols,
+            clusters: clusters, pairs: pairs,
+            num_clusters: num_clusters, symbols_size: args.in_size,
+            max_clusters: args.max_histograms, max_num_pairs: max_num_pairs)
+    // Find the optimal map from original histograms to the final ones.
+    this.histogram_remap!(wb: args.wb, ds: args.ds, in_histos: args.in_histos, in_size: args.in_size,
+            clusters: clusters, num_clusters: num_clusters, out: args.out_histos, tmp: tmp,
+            symbols: args.histogram_symbols)
+    // Convert the context map to a canonical form.
+    out_size = this.histogram_reindex!(wb: args.wb, ds: args.ds, out: args.out_histos,
+            symbols: args.histogram_symbols, length: args.in_size)
+    this.wb_top = mark
+    return out_size
+}

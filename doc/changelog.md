@@ -15,8 +15,12 @@ The LICENSE has changed from a single license (Apache 2) to a dual license
 - Added `base.rect_ie_i32`.
 - Added `compact_retaining` and `dst_history_retain_length`.
 - Added `example/toy-aux-image`.
+- Added `example/brcat`.
 - Added `example/mzcat`.
 - Added `get_quirk(key: u32) u64`.
+- Added `std/brotli`.
+- Added a `std/brotli` encoder (qualities 0 to 11, byte-exact with libbrotlienc
+  v1.2.1).
 - Added `std/crc64`.
 - Added `std/etc2`.
 - Added `std/handsum`.
@@ -26,6 +30,7 @@ The LICENSE has changed from a single license (Apache 2) to a dual license
 - Added `std/netpbm`.
 - Added `std/qoi`.
 - Added `std/sha256`.
+- Added `std/softfloat`.
 - Added `std/thumbhash`.
 - Added `std/vp8`.
 - Added `std/webp`.

@@ -1,0 +1,401 @@
+// Copyright 2026 The Wuffs Authors.
+//
+// Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
+// https://www.apache.org/licenses/LICENSE-2.0> or the MIT license
+// <LICENSE-MIT or https://opensource.org/licenses/MIT>, at your
+// option. This file may not be copied, modified, or distributed
+// except according to those terms.
+//
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+
+// --------
+
+// This file mirrors the parts of encode.c (and brotli_bit_stream.c) that only
+// qualities 10 and 11 use: ChooseContextMode, the
+// MIN_QUALITY_FOR_HQ_BLOCK_SPLITTING branch of WriteMetaBlockInternal (which
+// calls BrotliBuildMetaBlock, via the metablock_builder) and
+// BrotliStoreMetaBlock for that MetaBlockSplit (with any literal context
+// mode and a distance context map). It also sizes the workbuf's variable
+// region.
+//
+// The variable region (from this.var_off to the end of the workbuf) holds,
+// at different times:
+//  - while EncodeData computes the backward references, the Zopfli scratch
+//    space (see encode_zopfli.wuffs) and
+//  - while WriteMetaBlockInternal builds the metablock, the
+//    metablock_builder's arena (see encode_metablock.wuffs).
+// A longer workbuf gives both more room.
+
+// The C code's ContextType values.
+pri const CONTEXT_UTF8   : base.u32 = 2
+pri const CONTEXT_SIGNED : base.u32 = 3
+
+// HQ_MATCHES_PER_BYTE_BUDGET is how many BackwardMatches per input byte the
+// minimum workbuf length reserves at quality 11. HQ_MATCHES_PER_BYTE_MAX is
+// the most there can be: up to 2 matches from the short-distance scan, up to
+// MAX_TREE_SEARCH_DEPTH (64) from the binary tree and up to 34 (one per
+// length from 4 to 37) from the static dictionary.
+pri const HQ_MATCHES_PER_BYTE_BUDGET : base.u64 = 16
+pri const HQ_MATCHES_PER_BYTE_MAX    : base.u64 = 100
+
+// HQ_MATCHES_PER_BYTE_MAX_DICT is HQ_MATCHES_PER_BYTE_MAX plus up to 64 (the
+// C code's match_limit) compound dictionary matches, when a dictionary is
+// attached. HQ_SHADOW_MATCHES is the C code's shadow_matches (in
+// BrotliCreateHqZopfliBackwardReferences): with a dictionary attached, that
+// many more BackwardMatches past the current position's are scratch space
+// for the binary tree's and the compound dictionaries' matches before
+// MergeMatches. Quality 10's lz_matches_offset (in
+// BrotliZopfliComputeShortestPath) has the same value but fits in its
+// matches buffer of 2 * (MAX_NUM_MATCHES_H10 + 64) BackwardMatches.
+pri const HQ_MATCHES_PER_BYTE_MAX_DICT : base.u64 = 164
+pri const HQ_SHADOW_MATCHES            : base.u64 = 256
+
+// hq_max_literals returns an upper bound on the number of literals in a
+// metablock at qualities 10 and 11: EncodeData merges another input block
+// only while there are fewer than (max_len / 8) literals.
+pri func encoder.hq_max_literals(lgwin: base.u32[..= 30], lgblock: base.u32[..= 30]) base.u64 {
+    var max_len : base.u64
+
+    max_len = this.max_metablock_size(lgwin: args.lgwin, lgblock: args.lgblock)
+    return max_len.min(no_more_than: (max_len / 8) ~mod+ ((1 as base.u64) << args.lgblock))
+}
+
+// hq_zopfli_len returns how much of the variable region the Zopfli backward
+// references need, for an input block of (1 << lgblock) bytes, with (at
+// quality 11) matches_per_byte BackwardMatches per byte (plus, if a
+// dictionary is attached, HQ_SHADOW_MATCHES).
+pri func encoder.hq_zopfli_len(quality: base.u32[..= 11], lgblock: base.u32[..= 30], matches_per_byte: base.u64) base.u64 {
+    var n      : base.u64
+    var shadow : base.u64
+
+    n = (1 as base.u64) << args.lgblock
+    if args.quality <= 10 {
+        return ((16 * (n + 1)) + (4 * (n + 2))) + (8 * 2 * (MAX_NUM_MATCHES_H10 + 64))
+    }
+    if this.dict_num_chunks > 0 {
+        shadow = HQ_SHADOW_MATCHES
+    }
+    return (((16 * (n + 1)) + (4 * (n + 2))) + (4 * n)) ~sat+
+            (8 ~mod* (((args.matches_per_byte ~mod* n) ~sat+ MAX_NUM_MATCHES_H10) ~sat+ shadow))
+}
+
+// hq_var_len returns the minimum (if not worst_case) or the worst case (if
+// worst_case) length of the variable region, at qualities 10 and 11.
+pri func encoder.hq_var_len(quality: base.u32[..= 11], lgwin: base.u32[..= 30], lgblock: base.u32[..= 30], worst_case: base.bool) base.u64 {
+    var z : base.u64
+    var m : base.u64
+
+    if args.worst_case {
+        if this.dict_num_chunks > 0 {
+            z = this.hq_zopfli_len(quality: args.quality, lgblock: args.lgblock, matches_per_byte: HQ_MATCHES_PER_BYTE_MAX_DICT)
+        } else {
+            z = this.hq_zopfli_len(quality: args.quality, lgblock: args.lgblock, matches_per_byte: HQ_MATCHES_PER_BYTE_MAX)
+        }
+        m = this.mb.workbuf_len_worst_case(
+                num_literals: this.hq_max_literals(lgwin: args.lgwin, lgblock: args.lgblock),
+                num_commands: this.commands_capacity(quality: args.quality, lgwin: args.lgwin, lgblock: args.lgblock))
+    } else {
+        z = this.hq_zopfli_len(quality: args.quality, lgblock: args.lgblock, matches_per_byte: HQ_MATCHES_PER_BYTE_BUDGET)
+        m = this.mb.workbuf_len_practical(
+                num_literals: this.hq_max_literals(lgwin: args.lgwin, lgblock: args.lgblock),
+                num_commands: this.commands_capacity(quality: args.quality, lgwin: args.lgwin, lgblock: args.lgblock))
+    }
+    return z.max(no_less_than: m)
+}
+
+// Mirrors ChooseContextMode in encode.c, for qualities 10 and 11.
+pri func encoder.choose_context_mode!(wb: roslice base.u8, pos: base.u64, length: base.u64) base.u32 {
+    var utf8 : base.bool
+
+    // We only do the computation for the option of something else than
+    // CONTEXT_UTF8 for the highest qualities.
+    utf8 = this.is_mostly_utf8!(wb: args.wb, pos: args.pos, length: args.length)
+    if not utf8 {
+        return CONTEXT_SIGNED
+    }
+    return CONTEXT_UTF8
+}
+
+// Mirrors the quality 10 and 11 parts of WriteMetaBlockInternal in encode.c
+// (BrotliBuildMetaBlock, BrotliOptimizeHistograms and BrotliStoreMetaBlock).
+// If the variable region is too short for BrotliBuildMetaBlock, it sets
+// this.hq_insufficient instead.
+pri func encoder.write_meta_block_hq!(wb: slice base.u8, wrapped_last_flush_pos: base.u64, bytes: base.u64, is_last: base.bool,
+        prev_byte: base.u8, prev_byte2: base.u8, s: slice base.u8) {
+    var status  : base.status
+    var cmds_hi : base.u64
+    var c       : base.u32
+    var ds      : base.u32[..= 704]
+    var var_hi  : base.u64
+
+    cmds_hi = this.cmds_off ~mod+ (this.num_cmds ~mod* 16)
+    var_hi = this.var_end.min(no_more_than: args.wb.length())
+    if (this.var_off > var_hi) or (this.rb_buf_off > args.wb.length()) or
+            (this.cmds_off > cmds_hi) or (cmds_hi > args.wb.length()) {
+        this.hq_insufficient = true
+        return nothing
+    }
+    // The C code's block_params is a copy of the params.
+    this.mb.set_params!(quality: this.quality, large_window: this.large_window,
+            disable_literal_context_modeling: this.p_disable_lcm <> 0)
+    this.mb.init_distance_params!(npostfix: this.distance_postfix_bits,
+            ndirect: this.num_direct_distance_codes, large_window: this.large_window)
+    status = this.mb.build_meta_block!(wb: args.wb[this.var_off .. var_hi], ringbuffer: args.wb[this.rb_buf_off ..],
+            pos: args.wrapped_last_flush_pos, mask: this.rb_mask as base.u64,
+            prev_byte: args.prev_byte, prev_byte2: args.prev_byte2,
+            cmds: args.wb[this.cmds_off .. cmds_hi], num_commands: this.num_cmds,
+            literal_context_mode: this.literal_context_mode)
+    if this.mb.wb_high > this.hq_wb_high {
+        this.hq_wb_high = this.mb.wb_high
+    }
+    if not status.is_ok() {
+        this.hq_insufficient = true
+        return nothing
+    }
+    // MIN_QUALITY_FOR_OPTIMIZE_HISTOGRAMS is 4. The number of distance
+    // symbols effectively used for distance histograms.
+    this.mb.optimize_histograms!(wb: args.wb[this.var_off .. var_hi], num_distance_codes: this.mb.dist_alphabet_size_limit)
+
+    // Point the block encoders' inputs (the gbs_etc fields, which
+    // build_meta_block_greedy sets at qualities 4 to 9) at the
+    // MetaBlockSplit. Its histograms are (4 * ds) + 16 bytes long.
+    c = 0
+    while c < 3 {
+        ds = 256
+        if c == 1 {
+            ds = 704
+        } else if c == 2 {
+            ds = 544
+        }
+        this.gbs_types_off[c] = this.var_off ~mod+ this.mb.split_types_off[c]
+        this.gbs_lengths_off[c] = this.var_off ~mod+ this.mb.split_lengths_off[c]
+        this.gbs_num_types[c] = (this.mb.split_num_types[c] & 0xFFFF_FFFF) as base.u32
+        this.gbs_split_num_blocks[c] = this.mb.split_num_blocks[c]
+        this.gbs_histograms_size[c] = this.mb.histograms_size[c]
+        this.gbs_histo_off_base[c] = this.var_off ~mod+ this.mb.histograms_off[c]
+        this.gbs_data_size[c] = ds + 4
+        c ~mod+= 1
+    }
+    this.store_meta_block_hq!(wb: args.wb, start_pos: args.wrapped_last_flush_pos, length: args.bytes,
+            prev_byte: args.prev_byte, prev_byte2: args.prev_byte2, is_last: args.is_last,
+            n_commands: this.num_cmds, s: args.s)
+}
+
+// hq_copy_context_map copies the MetaBlockSplit's category c context map
+// (u32le values) to the literal context map region (u8 values, as
+// encode_context_map expects) and sets this.mb_cmap_size.
+pri func encoder.hq_copy_context_map!(wb: slice base.u8, c: base.u32[..= 2]) {
+    var i   : base.u64
+    var off : base.u64
+    var n   : base.u64
+
+    off = this.var_off ~mod+ this.mb.context_map_off[args.c]
+    n = this.mb.context_map_size[args.c].min(no_more_than: 256 * 64)
+    i = 0
+    while i < n {
+        this.set_byte!(s: args.wb, i: this.mb_cmap_off ~mod+ i,
+                v: (this.load32le(s: args.wb, i: off ~mod+ (i ~mod* 4)) & 0xFF) as base.u8)
+        i ~mod+= 1
+    }
+    this.mb_cmap_size = n
+}
+
+// Mirrors StoreSymbolWithContext in brotli_bit_stream.c, for category c's
+// block encoder and the MetaBlockSplit's context map (u32le values at the
+// cmap_off workbuf offset).
+pri func encoder.store_symbol_with_context_hq!(wb: roslice base.u8, c: base.u32[..= 3], symbol: base.u64, context: base.u64,
+        cmap_off: base.u64, context_bits: base.u32[..= 6], s: slice base.u8) {
+    var block_ix   : base.u64
+    var block_len  : base.u32
+    var block_type : base.u32
+    var histo_ix   : base.u64
+    var ix         : base.u64
+
+    if this.be_block_len[args.c] == 0 {
+        block_ix = this.be_block_ix[args.c] ~mod+ 1
+        this.be_block_ix[args.c] = block_ix
+        block_len = this.load32le(s: args.wb, i: this.gbs_lengths_off[args.c] ~mod+ (block_ix ~mod* 4))
+        block_type = this.byte_at(s: args.wb, i: this.gbs_types_off[args.c] ~mod+ block_ix) as base.u32
+        this.be_block_len[args.c] = block_len
+        this.be_entropy_ix[args.c] = (block_type as base.u64) << args.context_bits
+        this.store_block_switch!(c: args.c, block_len: block_len, block_type: block_type, is_first_block: false, s: args.s)
+    }
+    this.be_block_len[args.c] ~mod-= 1
+    histo_ix = this.load32le(s: args.wb, i: args.cmap_off ~mod+ ((this.be_entropy_ix[args.c] ~mod+ args.context) ~mod* 4)) as base.u64
+    ix = (histo_ix ~mod* (this.be_histogram_length[args.c] as base.u64)) ~mod+ args.symbol
+    this.write_bits!(
+            n_bits: this.byte_at(s: args.wb, i: this.be_depth_off[args.c] ~mod+ ix) as base.u32,
+            bits: this.peek_u16(s: args.wb, i: this.be_bits_off[args.c] ~mod+ (ix ~mod* 2)) as base.u64,
+            s: args.s)
+}
+
+// Mirrors BrotliStoreMetaBlock in brotli_bit_stream.c, for the
+// MetaBlockSplit made by the metablock_builder (pointed at by the gbs_etc
+// fields, see write_meta_block_hq), its chosen distance params and
+// this.literal_context_mode.
+pri func encoder.store_meta_block_hq!(wb: slice base.u8, start_pos: base.u64, length: base.u64, prev_byte: base.u8, prev_byte2: base.u8,
+        is_last: base.bool, n_commands: base.u64, s: slice base.u8) {
+    var pos         : base.u64
+    var prev_byte   : base.u8
+    var prev_byte2  : base.u8
+    var i           : base.u64
+    var j           : base.u32
+    var cmd_prefix  : base.u16
+    var copy_len    : base.u32
+    var literal     : base.u8
+    var context     : base.u32
+    var dist_prefix : base.u32
+    var lut0        : base.u32
+    var lut1        : base.u32
+    var lit_cmap    : base.u64
+    var dist_cmap   : base.u64
+
+    pos = args.start_pos
+    prev_byte = args.prev_byte
+    prev_byte2 = args.prev_byte2
+    lut0 = (this.literal_context_mode & 3) << 9
+    lut1 = lut0 | 256
+    lit_cmap = this.var_off ~mod+ this.mb.context_map_off[0]
+    dist_cmap = this.var_off ~mod+ this.mb.context_map_off[2]
+
+    this.store_compressed_meta_block_header!(is_final_block: args.is_last, length: args.length, s: args.s)
+
+    this.init_block_encoder!(wb: args.wb, c: 0, histogram_length: 256)
+    this.init_block_encoder!(wb: args.wb, c: 1, histogram_length: 704)
+    this.init_block_encoder!(wb: args.wb, c: 2, histogram_length: this.mb.dist_alphabet_size_limit)
+
+    this.build_and_store_block_split_code!(wb: args.wb, c: 0, s: args.s)
+    this.build_and_store_block_split_code!(wb: args.wb, c: 1, s: args.s)
+    this.build_and_store_block_split_code!(wb: args.wb, c: 2, s: args.s)
+
+    this.write_bits!(n_bits: 2, bits: this.mb.dist_postfix_bits as base.u64, s: args.s)
+    this.write_bits!(n_bits: 4, bits: (this.mb.dist_num_direct_codes >> (this.mb.dist_postfix_bits & 3)) as base.u64, s: args.s)
+    j = 0
+    while j < this.gbs_num_types[0] {
+        this.write_bits!(n_bits: 2, bits: this.literal_context_mode as base.u64, s: args.s)
+        j ~mod+= 1
+    }
+
+    if this.mb.context_map_size[0] == 0 {
+        this.store_trivial_context_map!(num_types: this.gbs_histograms_size[0], context_bits: 6, s: args.s)
+    } else {
+        this.hq_copy_context_map!(wb: args.wb, c: 0)
+        this.encode_context_map!(wb: args.wb, num_clusters: this.gbs_histograms_size[0], s: args.s)
+    }
+    if this.mb.context_map_size[2] == 0 {
+        this.store_trivial_context_map!(num_types: this.gbs_histograms_size[2], context_bits: 2, s: args.s)
+    } else {
+        this.hq_copy_context_map!(wb: args.wb, c: 2)
+        this.encode_context_map!(wb: args.wb, num_clusters: this.gbs_histograms_size[2], s: args.s)
+    }
+
+    this.build_and_store_entropy_codes!(wb: args.wb, c: 0, alphabet_size: 256, s: args.s)
+    this.build_and_store_entropy_codes!(wb: args.wb, c: 1, alphabet_size: 704, s: args.s)
+    this.build_and_store_entropy_codes!(wb: args.wb, c: 2, alphabet_size: this.mb.dist_alphabet_size_max, s: args.s)
+
+    i = 0
+    while i < args.n_commands {
+        cmd_prefix = this.cmd_cmd_prefix(wb: args.wb, i: i)
+        this.store_symbol!(wb: args.wb, c: 1, symbol: cmd_prefix as base.u64, with_context: false, context: 0, s: args.s)
+        this.store_command_extra!(wb: args.wb, i: i, s: args.s)
+        j = this.cmd_insert_len(wb: args.wb, i: i)
+        if this.mb.context_map_size[0] == 0 {
+            while j > 0 {
+                this.store_symbol!(wb: args.wb, c: 0, symbol: this.rb_byte(wb: args.wb, pos: pos) as base.u64,
+                        with_context: false, context: 0, s: args.s)
+                pos ~mod+= 1
+                j ~mod-= 1
+            }
+        } else {
+            while j > 0 {
+                context = (CONTEXT_LOOKUP[(lut0 | (prev_byte as base.u32)) & 2047] |
+                        CONTEXT_LOOKUP[(lut1 | (prev_byte2 as base.u32)) & 2047]) as base.u32
+                literal = this.rb_byte(wb: args.wb, pos: pos)
+                this.store_symbol_with_context_hq!(wb: args.wb, c: 0, symbol: literal as base.u64,
+                        context: context as base.u64, cmap_off: lit_cmap, context_bits: 6, s: args.s)
+                prev_byte2 = prev_byte
+                prev_byte = literal
+                pos ~mod+= 1
+                j ~mod-= 1
+            }
+        }
+        copy_len = this.cmd_copy_len(wb: args.wb, i: i)
+        pos ~mod+= copy_len as base.u64
+        if copy_len <> 0 {
+            prev_byte2 = this.rb_byte(wb: args.wb, pos: pos ~mod- 2)
+            prev_byte = this.rb_byte(wb: args.wb, pos: pos ~mod- 1)
+            if cmd_prefix >= 128 {
+                dist_prefix = this.cmd_dist_prefix(wb: args.wb, i: i) as base.u32
+                if this.mb.context_map_size[2] == 0 {
+                    this.store_symbol!(wb: args.wb, c: 2, symbol: (dist_prefix & 0x3FF) as base.u64,
+                            with_context: false, context: 0, s: args.s)
+                } else {
+                    this.store_symbol_with_context_hq!(wb: args.wb, c: 2, symbol: (dist_prefix & 0x3FF) as base.u64,
+                            context: this.cmd_distance_context(cmd_prefix: cmd_prefix) as base.u64,
+                            cmap_off: dist_cmap, context_bits: 2, s: args.s)
+                }
+                this.write_bits!(
+                        n_bits: dist_prefix >> 10,
+                        bits: this.cmd_dist_extra(wb: args.wb, i: i) as base.u64,
+                        s: args.s)
+            }
+        }
+        i ~mod+= 1
+    }
+    if args.is_last {
+        this.jump_to_byte_boundary!(s: args.s)
+    }
+}
+
+// workbuf_len_hq returns workbuf_len's result at qualities 10 and 11: the
+// fixed regions plus the minimum or the worst case variable region.
+pri func encoder.workbuf_len_hq(quality: base.u32[..= 11], lgwin: base.u32[..= 30]) base.range_ii_u64 {
+    var lgblock : base.u32[..= 30]
+    var n       : base.u64
+
+    lgblock = this.computed_lgblock(quality: args.quality, lgwin: args.lgwin)
+    n = this.compute_layout_offset(quality: args.quality, lgwin: args.lgwin, lgblock: lgblock, idx: LAYOUT_END)
+    return this.util.make_range_ii_u64(
+            min_incl: n,
+            max_incl: n ~sat+ this.hq_var_extra_max(quality: args.quality, lgwin: args.lgwin, lgblock: lgblock))
+}
+
+// hq_var_extra_max returns how much longer than its minimum length (the
+// LAYOUT_VAR region's length) the variable region can usefully be: the
+// difference between its worst case and minimum lengths.
+pri func encoder.hq_var_extra_max(quality: base.u32[..= 11], lgwin: base.u32[..= 30], lgblock: base.u32[..= 30]) base.u64 {
+    var lo : base.u64
+    var hi : base.u64
+
+    lo = this.hq_var_len(quality: args.quality, lgwin: args.lgwin, lgblock: args.lgblock, worst_case: false)
+    hi = this.hq_var_len(quality: args.quality, lgwin: args.lgwin, lgblock: args.lgblock, worst_case: true)
+    if hi <= lo {
+        return 0
+    }
+    return hi - lo
+}
+
+// hq_extend_var_region grows the variable region (and moves the ring buffer,
+// which is the last region, along with this.workbuf_end) to use as much of a
+// workbuf of wb_len bytes as the worst case can need. It only does this
+// once, at the first transform_io call (before the ring buffer is used), at
+// qualities 10 and 11. Later calls should pass a workbuf of the same length
+// (a shorter one is handled like any short workbuf, and the variable region
+// is then cut short).
+pri func encoder.hq_extend_var_region!(wb_len: base.u64) {
+    var extra : base.u64
+
+    if (this.quality < 10) or this.hq_layout_fixed {
+        return nothing
+    }
+    this.hq_layout_fixed = true
+    if args.wb_len <= this.workbuf_end {
+        return nothing
+    }
+    extra = this.hq_var_extra_max(quality: this.quality, lgwin: this.lgwin, lgblock: this.lgblock)
+    extra = extra.min(no_more_than: args.wb_len - this.workbuf_end)
+    this.var_end ~mod+= extra
+    this.rb_off ~mod+= extra
+    this.rb_buf_off ~mod+= extra
+    this.workbuf_end ~mod+= extra
+}

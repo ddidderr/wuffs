@@ -1,0 +1,80 @@
+// Copyright 2026 The Wuffs Authors.
+//
+// Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
+// https://www.apache.org/licenses/LICENSE-2.0> or the MIT license
+// <LICENSE-MIT or https://opensource.org/licenses/MIT>, at your
+// option. This file may not be copied, modified, or distributed
+// except according to those terms.
+//
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+
+// --------
+
+// Quirks are discussed in (/doc/note/quirks.md). QUIRKS_BASE is defined in
+// decode_quirks.wuffs.
+//
+// The encoder's quirks mirror the C code's BrotliEncoderParameter values, with
+// the value semantics of BrotliEncoderSetParameter. The encoder also accepts
+// the QUIRK_LARGE_WINDOW key (defined in decode_quirks.wuffs) for the
+// BROTLI_PARAM_LARGE_WINDOW parameter: zero or non-zero (large-window brotli
+// is not used at qualities 0 to 2).
+//
+// For all of the encoder's quirks, the (u64) value must fit in a u32 (like
+// the C function's uint32_t argument), otherwise set_quirk returns
+// base."#bad argument". Like the C code, the parameters can only be set
+// before the first transform_io call, otherwise set_quirk returns
+// base."#bad call sequence".
+
+// --------
+
+// When this quirk is set, it sets the encoder's BROTLI_PARAM_QUALITY
+// parameter: 0 to 11. The default is 11. Like the C code, out of range values
+// are clamped (and a value with its high bit set is negative, so it is
+// clamped to 0).
+//
+// It is not named QUIRK_QUALITY because the base package already has a
+// base.QUIRK_QUALITY key (with different value semantics).
+pub const QUIRK_ENCODER_QUALITY : base.u32 = 0x2AB7_9000 | 0x01
+
+// When this quirk is set, it sets the encoder's BROTLI_PARAM_LGWIN parameter:
+// the log2 of the window size, 10 to 24 (or up to 30 for large-window brotli,
+// at qualities 3 and above). The default is 22. Out of range values are
+// clamped.
+pub const QUIRK_LGWIN : base.u32 = 0x2AB7_9000 | 0x02
+
+// When this quirk is set, it sets the encoder's BROTLI_PARAM_LGBLOCK
+// parameter: the log2 of the input block size. 0 (the default) means to
+// choose it automatically. It has no effect at qualities 0 and 1.
+pub const QUIRK_LGBLOCK : base.u32 = 0x2AB7_9000 | 0x03
+
+// When this quirk is set, it sets the encoder's BROTLI_PARAM_MODE parameter:
+// 0 (BROTLI_MODE_GENERIC, the default), 1 (BROTLI_MODE_TEXT) or 2
+// (BROTLI_MODE_FONT). Like the C code, other values are accepted (and have
+// the same effect as BROTLI_MODE_GENERIC). It has no effect at qualities 0
+// and 1.
+pub const QUIRK_MODE : base.u32 = 0x2AB7_9000 | 0x04
+
+// When this quirk is set, it sets the encoder's
+// BROTLI_PARAM_DISABLE_LITERAL_CONTEXT_MODELING parameter: 0 or 1. Other
+// values are rejected with base."#bad argument". It has no effect at
+// qualities 0 and 1.
+pub const QUIRK_DISABLE_LITERAL_CONTEXT_MODELING : base.u32 = 0x2AB7_9000 | 0x05
+
+// When this quirk is set, it sets the encoder's BROTLI_PARAM_SIZE_HINT
+// parameter: the estimated total input size. It has no effect at qualities 0
+// and 1.
+pub const QUIRK_SIZE_HINT : base.u32 = 0x2AB7_9000 | 0x06
+
+// When this quirk is set, it sets the encoder's BROTLI_PARAM_NPOSTFIX
+// parameter. It has no effect at qualities 0 and 1.
+pub const QUIRK_NPOSTFIX : base.u32 = 0x2AB7_9000 | 0x07
+
+// When this quirk is set, it sets the encoder's BROTLI_PARAM_NDIRECT
+// parameter. It has no effect at qualities 0 and 1.
+pub const QUIRK_NDIRECT : base.u32 = 0x2AB7_9000 | 0x08
+
+// When this quirk is set, it sets the encoder's BROTLI_PARAM_STREAM_OFFSET
+// parameter: 0 to (1 << 30). Larger values are rejected with
+// base."#bad argument". Like the C code, a non-zero stream offset means that
+// no stream header (WBITS) is written.
+pub const QUIRK_STREAM_OFFSET : base.u32 = 0x2AB7_9000 | 0x09

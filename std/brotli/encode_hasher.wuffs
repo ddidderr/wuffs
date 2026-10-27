@@ -1,0 +1,1161 @@
+// Copyright 2026 The Wuffs Authors.
+//
+// Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
+// https://www.apache.org/licenses/LICENSE-2.0> or the MIT license
+// <LICENSE-MIT or https://opensource.org/licenses/MIT>, at your
+// option. This file may not be copied, modified, or distributed
+// except according to those terms.
+//
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+
+// --------
+
+// This file mirrors the C code's hashers (hash.h and the hash_*_inc.h files)
+// that qualities 2 to 9 use: H2, H3, H4 and H54 (hash_longest_match_quickly_inc.h),
+// H5 (hash_longest_match_inc.h), H6 (hash_longest_match64_inc.h), H58
+// (hash_longest_match_simd_inc.h), H68 (hash_longest_match64_simd_inc.h) and
+// H40, H41 and H42 (hash_forgetful_chain_inc.h), as well as the static
+// dictionary search (SearchInStaticDictionary in hash.h).
+//
+// The C code instantiates each hasher from a template. Here, each template is
+// one set of functions, parameterized at run time by this.hasher_type. The
+// hasher's dynamically allocated memory (the C code's common->extra[i]) is in
+// the workbuf, at the this.h_off0, this.h_off1 and this.h_off2 offsets.
+//
+// H58 and H68 are the hashers that the reference build (x86-64, where
+// BROTLI_MAX_SIMD_QUALITY is 6) uses for qualities 5 and 6. Their
+// GetMatchingTagMask (matching_tag_mask.h) is computed one tag at a time,
+// which gives the same matches, visited in the same order, as the SIMD code.
+//
+// The hashers' search result (the C code's HasherSearchResult) is in the
+// this.sr_len, this.sr_distance, this.sr_score and this.sr_len_code_delta
+// fields. The ring buffer (the C code's data or ringbuffer argument) starts at
+// the this.rb_buf_off workbuf offset.
+
+// Mirrors kHashMul32 in hash_base.h.
+pri const HASH_MUL_32 : base.u32 = 0x1E35_A7BD
+
+// Mirrors kHashMul64 in hash_base.h.
+pri const HASH_MUL_64 : base.u64 = 0x1FE3_5A7B_D357_9BD3
+
+// Mirrors BROTLI_SCORE_BASE in hash.h.
+pri const SCORE_BASE : base.u64 = 1920
+
+// hasher_quickly_bucket_bits returns the BUCKET_BITS of the H2, H3, H4 and
+// H54 hashers.
+pri func encoder.hasher_quickly_bucket_bits() base.u32[16 ..= 20] {
+    if this.hasher_type == 4 {
+        return 17
+    } else if this.hasher_type == 54 {
+        return 20
+    }
+    return 16
+}
+
+// hasher_quickly_sweep returns the BUCKET_SWEEP (1 << BUCKET_SWEEP_BITS) of
+// the H2, H3, H4 and H54 hashers.
+pri func encoder.hasher_quickly_sweep() base.u32[1 ..= 4] {
+    if this.hasher_type == 2 {
+        return 1
+    } else if this.hasher_type == 3 {
+        return 2
+    }
+    return 4
+}
+
+// Mirrors FN(HashTypeLength) (which equals FN(StoreLookahead)) of every
+// hasher.
+pri func encoder.hasher_type_length() base.u64 {
+    if (this.hasher_type == 5) or (this.hasher_type == 58) or
+            (this.hasher_type == 40) or (this.hasher_type == 41) or (this.hasher_type == 42) {
+        return 4
+    }
+    return 8
+}
+
+// fc_num_last_distances returns the NUM_LAST_DISTANCES_TO_CHECK of the H40,
+// H41 and H42 hashers.
+pri func encoder.fc_num_last_distances() base.u32[..= 16] {
+    if this.hasher_type == 40 {
+        return 4
+    } else if this.hasher_type == 41 {
+        return 10
+    }
+    return 16
+}
+
+// fc_num_banks_minus_1 returns the NUM_BANKS - 1 of the H40, H41 and H42
+// hashers.
+pri func encoder.fc_num_banks_minus_1() base.u64[..= 511] {
+    if this.hasher_type == 42 {
+        return 511
+    }
+    return 0
+}
+
+// fc_bank_bits returns the BANK_BITS of the H40, H41 and H42 hashers.
+pri func encoder.fc_bank_bits() base.u32[..= 16] {
+    if this.hasher_type == 42 {
+        return 9
+    }
+    return 16
+}
+
+// Mirrors ChooseHasher in quality.h (with BROTLI_MAX_SIMD_QUALITY defined as
+// 6), for qualities 2 to 9.
+pri func encoder.choose_hasher!() {
+    var q : base.u32[..= 11]
+
+    q = this.quality
+    this.h_bucket_bits = 0
+    this.h_block_bits = 0
+    this.h_num_last_distances = 0
+    if q > 9 {
+        this.hasher_type = 10
+    } else if (q == 4) and (this.size_hint >= 0x10_0000) {
+        this.hasher_type = 54
+    } else if q < 5 {
+        this.hasher_type = q
+    } else if this.lgwin <= 16 {
+        if q < 7 {
+            this.hasher_type = 40
+        } else if q < 9 {
+            this.hasher_type = 41
+        } else {
+            this.hasher_type = 42
+        }
+    } else {
+        if (this.size_hint >= 0x10_0000) and (this.lgwin >= 19) {
+            this.hasher_type = 6
+            if q <= 6 {
+                this.hasher_type = 68
+            }
+            this.h_bucket_bits = 15
+        } else {
+            this.hasher_type = 5
+            if q <= 6 {
+                this.hasher_type = 58
+            }
+            this.h_bucket_bits = 15
+            if q < 7 {
+                this.h_bucket_bits = 14
+            }
+        }
+        this.h_block_bits = q - 1
+        this.h_num_last_distances = 16
+        if q < 7 {
+            this.h_num_last_distances = 4
+        } else if q < 9 {
+            this.h_num_last_distances = 10
+        }
+    }
+
+    this.hr_jump = 0
+    if this.lgwin > 24 {
+        // Different hashers for large window brotli: not for qualities <= 2,
+        // these are too fast for large window. Not for qualities >= 10:
+        // their hasher already works well with large window. So the changes
+        // are:
+        //   H3 --> H35: for quality 3.
+        //   H54 --> H55: for quality 4 with size hint > 1MB
+        //   H6/H68 --> H65: for qualities 5, 6, 7, 8, 9.
+        // See encode_hasher_composite.wuffs: the composite hasher's
+        // HASHER_A stays in this.hasher_type.
+        if (this.hasher_type == 3) or (this.hasher_type == 54) {
+            this.hr_jump = 4
+        } else if (this.hasher_type == 6) or (this.hasher_type == 68) {
+            this.hasher_type = 6
+            this.hr_jump = 1
+        }
+    }
+}
+
+// hasher_alloc_size mirrors FN(HashMemAllocInBytes) (alloc_size[i], for i in
+// 0 ..= 2) for the hasher of the given type and parameters.
+pri func encoder.hasher_alloc_size(htype: base.u32, bucket_bits: base.u32[..= 24], block_bits: base.u32[..= 16], i: base.u32) base.u64 {
+    var bb : base.u64
+
+    if (args.htype == 2) or (args.htype == 3) {
+        if args.i == 0 {
+            return 4 << 16
+        }
+    } else if args.htype == 4 {
+        if args.i == 0 {
+            return 4 << 17
+        }
+    } else if args.htype == 54 {
+        if args.i == 0 {
+            return 4 << 20
+        }
+    } else if (args.htype == 5) or (args.htype == 6) {
+        bb = (1 as base.u64) << args.bucket_bits
+        if args.i == 0 {
+            return 2 * bb
+        } else if args.i == 1 {
+            return 4 * (bb << args.block_bits)
+        }
+    } else if (args.htype == 58) or (args.htype == 68) {
+        bb = (1 as base.u64) << args.bucket_bits
+        if args.i == 0 {
+            return 2 * bb
+        } else if args.i == 1 {
+            return bb << args.block_bits
+        } else if args.i == 2 {
+            return 4 * (bb << args.block_bits)
+        }
+    } else if (args.htype == 40) or (args.htype == 41) {
+        if args.i == 0 {
+            return (4 * 0x8000) + (2 * 0x8000) + 0x1_0000
+        } else if args.i == 1 {
+            return 4 * 0x1_0000
+        }
+    } else if args.htype == 42 {
+        if args.i == 0 {
+            return (4 * 0x8000) + (2 * 0x8000) + 0x1_0000
+        } else if args.i == 1 {
+            return 4 * 512 * 512
+        }
+    } else if args.htype == 10 {
+        if args.i == 0 {
+            return 4 * H10_BUCKET_SIZE
+        }
+    }
+    return 0
+}
+
+// Mirrors HasherSetup in hash.h. The hasher memory's workbuf offsets were set
+// by compute_layout.
+pri func encoder.hasher_setup!(wb: slice base.u8, position: base.u64, input_size: base.u64, is_last: base.bool) {
+    var one_shot : base.bool
+
+    one_shot = (args.position == 0) and args.is_last
+    if not this.h_is_setup {
+        this.choose_hasher!()
+        this.dict_num_lookups = 0
+        this.dict_num_matches = 0
+        // FN(Initialize).
+        if (this.hasher_type == 40) or (this.hasher_type == 41) or (this.hasher_type == 42) {
+            if this.quality > 6 {
+                this.fc_max_hops = (7 as base.u64) << (this.quality - 4)
+            } else if this.quality >= 4 {
+                this.fc_max_hops = (8 as base.u64) << (this.quality - 4)
+            }
+        }
+        this.h_off1 = this.h_off0 ~mod+ this.hasher_alloc_size(
+                htype: this.hasher_type, bucket_bits: this.h_bucket_bits, block_bits: this.h_block_bits, i: 0)
+        this.h_off2 = this.h_off1 ~mod+ this.hasher_alloc_size(
+                htype: this.hasher_type, bucket_bits: this.h_bucket_bits, block_bits: this.h_block_bits, i: 1)
+        // The composite hashers' HASHER_B memory follows HASHER_A's.
+        this.hr_off = this.h_off2
+        this.hr_fresh = true
+        this.h_is_prepared = false
+        this.h_is_setup = true
+    }
+    if not this.h_is_prepared {
+        this.hasher_prepare!(wb: args.wb, one_shot: one_shot, input_size: args.input_size)
+        this.h_is_prepared = true
+    }
+}
+
+// Mirrors FN(Prepare) of every hasher.
+pri func encoder.hasher_prepare!(wb: slice base.u8, one_shot: base.bool, input_size: base.u64) {
+    var data    : roslice base.u8
+    var i       : base.u64
+    var j       : base.u32
+    var key     : base.u32
+    var sweep   : base.u32
+    var bsize   : base.u64
+    var htype   : base.u32
+    var partial : base.bool
+
+    htype = this.hasher_type
+    if this.rb_buf_off > args.wb.length() {
+        return nothing
+    }
+    data = args.wb[this.rb_buf_off ..]
+
+    if htype == 10 {
+        this.h10_prepare!(wb: args.wb)
+    } else if (htype == 2) or (htype == 3) or (htype == 4) or (htype == 54) {
+        bsize = (1 as base.u64) << this.hasher_quickly_bucket_bits()
+        sweep = this.hasher_quickly_sweep()
+        if args.one_shot and (args.input_size <= (bsize >> 5)) {
+            i = 0
+            while i < args.input_size {
+                key = this.hash_quickly(data: data, i: i)
+                j = 0
+                while j < sweep {
+                    this.poke_u32!(s: args.wb, i: this.h_off0 ~mod+ (4 ~mod* (((key ~mod+ (j ~mod<< 3)) as base.u64) & (bsize ~mod- 1))), v: 0)
+                    j ~mod+= 1
+                }
+                i ~mod+= 1
+            }
+        } else {
+            this.fill_bytes!(s: args.wb, i: this.h_off0, n: 4 * bsize, v: 0)
+        }
+
+    } else if (htype == 5) or (htype == 6) or (htype == 58) or (htype == 68) {
+        bsize = (1 as base.u64) << this.h_bucket_bits
+        partial = args.one_shot and (args.input_size <= (bsize >> 6))
+        if partial {
+            i = 0
+            while i < args.input_size {
+                key = this.hash_longest(data: data, i: i)
+                if (htype == 58) or (htype == 68) {
+                    this.poke_u16!(s: args.wb, i: this.h_off0 ~mod+ (2 ~mod* ((key >> 8) as base.u64)), v: 0xFFFF)
+                } else {
+                    this.poke_u16!(s: args.wb, i: this.h_off0 ~mod+ (2 ~mod* (key as base.u64)), v: 0)
+                }
+                i ~mod+= 1
+            }
+        } else if (htype == 58) or (htype == 68) {
+            this.fill_bytes!(s: args.wb, i: this.h_off0, n: 2 * bsize, v: 0xFF)
+        } else {
+            this.fill_bytes!(s: args.wb, i: this.h_off0, n: 2 * bsize, v: 0)
+        }
+
+    } else if (htype == 40) or (htype == 41) or (htype == 42) {
+        // addr is at h_off0, head at h_off0 + 0x2_0000 and tiny_hash at
+        // h_off0 + 0x3_0000.
+        if args.one_shot and (args.input_size <= (0x8000 >> 6)) {
+            i = 0
+            while i < args.input_size {
+                key = this.hash_forgetful(data: data, i: i)
+                this.poke_u32!(s: args.wb, i: this.h_off0 ~mod+ (4 ~mod* (key as base.u64)), v: 0xCCCC_CCCC)
+                this.poke_u16!(s: args.wb, i: (this.h_off0 ~mod+ 0x2_0000) ~mod+ (2 ~mod* (key as base.u64)), v: 0xCCCC)
+                i ~mod+= 1
+            }
+        } else {
+            this.fill_bytes!(s: args.wb, i: this.h_off0, n: 0x2_0000, v: 0xCC)
+            this.fill_bytes!(s: args.wb, i: this.h_off0 ~mod+ 0x2_0000, n: 0x1_0000, v: 0)
+        }
+        this.fill_bytes!(s: args.wb, i: this.h_off0 ~mod+ 0x3_0000, n: 0x1_0000, v: 0)
+        j = 0
+        while j < 512 {
+            this.fc_free_slot_idx[j] = 0
+            j ~mod+= 1
+        }
+    }
+
+    if this.hr_jump <> 0 {
+        // The composite hasher's FN(Prepare) (in hash_composite_inc.h), for
+        // HASHER_B. HASHER_B's FN(Initialize) is deferred to the first
+        // FN(Prepare). HASHER_A's FN(Initialize) does not touch the hasher
+        // memory, so doing it earlier (in hasher_setup) is equivalent.
+        if this.hr_fresh {
+            this.hr_fresh = false
+            this.hasher_rolling_initialize!(wb: args.wb)
+        }
+        this.hasher_rolling_prepare!(wb: args.wb, input_size: args.input_size, data_off: this.rb_buf_off)
+    }
+}
+
+// Mirrors FN(HashBytes) in hash_longest_match_quickly_inc.h.
+pri func encoder.hash_quickly(data: roslice base.u8, i: base.u64) base.u32 {
+    var h : base.u64
+
+    if this.hasher_type == 54 {
+        h = (this.load64le(s: args.data, i: args.i) ~mod<< 8) ~mod* HASH_MUL_64
+    } else {
+        h = (this.load64le(s: args.data, i: args.i) ~mod<< 24) ~mod* HASH_MUL_64
+    }
+    return (h >> (64 - this.hasher_quickly_bucket_bits())) as base.u32
+}
+
+// Mirrors FN(HashBytes) in hash_longest_match_inc.h (H5),
+// hash_longest_match64_inc.h (H6), hash_longest_match_simd_inc.h (H58) and
+// hash_longest_match64_simd_inc.h (H68). For H58 and H68, the low 8 bits of
+// the result are the tag and the high bits are the key.
+pri func encoder.hash_longest(data: roslice base.u8, i: base.u64) base.u32 {
+    var h32 : base.u32
+    var h64 : base.u64
+
+    if this.hasher_type == 5 {
+        h32 = this.load32le(s: args.data, i: args.i) ~mod* HASH_MUL_32
+        return h32 >> ((32 - this.h_bucket_bits) & 31)
+    } else if this.hasher_type == 58 {
+        h32 = this.load32le(s: args.data, i: args.i) ~mod* HASH_MUL_32
+        return h32 >> ((24 - this.h_bucket_bits) & 31)
+    }
+    h64 = this.load64le(s: args.data, i: args.i) ~mod* ((HASH_MUL_64 << 24) & 0xFFFF_FFFF_FFFF_FFFF)
+    if this.hasher_type == 6 {
+        return (h64 >> 49) as base.u32
+    }
+    return (h64 >> 41) as base.u32
+}
+
+// Mirrors FN(HashBytes) in hash_forgetful_chain_inc.h.
+pri func encoder.hash_forgetful(data: roslice base.u8, i: base.u64) base.u32 {
+    var h32 : base.u32
+
+    h32 = this.load32le(s: args.data, i: args.i) ~mod* HASH_MUL_32
+    return h32 >> 17
+}
+
+// Mirrors FN(Store) of every hasher.
+pri func encoder.hasher_store!(wb: slice base.u8, ix: base.u64) {
+    var data    : roslice base.u8
+    var htype   : base.u32
+    var key     : base.u32
+    var bsize   : base.u64
+    var off     : base.u64
+    var num     : base.u16
+    var hash    : base.u32
+    var bank    : base.u64
+    var idx     : base.u64
+    var delta   : base.u64
+    var head_v  : base.u16
+    var fc_bits : base.u32[..= 16]
+
+    htype = this.hasher_type
+    if this.rb_buf_off > args.wb.length() {
+        return nothing
+    }
+    data = args.wb[this.rb_buf_off ..]
+
+    if (htype == 2) or (htype == 3) or (htype == 4) or (htype == 54) {
+        key = this.hash_quickly(data: data, i: args.ix & (this.rb_mask as base.u64))
+        bsize = (1 as base.u64) << this.hasher_quickly_bucket_bits()
+        off = ((key as base.u64) + (args.ix & (((this.hasher_quickly_sweep() as base.u64) - 1) << 3))) & (bsize ~mod- 1)
+        this.poke_u32!(s: args.wb, i: this.h_off0 ~mod+ (4 ~mod* off), v: (args.ix & 0xFFFF_FFFF) as base.u32)
+
+    } else if (htype == 5) or (htype == 6) {
+        key = this.hash_longest(data: data, i: args.ix & (this.rb_mask as base.u64))
+        num = this.peek_u16(s: args.wb, i: this.h_off0 ~mod+ (2 ~mod* (key as base.u64)))
+        off = ((num as base.u64) & (((1 as base.u64) << this.h_block_bits) - 1)) ~mod+
+                ((key as base.u64) << this.h_block_bits)
+        this.poke_u16!(s: args.wb, i: this.h_off0 ~mod+ (2 ~mod* (key as base.u64)), v: num ~mod+ 1)
+        this.poke_u32!(s: args.wb, i: this.h_off1 ~mod+ (4 ~mod* off), v: (args.ix & 0xFFFF_FFFF) as base.u32)
+
+    } else if (htype == 58) or (htype == 68) {
+        hash = this.hash_longest(data: data, i: args.ix & (this.rb_mask as base.u64))
+        key = hash >> 8
+        num = this.peek_u16(s: args.wb, i: this.h_off0 ~mod+ (2 ~mod* (key as base.u64)))
+        off = ((num as base.u64) & (((1 as base.u64) << this.h_block_bits) - 1)) ~mod+
+                ((key as base.u64) << this.h_block_bits)
+        this.poke_u16!(s: args.wb, i: this.h_off0 ~mod+ (2 ~mod* (key as base.u64)), v: num ~mod- 1)
+        this.poke_u32!(s: args.wb, i: this.h_off2 ~mod+ (4 ~mod* off), v: (args.ix & 0xFFFF_FFFF) as base.u32)
+        this.set_byte!(s: args.wb, i: this.h_off1 ~mod+ off, v: (hash & 0xFF) as base.u8)
+
+    } else if (htype == 40) or (htype == 41) or (htype == 42) {
+        key = this.hash_forgetful(data: data, i: args.ix & (this.rb_mask as base.u64))
+        fc_bits = this.fc_bank_bits()
+        bank = (key as base.u64) & this.fc_num_banks_minus_1()
+        idx = (this.fc_free_slot_idx[bank] as base.u64) & (((1 as base.u64) << fc_bits) - 1)
+        this.fc_free_slot_idx[bank] ~mod+= 1
+        delta = args.ix ~mod- (this.load32le(s: args.wb, i: this.h_off0 ~mod+ (4 ~mod* (key as base.u64))) as base.u64)
+        this.set_byte!(s: args.wb, i: (this.h_off0 ~mod+ 0x3_0000) ~mod+ (args.ix & 0xFFFF), v: (key & 0xFF) as base.u8)
+        if delta > 0xFFFF {
+            delta = 0xFFFF
+        }
+        head_v = this.peek_u16(s: args.wb, i: (this.h_off0 ~mod+ 0x2_0000) ~mod+ (2 ~mod* (key as base.u64)))
+        off = this.h_off1 ~mod+ (4 ~mod* ((bank ~mod<< fc_bits) ~mod+ idx))
+        this.poke_u16!(s: args.wb, i: off, v: (delta & 0xFFFF) as base.u16)
+        this.poke_u16!(s: args.wb, i: off ~mod+ 2, v: head_v)
+        this.poke_u32!(s: args.wb, i: this.h_off0 ~mod+ (4 ~mod* (key as base.u64)), v: (args.ix & 0xFFFF_FFFF) as base.u32)
+        this.poke_u16!(s: args.wb, i: (this.h_off0 ~mod+ 0x2_0000) ~mod+ (2 ~mod* (key as base.u64)), v: (idx & 0xFFFF) as base.u16)
+    }
+}
+
+// Mirrors FN(StoreRange) of every hasher.
+pri func encoder.hasher_store_range!(wb: slice base.u8, ix_start: base.u64, ix_end: base.u64) {
+    var i : base.u64
+
+    if this.hasher_type == 10 {
+        this.h10_store_range!(wb: args.wb, ix_start: args.ix_start, ix_end: args.ix_end)
+        return nothing
+    }
+    i = args.ix_start
+    while i < args.ix_end {
+        this.hasher_store!(wb: args.wb, ix: i)
+        i ~mod+= 1
+    }
+}
+
+// Mirrors FN(StitchToPreviousBlock) of every hasher.
+pri func encoder.hasher_stitch_to_previous_block!(wb: slice base.u8, num_bytes: base.u64, position: base.u64) {
+    if this.hasher_type == 10 {
+        this.h10_stitch_to_previous_block!(wb: args.wb, num_bytes: args.num_bytes, position: args.position)
+        return nothing
+    }
+    if (args.num_bytes >= (this.hasher_type_length() ~mod- 1)) and (args.position >= 3) {
+        this.hasher_store!(wb: args.wb, ix: args.position ~mod- 3)
+        this.hasher_store!(wb: args.wb, ix: args.position ~mod- 2)
+        this.hasher_store!(wb: args.wb, ix: args.position ~mod- 1)
+    }
+    if this.hr_jump <> 0 {
+        // The composite hasher's HASHER_B.
+        this.hasher_rolling_stitch_to_previous_block!(wb: args.wb, num_bytes: args.num_bytes, position: args.position)
+    }
+}
+
+// Mirrors PrepareDistanceCache in hash.h, via each hasher's
+// FN(PrepareDistanceCache).
+pri func encoder.prepare_distance_cache!() {
+    var n    : base.u32
+    var last : base.u32
+
+    if (this.hasher_type == 2) or (this.hasher_type == 3) or (this.hasher_type == 4) or (this.hasher_type == 54) {
+        return nothing
+    } else if (this.hasher_type == 40) or (this.hasher_type == 41) or (this.hasher_type == 42) {
+        n = this.fc_num_last_distances()
+    } else {
+        n = this.h_num_last_distances
+    }
+    if n > 4 {
+        last = this.dist_cache[0]
+        this.dist_cache[4] = last ~mod- 1
+        this.dist_cache[5] = last ~mod+ 1
+        this.dist_cache[6] = last ~mod- 2
+        this.dist_cache[7] = last ~mod+ 2
+        this.dist_cache[8] = last ~mod- 3
+        this.dist_cache[9] = last ~mod+ 3
+        if n > 10 {
+            last = this.dist_cache[1]
+            this.dist_cache[10] = last ~mod- 1
+            this.dist_cache[11] = last ~mod+ 1
+            this.dist_cache[12] = last ~mod- 2
+            this.dist_cache[13] = last ~mod+ 2
+            this.dist_cache[14] = last ~mod- 3
+            this.dist_cache[15] = last ~mod+ 3
+        }
+    }
+}
+
+// Mirrors BackwardReferenceScore in hash.h.
+pri func encoder.backward_reference_score(copy_length: base.u64, backward_reference_offset: base.u64) base.u64 {
+    return (SCORE_BASE ~mod+ (135 ~mod* args.copy_length)) ~mod-
+            (30 * (this.log2_floor_non_zero(n: args.backward_reference_offset) as base.u64))
+}
+
+// Mirrors BackwardReferenceScoreUsingLastDistance in hash.h.
+pri func encoder.backward_reference_score_using_last_distance(copy_length: base.u64) base.u64 {
+    return ((135 ~mod* args.copy_length) ~mod+ SCORE_BASE) ~mod+ 15
+}
+
+// Mirrors BackwardReferencePenaltyUsingLastDistance in hash.h.
+pri func encoder.backward_reference_penalty_using_last_distance(distance_short_code: base.u64) base.u64 {
+    return 39 + (((0x1_CA10 as base.u64) >> (args.distance_short_code & 0x0E)) & 0x0E)
+}
+
+// find_match_length_dict is like find_match_length_with_limit, comparing
+// data[i ..] with the static dictionary's DICTIONARY[d ..].
+pri func encoder.find_match_length_dict(data: roslice base.u8, i: base.u64, d: base.u64, limit: base.u64) base.u64 {
+    var matched : base.u64
+    var a       : roslice base.u8
+
+    if args.i > args.data.length() {
+        return 0
+    }
+    a = args.data[args.i ..]
+    while (matched < args.limit) and (matched < a.length()) {
+        if (args.d ~mod+ matched) >= 122784 {
+            break
+        }
+        if a[matched] <> DICTIONARY[(args.d ~mod+ matched) & 0x1_FFFF] {
+            break
+        }
+        matched ~mod+= 1
+    }
+    return matched
+}
+
+// Mirrors TestStaticDictionaryItem in hash.h, for the built-in dictionary.
+pri func encoder.test_static_dictionary_item!(data: roslice base.u8, i: base.u64, len: base.u32[..= 31], word_idx: base.u64, max_length: base.u64, max_backward: base.u64, max_distance: base.u64) base.bool {
+    var offset       : base.u64
+    var matchlen     : base.u64
+    var backward     : base.u64
+    var score        : base.u64
+    var cut          : base.u64
+    var transform_id : base.u64
+
+    offset = (DICTIONARY_OFFSETS_BY_LENGTH[args.len] as base.u64) ~mod+ ((args.len as base.u64) ~mod* args.word_idx)
+    if (args.len as base.u64) > args.max_length {
+        return false
+    }
+    matchlen = this.find_match_length_dict(data: args.data, i: args.i, d: offset, limit: args.len as base.u64)
+    if ((matchlen ~mod+ CUTOFF_TRANSFORMS_COUNT) <= (args.len as base.u64)) or (matchlen == 0) {
+        return false
+    }
+    cut = (args.len as base.u64) ~mod- matchlen
+    transform_id = (cut ~mod<< 2) ~mod+ ((CUTOFF_TRANSFORMS >> ((cut ~mod* 6) & 63)) & 0x3F)
+    backward = ((args.max_backward ~mod+ 1) ~mod+ args.word_idx) ~mod+
+            (transform_id ~mod<< DICTIONARY_SIZE_BITS_BY_LENGTH[args.len])
+    if backward > args.max_distance {
+        return false
+    }
+    score = this.backward_reference_score(copy_length: matchlen, backward_reference_offset: backward)
+    if score < this.sr_score {
+        return false
+    }
+    this.sr_len = matchlen
+    this.sr_len_code_delta = (args.len as base.u64) ~mod- matchlen
+    this.sr_distance = backward
+    this.sr_score = score
+    return true
+}
+
+// Mirrors SearchInStaticDictionary in hash.h, for the built-in dictionary.
+pri func encoder.search_in_static_dictionary!(data: roslice base.u8, i: base.u64, max_length: base.u64, max_backward: base.u64, max_distance: base.u64, shallow: base.bool) {
+    var key   : base.u32
+    var n     : base.u32
+    var j     : base.u32
+    var len   : base.u32[..= 31]
+    var found : base.bool
+
+    if this.dict_num_matches < (this.dict_num_lookups >> 7) {
+        return nothing
+    }
+    key = ((this.load32le(s: args.data, i: args.i) ~mod* HASH_MUL_32) >> 18) << 1
+    n = 2
+    if args.shallow {
+        n = 1
+    }
+    j = 0
+    while j < n {
+        this.dict_num_lookups ~mod+= 1
+        len = STATIC_DICTIONARY_HASH_LENGTHS[key & 0x7FFF] as base.u32
+        if len <> 0 {
+            found = this.test_static_dictionary_item!(
+                    data: args.data,
+                    i: args.i,
+                    len: len,
+                    word_idx: STATIC_DICTIONARY_HASH_WORDS[key & 0x7FFF] as base.u64,
+                    max_length: args.max_length,
+                    max_backward: args.max_backward,
+                    max_distance: args.max_distance)
+            if found {
+                this.dict_num_matches ~mod+= 1
+            }
+        }
+        j ~mod+= 1
+        key ~mod+= 1
+    }
+}
+
+// Mirrors FN(FindLongestMatch) of every hasher. The search result is in the
+// this.sr_etc fields.
+pri func encoder.find_longest_match!(wb: slice base.u8, cur_ix: base.u64, max_length: base.u64, max_backward: base.u64, dictionary_distance: base.u64, max_distance: base.u64) {
+    var htype : base.u32
+
+    htype = this.hasher_type
+    if (htype == 2) or (htype == 3) or (htype == 4) or (htype == 54) {
+        this.find_longest_match_quickly!(wb: args.wb, cur_ix: args.cur_ix, max_length: args.max_length,
+                max_backward: args.max_backward, dictionary_distance: args.dictionary_distance, max_distance: args.max_distance)
+    } else if (htype == 5) or (htype == 6) {
+        this.find_longest_match_h5!(wb: args.wb, cur_ix: args.cur_ix, max_length: args.max_length,
+                max_backward: args.max_backward, dictionary_distance: args.dictionary_distance, max_distance: args.max_distance)
+    } else if (htype == 58) or (htype == 68) {
+        this.find_longest_match_h58!(wb: args.wb, cur_ix: args.cur_ix, max_length: args.max_length,
+                max_backward: args.max_backward, dictionary_distance: args.dictionary_distance, max_distance: args.max_distance)
+    } else {
+        this.find_longest_match_forgetful!(wb: args.wb, cur_ix: args.cur_ix, max_length: args.max_length,
+                max_backward: args.max_backward, dictionary_distance: args.dictionary_distance, max_distance: args.max_distance)
+    }
+    if this.hr_jump <> 0 {
+        // The composite hasher's HASHER_B.
+        this.hasher_rolling_find_longest_match!(wb: args.wb, cur_ix: args.cur_ix, max_length: args.max_length,
+                max_backward: args.max_backward)
+    }
+}
+
+// Mirrors FN(FindLongestMatch) in hash_longest_match_quickly_inc.h.
+pri func encoder.find_longest_match_quickly!(wb: slice base.u8, cur_ix: base.u64, max_length: base.u64, max_backward: base.u64, dictionary_distance: base.u64, max_distance: base.u64) {
+    var data            : roslice base.u8
+    var mask            : base.u64
+    var best_len_in     : base.u64
+    var cur_ix_masked   : base.u64
+    var compare_char    : base.u8
+    var key             : base.u64
+    var key_out         : base.u64
+    var min_score       : base.u64
+    var best_score      : base.u64
+    var best_len        : base.u64
+    var cached_backward : base.u64
+    var prev_ix         : base.u64
+    var len             : base.u64
+    var score           : base.u64
+    var backward        : base.u64
+    var sweep           : base.u64[..= 4]
+    var bucket_mask     : base.u64
+    var i               : base.u64
+    var keys            : array[4] base.u64
+    var use_dictionary  : base.bool
+
+    if this.rb_buf_off > args.wb.length() {
+        return nothing
+    }
+    data = args.wb[this.rb_buf_off ..]
+    mask = this.rb_mask as base.u64
+    sweep = this.hasher_quickly_sweep() as base.u64
+    bucket_mask = ((1 as base.u64) << this.hasher_quickly_bucket_bits()) ~mod- 1
+    use_dictionary = (this.hasher_type == 2) or (this.hasher_type == 4)
+
+    best_len_in = this.sr_len
+    cur_ix_masked = args.cur_ix & mask
+    compare_char = this.byte_at(s: data, i: cur_ix_masked ~mod+ best_len_in)
+    key = this.hash_quickly(data: data, i: cur_ix_masked) as base.u64
+    min_score = this.sr_score
+    best_score = this.sr_score
+    best_len = best_len_in
+    cached_backward = this.dist_cache_u64(i: 0)
+    prev_ix = args.cur_ix ~mod- cached_backward
+
+    this.sr_len_code_delta = 0
+    if prev_ix < args.cur_ix {
+        prev_ix &= mask & 0xFFFF_FFFF
+        if compare_char == this.byte_at(s: data, i: prev_ix ~mod+ best_len) {
+            len = this.find_match_length_with_limit(s: data, i1: prev_ix, i2: cur_ix_masked, limit: args.max_length)
+            if len >= 4 {
+                score = this.backward_reference_score_using_last_distance(copy_length: len)
+                if best_score < score {
+                    this.sr_len = len
+                    this.sr_distance = cached_backward
+                    this.sr_score = score
+                    if sweep == 1 {
+                        this.poke_u32!(s: args.wb, i: this.h_off0 ~mod+ (4 ~mod* key), v: (args.cur_ix & 0xFFFF_FFFF) as base.u32)
+                        return nothing
+                    }
+                    best_len = len
+                    best_score = score
+                    compare_char = this.byte_at(s: data, i: cur_ix_masked ~mod+ len)
+                }
+            }
+        }
+    }
+
+    if sweep == 1 {
+        prev_ix = this.load32le(s: args.wb, i: this.h_off0 ~mod+ (4 ~mod* key)) as base.u64
+        this.poke_u32!(s: args.wb, i: this.h_off0 ~mod+ (4 ~mod* key), v: (args.cur_ix & 0xFFFF_FFFF) as base.u32)
+        backward = args.cur_ix ~mod- prev_ix
+        prev_ix &= mask & 0xFFFF_FFFF
+        if compare_char <> this.byte_at(s: data, i: prev_ix ~mod+ best_len_in) {
+            return nothing
+        }
+        if (backward == 0) or (backward > args.max_backward) {
+            return nothing
+        }
+        len = this.find_match_length_with_limit(s: data, i1: prev_ix, i2: cur_ix_masked, limit: args.max_length)
+        if len >= 4 {
+            score = this.backward_reference_score(copy_length: len, backward_reference_offset: backward)
+            if best_score < score {
+                this.sr_len = len
+                this.sr_distance = backward
+                this.sr_score = score
+                return nothing
+            }
+        }
+    } else {
+        i = 0
+        while i < sweep {
+            assert i < 4 via "a < b: a < c; c <= b"(c: sweep)
+            keys[i] = (key ~mod+ (i ~mod<< 3)) & bucket_mask
+            i ~mod+= 1
+        }
+        key_out = keys[((args.cur_ix & (((this.hasher_quickly_sweep() as base.u64) - 1) << 3)) >> 3) & 3]
+        i = 0
+        while i < sweep {
+            assert i < 4 via "a < b: a < c; c <= b"(c: sweep)
+            prev_ix = this.load32le(s: args.wb, i: this.h_off0 ~mod+ (4 ~mod* keys[i])) as base.u64
+            backward = args.cur_ix ~mod- prev_ix
+            prev_ix &= mask & 0xFFFF_FFFF
+            if compare_char <> this.byte_at(s: data, i: prev_ix ~mod+ best_len) {
+                i ~mod+= 1
+                continue
+            }
+            if (backward == 0) or (backward > args.max_backward) {
+                i ~mod+= 1
+                continue
+            }
+            len = this.find_match_length_with_limit(s: data, i1: prev_ix, i2: cur_ix_masked, limit: args.max_length)
+            if len >= 4 {
+                score = this.backward_reference_score(copy_length: len, backward_reference_offset: backward)
+                if best_score < score {
+                    best_len = len
+                    this.sr_len = len
+                    compare_char = this.byte_at(s: data, i: cur_ix_masked ~mod+ len)
+                    best_score = score
+                    this.sr_score = score
+                    this.sr_distance = backward
+                }
+            }
+            i ~mod+= 1
+        }
+    }
+    if use_dictionary and (min_score == this.sr_score) {
+        this.search_in_static_dictionary!(data: data, i: cur_ix_masked, max_length: args.max_length,
+                max_backward: args.dictionary_distance, max_distance: args.max_distance, shallow: true)
+    }
+    if sweep <> 1 {
+        this.poke_u32!(s: args.wb, i: this.h_off0 ~mod+ (4 ~mod* key_out), v: (args.cur_ix & 0xFFFF_FFFF) as base.u32)
+    }
+}
+
+// find_last_distances is the "Try last distance first" loop shared by the
+// H5, H6, H58 and H68 FN(FindLongestMatch) functions. It returns best_len.
+pri func encoder.find_last_distances!(data: roslice base.u8, cur_ix: base.u64, max_length: base.u64, max_backward: base.u64) base.u64 {
+    var mask          : base.u64
+    var cur_ix_masked : base.u64
+    var best_score    : base.u64
+    var best_len      : base.u64
+    var i             : base.u32
+    var backward      : base.u64
+    var prev_ix       : base.u64
+    var len           : base.u64
+    var score         : base.u64
+
+    mask = this.rb_mask as base.u64
+    cur_ix_masked = args.cur_ix & mask
+    best_score = this.sr_score
+    best_len = this.sr_len
+    this.sr_len = 0
+    this.sr_len_code_delta = 0
+
+    i = 0
+    while i < this.h_num_last_distances {
+        backward = this.dist_cache_u64(i: i)
+        prev_ix = args.cur_ix ~mod- backward
+        if prev_ix >= args.cur_ix {
+            i ~mod+= 1
+            continue
+        }
+        if backward > args.max_backward {
+            i ~mod+= 1
+            continue
+        }
+        prev_ix &= mask
+        if (cur_ix_masked ~mod+ best_len) > mask {
+            break
+        }
+        if ((prev_ix ~mod+ best_len) > mask) or
+                (this.byte_at(s: args.data, i: cur_ix_masked ~mod+ best_len) <> this.byte_at(s: args.data, i: prev_ix ~mod+ best_len)) {
+            i ~mod+= 1
+            continue
+        }
+        len = this.find_match_length_with_limit(s: args.data, i1: prev_ix, i2: cur_ix_masked, limit: args.max_length)
+        if (len >= 3) or ((len == 2) and (i < 2)) {
+            score = this.backward_reference_score_using_last_distance(copy_length: len)
+            if best_score < score {
+                if i <> 0 {
+                    score ~mod-= this.backward_reference_penalty_using_last_distance(distance_short_code: i as base.u64)
+                }
+                if best_score < score {
+                    best_score = score
+                    best_len = len
+                    this.sr_len = best_len
+                    this.sr_distance = backward
+                    this.sr_score = best_score
+                }
+            }
+        }
+        i ~mod+= 1
+    }
+    return best_len
+}
+
+// try_bucket_entry is the body of the bucket loop shared by the H5, H6, H58
+// and H68 FN(FindLongestMatch) functions, for one prev_ix candidate. It
+// returns 0 to continue, 1 to break, or 2 + the new best_len.
+pri func encoder.try_bucket_entry!(data: roslice base.u8, cur_ix: base.u64, prev_ix_in: base.u64, best_len: base.u64, max_length: base.u64, max_backward: base.u64) base.u64 {
+    var mask          : base.u64
+    var cur_ix_masked : base.u64
+    var prev_ix       : base.u64
+    var backward      : base.u64
+    var len           : base.u64
+    var score         : base.u64
+
+    mask = this.rb_mask as base.u64
+    cur_ix_masked = args.cur_ix & mask
+    backward = args.cur_ix ~mod- args.prev_ix_in
+    if backward > args.max_backward {
+        return 1
+    }
+    prev_ix = args.prev_ix_in & mask
+    if (cur_ix_masked ~mod+ args.best_len) > mask {
+        return 1
+    }
+    if ((prev_ix ~mod+ args.best_len) > mask) or
+            (this.load32le(s: args.data, i: (cur_ix_masked ~mod+ args.best_len) ~mod- 3) <>
+            this.load32le(s: args.data, i: (prev_ix ~mod+ args.best_len) ~mod- 3)) {
+        return 0
+    }
+    if (this.hasher_type == 6) or (this.hasher_type == 68) {
+        if this.load32le(s: args.data, i: cur_ix_masked) <> this.load32le(s: args.data, i: prev_ix) {
+            return 0
+        }
+        len = this.find_match_length_with_limit(s: args.data, i1: prev_ix ~mod+ 4, i2: cur_ix_masked ~mod+ 4,
+                limit: args.max_length ~mod- 4) ~mod+ 4
+    } else {
+        len = this.find_match_length_with_limit(s: args.data, i1: prev_ix, i2: cur_ix_masked, limit: args.max_length)
+        if len < 4 {
+            return 0
+        }
+    }
+    score = this.backward_reference_score(copy_length: len, backward_reference_offset: backward)
+    if this.sr_score < score {
+        // The C code's best_score is always equal to out->score here.
+        this.sr_len = len
+        this.sr_distance = backward
+        this.sr_score = score
+        return 2 ~mod+ len
+    }
+    return 0
+}
+
+// Mirrors FN(FindLongestMatch) in hash_longest_match_inc.h (H5) and
+// hash_longest_match64_inc.h (H6).
+pri func encoder.find_longest_match_h5!(wb: slice base.u8, cur_ix: base.u64, max_length: base.u64, max_backward: base.u64, dictionary_distance: base.u64, max_distance: base.u64) {
+    var data          : roslice base.u8
+    var cur_ix_masked : base.u64
+    var min_score     : base.u64
+    var best_len      : base.u64
+    var key           : base.u64
+    var num           : base.u16
+    var block_size    : base.u64
+    var block_mask    : base.u64
+    var bucket        : base.u64
+    var down          : base.u64
+    var i             : base.u64
+    var r             : base.u64
+
+    if this.rb_buf_off > args.wb.length() {
+        return nothing
+    }
+    data = args.wb[this.rb_buf_off ..]
+    cur_ix_masked = args.cur_ix & (this.rb_mask as base.u64)
+    min_score = this.sr_score
+    key = this.hash_longest(data: data, i: cur_ix_masked) as base.u64
+    block_size = (1 as base.u64) << this.h_block_bits
+    block_mask = block_size ~mod- 1
+    bucket = this.h_off1 ~mod+ (4 ~mod* (key << this.h_block_bits))
+
+    best_len = this.find_last_distances!(data: data, cur_ix: args.cur_ix, max_length: args.max_length, max_backward: args.max_backward)
+    if best_len < 3 {
+        best_len = 3
+    }
+    num = this.peek_u16(s: args.wb, i: this.h_off0 ~mod+ (2 ~mod* key))
+    down = 0
+    if (num as base.u64) > block_size {
+        down = (num as base.u64) ~mod- block_size
+    }
+    i = num as base.u64
+    while i > down {
+        i ~mod-= 1
+        r = this.try_bucket_entry!(
+                data: data,
+                cur_ix: args.cur_ix,
+                prev_ix_in: this.load32le(s: args.wb, i: bucket ~mod+ (4 ~mod* (i & block_mask))) as base.u64,
+                best_len: best_len,
+                max_length: args.max_length,
+                max_backward: args.max_backward)
+        if r == 1 {
+            break
+        } else if r >= 2 {
+            best_len = r ~mod- 2
+        }
+    }
+    this.poke_u32!(s: args.wb, i: bucket ~mod+ (4 ~mod* ((num as base.u64) & block_mask)), v: (args.cur_ix & 0xFFFF_FFFF) as base.u32)
+    this.poke_u16!(s: args.wb, i: this.h_off0 ~mod+ (2 ~mod* key), v: num ~mod+ 1)
+
+    if min_score == this.sr_score {
+        this.search_in_static_dictionary!(data: data, i: cur_ix_masked, max_length: args.max_length,
+                max_backward: args.dictionary_distance, max_distance: args.max_distance, shallow: false)
+    }
+}
+
+// Mirrors FN(FindLongestMatch) in hash_longest_match_simd_inc.h (H58) and
+// hash_longest_match64_simd_inc.h (H68), with GetMatchingTagMask in
+// matching_tag_mask.h evaluated one tag at a time.
+pri func encoder.find_longest_match_h58!(wb: slice base.u8, cur_ix: base.u64, max_length: base.u64, max_backward: base.u64, dictionary_distance: base.u64, max_distance: base.u64) {
+    var data          : roslice base.u8
+    var cur_ix_masked : base.u64
+    var min_score     : base.u64
+    var best_len      : base.u64
+    var hash          : base.u32
+    var key           : base.u64
+    var tag           : base.u8
+    var num           : base.u16
+    var n             : base.u16
+    var block_size    : base.u64
+    var block_mask    : base.u64
+    var bucket        : base.u64
+    var tag_bucket    : base.u64
+    var head          : base.u64
+    var limit         : base.u64
+    var k             : base.u64
+    var rb_index      : base.u64
+    var r             : base.u64
+
+    if this.rb_buf_off > args.wb.length() {
+        return nothing
+    }
+    data = args.wb[this.rb_buf_off ..]
+    cur_ix_masked = args.cur_ix & (this.rb_mask as base.u64)
+    min_score = this.sr_score
+    hash = this.hash_longest(data: data, i: cur_ix_masked)
+    key = (hash >> 8) as base.u64
+    block_size = (1 as base.u64) << this.h_block_bits
+    block_mask = block_size ~mod- 1
+    bucket = this.h_off2 ~mod+ (4 ~mod* (key << this.h_block_bits))
+    tag_bucket = this.h_off1 ~mod+ (key << this.h_block_bits)
+
+    best_len = this.find_last_distances!(data: data, cur_ix: args.cur_ix, max_length: args.max_length, max_backward: args.max_backward)
+    if best_len < 3 {
+        best_len = 3
+    }
+
+    tag = (hash & 0xFF) as base.u8
+    num = this.peek_u16(s: args.wb, i: this.h_off0 ~mod+ (2 ~mod* key))
+    head = ((num ~mod+ 1) as base.u64) & block_mask
+    // Mask off any matches from uninitialized tags: only the n newest
+    // entries are valid, if the bucket has unused slots.
+    n = 0xFFFF ~mod- num
+    limit = block_size
+    if block_size > (n as base.u64) {
+        limit = n as base.u64
+    }
+    k = 0
+    while k < limit {
+        rb_index = (head ~mod+ k) & block_mask
+        if this.byte_at(s: args.wb, i: tag_bucket ~mod+ rb_index) == tag {
+            r = this.try_bucket_entry!(
+                    data: data,
+                    cur_ix: args.cur_ix,
+                    prev_ix_in: this.load32le(s: args.wb, i: bucket ~mod+ (4 ~mod* rb_index)) as base.u64,
+                    best_len: best_len,
+                    max_length: args.max_length,
+                    max_backward: args.max_backward)
+            if r == 1 {
+                break
+            } else if r >= 2 {
+                best_len = r ~mod- 2
+            }
+        }
+        k ~mod+= 1
+    }
+    this.poke_u32!(s: args.wb, i: bucket ~mod+ (4 ~mod* ((num as base.u64) & block_mask)), v: (args.cur_ix & 0xFFFF_FFFF) as base.u32)
+    this.set_byte!(s: args.wb, i: tag_bucket ~mod+ ((num as base.u64) & block_mask), v: tag)
+    this.poke_u16!(s: args.wb, i: this.h_off0 ~mod+ (2 ~mod* key), v: num ~mod- 1)
+
+    if min_score == this.sr_score {
+        this.search_in_static_dictionary!(data: data, i: cur_ix_masked, max_length: args.max_length,
+                max_backward: args.dictionary_distance, max_distance: args.max_distance, shallow: false)
+    }
+}
+
+// Mirrors FN(FindLongestMatch) in hash_forgetful_chain_inc.h.
+pri func encoder.find_longest_match_forgetful!(wb: slice base.u8, cur_ix: base.u64, max_length: base.u64, max_backward: base.u64, dictionary_distance: base.u64, max_distance: base.u64) {
+    var data          : roslice base.u8
+    var mask          : base.u64
+    var cur_ix_masked : base.u64
+    var min_score     : base.u64
+    var best_score    : base.u64
+    var best_len      : base.u64
+    var key           : base.u64
+    var tiny_hash     : base.u8
+    var i             : base.u32
+    var n_last        : base.u32[..= 16]
+    var backward      : base.u64
+    var prev_ix       : base.u64
+    var len           : base.u64
+    var score         : base.u64
+    var bank          : base.u64
+    var hops          : base.u64
+    var delta         : base.u64
+    var slot          : base.u64
+    var last          : base.u64
+    var slot_off      : base.u64
+    var fc_bits       : base.u32[..= 16]
+
+    if this.rb_buf_off > args.wb.length() {
+        return nothing
+    }
+    data = args.wb[this.rb_buf_off ..]
+    mask = this.rb_mask as base.u64
+    cur_ix_masked = args.cur_ix & mask
+    min_score = this.sr_score
+    best_score = this.sr_score
+    best_len = this.sr_len
+    key = this.hash_forgetful(data: data, i: cur_ix_masked) as base.u64
+    tiny_hash = (key & 0xFF) as base.u8
+    this.sr_len = 0
+    this.sr_len_code_delta = 0
+
+    n_last = this.fc_num_last_distances()
+    i = 0
+    while i < n_last {
+        backward = this.dist_cache_u64(i: i)
+        prev_ix = args.cur_ix ~mod- backward
+        if (i > 0) and (this.byte_at(s: args.wb, i: (this.h_off0 ~mod+ 0x3_0000) ~mod+ (prev_ix & 0xFFFF)) <> tiny_hash) {
+            i ~mod+= 1
+            continue
+        }
+        if (prev_ix >= args.cur_ix) or (backward > args.max_backward) {
+            i ~mod+= 1
+            continue
+        }
+        prev_ix &= mask
+        len = this.find_match_length_with_limit(s: data, i1: prev_ix, i2: cur_ix_masked, limit: args.max_length)
+        if len >= 2 {
+            score = this.backward_reference_score_using_last_distance(copy_length: len)
+            if best_score < score {
+                if i <> 0 {
+                    score ~mod-= this.backward_reference_penalty_using_last_distance(distance_short_code: i as base.u64)
+                }
+                if best_score < score {
+                    best_score = score
+                    best_len = len
+                    this.sr_len = best_len
+                    this.sr_distance = backward
+                    this.sr_score = best_score
+                }
+            }
+        }
+        i ~mod+= 1
+    }
+    if best_len < 3 {
+        best_len = 3
+    }
+
+    fc_bits = this.fc_bank_bits()
+    bank = key & this.fc_num_banks_minus_1()
+    backward = 0
+    hops = this.fc_max_hops
+    delta = args.cur_ix ~mod- (this.load32le(s: args.wb, i: this.h_off0 ~mod+ (4 ~mod* key)) as base.u64)
+    slot = this.peek_u16(s: args.wb, i: (this.h_off0 ~mod+ 0x2_0000) ~mod+ (2 ~mod* key)) as base.u64
+    while hops > 0 {
+        hops -= 1
+        last = slot
+        backward ~mod+= delta
+        if backward > args.max_backward {
+            break
+        }
+        prev_ix = (args.cur_ix ~mod- backward) & mask
+        slot_off = this.h_off1 ~mod+ (4 ~mod* ((bank ~mod<< fc_bits) ~mod+ last))
+        slot = this.peek_u16(s: args.wb, i: slot_off ~mod+ 2) as base.u64
+        delta = this.peek_u16(s: args.wb, i: slot_off) as base.u64
+        if ((cur_ix_masked ~mod+ best_len) > mask) or
+                ((prev_ix ~mod+ best_len) > mask) or
+                (this.load32le(s: data, i: (cur_ix_masked ~mod+ best_len) ~mod- 3) <>
+                this.load32le(s: data, i: (prev_ix ~mod+ best_len) ~mod- 3)) {
+            continue
+        }
+        len = this.find_match_length_with_limit(s: data, i1: prev_ix, i2: cur_ix_masked, limit: args.max_length)
+        if len >= 4 {
+            score = this.backward_reference_score(copy_length: len, backward_reference_offset: backward)
+            if best_score < score {
+                best_score = score
+                best_len = len
+                this.sr_len = best_len
+                this.sr_distance = backward
+                this.sr_score = best_score
+            }
+        }
+    }
+    this.hasher_store!(wb: args.wb, ix: args.cur_ix)
+
+    if this.sr_score == min_score {
+        this.search_in_static_dictionary!(data: data, i: cur_ix_masked, max_length: args.max_length,
+                max_backward: args.dictionary_distance, max_distance: args.max_distance, shallow: false)
+    }
+}

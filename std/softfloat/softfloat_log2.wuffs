@@ -1,0 +1,212 @@
+// Copyright 2026 The Wuffs Authors.
+//
+// Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
+// https://www.apache.org/licenses/LICENSE-2.0> or the MIT license
+// <LICENSE-MIT or https://opensource.org/licenses/MIT>, at your
+// option. This file may not be copied, modified, or distributed
+// except according to those terms.
+//
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+
+// -------- log2.
+//
+// This is a bit-exact port of glibc 2.39's x86-64 "__log2_fma" function
+// (sysdeps/ieee754/dbl-64/e_log2.c compiled with -mfma -mavx2), which is what
+// glibc's log2 resolves to at run time on x86-64 CPUs with FMA and AVX2. The
+// sequence of f64 operations (including where the compiler contracted a
+// multiply and add into a single fused multiply-add) was transcribed from the
+// machine code of the shipped libm.so.6, and the constants were copied from
+// its __log2_data table. Since every softfloat operation is correctly
+// rounded, the result matches glibc bit-for-bit for every input.
+//
+// The algorithm is by Szabolcs Nagy (ARM's optimized-routines, MIT licensed).
+// Its maximum error is about 0.55 ULP: it is not always correctly rounded,
+// which is why this port reproduces glibc's exact operation sequence instead
+// of computing a correctly rounded logarithm.
+
+// LOG2_INVLN2_HI and LOG2_INVLN2_LO sum to approximately (1 / ln(2)).
+pri const LOG2_INVLN2_HI : base.u64 = 0x3FF7_1547_6520_0000  // 0x1.7154765200000p+0
+pri const LOG2_INVLN2_LO : base.u64 = 0x3DE7_05FC_2EEF_A200  // 0x1.705fc2eefa200p-33
+
+// LOG2_A0 ..= LOG2_A5 are the "poly" coefficients (used when x is not near 1).
+pri const LOG2_A0 : base.u64 = 0xBFE7_1547_652B_8339  // -0x1.71547652b8339p-1
+pri const LOG2_A1 : base.u64 = 0x3FDE_C709_DC3A_04BE  // 0x1.ec709dc3a04bep-2
+pri const LOG2_A2 : base.u64 = 0xBFD7_1547_6470_2FFB  // -0x1.7154764702ffbp-2
+pri const LOG2_A3 : base.u64 = 0x3FD2_776C_5003_4C48  // 0x1.2776c50034c48p-2
+pri const LOG2_A4 : base.u64 = 0xBFCE_C7B3_28EA_92BC  // -0x1.ec7b328ea92bcp-3
+pri const LOG2_A5 : base.u64 = 0x3FCA_6225_E117_F92E  // 0x1.a6225e117f92ep-3
+
+// LOG2_B0 ..= LOG2_B9 are the "poly1" coefficients (used when x is near 1).
+pri const LOG2_B0 : base.u64 = 0xBFE7_1547_652B_82FE  // -0x1.71547652b82fep-1
+pri const LOG2_B1 : base.u64 = 0x3FDE_C709_DC3A_03F7  // 0x1.ec709dc3a03f7p-2
+pri const LOG2_B2 : base.u64 = 0xBFD7_1547_652B_7C3F  // -0x1.71547652b7c3fp-2
+pri const LOG2_B3 : base.u64 = 0x3FD2_776C_50F0_5BE4  // 0x1.2776c50f05be4p-2
+pri const LOG2_B4 : base.u64 = 0xBFCE_C709_DD76_8FE5  // -0x1.ec709dd768fe5p-3
+pri const LOG2_B5 : base.u64 = 0x3FCA_6176_1EC4_E736  // 0x1.a61761ec4e736p-3
+pri const LOG2_B6 : base.u64 = 0xBFC7_153F_BC64_A79B  // -0x1.7153fbc64a79bp-3
+pri const LOG2_B7 : base.u64 = 0x3FC4_84D1_54F0_1B4A  // 0x1.484d154f01b4ap-3
+pri const LOG2_B8 : base.u64 = 0xBFC2_89E4_A72C_383C  // -0x1.289e4a72c383cp-3
+pri const LOG2_B9 : base.u64 = 0x3FC0_B32F_285A_EE66  // 0x1.0b32f285aee66p-3
+
+pri const F64_ONE     : base.u64 = 0x3FF0_0000_0000_0000
+pri const F64_NEG_ONE : base.u64 = 0xBFF0_0000_0000_0000
+
+// log2_u64 returns the f64 bits of glibc's log2((double)v), where (double)v
+// is C's (rounding) conversion. In particular, it returns -inf for v == 0.
+pub func arith.log2_u64(v: base.u64) base.u64 {
+    return this.log2_f64(x: this.f64_from_u64(a: args.v))
+}
+
+// log2_f64 returns the f64 bits of glibc's log2(x), for any f64 x, including
+// special cases: log2(±0) is -inf, log2(+inf) is +inf, log2(1) is +0 and
+// log2 of a NaN or of a negative number is a NaN.
+pub func arith.log2_f64(x: base.u64) base.u64 {
+    var ix   : base.u64
+    var top  : base.u64
+    var tmp  : base.u64
+    var i    : base.u64
+    var k    : base.u64
+    var kd   : base.u64
+    var invc : base.u64
+    var logc : base.u64
+    var z    : base.u64
+    var r    : base.u64
+    var r2   : base.u64
+    var r4   : base.u64
+    var t1   : base.u64
+    var t2   : base.u64
+    var t3   : base.u64
+    var hi   : base.u64
+    var lo   : base.u64
+    var p    : base.u64
+    var y    : base.u64
+
+    ix = args.x
+
+    // (ix - LO) < (HI - LO), where LO and HI are the bits of
+    // (1.0 - 0x1.5b51p-5) and (1.0 + 0x1.6ab2p-5).
+    if (ix ~mod- 0x3FEE_A4AF_0000_0000) < (0x3FF0_B559_0000_0000 - 0x3FEE_A4AF_0000_0000) {
+        if ix == F64_ONE {
+            return 0
+        }
+        r = this.f64_sub(a: ix, b: F64_ONE)
+        hi = this.f64_mul(a: LOG2_INVLN2_HI, b: r)
+        r2 = this.f64_mul(a: r, b: r)
+        lo = this.f64_fma(a: LOG2_INVLN2_HI, b: r, c: this.f64_neg(a: hi))
+        r4 = this.f64_mul(a: r2, b: r2)
+        p = this.f64_fma(a: r, b: LOG2_B1, c: LOG2_B0)
+        lo = this.f64_fma(a: r, b: LOG2_INVLN2_LO, c: lo)
+        y = this.f64_fma(a: p, b: r2, c: hi)
+        lo = this.f64_add(a: lo, b: this.f64_fma(a: p, b: r2, c: this.f64_sub(a: hi, b: y)))
+        t1 = this.f64_fma(
+                a: this.f64_fma(a: r, b: LOG2_B5, c: LOG2_B4),
+                b: r2,
+                c: this.f64_fma(a: r, b: LOG2_B3, c: LOG2_B2))
+        t2 = this.f64_fma(
+                a: this.f64_fma(a: r, b: LOG2_B9, c: LOG2_B8),
+                b: r2,
+                c: this.f64_fma(a: r, b: LOG2_B7, c: LOG2_B6))
+        t3 = this.f64_fma(a: this.f64_fma(a: t2, b: r4, c: t1), b: r4, c: lo)
+        return this.f64_add(a: y, b: t3)
+    }
+
+    top = ix >> 48
+    if (top ~mod- 0x0010) >= (0x7FF0 - 0x0010) {
+        // x < 0x1p-1022 or inf or nan.
+        if (ix & F64_ABS) == 0 {
+            // log2(±0) is -inf (and raises divide-by-zero).
+            return 0xFFF0_0000_0000_0000
+        } else if ix == F64_INF {
+            return ix
+        } else if ((top & 0x8000) <> 0) or ((top & 0x7FF0) == 0x7FF0) {
+            // log2 of a negative number or NaN is invalid.
+            if (ix & F64_ABS) > F64_INF {
+                return ix | F64_QUIET
+            }
+            return F64_DEFAULT_NAN
+        }
+        // x is subnormal. Normalize it.
+        ix = this.f64_mul(a: ix, b: 0x4330_0000_0000_0000) ~mod- (52 << 52)
+    }
+
+    // x = 2**k * z, where z is in the range [OFF, 2 * OFF) and exact. The
+    // range is split into 64 subintervals. The i'th subinterval contains z
+    // and c is near its center.
+    tmp = ix ~mod- 0x3FE6_0000_0000_0000
+    i = (tmp >> 46) & 63
+    k = tmp >> 52
+    if k >= 0x800 {
+        // k is negative (as a 12-bit two's complement integer).
+        kd = this.f64_neg(a: this.f64_from_u64(a: 0x1000 - k))
+    } else {
+        kd = this.f64_from_u64(a: k)
+    }
+    z = ix ~mod- (tmp & 0xFFF0_0000_0000_0000)
+    invc = LOG2_TAB_INVC[i]
+    logc = LOG2_TAB_LOGC[i]
+
+    // log2(x) = log2(z/c) + log2(c) + k.
+    // r ~= z/c - 1, |r| < 1/(2*N).
+    t3 = this.f64_add(a: kd, b: logc)
+    r = this.f64_fma(a: z, b: invc, c: F64_NEG_ONE)
+    t1 = this.f64_mul(a: LOG2_INVLN2_HI, b: r)
+    t2 = this.f64_fma(a: r, b: LOG2_INVLN2_LO,
+            c: this.f64_fma(a: LOG2_INVLN2_HI, b: r, c: this.f64_neg(a: t1)))
+
+    // hi + lo = r/ln2 + log2(c) + k.
+    hi = this.f64_add(a: t1, b: t3)
+    lo = this.f64_add(a: this.f64_add(a: this.f64_sub(a: t3, b: hi), b: t1), b: t2)
+
+    // log2(r+1) = r/ln2 + r^2*poly(r).
+    r2 = this.f64_mul(a: r, b: r)
+    r4 = this.f64_mul(a: r2, b: r2)
+    p = this.f64_fma(
+            a: this.f64_fma(a: r, b: LOG2_A3, c: LOG2_A2),
+            b: r2,
+            c: this.f64_fma(a: r, b: LOG2_A1, c: LOG2_A0))
+    p = this.f64_fma(a: this.f64_fma(a: r, b: LOG2_A5, c: LOG2_A4), b: r4, c: p)
+    y = this.f64_fma(a: r2, b: p, c: lo)
+    return this.f64_add(a: y, b: hi)
+}
+
+// LOG2_TAB_INVC[i] and LOG2_TAB_LOGC[i] are glibc's __log2_data.tab[i].invc
+// and .logc: c is near the center of the i'th subinterval, invc is (1 / c)
+// and logc is log2(c).
+
+pri const LOG2_TAB_INVC : roarray[64] base.u64 = [
+        0x3FF7_2428_6BB1_ACF8, 0x3FF6_E1F7_66D2_CCA1, 0x3FF6_A13D_0E30_D48A, 0x3FF6_61EC_32D0_6C85,
+        0x3FF6_23FA_9511_98F8, 0x3FF5_E75B_A4CF_026C, 0x3FF5_AC05_5A21_4FB8, 0x3FF5_71ED_0F16_6E1E,
+        0x3FF5_3909_590B_F835, 0x3FF5_014F_ED61_ADDD, 0x3FF4_CAB8_8E48_7BD0, 0x3FF4_9539_B433_4FEE,
+        0x3FF4_60CB_DFAF_D569, 0x3FF4_2D66_4EE4_B953, 0x3FF3_FB01_111D_D8A6, 0x3FF3_C995_B70C_5836,
+        0x3FF3_991C_4AB6_FD4A, 0x3FF3_698E_0CE0_99B5, 0x3FF3_3AE4_8213_E7B2, 0x3FF3_0D19_1985_BDB1,
+        0x3FF2_E025_CAB2_71D7, 0x3FF2_B404_CF13_CD82, 0x3FF2_88B0_2C7C_CB50, 0x3FF2_5E22_6394_4DE5,
+        0x3FF2_3456_3D86_15B1, 0x3FF2_0B46_E33E_AF38, 0x3FF1_E2EE_FDCD_A3DD, 0x3FF1_BB4A_580B_3930,
+        0x3FF1_9453_847F_2200, 0x3FF1_6E06_C0D5_D73C, 0x3FF1_485F_47B7_E4C2, 0x3FF1_2358_AD00_85D1,
+        0x3FF0_FEF0_0F53_2227, 0x3FF0_DB20_77D0_3A8F, 0x3FF0_B7E6_D659_80D9, 0x3FF0_953E_FE7B_408D,
+        0x3FF0_7325_CAC5_3B83, 0x3FF0_5197_E40D_1B5C, 0x3FF0_3091_C120_8EA2, 0x3FF0_1010_25B3_7E21,
+        0x3FEF_C07E_F9CA_A76B, 0x3FEF_4465_D3F6_F184, 0x3FEE_CC07_9F84_107F, 0x3FEE_573A_9997_5AE8,
+        0x3FED_E5D6_F0BD_3DE6, 0x3FED_77B6_81FF_38B3, 0x3FED_0CB5_724D_E943, 0x3FEC_A4B2_DC0E_7563,
+        0x3FEC_3F8E_E8D6_CB51, 0x3FEB_DD2B_4F02_0C4C, 0x3FEB_7D6C_0060_15CA, 0x3FEB_2036_6E2E_338F,
+        0x3FEA_C570_2629_5039, 0x3FEA_6D01_BC27_31DD, 0x3FEA_16D3_BC3F_F18B, 0x3FE9_C2D1_4967_FEAD,
+        0x3FE9_70E4_F47C_9902, 0x3FE9_20FB_3982_BCF2, 0x3FE8_D301_87F7_59F1, 0x3FE8_86E5_EBB9_F66D,
+        0x3FE8_3C97_B658_B994, 0x3FE7_F405_FFC6_1022, 0x3FE7_AD22_1814_15CA, 0x3FE7_67DC_F99E_FF8C,
+]
+
+pri const LOG2_TAB_LOGC : roarray[64] base.u64 = [
+        0xBFE1_095F_EECD_B000, 0xBFE0_8494_BD76_D000, 0xBFE0_0143_AEE8_F800, 0xBFDE_FEC5_360B_4000,
+        0xBFDD_FDD9_1AB7_E000, 0xBFDC_FFAE_0CC7_9000, 0xBFDC_0438_11FD_A000, 0xBFDB_0B67_323A_E000,
+        0xBFDA_152F_5A2D_B000, 0xBFD9_217F_5AF8_6000, 0xBFD8_304D_B071_9000, 0xBFD7_4189_F9A9_E000,
+        0xBFD6_552B_B519_9000, 0xBFD5_6B23_A29B_1000, 0xBFD4_8365_0F5F_A000, 0xBFD3_9DE9_37F6_A000,
+        0xBFD2_BAA1_538D_6000, 0xBFD1_D983_40CA_4000, 0xBFD0_FA85_3A40_E000, 0xBFD0_1D9C_32E7_3000,
+        0xBFCE_857D_A2FA_6000, 0xBFCC_D3C8_633D_8000, 0xBFCB_2603_4C14_A000, 0xBFC9_7C1C_2F4F_E000,
+        0xBFC7_D602_3F80_0000, 0xBFC6_33A7_1A05_E000, 0xBFC4_94F5_E957_0000, 0xBFC2_F9E4_24E0_A000,
+        0xBFC1_6259_5AFD_C000, 0xBFBF_9C9A_75BD_8000, 0xBFBC_7B57_5BF9_C000, 0xBFB9_60C6_0FF4_8000,
+        0xBFB6_4CE2_47B6_0000, 0xBFB3_3F78_B201_4000, 0xBFB0_387D_1A42_C000, 0xBFAA_6F92_08B5_0000,
+        0xBFA4_7A95_4F77_0000, 0xBF9D_23A8_C50C_0000, 0xBF91_6A26_2978_0000, 0xBF77_20F8_D8E8_0000,
+        0x3F86_FE53_B150_0000, 0x3FA1_1CCC_E10F_8000, 0x3FAC_4DFC_8C8B_8000, 0x3FB3_AA32_1E57_4000,
+        0x3FB9_18A0_D08B_8000, 0x3FBE_72E9_DA04_4000, 0x3FC1_DCD2_507F_6000, 0x3FC4_76AB_03DE_A000,
+        0x3FC7_0743_77E2_2000, 0x3FC9_8EDE_8BA9_4000, 0x3FCC_0DB8_6AD2_E000, 0x3FCE_840A_AFCE_E000,
+        0x3FD0_790A_B467_8000, 0x3FD1_AC05_6801_C000, 0x3FD2_DB11_D4FE_E000, 0x3FD4_0646_4EC5_8000,
+        0x3FD5_2DBE_093A_F000, 0x3FD6_5190_2050_D000, 0x3FD7_71D2_CDEA_F000, 0x3FD8_8E9C_857D_9000,
+        0x3FD9_A801_55E1_6000, 0x3FDA_BE18_6ED3_D000, 0x3FDB_D0F2_AEA0_E000, 0x3FDC_E0A4_3DBF_4000,
+]

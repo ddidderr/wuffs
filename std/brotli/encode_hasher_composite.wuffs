@@ -1,0 +1,208 @@
+// Copyright 2026 The Wuffs Authors.
+//
+// Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
+// https://www.apache.org/licenses/LICENSE-2.0> or the MIT license
+// <LICENSE-MIT or https://opensource.org/licenses/MIT>, at your
+// option. This file may not be copied, modified, or distributed
+// except according to those terms.
+//
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+
+// --------
+
+// This file mirrors the C code's large-window hashers: the composite hashers
+// (hash_composite_inc.h) H35 (H3 + HROLLING_FAST), H55 (H54 + HROLLING_FAST)
+// and H65 (H6 + HROLLING), and the rolling hashers (hash_rolling_inc.h)
+// HROLLING_FAST (JUMP 4) and HROLLING (JUMP 1), both with CHUNKLEN 32,
+// NUMBUCKETS (1 << 24) and MASK ((NUMBUCKETS * 64) - 1).
+//
+// A composite hasher is represented by its first hasher (HASHER_A, H3, H54 or
+// H6) in this.hasher_type and its rolling hasher (HASHER_B) by a non-zero
+// this.hr_jump (4 for HROLLING_FAST, 1 for HROLLING). The composite's FN(etc)
+// functions call HASHER_A's and then HASHER_B's, so the encode_hasher.wuffs
+// functions (which implement HASHER_A) call the hasher_rolling_etc functions
+// below after their own work when this.hr_jump is non-zero.
+//
+// The composite hasher's memory is HASHER_A's alloc_size[0] and [1] followed
+// by HASHER_B's alloc_size[0] (the rolling table of NUMBUCKETS u32le values),
+// at the this.hr_off workbuf offset. HASHER_A's HasherCommon is a copy of the
+// composite's (the C code's ha_common), whose dict_num_lookups and
+// dict_num_matches start at zero, like the composite's own, so HASHER_A can
+// keep using this.dict_num_lookups and this.dict_num_matches.
+
+// Mirrors CHUNKLEN in hash.h, for the rolling hashers.
+pri const ROLLING_CHUNKLEN : base.u64 = 32
+
+// Mirrors NUMBUCKETS in hash.h, for the rolling hashers.
+pri const ROLLING_NUMBUCKETS : base.u32 = 0x100_0000
+
+// Mirrors MASK in hash.h, for the rolling hashers.
+pri const ROLLING_MASK : base.u32 = 0x3FFF_FFFF
+
+// Mirrors FN(kRollingHashMul32) in hash_rolling_inc.h.
+pri const ROLLING_HASH_MUL_32 : base.u32 = 69069
+
+// Mirrors FN(kInvalidPos) in hash_rolling_inc.h.
+pri const ROLLING_INVALID_POS : base.u32 = 0xFFFF_FFFF
+
+// hasher_rolling_alloc_size mirrors FN(HashMemAllocInBytes) in
+// hash_rolling_inc.h: alloc_size[0], the table.
+pri func encoder.hasher_rolling_alloc_size() base.u64 {
+    return 4 * (ROLLING_NUMBUCKETS as base.u64)
+}
+
+// Mirrors FN(Initialize) in hash_rolling_inc.h. The C code's composite
+// hashers call it (via their deferred initialization) in their first
+// FN(Prepare), which HasherSetup calls right after FN(Initialize).
+pri func encoder.hasher_rolling_initialize!(wb: slice base.u8) {
+    var i : base.u64
+
+    this.hr_state = 0
+    this.hr_next_ix = 0
+
+    // Compute the factor of the oldest byte to remove: factor**steps modulo
+    // 0xffffffff (the multiplications rely on 32-bit overflow).
+    this.hr_factor_remove = 1
+    i = 0
+    while i < ROLLING_CHUNKLEN {
+        this.hr_factor_remove ~mod*= ROLLING_HASH_MUL_32
+        i ~mod+= this.hr_jump as base.u64
+    }
+
+    // Every table entry is ROLLING_INVALID_POS.
+    this.fill_bytes!(s: args.wb, i: this.hr_off, n: this.hasher_rolling_alloc_size(), v: 0xFF)
+}
+
+// Mirrors FN(Prepare) in hash_rolling_inc.h, where data is the workbuf's
+// bytes starting at offset data_off.
+pri func encoder.hasher_rolling_prepare!(wb: slice base.u8, input_size: base.u64, data_off: base.u64) {
+    var i : base.u64
+
+    // Too small size, cannot use this hasher.
+    if args.input_size < ROLLING_CHUNKLEN {
+        return nothing
+    }
+    this.hr_state = 0
+    i = 0
+    while i < ROLLING_CHUNKLEN {
+        // FN(HashRollingFunctionInitial).
+        this.hr_state = (ROLLING_HASH_MUL_32 ~mod* this.hr_state) ~mod+
+                ((this.byte_at(s: args.wb, i: args.data_off ~mod+ i) as base.u32) + 1)
+        i ~mod+= this.hr_jump as base.u64
+    }
+}
+
+// Mirrors FN(StitchToPreviousBlock) in hash_rolling_inc.h.
+pri func encoder.hasher_rolling_stitch_to_previous_block!(wb: slice base.u8, num_bytes: base.u64, position: base.u64) {
+    var position        : base.u64
+    var position_masked : base.u64
+    var available       : base.u64
+    var jm1             : base.u64
+    var diff            : base.u64
+    var mask            : base.u64
+
+    // In this case we must re-initialize the hasher from scratch from the
+    // current position.
+    position = args.position
+    available = args.num_bytes
+    jm1 = (this.hr_jump as base.u64) ~mod- 1
+    if (position & jm1) <> 0 {
+        diff = (this.hr_jump as base.u64) ~mod- (position & jm1)
+        if diff > available {
+            available = 0
+        } else {
+            available ~mod-= diff
+        }
+        position ~mod+= diff
+    }
+    mask = this.rb_mask as base.u64
+    position_masked = position & mask
+    // Wrapping around ringbuffer not handled.
+    if available > (mask ~mod- position_masked) {
+        available = mask ~mod- position_masked
+    }
+    this.hasher_rolling_prepare!(wb: args.wb, input_size: available,
+            data_off: this.rb_buf_off ~mod+ position_masked)
+    this.hr_next_ix = position
+}
+
+// Mirrors FN(FindLongestMatch) in hash_rolling_inc.h. The search result is in
+// the this.sr_etc fields.
+pri func encoder.hasher_rolling_find_longest_match!(wb: slice base.u8, cur_ix: base.u64, max_length: base.u64, max_backward: base.u64) {
+    var data            : roslice base.u8
+    var mask            : base.u64
+    var cur_ix_masked   : base.u64
+    var jump            : base.u64
+    var pos             : base.u64
+    var code            : base.u32
+    var rem             : base.u8
+    var add             : base.u8
+    var found_ix        : base.u64
+    var backward        : base.u64
+    var found_ix_masked : base.u64
+    var len             : base.u64
+    var score           : base.u64
+    var t               : base.u64
+
+    if this.rb_buf_off > args.wb.length() {
+        return nothing
+    }
+    data = args.wb[this.rb_buf_off ..]
+    mask = this.rb_mask as base.u64
+    cur_ix_masked = args.cur_ix & mask
+    jump = this.hr_jump as base.u64
+
+    if (args.cur_ix & (jump ~mod- 1)) <> 0 {
+        return nothing
+    }
+
+    // Not enough lookahead.
+    if args.max_length < ROLLING_CHUNKLEN {
+        return nothing
+    }
+
+    pos = this.hr_next_ix
+    while pos <= args.cur_ix {
+        code = this.hr_state & ROLLING_MASK
+
+        rem = this.byte_at(s: data, i: pos & mask)
+        add = this.byte_at(s: data, i: (pos ~mod+ ROLLING_CHUNKLEN) & mask)
+        found_ix = ROLLING_INVALID_POS as base.u64
+
+        // FN(HashRollingFunction).
+        this.hr_state = ((ROLLING_HASH_MUL_32 ~mod* this.hr_state) ~mod+ ((add as base.u32) + 1)) ~mod-
+                (this.hr_factor_remove ~mod* ((rem as base.u32) + 1))
+
+        if code < ROLLING_NUMBUCKETS {
+            t = this.hr_off ~mod+ (4 * (code as base.u64))
+            found_ix = this.load32le(s: args.wb, i: t) as base.u64
+            this.poke_u32!(s: args.wb, i: t, v: (pos & 0xFFFF_FFFF) as base.u32)
+            if (pos == args.cur_ix) and (found_ix <> (ROLLING_INVALID_POS as base.u64)) {
+                // The cast to 32-bit makes backward distances up to 4GB work
+                // even if cur_ix is above 4GB, despite using 32-bit values in
+                // the table.
+                backward = (args.cur_ix ~mod- found_ix) & 0xFFFF_FFFF
+                if backward <= args.max_backward {
+                    found_ix_masked = found_ix & mask
+                    len = this.find_match_length_with_limit(s: data,
+                            i1: found_ix_masked, i2: cur_ix_masked, limit: args.max_length)
+                    if (len >= 4) and (len > this.sr_len) {
+                        score = this.backward_reference_score(copy_length: len, backward_reference_offset: backward)
+                        if score > this.sr_score {
+                            this.sr_len = len
+                            this.sr_distance = backward
+                            this.sr_score = score
+                            this.sr_len_code_delta = 0
+                        }
+                    }
+                }
+            }
+        }
+        pos ~mod+= jump
+    }
+
+    this.hr_next_ix = args.cur_ix ~mod+ jump
+
+    // NOTE: this hasher does not search in the dictionary. It is used as
+    // backup-hasher, the main hasher already searches in it.
+}

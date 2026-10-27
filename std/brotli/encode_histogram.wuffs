@@ -1,0 +1,268 @@
+// Copyright 2026 The Wuffs Authors.
+//
+// Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
+// https://www.apache.org/licenses/LICENSE-2.0> or the MIT license
+// <LICENSE-MIT or https://opensource.org/licenses/MIT>, at your
+// option. This file may not be copied, modified, or distributed
+// except according to those terms.
+//
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+
+// --------
+
+// This file mirrors histogram.h, histogram_inc.h and histogram.c. See
+// encode_bit_cost.wuffs for the histograms' byte layout. The functions are
+// methods of the bit_cost struct.
+//
+// A command (the C code's Command struct) is 16 bytes, exactly the C struct's
+// memory layout on a little-endian machine:
+//
+//   [ 0 ..  4)  insert_len_, as a u32le
+//   [ 4 ..  8)  copy_len_, as a u32le (the copy length in the low 25 bits,
+//               copy_code - copy_len in the high 7 bits)
+//   [ 8 .. 12)  dist_extra_, as a u32le
+//   [12 .. 14)  cmd_prefix_, as a u16le
+//   [14 .. 16)  dist_prefix_, as a u16le
+//
+// A BlockSplit's types are a slice of u8 (one per block) and its lengths are
+// a slice of u32le values (one per block).
+
+// Mirrors FN(HistogramClear) in histogram_inc.h.
+pri func bit_cost.histogram_clear!(h: slice base.u8, data_size: base.u32[..= 704]) {
+    var n : base.u64
+
+    n = (args.data_size as base.u64) * 4
+    if n <= args.h.length() {
+        args.h[.. n].bulk_memset!(byte_value: 0)
+    }
+    this.st64!(s: args.h, i: n, v: 0)
+    this.st64!(s: args.h, i: n + 8, v: F64_HUGE_VAL)
+}
+
+// Mirrors FN(HistogramAdd) in histogram_inc.h.
+pri func bit_cost.histogram_add!(h: slice base.u8, data_size: base.u32[..= 704], val: base.u64) {
+    var n : base.u64
+
+    n = (args.data_size as base.u64) * 4
+    if args.val < (args.data_size as base.u64) {
+        this.st32!(s: args.h, i: args.val ~mod* 4, v: this.ld32(s: args.h, i: args.val ~mod* 4) ~mod+ 1)
+    }
+    this.st64!(s: args.h, i: n, v: this.ld64(s: args.h, i: n) ~mod+ 1)
+}
+
+// Mirrors FN(HistogramAddHistogram) in histogram_inc.h: h += v.
+pri func bit_cost.histogram_add_histogram!(h: slice base.u8, v: roslice base.u8, data_size: base.u32[..= 704]) {
+    var n : base.u64
+    var p : slice base.u8
+    var q : roslice base.u8
+
+    n = (args.data_size as base.u64) * 4
+    this.st64!(s: args.h, i: n, v: this.ld64(s: args.h, i: n) ~mod+ this.ld64(s: args.v, i: n))
+    if (n <= args.h.length()) and (n <= args.v.length()) {
+        iterate (p = args.h[.. n], q = args.v[.. n])(length: 4, advance: 4, unroll: 1) {
+            p.poke_u32le!(a: p.peek_u32le() ~mod+ q.peek_u32le())
+        }
+    }
+}
+
+// histogram_copy is the C code's struct assignment "*h = *v".
+pri func bit_cost.histogram_copy!(h: slice base.u8, v: roslice base.u8, data_size: base.u32[..= 704]) {
+    var n : base.u64
+
+    n = ((args.data_size as base.u64) * 4) + 16
+    if (n <= args.h.length()) and (n <= args.v.length()) {
+        args.h[.. n].copy_from_slice!(s: args.v[.. n])
+    }
+}
+
+// histogram_total_count returns the histogram's total_count_.
+pri func bit_cost.histogram_total_count(h: roslice base.u8, data_size: base.u32[..= 704]) base.u64 {
+    return this.ld64(s: args.h, i: (args.data_size as base.u64) * 4)
+}
+
+// histogram_bit_cost returns the histogram's bit_cost_.
+pri func bit_cost.histogram_bit_cost(h: roslice base.u8, data_size: base.u32[..= 704]) base.u64 {
+    return this.ld64(s: args.h, i: ((args.data_size as base.u64) * 4) + 8)
+}
+
+// histogram_set_bit_cost sets the histogram's bit_cost_.
+pri func bit_cost.histogram_set_bit_cost!(h: slice base.u8, data_size: base.u32[..= 704], bit_cost: base.u64) {
+    this.st64!(s: args.h, i: ((args.data_size as base.u64) * 4) + 8, v: args.bit_cost)
+}
+
+// Mirrors BrotliBuildHistogramsWithContext in histogram.c (with the
+// BlockSplitIterator functions inlined).
+//
+// The literal, command and distance block splits are given as their types
+// (u8s), lengths (u32les) and num_blocks. A block split's lengths are the C
+// code's NULL pointer when its num_blocks is zero.
+//
+// The C code's context_modes argument is either NULL or an array whose
+// elements are all the same (BrotliBuildMetaBlock's literal_context_mode).
+// Here, context_mode is that common element, or 0xFFFF_FFFF for NULL.
+//
+// lit_histos, cmd_histos and dist_histos are arrays of literal (1040 byte),
+// command (2832 byte) and distance (2192 byte) histograms.
+pri func bit_cost.build_histograms_with_context!(
+        cmds: roslice base.u8,
+        num_commands: base.u64,
+        lit_types: roslice base.u8,
+        lit_lengths: roslice base.u8,
+        lit_num_blocks: base.u64,
+        cmd_types: roslice base.u8,
+        cmd_lengths: roslice base.u8,
+        cmd_num_blocks: base.u64,
+        dist_types: roslice base.u8,
+        dist_lengths: roslice base.u8,
+        dist_num_blocks: base.u64,
+        ringbuffer: roslice base.u8,
+        start_pos: base.u64,
+        mask: base.u64,
+        prev_byte: base.u8,
+        prev_byte2: base.u8,
+        context_mode: base.u32,
+        lit_histos: slice base.u8,
+        cmd_histos: slice base.u8,
+        dist_histos: slice base.u8) {
+    var pos         : base.u64
+    var prev_byte   : base.u8
+    var prev_byte2  : base.u8
+    var lit_idx     : base.u64
+    var lit_type    : base.u64
+    var lit_length  : base.u64
+    var cmd_idx     : base.u64
+    var cmd_type    : base.u64
+    var cmd_length  : base.u64
+    var dist_idx    : base.u64
+    var dist_type   : base.u64
+    var dist_length : base.u64
+    var i           : base.u64
+    var j           : base.u64
+    var c           : base.u64
+    var insert_len  : base.u32
+    var copy_len    : base.u32
+    var cmd_prefix  : base.u32
+    var dist_prefix : base.u32
+    var context     : base.u64
+    var lut_offset  : base.u32[..= 1536]
+    var b           : base.u8
+    var off         : base.u64
+    var r           : base.u32
+
+    pos = args.start_pos
+    prev_byte = args.prev_byte
+    prev_byte2 = args.prev_byte2
+    if args.lit_num_blocks > 0 {
+        lit_length = this.ld32(s: args.lit_lengths, i: 0) as base.u64
+    }
+    if args.cmd_num_blocks > 0 {
+        cmd_length = this.ld32(s: args.cmd_lengths, i: 0) as base.u64
+    }
+    if args.dist_num_blocks > 0 {
+        dist_length = this.ld32(s: args.dist_lengths, i: 0) as base.u64
+    }
+    lut_offset = (args.context_mode & 3) << 9
+
+    i = 0
+    while i < args.num_commands {
+        c = i ~mod* 16
+        insert_len = this.ld32(s: args.cmds, i: c)
+        copy_len = this.ld32(s: args.cmds, i: c ~mod+ 4) & 0x1FF_FFFF
+        r = this.ld32(s: args.cmds, i: c ~mod+ 12)
+        cmd_prefix = r & 0xFFFF
+        dist_prefix = r >> 16
+
+        // BlockSplitIteratorNext(&insert_and_copy_it).
+        if cmd_length == 0 {
+            cmd_idx ~mod+= 1
+            if cmd_idx < args.cmd_types.length() {
+                cmd_type = args.cmd_types[cmd_idx] as base.u64
+            } else {
+                cmd_type = 0
+            }
+            cmd_length = this.ld32(s: args.cmd_lengths, i: cmd_idx ~mod* 4) as base.u64
+        }
+        cmd_length ~mod-= 1
+        off = cmd_type ~mod* HISTOGRAM_COMMAND_SIZE
+        if off <= args.cmd_histos.length() {
+            this.histogram_add!(h: args.cmd_histos[off ..], data_size: HISTOGRAM_COMMAND_DATA_SIZE, val: cmd_prefix as base.u64)
+        }
+
+        j = insert_len as base.u64
+        while j <> 0 {
+            j -= 1
+            // BlockSplitIteratorNext(&literal_it).
+            if lit_length == 0 {
+                lit_idx ~mod+= 1
+                if lit_idx < args.lit_types.length() {
+                    lit_type = args.lit_types[lit_idx] as base.u64
+                } else {
+                    lit_type = 0
+                }
+                lit_length = this.ld32(s: args.lit_lengths, i: lit_idx ~mod* 4) as base.u64
+            }
+            lit_length ~mod-= 1
+            context = lit_type
+            if args.context_mode <> 0xFFFF_FFFF {
+                context = (context ~mod<< 6) ~mod+ ((
+                        CONTEXT_LOOKUP[(lut_offset + (prev_byte as base.u32)) & 2047] |
+                        CONTEXT_LOOKUP[(lut_offset + 256 + (prev_byte2 as base.u32)) & 2047]) as base.u64)
+            }
+            b = 0
+            if (pos & args.mask) < args.ringbuffer.length() {
+                b = args.ringbuffer[pos & args.mask]
+            }
+            off = context ~mod* HISTOGRAM_LITERAL_SIZE
+            if off <= args.lit_histos.length() {
+                this.histogram_add!(h: args.lit_histos[off ..], data_size: HISTOGRAM_LITERAL_DATA_SIZE, val: b as base.u64)
+            }
+            prev_byte2 = prev_byte
+            prev_byte = b
+            pos ~mod+= 1
+        }
+
+        pos ~mod+= copy_len as base.u64
+        if copy_len <> 0 {
+            prev_byte2 = 0
+            if ((pos ~mod- 2) & args.mask) < args.ringbuffer.length() {
+                prev_byte2 = args.ringbuffer[(pos ~mod- 2) & args.mask]
+            }
+            prev_byte = 0
+            if ((pos ~mod- 1) & args.mask) < args.ringbuffer.length() {
+                prev_byte = args.ringbuffer[(pos ~mod- 1) & args.mask]
+            }
+            if cmd_prefix >= 128 {
+                // BlockSplitIteratorNext(&dist_it).
+                if dist_length == 0 {
+                    dist_idx ~mod+= 1
+                    if dist_idx < args.dist_types.length() {
+                        dist_type = args.dist_types[dist_idx] as base.u64
+                    } else {
+                        dist_type = 0
+                    }
+                    dist_length = this.ld32(s: args.dist_lengths, i: dist_idx ~mod* 4) as base.u64
+                }
+                dist_length ~mod-= 1
+                context = (dist_type ~mod<< 2) ~mod+ (this.command_distance_context(cmd_prefix: cmd_prefix) as base.u64)
+                off = context ~mod* HISTOGRAM_DISTANCE_SIZE
+                if off <= args.dist_histos.length() {
+                    this.histogram_add!(h: args.dist_histos[off ..], data_size: HISTOGRAM_DISTANCE_DATA_SIZE, val: (dist_prefix & 0x3FF) as base.u64)
+                }
+            }
+        }
+        i ~mod+= 1
+    }
+}
+
+// Mirrors CommandDistanceContext in command.h.
+pri func bit_cost.command_distance_context(cmd_prefix: base.u32) base.u32 {
+    var r : base.u32
+    var c : base.u32
+
+    r = args.cmd_prefix >> 6
+    c = args.cmd_prefix & 7
+    if ((r == 0) or (r == 2) or (r == 4) or (r == 7)) and (c <= 2) {
+        return c
+    }
+    return 3
+}

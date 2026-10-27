@@ -1,0 +1,767 @@
+// Copyright 2026 The Wuffs Authors.
+//
+// Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
+// https://www.apache.org/licenses/LICENSE-2.0> or the MIT license
+// <LICENSE-MIT or https://opensource.org/licenses/MIT>, at your
+// option. This file may not be copied, modified, or distributed
+// except according to those terms.
+//
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+
+// --------
+
+// This file mirrors block_splitter.h, block_splitter.c and
+// block_splitter_inc.h. The functions are metablock_builder methods. The C
+// code's templated functions (FN(X), for X in Literal, Command and Distance)
+// are one Wuffs function each, with these arguments:
+//   - cat: CATEGORY_LITERAL, CATEGORY_COMMAND or CATEGORY_DISTANCE, which
+//     selects the BlockSplit (this.split_etc[cat]) to write to.
+//   - ds: the histogram's data size (256, 704 or 544).
+//   - width: the DataType's size in bytes (1 for uint8_t, 2 for uint16_t).
+// A DataType array (the "data" arguments) is at wb[data ..].
+
+// The C code's kLiteralBlockSwitchCost (28.1), kCommandBlockSwitchCost (13.5)
+// and kDistanceBlockSwitchCost (14.6).
+pri const LITERAL_BLOCK_SWITCH_COST  : base.u64 = 0x403C_1999_9999_999A
+pri const COMMAND_BLOCK_SWITCH_COST  : base.u64 = 0x402B_0000_0000_0000
+pri const DISTANCE_BLOCK_SWITCH_COST : base.u64 = 0x402D_3333_3333_3333
+
+// The C code's HISTOGRAMS_PER_BATCH and CLUSTERS_PER_BATCH.
+pri const HISTOGRAMS_PER_BATCH : base.u64 = 64
+pri const CLUSTERS_PER_BATCH   : base.u64 = 16
+
+// Mirrors BitCost in block_splitter.c.
+pri func metablock_builder.bit_cost!(count: base.u64) base.u64 {
+    var c : base.u64
+
+    if args.count == 0 {
+        // -2.0
+        return 0xC000_0000_0000_0000
+    }
+    c = this.bc.fast_log2_memo!(v: args.count)
+    return c
+}
+
+// Mirrors FN(HistogramAddVector) in histogram_inc.h, adding the n symbols at
+// data[pos ..] to the histogram at wb[h ..].
+pri func metablock_builder.histogram_add_vector!(wb: slice base.u8, h: base.u64, ds: base.u32[..= 704],
+        data: base.u64, pos: base.u64, n: base.u64, width: base.u32) {
+    var total_offset : base.u64
+    var i            : base.u64
+    var s            : base.u64
+    var o            : base.u64
+
+    total_offset = args.h ~mod+ ((args.ds as base.u64) * 4)
+    this.st64!(wb: args.wb, i: total_offset, v: this.ld64(wb: args.wb, i: total_offset) ~mod+ args.n)
+    i = 0
+    while i < args.n {
+        s = this.sym(wb: args.wb, base: args.data, i: args.pos ~mod+ i, width: args.width)
+        if s < (args.ds as base.u64) {
+            o = args.h ~mod+ (s ~mod* 4)
+            this.st32!(wb: args.wb, i: o, v: this.ld32(wb: args.wb, i: o) ~mod+ 1)
+        }
+        i ~mod+= 1
+    }
+}
+
+// Mirrors CopyLiteralsToByteArray in block_splitter.c, writing to wb[literals
+// ..].
+pri func metablock_builder.copy_literals_to_byte_array!(wb: slice base.u8, cmds: roslice base.u8, num_commands: base.u64,
+        data: roslice base.u8, offset: base.u64, mask: base.u64, literals: base.u64) {
+    var pos        : base.u64
+    var from_pos   : base.u64
+    var i          : base.u64
+    var c          : base.u64
+    var insert_len : base.u64
+    var head_size  : base.u64
+
+    from_pos = args.offset & args.mask
+    i = 0
+    while i < args.num_commands {
+        c = i ~mod* 16
+        insert_len = this.ld32(wb: args.cmds, i: c) as base.u64
+        if (from_pos ~mod+ insert_len) > args.mask {
+            head_size = (args.mask ~mod+ 1) ~mod- from_pos
+            this.copy_bytes!(wb: args.wb, dst: args.literals ~mod+ pos, data: args.data, src: from_pos, n: head_size)
+            from_pos = 0
+            pos ~mod+= head_size
+            insert_len ~mod-= head_size
+        }
+        if insert_len > 0 {
+            this.copy_bytes!(wb: args.wb, dst: args.literals ~mod+ pos, data: args.data, src: from_pos, n: insert_len)
+            pos ~mod+= insert_len
+        }
+        from_pos = ((from_pos ~mod+ insert_len) ~mod+ ((this.ld32(wb: args.cmds, i: c ~mod+ 4) & 0x1FF_FFFF) as base.u64)) & args.mask
+        i ~mod+= 1
+    }
+}
+
+// copy_bytes is memcpy(wb + dst, data + src, n), for in-bounds arguments.
+pri func metablock_builder.copy_bytes!(wb: slice base.u8, dst: base.u64, data: roslice base.u8, src: base.u64, n: base.u64) {
+    var d : slice base.u8
+    var s : roslice base.u8
+
+    if (args.dst <= args.wb.length()) and (args.src <= args.data.length()) {
+        d = args.wb[args.dst ..]
+        s = args.data[args.src ..]
+        if (args.n <= d.length()) and (args.n <= s.length()) {
+            d[.. args.n].copy_from_slice!(s: s[.. args.n])
+        }
+    }
+}
+
+// Mirrors BrotliSplitBlock in block_splitter.c. The commands are at cmds and
+// the data (the ring buffer) at data. It sets this.split_etc (whose
+// split_types_off and split_lengths_off arrays must already be allocated,
+// with room for one block per symbol, and whose split_num_blocks must be
+// zero).
+pri func metablock_builder.split_block!(wb: slice base.u8, cmds: roslice base.u8, num_commands: base.u64,
+        data: roslice base.u8, pos: base.u64, mask: base.u64) {
+    var mark           : base.u64
+    var literals_count : base.u64
+    var literals       : base.u64
+    var codes          : base.u64
+    var i              : base.u64
+    var j              : base.u64
+    var c              : base.u64
+
+    mark = this.wb_top
+
+    // CountLiterals.
+    i = 0
+    while i < args.num_commands {
+        literals_count ~mod+= this.ld32(wb: args.cmds, i: i ~mod* 16) as base.u64
+        i ~mod+= 1
+    }
+    literals = this.alloc!(n: literals_count)
+    if this.oom {
+        return nothing
+    }
+    // Create a continuous array of literals.
+    this.copy_literals_to_byte_array!(wb: args.wb, cmds: args.cmds, num_commands: args.num_commands,
+            data: args.data, offset: args.pos, mask: args.mask, literals: literals)
+    // Create the block split on the array of literals.
+    this.split_byte_vector!(wb: args.wb, cat: 0, data: literals, length: literals_count, width: 1,
+            ds: HISTOGRAM_LITERAL_DATA_SIZE, symbols_per_histogram: 544, max_histograms: 100,
+            sampling_stride_length: 70, block_switch_cost: LITERAL_BLOCK_SWITCH_COST)
+    this.wb_top = mark
+    if this.oom {
+        return nothing
+    }
+
+    // Compute prefix codes for commands.
+    codes = this.alloc!(n: args.num_commands ~mod* 2)
+    if this.oom {
+        return nothing
+    }
+    i = 0
+    while i < args.num_commands {
+        this.st16!(wb: args.wb, i: codes ~mod+ (i ~mod* 2), v: this.ld16(wb: args.cmds, i: (i ~mod* 16) ~mod+ 12))
+        i ~mod+= 1
+    }
+    // Create the block split on the array of command prefixes.
+    this.split_byte_vector!(wb: args.wb, cat: 1, data: codes, length: args.num_commands, width: 2,
+            ds: HISTOGRAM_COMMAND_DATA_SIZE, symbols_per_histogram: 530, max_histograms: 50,
+            sampling_stride_length: 40, block_switch_cost: COMMAND_BLOCK_SWITCH_COST)
+    this.wb_top = mark
+    if this.oom {
+        return nothing
+    }
+
+    // Create a continuous array of distance prefixes.
+    codes = this.alloc!(n: args.num_commands ~mod* 2)
+    if this.oom {
+        return nothing
+    }
+    j = 0
+    i = 0
+    while i < args.num_commands {
+        c = i ~mod* 16
+        if ((this.ld32(wb: args.cmds, i: c ~mod+ 4) & 0x1FF_FFFF) <> 0) and
+                (this.ld16(wb: args.cmds, i: c ~mod+ 12) >= 128) {
+            this.st16!(wb: args.wb, i: codes ~mod+ (j ~mod* 2), v: this.ld16(wb: args.cmds, i: c ~mod+ 14) & 0x3FF)
+            j ~mod+= 1
+        }
+        i ~mod+= 1
+    }
+    // Create the block split on the array of distance prefixes.
+    this.split_byte_vector!(wb: args.wb, cat: 2, data: codes, length: j, width: 2,
+            ds: HISTOGRAM_DISTANCE_DATA_SIZE, symbols_per_histogram: 544, max_histograms: 50,
+            sampling_stride_length: 40, block_switch_cost: DISTANCE_BLOCK_SWITCH_COST)
+    this.wb_top = mark
+}
+
+// Mirrors FN(InitialEntropyCodes) in block_splitter_inc.h.
+pri func metablock_builder.initial_entropy_codes!(wb: slice base.u8, data: base.u64, length: base.u64, width: base.u32,
+        stride: base.u64, num_histograms: base.u64, histograms: base.u64, ds: base.u32[..= 704]) {
+    var seed         : base.u32
+    var block_length : base.u64
+    var i            : base.u64
+    var pos          : base.u64
+    var hs           : base.u64
+    var nh           : base.u64
+
+    hs = this.hsize(ds: args.ds)
+    seed = 7
+    if args.num_histograms == 0 {
+        return nothing
+    }
+    nh = args.num_histograms.max(no_less_than: 1)
+    block_length = args.length / nh.max(no_less_than: 1)
+    i = 0
+    while i < args.num_histograms {
+        this.h_clear!(wb: args.wb, h: args.histograms ~mod+ (i ~mod* hs), ds: args.ds)
+        i ~mod+= 1
+    }
+    i = 0
+    while i < args.num_histograms {
+        pos = (args.length ~mod* i) / nh.max(no_less_than: 1)
+        if i <> 0 {
+            // MyRand.
+            seed ~mod*= 16807
+            if block_length > 0 {
+                pos ~mod+= (seed as base.u64) % block_length
+            }
+        }
+        if (pos ~mod+ args.stride) >= args.length {
+            pos = (args.length ~mod- args.stride) ~mod- 1
+        }
+        this.histogram_add_vector!(wb: args.wb, h: args.histograms ~mod+ (i ~mod* hs), ds: args.ds,
+                data: args.data, pos: pos, n: args.stride, width: args.width)
+        i ~mod+= 1
+    }
+}
+
+// Mirrors FN(RefineEntropyCodes) in block_splitter_inc.h, with
+// FN(RandomSample) inlined.
+pri func metablock_builder.refine_entropy_codes!(wb: slice base.u8, data: base.u64, length: base.u64, width: base.u32,
+        stride: base.u64, num_histograms: base.u64, histograms: base.u64, tmp: base.u64, ds: base.u32[..= 704]) {
+    var iters  : base.u64
+    var seed   : base.u32
+    var iter   : base.u64
+    var pos    : base.u64
+    var stride : base.u64
+    var hs     : base.u64
+    var nh     : base.u64
+
+    if (args.stride == 0) or (args.num_histograms == 0) {
+        return nothing
+    }
+    hs = this.hsize(ds: args.ds)
+    // kIterMulForRefining * length / stride + kMinItersForRefining.
+    nh = args.num_histograms.max(no_less_than: 1)
+    iters = ((2 ~mod* args.length) / args.stride.max(no_less_than: 1)) ~mod+ 100
+    seed = 7
+    iters = (((iters ~mod+ nh) ~mod- 1) / nh.max(no_less_than: 1)) ~mod* nh
+    iter = 0
+    while iter < iters {
+        this.h_clear!(wb: args.wb, h: args.tmp, ds: args.ds)
+        // RandomSample.
+        pos = 0
+        stride = args.stride
+        if stride >= args.length {
+            stride = args.length
+        } else {
+            seed ~mod*= 16807
+            pos = (args.length ~mod- stride) ~mod+ 1
+            pos = (seed as base.u64) % pos.max(no_less_than: 1)
+        }
+        this.histogram_add_vector!(wb: args.wb, h: args.tmp, ds: args.ds,
+                data: args.data, pos: pos, n: stride, width: args.width)
+        this.h_add_histogram!(wb: args.wb, h: args.histograms ~mod+ ((iter % nh.max(no_less_than: 1)) ~mod* hs), v: args.tmp, ds: args.ds)
+        iter ~mod+= 1
+    }
+}
+
+// Mirrors FN(FindBlocks) in block_splitter_inc.h. num_histograms is at most
+// 100 (or 50 when ds is more than 256), so that the insert_cost array fits.
+// The block ids are u8s at wb[block_id ..] and the switch signal bitmaps at
+// wb[switch_signal ..]. It returns the number of blocks.
+pri func metablock_builder.find_blocks!(wb: slice base.u8, data: base.u64, length: base.u64, width: base.u32,
+        block_switch_bitcost: base.u64, num_histograms: base.u64, histograms: base.u64,
+        switch_signal: base.u64, block_id: base.u64, ds: base.u32[..= 704]) base.u64 {
+    var alphabet_size     : base.u64
+    var bitmap_len        : base.u64
+    var num_blocks        : base.u64
+    var byte_ix           : base.u64
+    var i                 : base.u64
+    var j                 : base.u64
+    var k                 : base.u64
+    var hs                : base.u64
+    var ix                : base.u64
+    var insert_cost_ix    : base.u64
+    var min_cost          : base.u64
+    var block_switch_cost : base.u64
+    var c                 : base.u64
+    var cur_id            : base.u8
+    var b                 : base.u8
+
+    alphabet_size = args.ds as base.u64
+    bitmap_len = (args.num_histograms ~mod+ 7) >> 3
+    num_blocks = 1
+    hs = this.hsize(ds: args.ds)
+
+    // Trivial case: single histogram -> single block type.
+    if args.num_histograms <= 1 {
+        this.zero!(wb: args.wb, i: args.block_id, n: args.length)
+        return 1
+    }
+    if (args.num_histograms > 256) or ((alphabet_size ~mod* args.num_histograms) > 35200) {
+        // This never happens: see the comment above.
+        this.oom = true
+        return 1
+    }
+
+    // Fill bitcost for each symbol of all histograms.
+    this.insert_cost[.. 35200].bulk_memset!(byte_value: 0)
+    i = 0
+    while i < args.num_histograms {
+        // FastLog2((uint32_t)histograms[i].total_count_).
+        this.insert_cost[i & 255] = this.bc.fast_log2_memo!(
+                v: this.h_total(wb: args.wb, h: args.histograms ~mod+ (i ~mod* hs), ds: args.ds) & 0xFFFF_FFFF)
+        i ~mod+= 1
+    }
+    i = alphabet_size
+    while i <> 0 {
+        // Reverse order to use the 0-th row as a temporary storage.
+        i ~mod-= 1
+        j = 0
+        while j < args.num_histograms {
+            k = (i ~mod* args.num_histograms) ~mod+ j
+            if k < 35200 {
+                c = this.bit_cost!(count: this.ld32(wb: args.wb, i: (args.histograms ~mod+ (j ~mod* hs)) ~mod+ (i ~mod* 4)) as base.u64)
+                this.insert_cost[k] = this.sf.f64_sub(a: this.insert_cost[j & 255], b: c)
+            }
+            j ~mod+= 1
+        }
+    }
+
+    // After each iteration of this loop, cost[k] will contain the difference
+    // between the minimum cost of arriving at the current byte position using
+    // entropy code k, and the minimum cost of arriving at the current byte
+    // position. This difference is capped at the block switch cost, and if it
+    // reaches block switch cost, it means that when we trace back from the
+    // last position, we need to switch here.
+    this.cost[.. 256].bulk_memset!(byte_value: 0)
+    this.zero!(wb: args.wb, i: args.switch_signal, n: args.length ~mod* bitmap_len)
+    byte_ix = 0
+    while byte_ix < args.length {
+        ix = byte_ix ~mod* bitmap_len
+        insert_cost_ix = this.sym(wb: args.wb, base: args.data, i: byte_ix, width: args.width) ~mod* args.num_histograms
+        min_cost = F64_1E99
+        block_switch_cost = args.block_switch_bitcost
+        k = 0
+        while k < args.num_histograms {
+            // We are coding the symbol with entropy code k.
+            c = 0
+            if (insert_cost_ix ~mod+ k) < 35200 {
+                c = this.insert_cost[(insert_cost_ix ~mod+ k) % 35200]
+            }
+            c = this.sf.f64_add(a: this.cost[k & 255], b: c)
+            this.cost[k & 255] = c
+            if this.sf.f64_lt(a: c, b: min_cost) <> 0 {
+                min_cost = c
+                this.st8!(wb: args.wb, i: args.block_id ~mod+ byte_ix, v: (k & 0xFF) as base.u8)
+            }
+            k ~mod+= 1
+        }
+        // More blocks for the beginning.
+        if byte_ix < 2000 {
+            // block_switch_cost *= 0.77 + multiplier * (double)byte_ix, with
+            // multiplier = 0.07 / 2000.
+            block_switch_cost = this.sf.f64_mul(
+                    a: block_switch_cost,
+                    b: this.sf.f64_add(
+                    a: 0x3FE8_A3D7_0A3D_70A4,
+                    b: this.sf.f64_mul(a: 0x3F02_599E_D7C6_FBD3, b: this.sf.f64_from_u64(a: byte_ix))))
+        }
+        k = 0
+        while k < args.num_histograms {
+            c = this.sf.f64_sub(a: this.cost[k & 255], b: min_cost)
+            this.cost[k & 255] = c
+            if this.sf.f64_ge(a: c, b: block_switch_cost) <> 0 {
+                this.cost[k & 255] = block_switch_cost
+                j = ix ~mod+ (k >> 3)
+                if true {
+                    b = this.ld8(wb: args.wb, i: args.switch_signal ~mod+ j)
+                    this.st8!(wb: args.wb, i: args.switch_signal ~mod+ j, v: b | ((1 as base.u8) << (k & 7)))
+                }
+            }
+            k ~mod+= 1
+        }
+        byte_ix ~mod+= 1
+    }
+
+    // Trace back from the last position and switch at the marked places.
+    byte_ix = args.length ~mod- 1
+    ix = byte_ix ~mod* bitmap_len
+    cur_id = this.ld8(wb: args.wb, i: args.block_id ~mod+ byte_ix)
+    while byte_ix > 0 {
+        byte_ix ~mod-= 1
+        ix ~mod-= bitmap_len
+        b = this.ld8(wb: args.wb, i: (args.switch_signal ~mod+ ix) ~mod+ ((cur_id >> 3) as base.u64))
+        if (b & ((1 as base.u8) << (cur_id & 7))) <> 0 {
+            if cur_id <> this.ld8(wb: args.wb, i: args.block_id ~mod+ byte_ix) {
+                cur_id = this.ld8(wb: args.wb, i: args.block_id ~mod+ byte_ix)
+                num_blocks ~mod+= 1
+            }
+        }
+        this.st8!(wb: args.wb, i: args.block_id ~mod+ byte_ix, v: cur_id)
+    }
+    return num_blocks
+}
+
+pri func metablock_builder.ld8(wb: roslice base.u8, i: base.u64) base.u8 {
+    if args.i < args.wb.length() {
+        return args.wb[args.i]
+    }
+    return 0
+}
+
+// Mirrors FN(RemapBlockIds) in block_splitter_inc.h.
+pri func metablock_builder.remap_block_ids!(wb: slice base.u8, block_ids: base.u64, length: base.u64, num_histograms: base.u64) base.u64 {
+    var next_id : base.u32
+    var i       : base.u64
+    var b       : base.u8
+
+    i = 0
+    while i < args.num_histograms {
+        this.new_id[i & 255] = 256
+        i ~mod+= 1
+    }
+    i = 0
+    while i < args.length {
+        b = this.ld8(wb: args.wb, i: args.block_ids ~mod+ i)
+        if this.new_id[b] == 256 {
+            this.new_id[b] = (next_id & 0xFFFF) as base.u16
+            next_id ~mod+= 1
+        }
+        i ~mod+= 1
+    }
+    i = 0
+    while i < args.length {
+        b = this.ld8(wb: args.wb, i: args.block_ids ~mod+ i)
+        this.st8!(wb: args.wb, i: args.block_ids ~mod+ i, v: (this.new_id[b] & 0xFF) as base.u8)
+        i ~mod+= 1
+    }
+    return next_id as base.u64
+}
+
+// Mirrors FN(BuildBlockHistograms) in block_splitter_inc.h.
+pri func metablock_builder.build_block_histograms!(wb: slice base.u8, data: base.u64, length: base.u64, width: base.u32,
+        block_ids: base.u64, num_histograms: base.u64, histograms: base.u64, ds: base.u32[..= 704]) {
+    var i  : base.u64
+    var hs : base.u64
+
+    hs = this.hsize(ds: args.ds)
+    i = 0
+    while i < args.num_histograms {
+        this.h_clear!(wb: args.wb, h: args.histograms ~mod+ (i ~mod* hs), ds: args.ds)
+        i ~mod+= 1
+    }
+    i = 0
+    while i < args.length {
+        this.h_add!(wb: args.wb,
+                h: args.histograms ~mod+ ((this.ld8(wb: args.wb, i: args.block_ids ~mod+ i) as base.u64) ~mod* hs),
+                ds: args.ds,
+                val: this.sym(wb: args.wb, base: args.data, i: i, width: args.width))
+        i ~mod+= 1
+    }
+}
+
+// Mirrors FN(ClusterBlocks) in block_splitter_inc.h. It writes the result to
+// this.split_etc[cat].
+pri func metablock_builder.cluster_blocks!(wb: slice base.u8, cat: base.u32[..= 2], data: base.u64, length: base.u64, width: base.u32,
+        num_blocks: base.u64, block_ids: base.u64, ds: base.u32[..= 704]) {
+    var c                   : base.u64
+    var hs                  : base.u64
+    var histogram_symbols   : base.u64
+    var u32s                : base.u64
+    var sizes               : base.u64
+    var new_clusters        : base.u64
+    var symbols             : base.u64
+    var remap               : base.u64
+    var block_lengths       : base.u64
+    var all_histograms      : base.u64
+    var all_histograms_size : base.u64
+    var cluster_size        : base.u64
+    var cluster_size_size   : base.u64
+    var num_clusters        : base.u64
+    var histograms          : base.u64
+    var max_num_pairs       : base.u64
+    var pairs               : base.u64
+    var pos                 : base.u64
+    var clusters            : base.u64
+    var num_final_clusters  : base.u64
+    var new_index           : base.u64
+    var tmp                 : base.u64
+    var i                   : base.u64
+    var j                   : base.u64
+    var k                   : base.u64
+    var block_idx           : base.u64
+    var num_to_combine      : base.u64
+    var num_new_clusters    : base.u64
+    var block_length        : base.u64
+    var nc                  : base.u64
+    var next_index          : base.u32
+    var best_out            : base.u32
+    var best_bits           : base.u64
+    var cur_bits            : base.u64
+    var cur_length          : base.u32
+    var max_type            : base.u32
+    var id                  : base.u32
+    var s                   : base.u32
+    var types_off           : base.u64
+    var lengths_off         : base.u64
+
+    hs = this.hsize(ds: args.ds)
+    histogram_symbols = this.alloc!(n: args.num_blocks ~mod* 4)
+    u32s = this.alloc!(n: (args.num_blocks ~mod+ (4 * HISTOGRAMS_PER_BATCH)) ~mod* 4)
+    // The C code's all_histograms and cluster_size arrays grow (with
+    // BROTLI_ENSURE_CAPACITY) up to num_clusters, which is at most
+    // num_blocks.
+    all_histograms = this.alloc!(n: args.num_blocks ~mod* hs)
+    cluster_size = this.alloc!(n: args.num_blocks ~mod* 4)
+    histograms = this.alloc!(n: args.num_blocks.min(no_more_than: HISTOGRAMS_PER_BATCH) ~mod* hs)
+    max_num_pairs = (HISTOGRAMS_PER_BATCH * HISTOGRAMS_PER_BATCH) / 2
+    pairs = this.alloc!(n: (max_num_pairs + 1) * HISTOGRAM_PAIR_SIZE)
+    tmp = this.alloc!(n: 2 ~mod* hs)
+    if this.oom {
+        return nothing
+    }
+    sizes = u32s
+    new_clusters = u32s ~mod+ (1 * HISTOGRAMS_PER_BATCH * 4)
+    symbols = u32s ~mod+ (2 * HISTOGRAMS_PER_BATCH * 4)
+    remap = u32s ~mod+ (3 * HISTOGRAMS_PER_BATCH * 4)
+    block_lengths = u32s ~mod+ (4 * HISTOGRAMS_PER_BATCH * 4)
+    this.zero!(wb: args.wb, i: u32s, n: (args.num_blocks ~mod+ (4 * HISTOGRAMS_PER_BATCH)) ~mod* 4)
+
+    // Calculate block lengths (convert repeating values -> series length).
+    block_idx = 0
+    i = 0
+    while i < args.length {
+        this.st32!(wb: args.wb, i: block_lengths ~mod+ (block_idx ~mod* 4),
+                v: this.ld32(wb: args.wb, i: block_lengths ~mod+ (block_idx ~mod* 4)) ~mod+ 1)
+        if ((i ~mod+ 1) == args.length) or
+                (this.ld8(wb: args.wb, i: args.block_ids ~mod+ i) <> this.ld8(wb: args.wb, i: (args.block_ids ~mod+ i) ~mod+ 1)) {
+            block_idx ~mod+= 1
+        }
+        i ~mod+= 1
+    }
+
+    // Pre-cluster blocks (cluster batches).
+    i = 0
+    while i < args.num_blocks {
+        num_to_combine = args.num_blocks ~mod- i
+        num_to_combine = num_to_combine.min(no_more_than: HISTOGRAMS_PER_BATCH)
+        j = 0
+        while j < num_to_combine {
+            block_length = this.ld32(wb: args.wb, i: block_lengths ~mod+ ((i ~mod+ j) ~mod* 4)) as base.u64
+            this.h_clear!(wb: args.wb, h: histograms ~mod+ (j ~mod* hs), ds: args.ds)
+            k = 0
+            while k < block_length {
+                this.h_add!(wb: args.wb, h: histograms ~mod+ (j ~mod* hs), ds: args.ds,
+                        val: this.sym(wb: args.wb, base: args.data, i: pos, width: args.width))
+                pos ~mod+= 1
+                k ~mod+= 1
+            }
+            c = this.h_population_cost!(wb: args.wb, h: histograms ~mod+ (j ~mod* hs), ds: args.ds)
+            this.h_set_bit_cost!(wb: args.wb, h: histograms ~mod+ (j ~mod* hs), ds: args.ds, bit_cost: c)
+            this.st32!(wb: args.wb, i: new_clusters ~mod+ (j ~mod* 4), v: (j & 0xFFFF_FFFF) as base.u32)
+            this.st32!(wb: args.wb, i: symbols ~mod+ (j ~mod* 4), v: (j & 0xFFFF_FFFF) as base.u32)
+            this.st32!(wb: args.wb, i: sizes ~mod+ (j ~mod* 4), v: 1)
+            j ~mod+= 1
+        }
+        num_new_clusters = this.histogram_combine!(wb: args.wb, ds: args.ds, out: histograms, tmp: tmp,
+                cluster_size: sizes, symbols: symbols, clusters: new_clusters, pairs: pairs,
+                num_clusters: num_to_combine, symbols_size: num_to_combine,
+                max_clusters: HISTOGRAMS_PER_BATCH, max_num_pairs: max_num_pairs)
+        j = 0
+        while j < num_new_clusters {
+            nc = this.ld32(wb: args.wb, i: new_clusters ~mod+ (j ~mod* 4)) as base.u64
+            this.h_copy!(wb: args.wb, h: all_histograms ~mod+ (all_histograms_size ~mod* hs), v: histograms ~mod+ (nc ~mod* hs), ds: args.ds)
+            all_histograms_size ~mod+= 1
+            this.st32!(wb: args.wb, i: cluster_size ~mod+ (cluster_size_size ~mod* 4), v: this.ld32(wb: args.wb, i: sizes ~mod+ (nc ~mod* 4)))
+            cluster_size_size ~mod+= 1
+            this.st32!(wb: args.wb, i: remap ~mod+ (nc ~mod* 4), v: (j & 0xFFFF_FFFF) as base.u32)
+            j ~mod+= 1
+        }
+        j = 0
+        while j < num_to_combine {
+            s = this.ld32(wb: args.wb, i: symbols ~mod+ (j ~mod* 4))
+            this.st32!(wb: args.wb, i: histogram_symbols ~mod+ ((i ~mod+ j) ~mod* 4),
+                    v: ((num_clusters & 0xFFFF_FFFF) as base.u32) ~mod+ this.ld32(wb: args.wb, i: remap ~mod+ ((s as base.u64) ~mod* 4)))
+            j ~mod+= 1
+        }
+        num_clusters ~mod+= num_new_clusters
+        i ~mod+= HISTOGRAMS_PER_BATCH
+    }
+
+    // Final clustering.
+    max_num_pairs = 64 ~mod* num_clusters
+    max_num_pairs = max_num_pairs.min(no_more_than: (num_clusters / 2) ~mod* num_clusters)
+    if ((HISTOGRAMS_PER_BATCH * HISTOGRAMS_PER_BATCH) / 2) < max_num_pairs {
+        pairs = this.alloc!(n: (max_num_pairs ~mod+ 1) ~mod* HISTOGRAM_PAIR_SIZE)
+    }
+    clusters = this.alloc!(n: num_clusters ~mod* 4)
+    if this.oom {
+        return nothing
+    }
+    i = 0
+    while i < num_clusters {
+        this.st32!(wb: args.wb, i: clusters ~mod+ (i ~mod* 4), v: (i & 0xFFFF_FFFF) as base.u32)
+        i ~mod+= 1
+    }
+    num_final_clusters = this.histogram_combine!(wb: args.wb, ds: args.ds, out: all_histograms, tmp: tmp,
+            cluster_size: cluster_size, symbols: histogram_symbols, clusters: clusters, pairs: pairs,
+            num_clusters: num_clusters, symbols_size: args.num_blocks,
+            max_clusters: MAX_NUMBER_OF_HISTOGRAMS, max_num_pairs: max_num_pairs)
+
+    // Assign blocks to final histograms.
+    new_index = this.alloc!(n: num_clusters ~mod* 4)
+    if this.oom {
+        return nothing
+    }
+    this.fill32!(wb: args.wb, i: new_index, n: num_clusters, v: INVALID_INDEX)
+    pos = 0
+    next_index = 0
+    i = 0
+    while i < args.num_blocks {
+        this.h_clear!(wb: args.wb, h: tmp, ds: args.ds)
+        block_length = this.ld32(wb: args.wb, i: block_lengths ~mod+ (i ~mod* 4)) as base.u64
+        j = 0
+        while j < block_length {
+            this.h_add!(wb: args.wb, h: tmp, ds: args.ds, val: this.sym(wb: args.wb, base: args.data, i: pos, width: args.width))
+            pos ~mod+= 1
+            j ~mod+= 1
+        }
+        // Among equally good histograms prefer last used.
+        if i == 0 {
+            best_out = this.ld32(wb: args.wb, i: histogram_symbols)
+        } else {
+            best_out = this.ld32(wb: args.wb, i: histogram_symbols ~mod+ ((i ~mod- 1) ~mod* 4))
+        }
+        best_bits = this.histogram_bit_cost_distance!(wb: args.wb, ds: args.ds, histogram: tmp,
+                candidate: all_histograms ~mod+ ((best_out as base.u64) ~mod* hs), tmp: tmp ~mod+ hs)
+        j = 0
+        while j < num_final_clusters {
+            s = this.ld32(wb: args.wb, i: clusters ~mod+ (j ~mod* 4))
+            cur_bits = this.histogram_bit_cost_distance!(wb: args.wb, ds: args.ds, histogram: tmp,
+                    candidate: all_histograms ~mod+ ((s as base.u64) ~mod* hs), tmp: tmp ~mod+ hs)
+            if this.sf.f64_lt(a: cur_bits, b: best_bits) <> 0 {
+                best_bits = cur_bits
+                best_out = s
+            }
+            j ~mod+= 1
+        }
+        this.st32!(wb: args.wb, i: histogram_symbols ~mod+ (i ~mod* 4), v: best_out)
+        if this.ld32(wb: args.wb, i: new_index ~mod+ ((best_out as base.u64) ~mod* 4)) == INVALID_INDEX {
+            this.st32!(wb: args.wb, i: new_index ~mod+ ((best_out as base.u64) ~mod* 4), v: next_index)
+            next_index ~mod+= 1
+        }
+        i ~mod+= 1
+    }
+
+    // Rewrite final assignment to block-split. There might be less blocks
+    // than num_blocks due to clustering.
+    types_off = this.split_types_off[args.cat]
+    lengths_off = this.split_lengths_off[args.cat]
+    cur_length = 0
+    block_idx = 0
+    max_type = 0
+    i = 0
+    while i < args.num_blocks {
+        cur_length ~mod+= this.ld32(wb: args.wb, i: block_lengths ~mod+ (i ~mod* 4))
+        s = this.ld32(wb: args.wb, i: histogram_symbols ~mod+ (i ~mod* 4))
+        if ((i ~mod+ 1) == args.num_blocks) or
+                (s <> this.ld32(wb: args.wb, i: histogram_symbols ~mod+ ((i ~mod+ 1) ~mod* 4))) {
+            id = this.ld32(wb: args.wb, i: new_index ~mod+ ((s as base.u64) ~mod* 4)) & 0xFF
+            this.st8!(wb: args.wb, i: types_off ~mod+ block_idx, v: id as base.u8)
+            this.st32!(wb: args.wb, i: lengths_off ~mod+ (block_idx ~mod* 4), v: cur_length)
+            max_type = max_type.max(no_less_than: id)
+            cur_length = 0
+            block_idx ~mod+= 1
+        }
+        i ~mod+= 1
+    }
+    this.split_num_blocks[args.cat] = block_idx
+    this.split_num_types[args.cat] = (max_type as base.u64) + 1
+}
+
+// Mirrors FN(SplitByteVector) in block_splitter_inc.h. It writes the result
+// to this.split_etc[cat].
+pri func metablock_builder.split_byte_vector!(wb: slice base.u8, cat: base.u32[..= 2], data: base.u64, length: base.u64, width: base.u32,
+        ds: base.u32[..= 704], symbols_per_histogram: base.u64, max_histograms: base.u64,
+        sampling_stride_length: base.u64, block_switch_cost: base.u64) {
+    var num_histograms : base.u64
+    var nb             : base.u64
+    var hs             : base.u64
+    var mark           : base.u64
+    var block_ids      : base.u64
+    var histograms     : base.u64
+    var tmp            : base.u64
+    var bitmaplen      : base.u64
+    var switch_signal  : base.u64
+    var iters          : base.u64
+    var i              : base.u64
+    var num_blocks     : base.u64
+
+    hs = this.hsize(ds: args.ds)
+    // Calculate number of histograms; initial estimate is one histogram per
+    // specified amount of symbols; however, this value is capped.
+    num_histograms = (args.length / args.symbols_per_histogram.max(no_less_than: 1)) ~mod+ 1
+    if num_histograms > args.max_histograms {
+        num_histograms = args.max_histograms
+    }
+
+    // Corner case: no input.
+    if args.length == 0 {
+        this.split_num_types[args.cat] = 1
+        return nothing
+    }
+
+    if args.length < 128 {
+        nb = this.split_num_blocks[args.cat]
+        this.split_num_types[args.cat] = 1
+        this.st8!(wb: args.wb, i: this.split_types_off[args.cat] ~mod+ nb, v: 0)
+        this.st32!(wb: args.wb, i: this.split_lengths_off[args.cat] ~mod+ (nb ~mod* 4), v: (args.length & 0xFFFF_FFFF) as base.u32)
+        this.split_num_blocks[args.cat] = nb ~mod+ 1
+        return nothing
+    }
+
+    // The C code allocates block_ids after histograms, and frees histograms
+    // (and FindBlocks' arrays) before ClusterBlocks. Here, block_ids comes
+    // first, so that the bump allocator can reclaim the others.
+    block_ids = this.alloc!(n: args.length)
+    mark = this.wb_top
+    histograms = this.alloc!(n: (num_histograms ~mod+ 1) ~mod* hs)
+    tmp = histograms ~mod+ (num_histograms ~mod* hs)
+    bitmaplen = (num_histograms ~mod+ 7) >> 3
+    switch_signal = this.alloc!(n: args.length ~mod* bitmaplen)
+    if this.oom {
+        return nothing
+    }
+    // Find good entropy codes.
+    this.initial_entropy_codes!(wb: args.wb, data: args.data, length: args.length, width: args.width,
+            stride: args.sampling_stride_length, num_histograms: num_histograms, histograms: histograms, ds: args.ds)
+    this.refine_entropy_codes!(wb: args.wb, data: args.data, length: args.length, width: args.width,
+            stride: args.sampling_stride_length, num_histograms: num_histograms, histograms: histograms, tmp: tmp, ds: args.ds)
+    // Find a good path through literals with the good entropy codes.
+    iters = 3
+    if this.quality >= 11 {
+        iters = 10
+    }
+    i = 0
+    while i < iters {
+        num_blocks = this.find_blocks!(wb: args.wb, data: args.data, length: args.length, width: args.width,
+                block_switch_bitcost: args.block_switch_cost, num_histograms: num_histograms, histograms: histograms,
+                switch_signal: switch_signal, block_id: block_ids, ds: args.ds)
+        num_histograms = this.remap_block_ids!(wb: args.wb, block_ids: block_ids, length: args.length, num_histograms: num_histograms)
+        this.build_block_histograms!(wb: args.wb, data: args.data, length: args.length, width: args.width,
+                block_ids: block_ids, num_histograms: num_histograms, histograms: histograms, ds: args.ds)
+        i ~mod+= 1
+    }
+    this.wb_top = mark
+    this.cluster_blocks!(wb: args.wb, cat: args.cat, data: args.data, length: args.length, width: args.width,
+            num_blocks: num_blocks, block_ids: block_ids, ds: args.ds)
+}

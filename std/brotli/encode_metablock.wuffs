@@ -1,0 +1,1103 @@
+// Copyright 2026 The Wuffs Authors.
+//
+// Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
+// https://www.apache.org/licenses/LICENSE-2.0> or the MIT license
+// <LICENSE-MIT or https://opensource.org/licenses/MIT>, at your
+// option. This file may not be copied, modified, or distributed
+// except according to those terms.
+//
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+
+// --------
+
+// This file mirrors metablock.h and metablock.c (except for
+// metablock_inc.h's greedy block splitter and BrotliBuildMetaBlockGreedy):
+// BrotliInitDistanceParams, BrotliBuildMetaBlock (with its distance
+// parameter search) and BrotliOptimizeHistograms. The functions are methods
+// of the metablock_builder struct, whose other methods (in
+// encode_block_splitter.wuffs and encode_cluster.wuffs) mirror
+// block_splitter.c and cluster.c.
+//
+// Memory: the C code allocates its scratch and output arrays on the heap.
+// Here, they all live in a caller-supplied workbuf (the wb argument), carved
+// out by a bump allocator (the wb_top field). See README.md ("Encoder
+// Metablock Builder") for the layout. A MetaBlockSplit's outputs are
+// described by this struct's fields: offsets into wb and sizes.
+//
+// Histogram, command and block split byte layouts are described in
+// encode_bit_cost.wuffs and encode_histogram.wuffs. Arrays of uint32_t
+// (context maps, histogram symbols, etc.) are u32le values, arrays of
+// uint16_t are u16le values and doubles are the u64le bits of a binary64.
+
+// The C code's kMaxNumberOfHistograms in BrotliBuildMetaBlock (histogram ids
+// need to fit in one byte), also BROTLI_MAX_NUMBER_OF_BLOCK_TYPES.
+pri const MAX_NUMBER_OF_HISTOGRAMS : base.u64 = 256
+
+// The C code's kInvalidIndex (BROTLI_UINT32_MAX).
+pri const INVALID_INDEX : base.u32 = 0xFFFF_FFFF
+
+// HISTOGRAM_PAIR_SIZE is the byte size of the C code's HistogramPair struct:
+// idx1 (u32le), idx2 (u32le), cost_combo (f64), cost_diff (f64).
+pri const HISTOGRAM_PAIR_SIZE : base.u64 = 24
+
+// Indexes into the metablock_builder's per-category arrays.
+pri const CATEGORY_LITERAL  : base.u32 = 0
+pri const CATEGORY_COMMAND  : base.u32 = 1
+pri const CATEGORY_DISTANCE : base.u32 = 2
+
+pri struct metablock_builder?(
+        // The C code's BrotliEncoderParams fields that these functions use.
+        quality      : base.u32,
+        large_window : base.bool,
+        disable_lcm  : base.bool,
+
+        // The C code's params->dist (a BrotliDistanceParams). The
+        // build_meta_block method reads it (the original params) and then
+        // overwrites it with the chosen distance params.
+        dist_postfix_bits        : base.u32,
+        dist_num_direct_codes    : base.u32,
+        dist_alphabet_size_max   : base.u32,
+        dist_alphabet_size_limit : base.u32,
+        dist_max_distance        : base.u64,
+
+        // The MetaBlockSplit's three BlockSplits, indexed by CATEGORY_ETC:
+        // num_types, num_blocks and the offsets in wb of the types (u8) and
+        // lengths (u32le) arrays.
+        split_num_types   : array[3] base.u64,
+        split_num_blocks  : array[3] base.u64,
+        split_types_off   : array[3] base.u64,
+        split_lengths_off : array[3] base.u64,
+
+        // The MetaBlockSplit's context maps (u32le arrays in wb) and
+        // histograms (arrays of histograms in wb), indexed by CATEGORY_ETC
+        // (there is no command context map).
+        context_map_off  : array[3] base.u64,
+        context_map_size : array[3] base.u64,
+        histograms_off   : array[3] base.u64,
+        histograms_size  : array[3] base.u64,
+
+        // The bump allocator: wb's length, the next free offset, the highest
+        // offset used so far and whether an allocation failed.
+        wb_len  : base.u64,
+        wb_top  : base.u64,
+        wb_high : base.u64,
+        oom     : base.bool,
+
+        // num_pairs is BrotliHistogramCombine's num_pairs, which
+        // BrotliCompareAndPushToQueue updates.
+        num_pairs : base.u64,
+
+        // dist_cost is ComputeDistanceCost's *cost result.
+        dist_cost : base.u64,
+
+        sf : softfloat.arith,
+) + (
+        // Wuffs' C code generator expects same-package struct fields to be in
+        // the private_data section (after the "+").
+        bc : bit_cost,
+
+        // FindBlocks' cost and insert_cost arrays (doubles). insert_cost has
+        // (data_size * num_histograms) elements, and num_histograms is at
+        // most 100 for literals (256 symbols) and 50 for commands (704
+        // symbols) and distances (544 symbols).
+        cost        : array[256] base.u64,
+        insert_cost : array[35200] base.u64,
+
+        // RemapBlockIds' new_id array.
+        new_id : array[256] base.u16,
+
+        // BrotliOptimizeHistograms' good_for_rle array.
+        good_for_rle : array[704] base.u8,
+)
+
+// -------- Little-endian workbuf accessors.
+
+pri func metablock_builder.ld16(wb: roslice base.u8, i: base.u64) base.u32 {
+    var q : roslice base.u8
+
+    if args.i < args.wb.length() {
+        q = args.wb[args.i ..]
+        if q.length() >= 2 {
+            return q.peek_u16le() as base.u32
+        }
+    }
+    return 0
+}
+
+pri func metablock_builder.ld32(wb: roslice base.u8, i: base.u64) base.u32 {
+    return this.bc.ld32(s: args.wb, i: args.i)
+}
+
+pri func metablock_builder.ld64(wb: roslice base.u8, i: base.u64) base.u64 {
+    return this.bc.ld64(s: args.wb, i: args.i)
+}
+
+pri func metablock_builder.st8!(wb: slice base.u8, i: base.u64, v: base.u8) {
+    if args.i < args.wb.length() {
+        args.wb[args.i] = args.v
+    }
+}
+
+pri func metablock_builder.st16!(wb: slice base.u8, i: base.u64, v: base.u32) {
+    var q : slice base.u8
+
+    if args.i < args.wb.length() {
+        q = args.wb[args.i ..]
+        if q.length() >= 2 {
+            q.poke_u16le!(a: (args.v & 0xFFFF) as base.u16)
+        }
+    }
+}
+
+pri func metablock_builder.st32!(wb: slice base.u8, i: base.u64, v: base.u32) {
+    this.bc.st32!(s: args.wb, i: args.i, v: args.v)
+}
+
+pri func metablock_builder.st64!(wb: slice base.u8, i: base.u64, v: base.u64) {
+    this.bc.st64!(s: args.wb, i: args.i, v: args.v)
+}
+
+// fill32 sets n u32le values, starting at wb[i ..], to v.
+pri func metablock_builder.fill32!(wb: slice base.u8, i: base.u64, n: base.u64, v: base.u32) {
+    var j : base.u64
+
+    j = 0
+    while j < args.n {
+        this.st32!(wb: args.wb, i: args.i ~mod+ (j ~mod* 4), v: args.v)
+        j ~mod+= 1
+    }
+}
+
+// zero sets n bytes, starting at wb[i ..], to zero.
+pri func metablock_builder.zero!(wb: slice base.u8, i: base.u64, n: base.u64) {
+    var j  : base.u64
+    var hi : base.u64
+
+    if args.i <= args.wb.length() {
+        j = args.wb.length() ~mod- args.i
+        if args.n < j {
+            j = args.n
+        }
+        hi = args.i ~mod+ j
+        if (args.i <= hi) and (hi <= args.wb.length()) {
+            args.wb[args.i .. hi].bulk_memset!(byte_value: 0)
+        }
+    }
+}
+
+// sym returns the i'th element of a DataType array (u8 if width is 1, u16le
+// otherwise) at wb[base ..].
+pri func metablock_builder.sym(wb: roslice base.u8, base: base.u64, i: base.u64, width: base.u32) base.u64 {
+    var j : base.u64
+
+    if args.width == 1 {
+        j = args.base ~mod+ args.i
+        if j < args.wb.length() {
+            return args.wb[j] as base.u64
+        }
+        return 0
+    }
+    return this.ld16(wb: args.wb, i: args.base ~mod+ (args.i ~mod* 2)) as base.u64
+}
+
+// -------- The bump allocator.
+
+// alloc returns the offset of n fresh (uninitialized) bytes of the workbuf.
+// When out of memory, it sets this.oom and returns this.wb_len (so that the
+// bounds-checked accessors ignore any writes).
+pri func metablock_builder.alloc!(n: base.u64) base.u64 {
+    var r : base.u64
+
+    if this.oom or (this.wb_top > this.wb_len) or (args.n > (this.wb_len ~mod- this.wb_top)) {
+        this.oom = true
+        return this.wb_len
+    }
+    r = this.wb_top
+    this.wb_top = r ~mod+ args.n
+    if this.wb_high < this.wb_top {
+        this.wb_high = this.wb_top
+    }
+    return r
+}
+
+// -------- Histogram helpers, on histograms at offsets in the workbuf.
+
+pri func metablock_builder.hsize(ds: base.u32[..= 704]) base.u64 {
+    return ((args.ds as base.u64) * 4) + 16
+}
+
+pri func metablock_builder.h_clear!(wb: slice base.u8, h: base.u64, ds: base.u32[..= 704]) {
+    if args.h <= args.wb.length() {
+        this.bc.histogram_clear!(h: args.wb[args.h ..], data_size: args.ds)
+    }
+}
+
+pri func metablock_builder.h_add!(wb: slice base.u8, h: base.u64, ds: base.u32[..= 704], val: base.u64) {
+    if args.h <= args.wb.length() {
+        this.bc.histogram_add!(h: args.wb[args.h ..], data_size: args.ds, val: args.val)
+    }
+}
+
+// h_add_histogram is HistogramAddHistogram(&wb[h], &wb[v]).
+pri func metablock_builder.h_add_histogram!(wb: slice base.u8, h: base.u64, v: base.u64, ds: base.u32[..= 704]) {
+    if (args.h <= args.wb.length()) and (args.v <= args.wb.length()) {
+        this.bc.histogram_add_histogram!(h: args.wb[args.h ..], v: args.wb[args.v ..], data_size: args.ds)
+    }
+}
+
+// h_copy is the struct assignment wb[h] = wb[v].
+pri func metablock_builder.h_copy!(wb: slice base.u8, h: base.u64, v: base.u64, ds: base.u32[..= 704]) {
+    if (args.h <= args.wb.length()) and (args.v <= args.wb.length()) {
+        this.bc.histogram_copy!(h: args.wb[args.h ..], v: args.wb[args.v ..], data_size: args.ds)
+    }
+}
+
+pri func metablock_builder.h_total(wb: roslice base.u8, h: base.u64, ds: base.u32[..= 704]) base.u64 {
+    return this.ld64(wb: args.wb, i: args.h ~mod+ ((args.ds as base.u64) * 4))
+}
+
+pri func metablock_builder.h_bit_cost(wb: roslice base.u8, h: base.u64, ds: base.u32[..= 704]) base.u64 {
+    return this.ld64(wb: args.wb, i: args.h ~mod+ (((args.ds as base.u64) * 4) + 8))
+}
+
+pri func metablock_builder.h_set_bit_cost!(wb: slice base.u8, h: base.u64, ds: base.u32[..= 704], bit_cost: base.u64) {
+    this.st64!(wb: args.wb, i: args.h ~mod+ (((args.ds as base.u64) * 4) + 8), v: args.bit_cost)
+}
+
+pri func metablock_builder.h_population_cost!(wb: roslice base.u8, h: base.u64, ds: base.u32[..= 704]) base.u64 {
+    var c : base.u64
+
+    if args.h <= args.wb.length() {
+        c = this.bc.population_cost!(histogram: args.wb[args.h ..], data_size: args.ds)
+        return c
+    }
+    return 0
+}
+
+// -------- Commands and distance prefixes.
+
+// Mirrors Log2FloorNonZero in fast_log.h (which truncates n to 32 bits).
+pri func metablock_builder.log2_floor_non_zero(n: base.u64) base.u32[..= 31] {
+    var x : base.u32
+    var r : base.u32[..= 31]
+
+    x = (args.n & 0xFFFF_FFFF) as base.u32
+    while x > 1 {
+        x >>= 1
+        if r < 31 {
+            r += 1
+        }
+    }
+    return r
+}
+
+// Mirrors PrefixEncodeCopyDistance in prefix.h. It returns the code (the
+// C code's *code, in the low 16 bits) and extra bits (the C code's
+// *extra_bits, in the high 32 bits).
+pri func metablock_builder.prefix_encode_copy_distance(distance_code: base.u64, num_direct_codes: base.u64, postfix_bits: base.u32) base.u64 {
+    var dist         : base.u64
+    var bucket       : base.u64
+    var postfix_mask : base.u64
+    var postfix      : base.u64
+    var prefix       : base.u64
+    var offset       : base.u64
+    var nbits        : base.u64
+    var code         : base.u64
+    var extra        : base.u64
+
+    if args.distance_code < (16 ~mod+ args.num_direct_codes) {
+        return args.distance_code & 0xFFFF
+    }
+    dist = ((1 as base.u64) << ((args.postfix_bits & 31) + 2)) ~mod+
+            ((args.distance_code ~mod- 16) ~mod- args.num_direct_codes)
+    bucket = (this.log2_floor_non_zero(n: dist) as base.u64) ~mod- 1
+    postfix_mask = ((1 as base.u64) << (args.postfix_bits & 31)) ~mod- 1
+    postfix = dist & postfix_mask
+    prefix = (dist >> (bucket & 63)) & 1
+    offset = (2 ~mod+ prefix) ~mod<< (bucket & 63)
+    nbits = bucket ~mod- (args.postfix_bits as base.u64)
+    code = (nbits ~mod<< 10) | (((16 ~mod+ args.num_direct_codes) ~mod+
+            (((2 ~mod* (nbits ~mod- 1)) ~mod+ prefix) ~mod<< (args.postfix_bits & 63))) ~mod+ postfix)
+    extra = (dist ~mod- offset) >> (args.postfix_bits & 63)
+    return (code & 0xFFFF) | ((extra & 0xFFFF_FFFF) << 32)
+}
+
+// Mirrors CommandRestoreDistanceCode in command.h, for the command at wb[c
+// ..], with the given (npostfix, ndirect) distance params.
+pri func metablock_builder.command_restore_distance_code(wb: roslice base.u8, c: base.u64, npostfix: base.u32, ndirect: base.u32) base.u32 {
+    var dist_prefix  : base.u32
+    var dcode        : base.u32
+    var nbits        : base.u32
+    var extra        : base.u32
+    var postfix_mask : base.u32
+    var hcode        : base.u32
+    var lcode        : base.u32
+    var offset       : base.u32
+
+    dist_prefix = this.ld16(wb: args.wb, i: args.c ~mod+ 14)
+    if (dist_prefix & 0x3FF) < (16 ~mod+ args.ndirect) {
+        return dist_prefix & 0x3FF
+    }
+    dcode = dist_prefix & 0x3FF
+    nbits = dist_prefix >> 10
+    extra = this.ld32(wb: args.wb, i: args.c ~mod+ 8)
+    postfix_mask = ((1 as base.u32) << (args.npostfix & 31)) ~mod- 1
+    hcode = ((dcode ~mod- args.ndirect) ~mod- 16) >> (args.npostfix & 31)
+    lcode = ((dcode ~mod- args.ndirect) ~mod- 16) & postfix_mask
+    offset = ((2 ~mod+ (hcode & 1)) ~mod<< (nbits & 31)) ~mod- 4
+    return (((((offset ~mod+ extra) ~mod<< (args.npostfix & 31)) ~mod+ lcode) ~mod+ args.ndirect) ~mod+ 16)
+}
+
+// Mirrors BrotliCalculateDistanceCodeLimit in constants.h. It returns
+// max_alphabet_size in the low 32 bits and max_distance in the high 32 bits.
+pri func metablock_builder.calculate_distance_code_limit(max_distance: base.u32, npostfix: base.u32, ndirect: base.u32) base.u64 {
+    var forbidden_distance : base.u32
+    var offset             : base.u32
+    var ndistbits          : base.u32
+    var tmp                : base.u32
+    var half               : base.u32
+    var group              : base.u32
+    var postfix            : base.u32
+    var extra              : base.u32
+    var start              : base.u32
+    var mas                : base.u32
+    var md                 : base.u32
+
+    if args.max_distance <= args.ndirect {
+        mas = args.max_distance ~mod+ 16
+        md = args.max_distance
+        return (mas as base.u64) | ((md as base.u64) << 32)
+    }
+    forbidden_distance = args.max_distance ~mod+ 1
+    offset = (forbidden_distance ~mod- args.ndirect) ~mod- 1
+    postfix = ((1 as base.u32) << (args.npostfix & 31)) ~mod- 1
+    offset = (offset >> (args.npostfix & 31)) ~mod+ 4
+    tmp = offset / 2
+    while tmp <> 0 {
+        ndistbits ~mod+= 1
+        tmp = tmp >> 1
+    }
+    ndistbits ~mod-= 1
+    half = (offset >> (ndistbits & 31)) & 1
+    group = ((ndistbits ~mod- 1) ~mod<< 1) | half
+    if group == 0 {
+        mas = args.ndirect ~mod+ 16
+        md = args.ndirect
+        return (mas as base.u64) | ((md as base.u64) << 32)
+    }
+    group ~mod-= 1
+    ndistbits = (group >> 1) ~mod+ 1
+    extra = ((1 as base.u32) << (ndistbits & 31)) ~mod- 1
+    start = ((1 as base.u32) << ((ndistbits ~mod+ 1) & 31)) ~mod- 4
+    start ~mod+= (group & 1) ~mod<< (ndistbits & 31)
+    mas = (((((group ~mod<< (args.npostfix & 31)) | postfix) ~mod+ args.ndirect) ~mod+ 16) ~mod+ 1)
+    md = (((((start ~mod+ extra) ~mod<< (args.npostfix & 31)) ~mod+ postfix) ~mod+ args.ndirect) ~mod+ 1)
+    return (mas as base.u64) | ((md as base.u64) << 32)
+}
+
+// Mirrors BrotliInitDistanceParams in metablock.c, setting this struct's
+// dist_etc fields (the C code's *params).
+pri func metablock_builder.init_distance_params!(npostfix: base.u32, ndirect: base.u32, large_window: base.bool) {
+    var limit : base.u64
+
+    this.dist_postfix_bits = args.npostfix
+    this.dist_num_direct_codes = args.ndirect
+    // BROTLI_DISTANCE_ALPHABET_SIZE(npostfix, ndirect, BROTLI_MAX_DISTANCE_BITS).
+    this.dist_alphabet_size_max = (16 ~mod+ args.ndirect) ~mod+ ((24 as base.u32) ~mod<< ((args.npostfix ~mod+ 1) & 31))
+    this.dist_alphabet_size_limit = this.dist_alphabet_size_max
+    this.dist_max_distance = ((args.ndirect ~mod+
+            ((1 as base.u32) ~mod<< (((24 ~mod+ args.npostfix) ~mod+ 2) & 31))) ~mod-
+            ((1 as base.u32) ~mod<< ((args.npostfix ~mod+ 2) & 31))) as base.u64
+    if args.large_window {
+        // BROTLI_MAX_ALLOWED_DISTANCE is 0x7FFF_FFFC.
+        limit = this.calculate_distance_code_limit(max_distance: 0x7FFF_FFFC, npostfix: args.npostfix, ndirect: args.ndirect)
+        // BROTLI_DISTANCE_ALPHABET_SIZE(npostfix, ndirect,
+        // BROTLI_LARGE_MAX_DISTANCE_BITS).
+        this.dist_alphabet_size_max = (16 ~mod+ args.ndirect) ~mod+ ((62 as base.u32) ~mod<< ((args.npostfix ~mod+ 1) & 31))
+        this.dist_alphabet_size_limit = (limit & 0xFFFF_FFFF) as base.u32
+        this.dist_max_distance = limit >> 32
+    }
+}
+
+// Mirrors RecomputeDistancePrefixes in metablock.c. The original params are
+// (orig_npostfix, orig_ndirect) and the new ones are this.dist_etc.
+pri func metablock_builder.recompute_distance_prefixes!(cmds: slice base.u8, num_commands: base.u64, orig_npostfix: base.u32, orig_ndirect: base.u32) {
+    var i : base.u64
+    var c : base.u64
+    var d : base.u32
+    var r : base.u64
+
+    if (args.orig_npostfix == this.dist_postfix_bits) and (args.orig_ndirect == this.dist_num_direct_codes) {
+        return nothing
+    }
+    i = 0
+    while i < args.num_commands {
+        c = i ~mod* 16
+        if ((this.ld32(wb: args.cmds, i: c ~mod+ 4) & 0x1FF_FFFF) <> 0) and
+                (this.ld16(wb: args.cmds, i: c ~mod+ 12) >= 128) {
+            d = this.command_restore_distance_code(wb: args.cmds, c: c, npostfix: args.orig_npostfix, ndirect: args.orig_ndirect)
+            r = this.prefix_encode_copy_distance(
+                    distance_code: d as base.u64,
+                    num_direct_codes: this.dist_num_direct_codes as base.u64,
+                    postfix_bits: this.dist_postfix_bits)
+            this.st16!(wb: args.cmds, i: c ~mod+ 14, v: (r & 0xFFFF) as base.u32)
+            this.st32!(wb: args.cmds, i: c ~mod+ 8, v: (r >> 32) as base.u32)
+        }
+        i ~mod+= 1
+    }
+}
+
+// Mirrors ComputeDistanceCost in metablock.c. The original params are
+// (orig_npostfix, orig_ndirect) and the new ones are (new_npostfix,
+// new_ndirect, new_max_distance). tmp is the offset of a distance histogram
+// in wb. On success, it sets this.dist_cost and returns true.
+pri func metablock_builder.compute_distance_cost!(wb: slice base.u8, cmds: roslice base.u8, num_commands: base.u64,
+        orig_npostfix: base.u32, orig_ndirect: base.u32,
+        new_npostfix: base.u32, new_ndirect: base.u32, new_max_distance: base.u64, tmp: base.u64) base.bool {
+    var i           : base.u64
+    var c           : base.u64
+    var equal       : base.bool
+    var dist_prefix : base.u32
+    var distance    : base.u32
+    var extra_bits  : base.u64
+
+    this.h_clear!(wb: args.wb, h: args.tmp, ds: HISTOGRAM_DISTANCE_DATA_SIZE)
+    equal = (args.orig_npostfix == args.new_npostfix) and (args.orig_ndirect == args.new_ndirect)
+    i = 0
+    while i < args.num_commands {
+        c = i ~mod* 16
+        if ((this.ld32(wb: args.cmds, i: c ~mod+ 4) & 0x1FF_FFFF) <> 0) and
+                (this.ld16(wb: args.cmds, i: c ~mod+ 12) >= 128) {
+            if equal {
+                dist_prefix = this.ld16(wb: args.cmds, i: c ~mod+ 14)
+            } else {
+                distance = this.command_restore_distance_code(wb: args.cmds, c: c, npostfix: args.orig_npostfix, ndirect: args.orig_ndirect)
+                if (distance as base.u64) > args.new_max_distance {
+                    return false
+                }
+                dist_prefix = (this.prefix_encode_copy_distance(
+                        distance_code: distance as base.u64,
+                        num_direct_codes: args.new_ndirect as base.u64,
+                        postfix_bits: args.new_npostfix) & 0xFFFF) as base.u32
+            }
+            this.h_add!(wb: args.wb, h: args.tmp, ds: HISTOGRAM_DISTANCE_DATA_SIZE, val: (dist_prefix & 0x3FF) as base.u64)
+            extra_bits = this.sf.f64_add(a: extra_bits, b: this.sf.f64_from_u32(a: dist_prefix >> 10))
+        }
+        i ~mod+= 1
+    }
+    this.dist_cost = this.h_population_cost!(wb: args.wb, h: args.tmp, ds: HISTOGRAM_DISTANCE_DATA_SIZE)
+    this.dist_cost = this.sf.f64_add(a: this.dist_cost, b: extra_bits)
+    return true
+}
+
+// set_params sets the C code's BrotliEncoderParams fields that
+// build_meta_block uses, other than the distance params (see
+// init_distance_params).
+pri func metablock_builder.set_params!(quality: base.u32, large_window: base.bool, disable_literal_context_modeling: base.bool) {
+    this.quality = args.quality
+    this.large_window = args.large_window
+    this.disable_lcm = args.disable_literal_context_modeling
+}
+
+// alloc_block_splits resets the MetaBlockSplit's three BlockSplits (the C
+// code's BrotliInitBlockSplit) and allocates their types and lengths arrays
+// (the C code's BROTLI_ENSURE_CAPACITY calls), with room for the maximum
+// number of blocks: one per symbol (or one, for an empty category).
+pri func metablock_builder.alloc_block_splits!(cmds: roslice base.u8, num_commands: base.u64) {
+    var num_literals  : base.u64
+    var num_distances : base.u64
+    var i             : base.u64
+    var c             : base.u64
+    var n             : base.u64
+
+    i = 0
+    while i < args.num_commands {
+        c = i ~mod* 16
+        num_literals ~mod+= this.ld32(wb: args.cmds, i: c) as base.u64
+        if ((this.ld32(wb: args.cmds, i: c ~mod+ 4) & 0x1FF_FFFF) <> 0) and
+                (this.ld16(wb: args.cmds, i: c ~mod+ 12) >= 128) {
+            num_distances ~mod+= 1
+        }
+        i ~mod+= 1
+    }
+    i = 0
+    while i < 3 {
+        this.split_num_types[i] = 0
+        this.split_num_blocks[i] = 0
+        this.context_map_off[i] = 0
+        this.context_map_size[i] = 0
+        this.histograms_off[i] = 0
+        this.histograms_size[i] = 0
+        i += 1
+    }
+    n = num_literals.max(no_less_than: 1)
+    this.split_types_off[0] = this.alloc!(n: n)
+    this.split_lengths_off[0] = this.alloc!(n: n ~mod* 4)
+    n = args.num_commands.max(no_less_than: 1)
+    this.split_types_off[1] = this.alloc!(n: n)
+    this.split_lengths_off[1] = this.alloc!(n: n ~mod* 4)
+    n = num_distances.max(no_less_than: 1)
+    this.split_types_off[2] = this.alloc!(n: n)
+    this.split_lengths_off[2] = this.alloc!(n: n ~mod* 4)
+}
+
+// reset_arena starts using wb (of length wb_len) as the bump allocator's
+// memory.
+pri func metablock_builder.reset_arena!(wb_len: base.u64) {
+    this.wb_len = args.wb_len
+    this.wb_top = 0
+    this.wb_high = 0
+    this.oom = false
+}
+
+// Mirrors BrotliBuildMetaBlock in metablock.c.
+//
+// The params (the C code's *params) are this struct's quality, large_window,
+// disable_lcm and dist_etc fields: see set_params and init_distance_params.
+// Like the C code, it updates the dist_etc fields (the chosen distance
+// params) and rewrites the commands' dist_prefix_ and dist_extra_ fields.
+//
+// ringbuffer, pos and mask are the C code's ringbuffer, pos and mask. cmds
+// holds num_commands commands (16 bytes each). literal_context_mode is a
+// ContextType (0 to 3).
+//
+// The MetaBlockSplit result is described by this struct's split_etc,
+// context_map_etc and histograms_etc fields, as offsets into wb. It returns
+// "#bad workbuf length" (and the results are invalid) if wb is too short.
+pri func metablock_builder.build_meta_block!(wb: slice base.u8, ringbuffer: roslice base.u8, pos: base.u64, mask: base.u64,
+        prev_byte: base.u8, prev_byte2: base.u8, cmds: slice base.u8, num_commands: base.u64,
+        literal_context_mode: base.u32) base.status {
+    var orig_npostfix   : base.u32
+    var orig_ndirect    : base.u32
+    var orig_asm        : base.u32
+    var orig_asl        : base.u32
+    var orig_md         : base.u64
+    var best_npostfix   : base.u32
+    var best_ndirect    : base.u32
+    var best_asm        : base.u32
+    var best_asl        : base.u32
+    var best_md         : base.u64
+    var npostfix        : base.u32
+    var ndirect_msb     : base.u32
+    var ndirect         : base.u32
+    var check_orig      : base.bool
+    var best_dist_cost  : base.u64
+    var success         : base.bool
+    var tmp             : base.u64
+    var i               : base.u64
+    var j               : base.u64
+    var lcm             : base.u64
+    var lit_histos      : base.u64
+    var lit_histos_size : base.u64
+    var dist_histos     : base.u64
+    var context_mode    : base.u32
+    var v               : base.u32
+
+    this.reset_arena!(wb_len: args.wb.length())
+
+    orig_npostfix = this.dist_postfix_bits
+    orig_ndirect = this.dist_num_direct_codes
+    orig_asm = this.dist_alphabet_size_max
+    orig_asl = this.dist_alphabet_size_limit
+    orig_md = this.dist_max_distance
+    // best_etc is the C code's params->dist during the search.
+    best_npostfix = orig_npostfix
+    best_ndirect = orig_ndirect
+    best_asm = orig_asm
+    best_asl = orig_asl
+    best_md = orig_md
+    check_orig = true
+    best_dist_cost = F64_1E99
+
+    tmp = this.alloc!(n: HISTOGRAM_DISTANCE_SIZE)
+    if this.oom {
+        return base."#bad workbuf length"
+    }
+    npostfix = 0
+    while npostfix <= 3 {
+        while ndirect_msb < 16 {
+            ndirect = ndirect_msb ~mod<< (npostfix & 31)
+            this.init_distance_params!(npostfix: npostfix, ndirect: ndirect, large_window: this.large_window)
+            if (npostfix == orig_npostfix) and (ndirect == orig_ndirect) {
+                check_orig = false
+            }
+            success = this.compute_distance_cost!(wb: args.wb, cmds: args.cmds, num_commands: args.num_commands,
+                    orig_npostfix: orig_npostfix, orig_ndirect: orig_ndirect,
+                    new_npostfix: npostfix, new_ndirect: ndirect, new_max_distance: this.dist_max_distance, tmp: tmp)
+            if (not success) or (this.sf.f64_gt(a: this.dist_cost, b: best_dist_cost) <> 0) {
+                break
+            }
+            best_dist_cost = this.dist_cost
+            best_npostfix = this.dist_postfix_bits
+            best_ndirect = this.dist_num_direct_codes
+            best_asm = this.dist_alphabet_size_max
+            best_asl = this.dist_alphabet_size_limit
+            best_md = this.dist_max_distance
+            ndirect_msb ~mod+= 1
+        }
+        if ndirect_msb > 0 {
+            ndirect_msb ~mod-= 1
+        }
+        ndirect_msb /= 2
+        npostfix ~mod+= 1
+    }
+    if check_orig {
+        success = this.compute_distance_cost!(wb: args.wb, cmds: args.cmds, num_commands: args.num_commands,
+                orig_npostfix: orig_npostfix, orig_ndirect: orig_ndirect,
+                new_npostfix: orig_npostfix, new_ndirect: orig_ndirect, new_max_distance: orig_md, tmp: tmp)
+        if this.sf.f64_lt(a: this.dist_cost, b: best_dist_cost) <> 0 {
+            best_npostfix = orig_npostfix
+            best_ndirect = orig_ndirect
+            best_asm = orig_asm
+            best_asl = orig_asl
+            best_md = orig_md
+        }
+    }
+    this.dist_postfix_bits = best_npostfix
+    this.dist_num_direct_codes = best_ndirect
+    this.dist_alphabet_size_max = best_asm
+    this.dist_alphabet_size_limit = best_asl
+    this.dist_max_distance = best_md
+    // BROTLI_FREE(m, tmp).
+    this.wb_top = 0
+    this.recompute_distance_prefixes!(cmds: args.cmds, num_commands: args.num_commands, orig_npostfix: orig_npostfix, orig_ndirect: orig_ndirect)
+
+    this.alloc_block_splits!(cmds: args.cmds, num_commands: args.num_commands)
+    if this.oom {
+        return base."#bad workbuf length"
+    }
+
+    this.split_block!(wb: args.wb, cmds: args.cmds, num_commands: args.num_commands,
+            data: args.ringbuffer, pos: args.pos, mask: args.mask)
+    if this.oom {
+        return base."#bad workbuf length"
+    }
+
+    // Allocate the MetaBlockSplit's histograms and context maps.
+    this.histograms_size[1] = this.split_num_types[1]
+    this.histograms_off[1] = this.alloc!(n: this.histograms_size[1] ~mod* HISTOGRAM_COMMAND_SIZE)
+    this.context_map_off[1] = 0
+    this.context_map_size[1] = 0
+    this.context_map_size[0] = this.split_num_types[0] ~mod<< 6
+    this.context_map_off[0] = this.alloc!(n: this.context_map_size[0] ~mod* 4)
+    this.histograms_size[0] = this.context_map_size[0]
+    this.histograms_off[0] = this.alloc!(n: this.histograms_size[0] ~mod* HISTOGRAM_LITERAL_SIZE)
+    this.context_map_size[2] = this.split_num_types[2] ~mod<< 2
+    this.context_map_off[2] = this.alloc!(n: this.context_map_size[2] ~mod* 4)
+    this.histograms_size[2] = this.context_map_size[2]
+    this.histograms_off[2] = this.alloc!(n: this.histograms_size[2] ~mod* HISTOGRAM_DISTANCE_SIZE)
+
+    // The (scratch) literal and distance histograms.
+    lcm = 1
+    context_mode = 0xFFFF_FFFF
+    if not this.disable_lcm {
+        lcm = 64
+        context_mode = args.literal_context_mode & 3
+    }
+    lit_histos_size = this.split_num_types[0] ~mod* lcm
+    lit_histos = this.alloc!(n: lit_histos_size ~mod* HISTOGRAM_LITERAL_SIZE)
+    dist_histos = this.alloc!(n: this.context_map_size[2] ~mod* HISTOGRAM_DISTANCE_SIZE)
+    if this.oom {
+        return base."#bad workbuf length"
+    }
+    i = 0
+    while i < lit_histos_size {
+        this.h_clear!(wb: args.wb, h: lit_histos ~mod+ (i ~mod* HISTOGRAM_LITERAL_SIZE), ds: HISTOGRAM_LITERAL_DATA_SIZE)
+        i ~mod+= 1
+    }
+    i = 0
+    while i < this.context_map_size[2] {
+        this.h_clear!(wb: args.wb, h: dist_histos ~mod+ (i ~mod* HISTOGRAM_DISTANCE_SIZE), ds: HISTOGRAM_DISTANCE_DATA_SIZE)
+        i ~mod+= 1
+    }
+    i = 0
+    while i < this.histograms_size[1] {
+        this.h_clear!(wb: args.wb, h: this.histograms_off[1] ~mod+ (i ~mod* HISTOGRAM_COMMAND_SIZE), ds: HISTOGRAM_COMMAND_DATA_SIZE)
+        i ~mod+= 1
+    }
+
+    if (this.split_types_off[0] <= args.wb.length()) and
+            (this.split_lengths_off[0] <= args.wb.length()) and
+            (this.split_types_off[1] <= args.wb.length()) and
+            (this.split_lengths_off[1] <= args.wb.length()) and
+            (this.split_types_off[2] <= args.wb.length()) and
+            (this.split_lengths_off[2] <= args.wb.length()) and
+            (lit_histos <= args.wb.length()) and
+            (this.histograms_off[1] <= args.wb.length()) and
+            (dist_histos <= args.wb.length()) {
+        this.bc.build_histograms_with_context!(
+                cmds: args.cmds,
+                num_commands: args.num_commands,
+                lit_types: args.wb[this.split_types_off[0] ..],
+                lit_lengths: args.wb[this.split_lengths_off[0] ..],
+                lit_num_blocks: this.split_num_blocks[0],
+                cmd_types: args.wb[this.split_types_off[1] ..],
+                cmd_lengths: args.wb[this.split_lengths_off[1] ..],
+                cmd_num_blocks: this.split_num_blocks[1],
+                dist_types: args.wb[this.split_types_off[2] ..],
+                dist_lengths: args.wb[this.split_lengths_off[2] ..],
+                dist_num_blocks: this.split_num_blocks[2],
+                ringbuffer: args.ringbuffer,
+                start_pos: args.pos,
+                mask: args.mask,
+                prev_byte: args.prev_byte,
+                prev_byte2: args.prev_byte2,
+                context_mode: context_mode,
+                lit_histos: args.wb[lit_histos ..],
+                cmd_histos: args.wb[this.histograms_off[1] ..],
+                dist_histos: args.wb[dist_histos ..])
+    }
+
+    this.histograms_size[0] = this.cluster_histograms!(wb: args.wb, ds: HISTOGRAM_LITERAL_DATA_SIZE,
+            in_histos: lit_histos, in_size: lit_histos_size, max_histograms: MAX_NUMBER_OF_HISTOGRAMS,
+            out_histos: this.histograms_off[0], histogram_symbols: this.context_map_off[0])
+    if this.oom {
+        return base."#bad workbuf length"
+    }
+
+    if this.disable_lcm {
+        // Distribute assignment to all contexts.
+        i = this.split_num_types[0]
+        while i <> 0 {
+            i ~mod-= 1
+            v = this.ld32(wb: args.wb, i: this.context_map_off[0] ~mod+ (i ~mod* 4))
+            j = 0
+            while j < 64 {
+                this.st32!(wb: args.wb, i: this.context_map_off[0] ~mod+ (((i ~mod<< 6) ~mod+ j) ~mod* 4), v: v)
+                j ~mod+= 1
+            }
+        }
+    }
+
+    this.histograms_size[2] = this.cluster_histograms!(wb: args.wb, ds: HISTOGRAM_DISTANCE_DATA_SIZE,
+            in_histos: dist_histos, in_size: this.context_map_size[2], max_histograms: MAX_NUMBER_OF_HISTOGRAMS,
+            out_histos: this.histograms_off[2], histogram_symbols: this.context_map_off[2])
+    if this.oom {
+        return base."#bad workbuf length"
+    }
+    return ok
+}
+
+// Mirrors BrotliOptimizeHistograms in metablock.c, for this struct's
+// MetaBlockSplit (as set by build_meta_block, or by the caller).
+pri func metablock_builder.optimize_histograms!(wb: slice base.u8, num_distance_codes: base.u32) {
+    var i : base.u64
+
+    i = 0
+    while i < this.histograms_size[0] {
+        this.optimize_huffman_counts_for_rle!(wb: args.wb,
+                counts: this.histograms_off[0] ~mod+ (i ~mod* HISTOGRAM_LITERAL_SIZE), length: 256)
+        i ~mod+= 1
+    }
+    i = 0
+    while i < this.histograms_size[1] {
+        this.optimize_huffman_counts_for_rle!(wb: args.wb,
+                counts: this.histograms_off[1] ~mod+ (i ~mod* HISTOGRAM_COMMAND_SIZE), length: 704)
+        i ~mod+= 1
+    }
+    i = 0
+    while i < this.histograms_size[2] {
+        this.optimize_huffman_counts_for_rle!(wb: args.wb,
+                counts: this.histograms_off[2] ~mod+ (i ~mod* HISTOGRAM_DISTANCE_SIZE), length: args.num_distance_codes as base.u64)
+        i ~mod+= 1
+    }
+}
+
+// Mirrors BrotliOptimizeHuffmanCountsForRle in entropy_encode.c, for the
+// u32le counts at wb[counts ..] (length is at most 704). Like the C code,
+// the "256 * counts[i]" products are uint32_t arithmetic (which can wrap) and
+// the rest is size_t arithmetic.
+pri func metablock_builder.optimize_huffman_counts_for_rle!(wb: slice base.u8, counts: base.u64, length: base.u64) {
+    var length           : base.u64
+    var nonzero_count    : base.u64
+    var stride           : base.u64
+    var limit            : base.u64
+    var sum              : base.u64
+    var i                : base.u64
+    var k                : base.u64
+    var nonzeros         : base.u64
+    var smallest_nonzero : base.u32
+    var zeros            : base.u64
+    var symbol           : base.u32
+    var step             : base.u64
+    var cnt              : base.u64
+    var c0               : base.u32
+    var c1               : base.u32
+    var c2               : base.u32
+    var flag             : base.bool
+
+    length = args.length.min(no_more_than: 704)
+    i = 0
+    while i < length {
+        if this.ld32(wb: args.wb, i: args.counts ~mod+ (i ~mod* 4)) <> 0 {
+            nonzero_count ~mod+= 1
+        }
+        i ~mod+= 1
+    }
+    if nonzero_count < 16 {
+        return nothing
+    }
+    while (length <> 0) and (this.ld32(wb: args.wb, i: args.counts ~mod+ ((length ~mod- 1) ~mod* 4)) == 0) {
+        length ~mod-= 1
+    }
+    if length == 0 {
+        return nothing
+    }
+
+    smallest_nonzero = 0x4000_0000
+    i = 0
+    while i < length {
+        c0 = this.ld32(wb: args.wb, i: args.counts ~mod+ (i ~mod* 4))
+        if c0 <> 0 {
+            nonzeros ~mod+= 1
+            if smallest_nonzero > c0 {
+                smallest_nonzero = c0
+            }
+        }
+        i ~mod+= 1
+    }
+    if nonzeros < 5 {
+        return nothing
+    }
+    if smallest_nonzero < 4 {
+        zeros = length ~mod- nonzeros
+        if zeros < 6 {
+            i = 1
+            while (i ~mod+ 1) < length {
+                if (this.ld32(wb: args.wb, i: args.counts ~mod+ ((i ~mod- 1) ~mod* 4)) <> 0) and
+                        (this.ld32(wb: args.wb, i: args.counts ~mod+ (i ~mod* 4)) == 0) and
+                        (this.ld32(wb: args.wb, i: args.counts ~mod+ ((i ~mod+ 1) ~mod* 4)) <> 0) {
+                    this.st32!(wb: args.wb, i: args.counts ~mod+ (i ~mod* 4), v: 1)
+                }
+                i ~mod+= 1
+            }
+        }
+    }
+    if nonzeros < 28 {
+        return nothing
+    }
+
+    // 2) Mark all population counts that already can be encoded with an RLE
+    // code.
+    this.good_for_rle[.. 704].bulk_memset!(byte_value: 0)
+    symbol = this.ld32(wb: args.wb, i: args.counts)
+    step = 0
+    i = 0
+    while i <= length {
+        if (i == length) or (this.ld32(wb: args.wb, i: args.counts ~mod+ (i ~mod* 4)) <> symbol) {
+            if ((symbol == 0) and (step >= 5)) or ((symbol <> 0) and (step >= 7)) {
+                k = 0
+                while k < step {
+                    this.good_for_rle[((i ~mod- k) ~mod- 1) % 704] = 1
+                    k ~mod+= 1
+                }
+            }
+            step = 1
+            if i <> length {
+                symbol = this.ld32(wb: args.wb, i: args.counts ~mod+ (i ~mod* 4))
+            }
+        } else {
+            step ~mod+= 1
+        }
+        i ~mod+= 1
+    }
+
+    // 3) Replace those population counts that lead to more RLE codes. The
+    // math here is in 24.8 fixed point representation.
+    stride = 0
+    c0 = this.ld32(wb: args.wb, i: args.counts)
+    c1 = this.ld32(wb: args.wb, i: args.counts ~mod+ 4)
+    c2 = this.ld32(wb: args.wb, i: args.counts ~mod+ 8)
+    limit = ((((256 as base.u32) ~mod* ((c0 ~mod+ c1) ~mod+ c2)) / 3) ~mod+ 420) as base.u64
+    sum = 0
+    i = 0
+    while i <= length {
+        flag = i == length
+        if not flag {
+            flag = this.good_for_rle[i % 704] <> 0
+        }
+        if (not flag) and (i <> 0) {
+            flag = this.good_for_rle[(i ~mod- 1) % 704] <> 0
+        }
+        if not flag {
+            c0 = this.ld32(wb: args.wb, i: args.counts ~mod+ (i ~mod* 4))
+            // (256 * counts[i] - limit + streak_limit) >= 2 * streak_limit,
+            // with streak_limit = 1240.
+            flag = (((((256 as base.u32) ~mod* c0) as base.u64) ~mod- limit) ~mod+ 1240) >= 2480
+        }
+        if flag {
+            if (stride >= 4) or ((stride >= 3) and (sum == 0)) {
+                // The stride must end, collapse what we have, if we have
+                // enough (4).
+                cnt = (sum ~mod+ (stride / 2)) / stride.max(no_less_than: 1)
+                if cnt == 0 {
+                    cnt = 1
+                }
+                if sum == 0 {
+                    // Don't make an all zeros stride to be upgraded to ones.
+                    cnt = 0
+                }
+                k = 0
+                while k < stride {
+                    this.st32!(wb: args.wb, i: args.counts ~mod+ (((i ~mod- k) ~mod- 1) ~mod* 4), v: (cnt & 0xFFFF_FFFF) as base.u32)
+                    k ~mod+= 1
+                }
+            }
+            stride = 0
+            sum = 0
+            if i < (length ~mod- 2) {
+                // All interesting strides have a count of at least 4, at
+                // least when non-zeros.
+                c0 = this.ld32(wb: args.wb, i: args.counts ~mod+ (i ~mod* 4))
+                c1 = this.ld32(wb: args.wb, i: args.counts ~mod+ ((i ~mod+ 1) ~mod* 4))
+                c2 = this.ld32(wb: args.wb, i: args.counts ~mod+ ((i ~mod+ 2) ~mod* 4))
+                limit = ((((256 as base.u32) ~mod* ((c0 ~mod+ c1) ~mod+ c2)) / 3) ~mod+ 420) as base.u64
+            } else if i < length {
+                c0 = this.ld32(wb: args.wb, i: args.counts ~mod+ (i ~mod* 4))
+                limit = ((256 as base.u32) ~mod* c0) as base.u64
+            } else {
+                limit = 0
+            }
+        }
+        stride ~mod+= 1
+        if i <> length {
+            sum ~mod+= this.ld32(wb: args.wb, i: args.counts ~mod+ (i ~mod* 4)) as base.u64
+            if stride >= 4 {
+                limit = ((256 ~mod* sum) ~mod+ (stride / 2)) / stride.max(no_less_than: 1)
+            }
+            if stride == 4 {
+                limit ~mod+= 120
+            }
+        }
+        i ~mod+= 1
+    }
+}
+
+// sbv_scratch_len is an upper bound on how much workbuf (beyond the split
+// arrays) split_byte_vector uses, for length symbols with the given
+// histogram size, symbols_per_histogram and max_histograms, when FindBlocks
+// makes at most max_blocks blocks and ClusterBlocks' first phase makes at
+// most max_clusters clusters (both at most length).
+pri func metablock_builder.sbv_scratch_len(length: base.u64, hs: base.u64, symbols_per_histogram: base.u64, max_histograms: base.u64,
+        max_blocks: base.u64, max_clusters: base.u64) base.u64 {
+    var nh : base.u64
+    var a  : base.u64
+    var b  : base.u64
+    var nb : base.u64
+    var nc : base.u64
+    var np : base.u64
+
+    if args.length < 128 {
+        return 0
+    }
+    nh = (args.length / args.symbols_per_histogram.max(no_less_than: 1)) ~sat+ 1
+    nh = nh.min(no_more_than: args.max_histograms)
+    // The histograms and the switch signal bitmaps.
+    a = ((nh ~sat+ 1) ~mod* args.hs) ~sat+ (args.length ~mod* ((nh ~sat+ 7) >> 3))
+    // cluster_blocks, with num_blocks at most nb and num_clusters at most nc.
+    nb = args.max_blocks.min(no_more_than: args.length)
+    nc = args.max_clusters.min(no_more_than: nb)
+    b = (nb ~mod* (args.hs ~sat+ 24)) ~sat+ 1024
+    b ~sat+= (nb.min(no_more_than: 64)) ~mod* args.hs
+    b ~sat+= (2049 * HISTOGRAM_PAIR_SIZE) ~sat+ (2 ~mod* args.hs)
+    np = 64 ~mod* nc
+    np = np.min(no_more_than: (nc / 2) ~mod* nc)
+    b ~sat+= (np ~sat+ 1) ~mod* HISTOGRAM_PAIR_SIZE
+    return args.length ~sat+ a.max(no_less_than: b)
+}
+
+// cluster_scratch_len is an upper bound on how much workbuf
+// cluster_histograms uses, for in_size histograms of hs bytes.
+pri func metablock_builder.cluster_scratch_len(in_size: base.u64, hs: base.u64) base.u64 {
+    var n : base.u64
+    var p : base.u64
+
+    n = ((12 ~mod* args.in_size) ~sat+ (2049 * HISTOGRAM_PAIR_SIZE)) ~sat+ args.hs
+    p = 64 ~mod* args.in_size
+    p = p.min(no_more_than: (args.in_size / 2) ~mod* args.in_size)
+    n ~sat+= (p ~sat+ 1) ~mod* HISTOGRAM_PAIR_SIZE
+    return n ~sat+ (args.in_size ~mod* args.hs)
+}
+
+// workbuf_len_worst_case returns an upper bound on the workbuf length that
+// build_meta_block needs for a metablock with num_literals literals (the sum
+// of the commands' insert lengths) and num_commands commands. The bound
+// assumes the worst case for every allocation that the C code sizes at run
+// time (e.g. one FindBlocks block per symbol), so it is much larger than what
+// typical inputs need. The wb_high field records the actual high water mark.
+pri func metablock_builder.workbuf_len_worst_case(num_literals: base.u64, num_commands: base.u64) base.u64 {
+    return this.workbuf_len_bounded(num_literals: args.num_literals, num_commands: args.num_commands, practical: false)
+}
+
+// workbuf_len_practical is like workbuf_len_worst_case but it assumes these
+// caps (see README.md, "Qualities 10 and 11 workbuf length"):
+//  - FindBlocks makes at most (n / 16) + 1 literal blocks and at most
+//    (n / 16) + 1 command (or distance) blocks, for n symbols of that
+//    category, and
+//  - ClusterBlocks' first phase makes at most (n / 64) + 64 clusters,
+// which hold, with a wide margin, for every input that the C code was
+// measured on. An input that breaks a cap may still fit (the caps are
+// applied independently), but it may also need more than this.
+pri func metablock_builder.workbuf_len_practical(num_literals: base.u64, num_commands: base.u64) base.u64 {
+    return this.workbuf_len_bounded(num_literals: args.num_literals, num_commands: args.num_commands, practical: true)
+}
+
+// workbuf_len_bounded implements workbuf_len_worst_case (if not practical)
+// and workbuf_len_practical (if practical).
+pri func metablock_builder.workbuf_len_bounded(num_literals: base.u64, num_commands: base.u64, practical: base.bool) base.u64 {
+    var l     : base.u64
+    var c     : base.u64
+    var bl    : base.u64
+    var bc    : base.u64
+    var cl    : base.u64
+    var cc    : base.u64
+    var tl    : base.u64
+    var tc    : base.u64
+    var n     : base.u64
+    var split : base.u64
+
+    // Metablocks are at most (1 << 24) bytes long, so these clamps (which
+    // keep the arithmetic below from overflowing) change nothing.
+    l = args.num_literals.min(no_more_than: 0xFFFF_FFFF)
+    c = args.num_commands.min(no_more_than: 0xFFFF_FFFF)
+    // The number of blocks (bl and bc) and of first phase clusters (cl and
+    // cc) for the literals and for the commands (there are at most as many
+    // distances as commands).
+    bl = l
+    bc = c
+    cl = l
+    cc = c
+    if args.practical {
+        bl = (l / 16) + 1
+        bc = (c / 16) + 1
+        cl = (l / 64) + 64
+        cc = (c / 64) + 64
+    }
+    // The split arrays (types and lengths) for the three categories.
+    n = (5 ~mod* l.max(no_less_than: 1)) ~sat+ (10 ~mod* c.max(no_less_than: 1))
+    // split_block's scratch.
+    split = l ~sat+ this.sbv_scratch_len(length: l, hs: HISTOGRAM_LITERAL_SIZE, symbols_per_histogram: 544, max_histograms: 100,
+            max_blocks: bl, max_clusters: cl)
+    split = split.max(no_less_than: (2 ~mod* c) ~sat+
+            this.sbv_scratch_len(length: c, hs: HISTOGRAM_COMMAND_SIZE, symbols_per_histogram: 530, max_histograms: 50,
+            max_blocks: bc, max_clusters: cc))
+    split = split.max(no_less_than: (2 ~mod* c) ~sat+
+            this.sbv_scratch_len(length: c, hs: HISTOGRAM_DISTANCE_SIZE, symbols_per_histogram: 544, max_histograms: 50,
+            max_blocks: bc, max_clusters: cc))
+    n ~sat+= split.max(no_less_than: HISTOGRAM_DISTANCE_SIZE)
+    // The number of block types is at most 256 (MAX_NUMBER_OF_HISTOGRAMS)
+    // and at most the number of first phase clusters (but at least 1). tl
+    // bounds the literal block types and tc bounds both the command and the
+    // distance block types.
+    tl = cl.min(no_more_than: l).max(no_less_than: 1).min(no_more_than: 256)
+    tc = cc.min(no_more_than: c).max(no_less_than: 1).min(no_more_than: 256)
+    // The MetaBlockSplit's histograms and context maps, plus the input
+    // histograms for clustering.
+    n ~sat+= (tc * HISTOGRAM_COMMAND_SIZE) + (tl * 64 * 4) + (tl * 64 * HISTOGRAM_LITERAL_SIZE) +
+            (tc * 4 * 4) + (tc * 4 * HISTOGRAM_DISTANCE_SIZE)
+    n ~sat+= (tl * 64 * HISTOGRAM_LITERAL_SIZE) + (tc * 4 * HISTOGRAM_DISTANCE_SIZE)
+    // cluster_histograms' scratch.
+    n ~sat+= this.cluster_scratch_len(in_size: tl * 64, hs: HISTOGRAM_LITERAL_SIZE).max(no_less_than:
+            this.cluster_scratch_len(in_size: tc * 4, hs: HISTOGRAM_DISTANCE_SIZE))
+    return n
+}

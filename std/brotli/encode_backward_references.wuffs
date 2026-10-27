@@ -1,0 +1,406 @@
+// Copyright 2026 The Wuffs Authors.
+//
+// Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
+// https://www.apache.org/licenses/LICENSE-2.0> or the MIT license
+// <LICENSE-MIT or https://opensource.org/licenses/MIT>, at your
+// option. This file may not be copied, modified, or distributed
+// except according to those terms.
+//
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+
+// --------
+
+// This file mirrors command.h, prefix.h and backward_references.c (and
+// backward_references_inc.h): turning the ring buffer's bytes into commands.
+//
+// Commands are stored in the workbuf, starting at the this.cmds_off offset,
+// as 16 little-endian bytes each, in the C code's Command struct order:
+// insert_len_ (u32), copy_len_ (u32: the copy length in the low 25 bits and
+// copy_code - copy_len in the high 7 bits), dist_extra_ (u32), cmd_prefix_
+// (u16) and dist_prefix_ (u16).
+
+// Mirrors BROTLI_NUM_DISTANCE_SHORT_CODES in constants.h.
+pri const NUM_DISTANCE_SHORT_CODES : base.u32 = 16
+
+// cmd_insert_len returns the i'th command's insert_len_.
+pri func encoder.cmd_insert_len(wb: roslice base.u8, i: base.u64) base.u32 {
+    return this.load32le(s: args.wb, i: this.cmds_off ~mod+ (args.i ~mod* 16))
+}
+
+// cmd_copy_len_raw returns the i'th command's copy_len_.
+pri func encoder.cmd_copy_len_raw(wb: roslice base.u8, i: base.u64) base.u32 {
+    return this.load32le(s: args.wb, i: (this.cmds_off ~mod+ (args.i ~mod* 16)) ~mod+ 4)
+}
+
+// cmd_dist_extra returns the i'th command's dist_extra_.
+pri func encoder.cmd_dist_extra(wb: roslice base.u8, i: base.u64) base.u32 {
+    return this.load32le(s: args.wb, i: (this.cmds_off ~mod+ (args.i ~mod* 16)) ~mod+ 8)
+}
+
+// cmd_cmd_prefix returns the i'th command's cmd_prefix_.
+pri func encoder.cmd_cmd_prefix(wb: roslice base.u8, i: base.u64) base.u16 {
+    return this.peek_u16(s: args.wb, i: (this.cmds_off ~mod+ (args.i ~mod* 16)) ~mod+ 12)
+}
+
+// cmd_dist_prefix returns the i'th command's dist_prefix_.
+pri func encoder.cmd_dist_prefix(wb: roslice base.u8, i: base.u64) base.u16 {
+    return this.peek_u16(s: args.wb, i: (this.cmds_off ~mod+ (args.i ~mod* 16)) ~mod+ 14)
+}
+
+// set_cmd sets all of the i'th command's fields.
+pri func encoder.set_cmd!(wb: slice base.u8, i: base.u64, insert_len: base.u32, copy_len: base.u32, dist_extra: base.u32, cmd_prefix: base.u16, dist_prefix: base.u16) {
+    var off : base.u64
+
+    off = this.cmds_off ~mod+ (args.i ~mod* 16)
+    this.poke_u32!(s: args.wb, i: off, v: args.insert_len)
+    this.poke_u32!(s: args.wb, i: off ~mod+ 4, v: args.copy_len)
+    this.poke_u32!(s: args.wb, i: off ~mod+ 8, v: args.dist_extra)
+    this.poke_u16!(s: args.wb, i: off ~mod+ 12, v: args.cmd_prefix)
+    this.poke_u16!(s: args.wb, i: off ~mod+ 14, v: args.dist_prefix)
+}
+
+// Mirrors CommandCopyLen in command.h.
+pri func encoder.cmd_copy_len(wb: roslice base.u8, i: base.u64) base.u32 {
+    return this.cmd_copy_len_raw(wb: args.wb, i: args.i) & 0x1FF_FFFF
+}
+
+// Mirrors CommandCopyLenCode in command.h.
+pri func encoder.cmd_copy_len_code(wb: roslice base.u8, i: base.u64) base.u32 {
+    var raw      : base.u32
+    var modifier : base.u32
+    var delta    : base.u32
+
+    raw = this.cmd_copy_len_raw(wb: args.wb, i: args.i)
+    modifier = raw >> 25
+    // (int8_t)((uint8_t)(modifier | ((modifier & 0x40) << 1))), as a two's
+    // complement u32.
+    delta = modifier | ((modifier & 0x40) << 1)
+    if delta >= 0x80 {
+        delta |= 0xFFFF_FF00
+    }
+    return (raw & 0x1FF_FFFF) ~mod+ delta
+}
+
+// Mirrors CommandDistanceContext in command.h.
+pri func encoder.cmd_distance_context(cmd_prefix: base.u16) base.u32 {
+    var r : base.u32
+    var c : base.u32
+
+    r = (args.cmd_prefix >> 6) as base.u32
+    c = (args.cmd_prefix & 7) as base.u32
+    if ((r == 0) or (r == 2) or (r == 4) or (r == 7)) and (c <= 2) {
+        return c
+    }
+    return 3
+}
+
+// Mirrors GetInsertLengthCode in command.h.
+pri func encoder.get_insert_length_code(insertlen: base.u64) base.u32 {
+    var nbits : base.u32
+
+    if args.insertlen < 6 {
+        return args.insertlen as base.u32
+    } else if args.insertlen < 130 {
+        nbits = this.log2_floor_non_zero(n: args.insertlen - 2) ~mod- 1
+        return ((nbits ~mod<< 1) ~mod+ (((args.insertlen - 2) >> (nbits & 63)) as base.u32)) ~mod+ 2
+    } else if args.insertlen < 2114 {
+        return this.log2_floor_non_zero(n: args.insertlen - 66) ~mod+ 10
+    } else if args.insertlen < 6210 {
+        return 21
+    } else if args.insertlen < 22594 {
+        return 22
+    }
+    return 23
+}
+
+// Mirrors GetCopyLengthCode in command.h.
+pri func encoder.get_copy_length_code(copylen: base.u64) base.u32 {
+    var nbits : base.u32
+
+    if args.copylen < 10 {
+        return ((args.copylen ~mod- 2) & 0xFF) as base.u32
+    } else if args.copylen < 134 {
+        nbits = this.log2_floor_non_zero(n: args.copylen - 6) ~mod- 1
+        return ((nbits ~mod<< 1) ~mod+ (((args.copylen - 6) >> (nbits & 63)) as base.u32)) ~mod+ 4
+    } else if args.copylen < 2118 {
+        return this.log2_floor_non_zero(n: args.copylen - 70) ~mod+ 12
+    }
+    return 23
+}
+
+// Mirrors CombineLengthCodes in command.h.
+pri func encoder.combine_length_codes(inscode: base.u32, copycode: base.u32, use_last_distance: base.bool) base.u16 {
+    var bits64 : base.u32
+    var offset : base.u32
+
+    bits64 = (args.copycode & 7) | ((args.inscode & 7) << 3)
+    if args.use_last_distance and (args.inscode < 8) and (args.copycode < 16) {
+        if args.copycode < 8 {
+            return (bits64 & 0xFFFF) as base.u16
+        }
+        return ((bits64 | 64) & 0xFFFF) as base.u16
+    }
+    offset = 2 ~mod* ((args.copycode >> 3) ~mod+ (3 ~mod* (args.inscode >> 3)))
+    offset = ((offset ~mod<< 5) ~mod+ 0x40) ~mod+ (((0x52_0D40 as base.u32) >> (offset & 31)) & 0xC0)
+    return ((offset | bits64) & 0xFFFF) as base.u16
+}
+
+// Mirrors GetLengthCode in command.h.
+pri func encoder.get_length_code(insertlen: base.u64, copylen: base.u64, use_last_distance: base.bool) base.u16 {
+    return this.combine_length_codes(
+            inscode: this.get_insert_length_code(insertlen: args.insertlen),
+            copycode: this.get_copy_length_code(copylen: args.copylen),
+            use_last_distance: args.use_last_distance)
+}
+
+// Mirrors InitCommand in command.h, storing the n'th command.
+pri func encoder.init_command!(wb: slice base.u8, n: base.u64, insertlen: base.u64, copylen: base.u64, copylen_code_delta: base.u64, distance_code: base.u64) {
+    var delta       : base.u32
+    var pe          : base.u64
+    var dist_prefix : base.u16
+    var cmd_prefix  : base.u16
+
+    delta = (args.copylen_code_delta & 0xFF) as base.u32
+    pe = this.mb.prefix_encode_copy_distance(
+            distance_code: args.distance_code,
+            num_direct_codes: this.num_direct_distance_codes as base.u64,
+            postfix_bits: this.distance_postfix_bits)
+    dist_prefix = (pe & 0xFFFF) as base.u16
+    cmd_prefix = this.get_length_code(
+            insertlen: args.insertlen,
+            copylen: args.copylen ~mod+ args.copylen_code_delta,
+            use_last_distance: (dist_prefix & 0x3FF) == 0)
+    this.set_cmd!(wb: args.wb, i: args.n,
+            insert_len: (args.insertlen & 0xFFFF_FFFF) as base.u32,
+            copy_len: ((args.copylen & 0xFFFF_FFFF) as base.u32) | (delta ~mod<< 25),
+            dist_extra: (pe >> 32) as base.u32,
+            cmd_prefix: cmd_prefix,
+            dist_prefix: dist_prefix)
+}
+
+// Mirrors InitInsertCommand in command.h, storing the n'th command.
+pri func encoder.init_insert_command!(wb: slice base.u8, n: base.u64, insertlen: base.u64) {
+    this.set_cmd!(wb: args.wb, i: args.n,
+            insert_len: (args.insertlen & 0xFFFF_FFFF) as base.u32,
+            copy_len: 4 << 25,
+            dist_extra: 0,
+            cmd_prefix: this.get_length_code(insertlen: args.insertlen, copylen: 4, use_last_distance: false),
+            dist_prefix: 16)
+}
+
+// Mirrors CommandRestoreDistanceCode in command.h, for the i'th command.
+pri func encoder.cmd_restore_distance_code(wb: roslice base.u8, i: base.u64) base.u32 {
+    return this.mb.command_restore_distance_code(wb: args.wb,
+            c: this.cmds_off ~mod+ (args.i ~mod* 16),
+            npostfix: this.distance_postfix_bits,
+            ndirect: this.num_direct_distance_codes)
+}
+
+// Mirrors ComputeDistanceCode in backward_references.c.
+pri func encoder.compute_distance_code(distance: base.u64, max_distance: base.u64) base.u64 {
+    var distance_plus_3 : base.u64
+    var offset0         : base.u64
+    var offset1         : base.u64
+
+    if args.distance <= args.max_distance {
+        distance_plus_3 = args.distance ~mod+ 3
+        offset0 = distance_plus_3 ~mod- this.dist_cache_u64(i: 0)
+        offset1 = distance_plus_3 ~mod- this.dist_cache_u64(i: 1)
+        if args.distance == this.dist_cache_u64(i: 0) {
+            return 0
+        } else if args.distance == this.dist_cache_u64(i: 1) {
+            return 1
+        } else if offset0 < 7 {
+            return ((0x975_0468 as base.u64) >> (4 * offset0)) & 0xF
+        } else if offset1 < 7 {
+            return ((0xFDB_1ACE as base.u64) >> (4 * offset1)) & 0xF
+        } else if args.distance == this.dist_cache_u64(i: 2) {
+            return 2
+        } else if args.distance == this.dist_cache_u64(i: 3) {
+            return 3
+        }
+    }
+    return args.distance ~mod+ 15
+}
+
+// Mirrors CreateBackwardReferences in backward_references_inc.h (via
+// BrotliCreateBackwardReferences in backward_references.c), with the
+// built-in static dictionary. Its ENABLE_COMPOUND_DICTIONARY variant (see
+// compound_dictionary_enabled) searches the attached dictionaries (in
+// args.dwb). New commands are appended at this.num_cmds.
+pri func encoder.create_backward_references!(wb: slice base.u8, dwb: roslice base.u8, num_bytes: base.u64, position: base.u64) base.status {
+    var position                      : base.u64
+    var max_backward_limit            : base.u64
+    var position_offset               : base.u64
+    var insert_length                 : base.u64
+    var pos_end                       : base.u64
+    var store_end                     : base.u64
+    var htl                           : base.u64
+    var random_heuristics_window_size : base.u64
+    var apply_random_heuristics       : base.u64
+    var max_length                    : base.u64
+    var max_distance                  : base.u64
+    var dictionary_start              : base.u64
+    var delayed_backward_references   : base.u32
+    var sr_len                        : base.u64
+    var sr_distance                   : base.u64
+    var sr_score                      : base.u64
+    var sr_len_code_delta             : base.u64
+    var distance_code                 : base.u64
+    var range_start                   : base.u64
+    var range_end                     : base.u64
+    var k_margin                      : base.u64
+    var pos_jump                      : base.u64
+    var gap                           : base.u64
+    var use_compound                  : base.bool
+    var data                          : roslice base.u8
+
+    position = args.position
+    max_backward_limit = ((1 as base.u64) << this.lgwin) ~mod- 16
+    position_offset = this.stream_offset as base.u64
+    insert_length = this.last_insert_len
+    pos_end = position ~mod+ args.num_bytes
+    htl = this.hasher_type_length()
+    store_end = position
+    if args.num_bytes >= htl {
+        store_end = ((position ~mod+ args.num_bytes) ~mod- htl) ~mod+ 1
+    }
+    random_heuristics_window_size = 64
+    if this.quality >= 9 {
+        random_heuristics_window_size = 512
+    }
+    apply_random_heuristics = position ~mod+ random_heuristics_window_size
+    gap = this.dict_total_size
+    use_compound = this.compound_dictionary_enabled()
+    if this.rb_buf_off <= args.wb.length() {
+        data = args.wb[this.rb_buf_off ..]
+    }
+
+    this.prepare_distance_cache!()
+
+    while (position ~mod+ htl) < pos_end {
+        max_length = pos_end ~mod- position
+        max_distance = position.min(no_more_than: max_backward_limit)
+        dictionary_start = this.min64(a: position ~mod+ position_offset, b: max_backward_limit)
+        this.sr_len = 0
+        this.sr_len_code_delta = 0
+        this.sr_distance = 0
+        this.sr_score = SCORE_BASE + 100
+        this.find_longest_match!(wb: args.wb, cur_ix: position, max_length: max_length,
+                max_backward: max_distance, dictionary_distance: dictionary_start ~mod+ gap,
+                max_distance: this.dist_max_distance)
+        if use_compound {
+            this.lookup_compound_dictionary_match!(data: data, dwb: args.dwb,
+                    cur_ix: position, max_length: max_length,
+                    max_ring_buffer_distance: dictionary_start, max_distance: this.dist_max_distance)
+        }
+        if this.sr_score > (SCORE_BASE + 100) {
+            // Found a match. Let's look for something even better ahead.
+            delayed_backward_references = 0
+            max_length ~mod-= 1
+            while true {
+                sr_len = this.sr_len
+                sr_distance = this.sr_distance
+                sr_score = this.sr_score
+                sr_len_code_delta = this.sr_len_code_delta
+                this.sr_len = 0
+                if this.quality < 5 {
+                    this.sr_len = this.min64(a: sr_len ~mod- 1, b: max_length)
+                }
+                this.sr_len_code_delta = 0
+                this.sr_distance = 0
+                this.sr_score = SCORE_BASE + 100
+                max_distance = this.min64(a: position ~mod+ 1, b: max_backward_limit)
+                dictionary_start = this.min64(a: (position ~mod+ 1) ~mod+ position_offset, b: max_backward_limit)
+                this.find_longest_match!(wb: args.wb, cur_ix: position ~mod+ 1, max_length: max_length,
+                        max_backward: max_distance, dictionary_distance: dictionary_start ~mod+ gap,
+                        max_distance: this.dist_max_distance)
+                if use_compound {
+                    this.lookup_compound_dictionary_match!(data: data, dwb: args.dwb,
+                            cur_ix: position ~mod+ 1, max_length: max_length,
+                            max_ring_buffer_distance: dictionary_start, max_distance: this.dist_max_distance)
+                }
+                if this.sr_score >= (sr_score ~mod+ 175) {
+                    // Ok, let's just write one byte for now and start a match
+                    // from the next byte.
+                    position ~mod+= 1
+                    insert_length ~mod+= 1
+                    delayed_backward_references ~mod+= 1
+                    if (delayed_backward_references < 4) and ((position ~mod+ htl) < pos_end) {
+                        max_length ~mod-= 1
+                        continue
+                    }
+                    break
+                }
+                // Keep the old sr.
+                this.sr_len = sr_len
+                this.sr_distance = sr_distance
+                this.sr_score = sr_score
+                this.sr_len_code_delta = sr_len_code_delta
+                break
+            }
+            apply_random_heuristics = (position ~mod+ (2 ~mod* this.sr_len)) ~mod+ random_heuristics_window_size
+            dictionary_start = this.min64(a: position ~mod+ position_offset, b: max_backward_limit)
+            // The first 16 codes are special short-codes, and the minimum
+            // offset is 1.
+            distance_code = this.compute_distance_code(distance: this.sr_distance, max_distance: dictionary_start ~mod+ gap)
+            if (this.sr_distance <= (dictionary_start ~mod+ gap)) and (distance_code > 0) {
+                this.dist_cache[3] = this.dist_cache[2]
+                this.dist_cache[2] = this.dist_cache[1]
+                this.dist_cache[1] = this.dist_cache[0]
+                this.dist_cache[0] = (this.sr_distance & 0xFFFF_FFFF) as base.u32
+                this.prepare_distance_cache!()
+            }
+            if this.num_cmds >= this.cmds_cap {
+                return "#internal error: inconsistent encoder state"
+            }
+            this.init_command!(wb: args.wb, n: this.num_cmds, insertlen: insert_length, copylen: this.sr_len,
+                    copylen_code_delta: this.sr_len_code_delta, distance_code: distance_code)
+            this.num_cmds ~mod+= 1
+            this.num_lits ~mod+= insert_length
+            insert_length = 0
+            // Put the hash keys into the table, if there are enough bytes
+            // left. Depending on the hasher implementation, it can push all
+            // positions in the given range or only a subset of them. Avoid
+            // hash poisoning with RLE data.
+            range_start = position ~mod+ 2
+            range_end = this.min64(a: position ~mod+ this.sr_len, b: store_end)
+            if this.sr_distance < (this.sr_len >> 2) {
+                range_start = range_end.min(no_more_than: range_start.max(no_less_than:
+                        (position ~mod+ this.sr_len) ~mod- (this.sr_distance ~mod<< 2)))
+            }
+            this.hasher_store_range!(wb: args.wb, ix_start: range_start, ix_end: range_end)
+            position ~mod+= this.sr_len
+        } else {
+            insert_length ~mod+= 1
+            position ~mod+= 1
+            // If we have not seen matches for a long time, we can skip some
+            // match lookups. Unsuccessful match lookups are very very
+            // expensive and this kind of a heuristic speeds up compression
+            // quite a lot.
+            if position > apply_random_heuristics {
+                // Going through uncompressible data, jump.
+                if position > (apply_random_heuristics ~mod+ (4 ~mod* random_heuristics_window_size)) {
+                    k_margin = this.max64(a: htl ~mod- 1, b: 4)
+                    pos_jump = this.min64(a: position ~mod+ 16, b: pos_end ~mod- k_margin)
+                    while position < pos_jump {
+                        this.hasher_store!(wb: args.wb, ix: position)
+                        insert_length ~mod+= 4
+                        position ~mod+= 4
+                    }
+                } else {
+                    k_margin = this.max64(a: htl ~mod- 1, b: 2)
+                    pos_jump = this.min64(a: position ~mod+ 8, b: pos_end ~mod- k_margin)
+                    while position < pos_jump {
+                        this.hasher_store!(wb: args.wb, ix: position)
+                        insert_length ~mod+= 2
+                        position ~mod+= 2
+                    }
+                }
+            }
+        }
+    }
+    insert_length ~mod+= pos_end ~mod- position
+    this.last_insert_len = insert_length
+    return ok
+}
