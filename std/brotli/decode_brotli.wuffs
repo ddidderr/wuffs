@@ -230,6 +230,13 @@ pub struct decoder? implements base.io_transformer(
         insert_length : base.u32,
         copy_length   : base.u32,
 
+        // cmd_state is where process_commands (and process_commands_fast)
+        // are within a command: 0 at its start, 1 when reading its literals
+        // (insert_length is how many are left), 2 when reading its distance
+        // and 3 when applying its copy. process_commands_fast sets it to 4
+        // when the metablock is done.
+        cmd_state : base.u32[..= 4],
+
         // quirk_large_window is the QUIRK_LARGE_WINDOW quirk (the C code's
         // BROTLI_DECODER_PARAM_LARGE_WINDOW parameter). large_window is
         // whether the stream is a large-window stream (the C code's
@@ -677,6 +684,93 @@ pri func decoder.read_symbol?(src: base.io_reader, hoff: base.u32) {
     }
     this.bits = bits
     this.n_bits = n_bits
+}
+
+// read_bits_fast is like read_bits but is not a coroutine. It reads input
+// bytes exactly when read_bits would, for as long as args.src has them. It
+// returns 0 when it has set this.bits_value, or 1 when read_bits must finish
+// the job (this.bits and this.n_bits hold the bits read so far).
+pri func decoder.read_bits_fast!(src: base.io_reader, n: base.u32[..= 24]) base.u32 {
+    var n      : base.u32[..= 24]
+    var bits   : base.u32
+    var n_bits : base.u32
+
+    n = args.n
+    bits = this.bits
+    n_bits = this.n_bits
+    while n_bits < n,
+            post n_bits >= n,
+    {
+        if args.src.length() <= 0 {
+            this.bits = bits
+            this.n_bits = n_bits
+            return 1
+        }
+        assert n_bits < 24 via "a < b: a < c; c <= b"(c: n)
+        bits |= args.src.peek_u8_as_u32() << n_bits
+        args.src.skip_u32_fast!(actual: 1, worst_case: 1)
+        n_bits += 8
+    }
+    this.bits_value = bits & (((1 as base.u32) << n) - 1)
+    this.bits = bits >> n
+    this.n_bits = n_bits - n
+    return 0
+}
+
+// read_symbol_fast is like read_symbol but is not a coroutine. It reads
+// input bytes exactly when read_symbol would, for as long as args.src has
+// them. It returns 0 when it has set this.symbol, or 1 when read_symbol must
+// finish the job (this.bits and this.n_bits hold the bits read so far). In
+// particular, read_symbol (not read_symbol_fast) returns any error.
+pri func decoder.read_symbol_fast!(src: base.io_reader, hoff: base.u32) base.u32 {
+    var hoff   : base.u32
+    var bits   : base.u32
+    var n_bits : base.u32
+    var i      : base.u32
+    var e      : base.u32
+    var e_bits : base.u32[..= 23]
+
+    hoff = args.hoff
+    bits = this.bits
+    n_bits = this.n_bits
+    while true {
+        i = hoff ~mod+ (bits & 0xFF)
+        if i >= HUFFS_LEN {
+            break
+        }
+        e = this.huffs[i] as base.u32
+        e_bits = e & 15
+        if e_bits <= 8 {
+            if n_bits >= e_bits {
+                this.symbol = e >> 4
+                this.bits = bits >> e_bits
+                this.n_bits = n_bits - e_bits
+                return 0
+            }
+        } else if n_bits > 8 {
+            i = (hoff ~mod+ (e >> 4)) ~mod+ ((bits >> 8) & (((1 as base.u32) << (e_bits - 8)) - 1))
+            if i >= HUFFS_LEN {
+                break
+            }
+            e = this.huffs[i] as base.u32
+            e_bits = (e & 15) + 8
+            if n_bits >= e_bits {
+                this.symbol = e >> 4
+                this.bits = bits >> e_bits
+                this.n_bits = n_bits - e_bits
+                return 0
+            }
+        }
+        if (n_bits >= 24) or (args.src.length() <= 0) {
+            break
+        }
+        bits |= args.src.peek_u8_as_u32() << n_bits
+        args.src.skip_u32_fast!(actual: 1, worst_case: 1)
+        n_bits += 8
+    }
+    this.bits = bits
+    this.n_bits = n_bits
+    return 1
 }
 
 // jump_to_byte_boundary drops the bits up to the next byte boundary and

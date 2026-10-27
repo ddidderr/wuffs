@@ -418,7 +418,6 @@ pri func decoder.calculate_distance_lut!() {
 // Mirrors ProcessCommandsInternal in decode.c.
 pri func decoder.process_commands?(src: base.io_reader, workbuf: slice base.u8, dictbuf: roslice base.u8) {
     var cmd_code      : base.u32[..= 703]
-    var insert_length : base.u32
     var p1            : base.u32[..= 0xFF]
     var p2            : base.u32[..= 0xFF]
     var mode_offset   : base.u32[..= 0x600]
@@ -434,37 +433,72 @@ pri func decoder.process_commands?(src: base.io_reader, workbuf: slice base.u8, 
     var address       : base.u32
     var chunk         : base.u32[..= 14]
     var j             : base.u64
+    var fr            : base.u32
+    var dst_i         : base.u64
+    var src_i         : base.u64
+    var k64           : base.u64
+    var n64           : base.u64
+    var dlo           : base.u64
+    var dhi           : base.u64
+    var slo           : base.u64
+    var shi           : base.u64
+    var fs            : base.status
 
     while true {
-        // CommandBegin.
-        if this.block_length[1] == 0 {
-            // Mirrors DecodeCommandBlockSwitch.
-            this.decode_block_switch?(src: args.src, t: 1)
-            this.htree_command = this.block_type_rb[3] & 0xFF
-            continue
+        if (this.cmd_state == 0) and (args.src.length() >= 16) {
+            fs = this.process_commands_fast!(src: args.src, workbuf: args.workbuf)
+            if not fs.is_ok() {
+                return fs
+            } else if this.cmd_state == 4 {
+                this.cmd_state = 0
+                return ok
+            }
         }
 
-        // Mirrors ReadCommandInternal.
-        this.read_symbol?(src: args.src,
-                hoff: CMD_HUFFS_BASE + (this.htree_command * CMD_HUFFS_STRIDE))
-        if this.symbol >= 704 {
-            return "#internal error: inconsistent Huffman table"
+        if this.cmd_state == 0 {
+            // CommandBegin.
+            if this.block_length[1] == 0 {
+                // Mirrors DecodeCommandBlockSwitch.
+                this.decode_block_switch?(src: args.src, t: 1)
+                this.htree_command = this.block_type_rb[3] & 0xFF
+                continue
+            }
+
+            // Mirrors ReadCommandInternal.
+            fr = this.read_symbol_fast!(src: args.src, hoff: CMD_HUFFS_BASE + (this.htree_command * CMD_HUFFS_STRIDE))
+            if fr <> 0 {
+                this.read_symbol?(src: args.src,
+                        hoff: CMD_HUFFS_BASE + (this.htree_command * CMD_HUFFS_STRIDE))
+            }
+            if this.symbol >= 704 {
+                return "#internal error: inconsistent Huffman table"
+            }
+            cmd_code = this.symbol.min(no_more_than: 703)
+            this.implicit_zero_distance = CMD_IMPLICIT_ZERO_DISTANCE[cmd_code] <> 0
+            this.distance_context = CMD_DISTANCE_CONTEXT[cmd_code] as base.u32
+            this.update_dist_htree_index!()
+            fr = this.read_bits_fast!(src: args.src, n: CMD_INSERT_LEN_EXTRA_BITS[cmd_code] as base.u32)
+            if fr <> 0 {
+                this.read_bits?(src: args.src, n: CMD_INSERT_LEN_EXTRA_BITS[cmd_code] as base.u32)
+            }
+            this.insert_length = CMD_INSERT_LEN_OFFSET[cmd_code] ~mod+ this.bits_value
+            fr = this.read_bits_fast!(src: args.src, n: CMD_COPY_LEN_EXTRA_BITS[cmd_code] as base.u32)
+            if fr <> 0 {
+                this.read_bits?(src: args.src, n: CMD_COPY_LEN_EXTRA_BITS[cmd_code] as base.u32)
+            }
+            this.copy_length = CMD_COPY_LEN_OFFSET[cmd_code] ~mod+ this.bits_value
+            this.block_length[1] ~mod-= 1
+            if this.insert_length > 0 {
+                this.mb_remaining ~mod-= this.insert_length
+                this.cmd_state = 1
+            } else {
+                this.cmd_state = 2
+            }
         }
-        cmd_code = this.symbol.min(no_more_than: 703)
-        this.implicit_zero_distance = CMD_IMPLICIT_ZERO_DISTANCE[cmd_code] <> 0
-        this.distance_context = CMD_DISTANCE_CONTEXT[cmd_code] as base.u32
-        this.update_dist_htree_index!()
-        this.read_bits?(src: args.src, n: CMD_INSERT_LEN_EXTRA_BITS[cmd_code] as base.u32)
-        insert_length = CMD_INSERT_LEN_OFFSET[cmd_code] ~mod+ this.bits_value
-        this.read_bits?(src: args.src, n: CMD_COPY_LEN_EXTRA_BITS[cmd_code] as base.u32)
-        this.copy_length = CMD_COPY_LEN_OFFSET[cmd_code] ~mod+ this.bits_value
-        this.block_length[1] ~mod-= 1
 
-        if insert_length > 0 {
-            this.mb_remaining ~mod-= insert_length
-
+        if this.cmd_state == 1 {
             // CommandInner. Read the literals in the command.
-            while insert_length > 0 {
+            while this.insert_length > 0 {
                 if this.block_length[0] == 0 {
                     // Mirrors DecodeLiteralBlockSwitch.
                     this.decode_block_switch?(src: args.src, t: 0)
@@ -478,39 +512,48 @@ pri func decoder.process_commands?(src: base.io_reader, workbuf: slice base.u8, 
                 ctx = (CONTEXT_LOOKUP[mode_offset | p1] |
                         CONTEXT_LOOKUP[mode_offset | 0x100 | p2]) as base.u32
                 tree = this.context_maps[this.context_map_slice + ctx] as base.u32
-                this.read_symbol?(src: args.src, hoff: LIT_HUFFS_BASE + (tree * LIT_HUFFS_STRIDE))
+                fr = this.read_symbol_fast!(src: args.src, hoff: LIT_HUFFS_BASE + (tree * LIT_HUFFS_STRIDE))
+                if fr <> 0 {
+                    this.read_symbol?(src: args.src, hoff: LIT_HUFFS_BASE + (tree * LIT_HUFFS_STRIDE))
+                }
                 this.put_byte!(workbuf: args.workbuf, b: (this.symbol & 0xFF) as base.u8)
                 this.block_length[0] ~mod-= 1
-                insert_length -= 1
+                this.insert_length ~mod-= 1
                 if this.pos == this.rb_size {
                     this.ring_event?()
                 }
             }
 
+            this.cmd_state = 2
             if (this.mb_remaining == 0) or (this.mb_remaining >= 0x8000_0000) {
                 // BROTLI_STATE_METABLOCK_DONE.
+                this.cmd_state = 0
                 return ok
             }
         }
 
-        // CommandPostDecodeLiterals.
-        if this.implicit_zero_distance {
-            // Implicit distance case.
-            this.distance_context = 1
-            this.dist_rb_idx ~mod-= 1
-            this.distance_code = this.dist_rb[this.dist_rb_idx & 3]
-        } else {
-            // Read distance code in the command, unless it was implicitly
-            // zero.
-            if this.block_length[2] == 0 {
-                // Mirrors DecodeDistanceBlockSwitch.
-                this.decode_block_switch?(src: args.src, t: 2)
-                this.dist_context_map_slice = (this.block_type_rb[5] & 0xFF) << 2
-                this.update_dist_htree_index!()
+        if this.cmd_state == 2 {
+            // CommandPostDecodeLiterals.
+            if this.implicit_zero_distance {
+                // Implicit distance case.
+                this.distance_context = 1
+                this.dist_rb_idx ~mod-= 1
+                this.distance_code = this.dist_rb[this.dist_rb_idx & 3]
+            } else {
+                // Read distance code in the command, unless it was implicitly
+                // zero.
+                if this.block_length[2] == 0 {
+                    // Mirrors DecodeDistanceBlockSwitch.
+                    this.decode_block_switch?(src: args.src, t: 2)
+                    this.dist_context_map_slice = (this.block_type_rb[5] & 0xFF) << 2
+                    this.update_dist_htree_index!()
+                }
+                this.read_distance?(src: args.src)
             }
-            this.read_distance?(src: args.src)
+            this.cmd_state = 3
         }
 
+        // this.cmd_state == 3.
         if this.max_distance <> this.max_backward_distance {
             this.max_distance = this.pos.min(no_more_than: this.max_backward_distance)
         }
@@ -604,6 +647,37 @@ pri func decoder.process_commands?(src: base.io_reader, workbuf: slice base.u8, 
             this.dist_rb[this.dist_rb_idx & 3] = distance
             this.dist_rb_idx ~mod+= 1
             this.mb_remaining ~mod-= i
+            // Fast path: when the copy neither wraps around the physical ring
+            // buffer (at either end) nor makes this.pos reach this.rb_size,
+            // copy the bytes in chunks of at most distance bytes. Each chunk's
+            // source bytes are final (and do not overlap the chunk's
+            // destination), so this matches the byte by byte loop below.
+            dst_i = this.pos as base.u64
+            src_i = ((this.pos ~mod- distance) & (this.window_size ~mod- 1)) as base.u64
+            if ((dst_i + (i as base.u64)) < (this.rb_size as base.u64)) and
+                    ((src_i + (i as base.u64)) <= (this.window_size as base.u64)) and
+                    ((this.window_size as base.u64) <= args.workbuf.length()) and
+                    (distance > 0) {
+                k64 = 0
+                while k64 < (i as base.u64) {
+                    n64 = (i as base.u64) ~mod- k64
+                    n64 = n64.min(no_more_than: distance as base.u64)
+                    dlo = dst_i ~mod+ k64
+                    dhi = dlo ~mod+ n64
+                    slo = src_i ~mod+ k64
+                    shi = slo ~mod+ n64
+                    if (n64 == 0) or (dlo > dhi) or (dhi > args.workbuf.length()) or
+                            (slo > shi) or (shi > args.workbuf.length()) {
+                        break
+                    }
+                    args.workbuf[dlo .. dhi].copy_from_slice!(s: args.workbuf[slo .. shi])
+                    k64 ~mod+= n64
+                }
+                // k64 == i, unless the (unreachable) break above was taken,
+                // in which case the loop below copies the remaining bytes.
+                this.pos ~mod+= (k64 & 0xFFFF_FFFF) as base.u32
+                i ~mod-= (k64 & 0xFFFF_FFFF) as base.u32
+            }
             while i > 0 {
                 b = this.get_byte(workbuf: args.workbuf, distance: distance)
                 this.put_byte!(workbuf: args.workbuf, b: b)
@@ -614,11 +688,329 @@ pri func decoder.process_commands?(src: base.io_reader, workbuf: slice base.u8, 
             }
         }
 
+        this.cmd_state = 0
         if (this.mb_remaining == 0) or (this.mb_remaining >= 0x8000_0000) {
             // BROTLI_STATE_METABLOCK_DONE.
             return ok
         }
     }
+}
+
+// process_commands_fast is a fast path for process_commands. It is not a
+// coroutine. It handles commands, or parts of commands (see
+// decoder.cmd_state), for as long as args.src holds enough bytes and the work
+// needs no block switch, ring buffer event or dictionary reference. Then it
+// returns, and process_commands picks up where it left off.
+//
+// It reads ahead, up to 8 bytes at a time, into a 64-bit bit buffer. When it
+// returns, it gives back (undoes) the whole bytes left in that buffer. The
+// coroutines read_symbol and read_bits read an input byte only when they
+// need more bits, so that between reads, fewer than 8 bits are buffered.
+// Giving back the whole bytes restores that state exactly, so this function
+// reads the same bits and leaves the decoder in the same state as
+// process_commands would, and it writes the same bytes and returns the same
+// errors. It sets this.cmd_state to 4 when the metablock is done.
+pri func decoder.process_commands_fast!(src: base.io_reader, workbuf: slice base.u8) base.status {
+    var ret          : base.status
+    var bits         : base.u64
+    var n_bits       : base.u32[..= 63]
+    var i            : base.u32
+    var e            : base.u32
+    var e_bits       : base.u32[..= 23]
+    var cmd_code     : base.u32[..= 703]
+    var nb           : base.u32[..= 24]
+    var p1           : base.u32[..= 0xFF]
+    var p2           : base.u32[..= 0xFF]
+    var mode_offset  : base.u32[..= 0x600]
+    var ctx          : base.u32[..= 63]
+    var tree         : base.u32[..= 0xFF]
+    var code         : base.u32
+    var nbits        : base.u32[..= 32]
+    var lo           : base.u32
+    var max_distance : base.u32
+    var distance     : base.u32
+    var n            : base.u32
+    var dst_i        : base.u64
+    var src_i        : base.u64
+    var k64          : base.u64
+    var n64          : base.u64
+    var dlo          : base.u64
+    var dhi          : base.u64
+    var slo          : base.u64
+    var shi          : base.u64
+
+    if this.n_bits >= 8 {
+        return ok
+    }
+    n_bits = this.n_bits & 7
+    bits = (this.bits as base.u64) & (((1 as base.u64) << n_bits) - 1)
+
+    while.outer true {
+        if this.cmd_state == 0 {
+            // Two refills, of at most 8 bytes each.
+            if (this.block_length[1] == 0) or (args.src.length() < 16) {
+                break.outer
+            }
+            bits |= args.src.peek_u64le() ~mod<< n_bits
+            args.src.skip_u32_fast!(actual: (63 - n_bits) >> 3, worst_case: 8)
+            n_bits |= 56
+            // Mirrors ReadCommandInternal.
+            i = (CMD_HUFFS_BASE + (this.htree_command * CMD_HUFFS_STRIDE)) ~mod+ ((bits & 0xFF) as base.u32)
+            if i >= HUFFS_LEN {
+                ret = "#internal error: inconsistent Huffman table"
+                break.outer
+            }
+            e = this.huffs[i] as base.u32
+            e_bits = e & 15
+            if e_bits > 8 {
+                i = ((CMD_HUFFS_BASE + (this.htree_command * CMD_HUFFS_STRIDE)) ~mod+ (e >> 4)) ~mod+ ((((bits >> 8) & 0x7FFF) as base.u32) & (((1 as base.u32) << (e_bits - 8)) - 1))
+                if i >= HUFFS_LEN {
+                    ret = "#internal error: inconsistent Huffman table"
+                    break.outer
+                }
+                e = this.huffs[i] as base.u32
+                e_bits = (e & 15) + 8
+            }
+            if n_bits < e_bits {
+                ret = "#internal error: inconsistent bit reader"
+                break.outer
+            }
+            bits >>= e_bits
+            n_bits -= e_bits
+            if (e >> 4) >= 704 {
+                ret = "#internal error: inconsistent Huffman table"
+                break.outer
+            }
+            this.symbol = e >> 4
+            cmd_code = this.symbol.min(no_more_than: 703)
+            this.implicit_zero_distance = CMD_IMPLICIT_ZERO_DISTANCE[cmd_code] <> 0
+            this.distance_context = CMD_DISTANCE_CONTEXT[cmd_code] as base.u32
+            this.update_dist_htree_index!()
+            nb = CMD_INSERT_LEN_EXTRA_BITS[cmd_code] as base.u32
+            if n_bits < nb {
+                ret = "#internal error: inconsistent bit reader"
+                break.outer
+            }
+            this.bits_value = ((bits & (((1 as base.u64) << nb) - 1)) & 0xFFFF_FFFF) as base.u32
+            bits >>= nb
+            n_bits -= nb
+            this.insert_length = CMD_INSERT_LEN_OFFSET[cmd_code] ~mod+ this.bits_value
+            if args.src.length() < 8 {
+                ret = "#internal error: inconsistent bit reader"
+                break.outer
+            }
+            bits |= args.src.peek_u64le() ~mod<< n_bits
+            args.src.skip_u32_fast!(actual: (63 - n_bits) >> 3, worst_case: 8)
+            n_bits |= 56
+            nb = CMD_COPY_LEN_EXTRA_BITS[cmd_code] as base.u32
+            if n_bits < nb {
+                ret = "#internal error: inconsistent bit reader"
+                break.outer
+            }
+            this.bits_value = ((bits & (((1 as base.u64) << nb) - 1)) & 0xFFFF_FFFF) as base.u32
+            bits >>= nb
+            n_bits -= nb
+            this.copy_length = CMD_COPY_LEN_OFFSET[cmd_code] ~mod+ this.bits_value
+            this.block_length[1] ~mod-= 1
+            if this.insert_length > 0 {
+                this.mb_remaining ~mod-= this.insert_length
+                this.cmd_state = 1
+            } else {
+                this.cmd_state = 2
+            }
+        }
+
+        if this.cmd_state == 1 {
+            // CommandInner. Read the literals in the command. p1 and p2 are
+            // the last two bytes written to the ring buffer (put_byte always
+            // writes when the physical ring buffer fits in args.workbuf).
+            if (this.window_size as base.u64) > args.workbuf.length() {
+                break.outer
+            }
+            p1 = this.get_byte(workbuf: args.workbuf, distance: 1) as base.u32
+            p2 = this.get_byte(workbuf: args.workbuf, distance: 2) as base.u32
+            while this.insert_length > 0 {
+                if (this.block_length[0] == 0) or ((this.pos ~mod+ 1) >= this.rb_size) {
+                    break.outer
+                }
+                if n_bits < 24 {
+                    if args.src.length() < 8 {
+                        break.outer
+                    }
+                    bits |= args.src.peek_u64le() ~mod<< n_bits
+                    args.src.skip_u32_fast!(actual: (63 - n_bits) >> 3, worst_case: 8)
+                    n_bits |= 56
+                }
+                mode_offset = this.context_mode << 9
+                ctx = (CONTEXT_LOOKUP[mode_offset | p1] |
+                        CONTEXT_LOOKUP[mode_offset | 0x100 | p2]) as base.u32
+                tree = this.context_maps[this.context_map_slice + ctx] as base.u32
+                i = (LIT_HUFFS_BASE + (tree * LIT_HUFFS_STRIDE)) ~mod+ ((bits & 0xFF) as base.u32)
+                if i >= HUFFS_LEN {
+                    ret = "#internal error: inconsistent Huffman table"
+                    break.outer
+                }
+                e = this.huffs[i] as base.u32
+                e_bits = e & 15
+                if e_bits > 8 {
+                    i = ((LIT_HUFFS_BASE + (tree * LIT_HUFFS_STRIDE)) ~mod+ (e >> 4)) ~mod+ ((((bits >> 8) & 0x7FFF) as base.u32) & (((1 as base.u32) << (e_bits - 8)) - 1))
+                    if i >= HUFFS_LEN {
+                        ret = "#internal error: inconsistent Huffman table"
+                        break.outer
+                    }
+                    e = this.huffs[i] as base.u32
+                    e_bits = (e & 15) + 8
+                }
+                if n_bits < e_bits {
+                    ret = "#internal error: inconsistent bit reader"
+                    break.outer
+                }
+                bits >>= e_bits
+                n_bits -= e_bits
+                this.symbol = e >> 4
+                this.put_byte!(workbuf: args.workbuf, b: (this.symbol & 0xFF) as base.u8)
+                p2 = p1
+                p1 = this.symbol & 0xFF
+                this.block_length[0] ~mod-= 1
+                this.insert_length ~mod-= 1
+            }
+            this.cmd_state = 2
+            if (this.mb_remaining == 0) or (this.mb_remaining >= 0x8000_0000) {
+                this.cmd_state = 4
+                break.outer
+            }
+        }
+
+        if this.cmd_state == 2 {
+            // CommandPostDecodeLiterals.
+            if this.implicit_zero_distance {
+                this.distance_context = 1
+                this.dist_rb_idx ~mod-= 1
+                this.distance_code = this.dist_rb[this.dist_rb_idx & 3]
+            } else {
+                // One refill: 56 bits suffice for a symbol and 32 extra bits.
+                if (this.block_length[2] == 0) or (args.src.length() < 8) {
+                    break.outer
+                }
+                bits |= args.src.peek_u64le() ~mod<< n_bits
+                args.src.skip_u32_fast!(actual: (63 - n_bits) >> 3, worst_case: 8)
+                n_bits |= 56
+                // Mirrors read_distance.
+                i = (DIST_HUFFS_BASE + (this.dist_htree_index * DIST_HUFFS_STRIDE)) ~mod+ ((bits & 0xFF) as base.u32)
+                if i >= HUFFS_LEN {
+                    ret = "#internal error: inconsistent Huffman table"
+                    break.outer
+                }
+                e = this.huffs[i] as base.u32
+                e_bits = e & 15
+                if e_bits > 8 {
+                    i = ((DIST_HUFFS_BASE + (this.dist_htree_index * DIST_HUFFS_STRIDE)) ~mod+ (e >> 4)) ~mod+ ((((bits >> 8) & 0x7FFF) as base.u32) & (((1 as base.u32) << (e_bits - 8)) - 1))
+                    if i >= HUFFS_LEN {
+                        ret = "#internal error: inconsistent Huffman table"
+                        break.outer
+                    }
+                    e = this.huffs[i] as base.u32
+                    e_bits = (e & 15) + 8
+                }
+                if n_bits < e_bits {
+                    ret = "#internal error: inconsistent bit reader"
+                    break.outer
+                }
+                bits >>= e_bits
+                n_bits -= e_bits
+                this.symbol = e >> 4
+                code = this.symbol
+                this.block_length[2] ~mod-= 1
+                this.distance_context = 0
+                if code < 16 {
+                    this.take_distance_from_ring_buffer!(code: code)
+                } else {
+                    if (code >= this.distance_alphabet_size) or (code >= 1128) {
+                        ret = "#internal error: inconsistent Huffman table"
+                        break.outer
+                    }
+                    nbits = this.dist_extra_bits[code].min(no_more_than: 32) as base.u32
+                    if n_bits < nbits {
+                        ret = "#internal error: inconsistent bit reader"
+                        break.outer
+                    }
+                    // Like read_bits32, this is (lo | (hi << 16)) when nbits
+                    // is more than 24.
+                    lo = ((bits & (((1 as base.u64) << nbits) - 1)) & 0xFFFF_FFFF) as base.u32
+                    this.bits_value = lo
+                    bits >>= nbits
+                    n_bits -= nbits
+                    this.distance_code = (((this.dist_offset[code] as base.u64) ~mod+
+                            ((this.bits_value as base.u64) ~mod<< this.distance_postfix_bits)) & 0xFFFF_FFFF) as base.u32
+                }
+            }
+            this.cmd_state = 3
+        }
+
+        // this.cmd_state == 3. Only handle LZ77 copies that need no ring
+        // buffer event and do not wrap around the physical ring buffer.
+        max_distance = this.max_distance
+        if max_distance <> this.max_backward_distance {
+            max_distance = this.pos.min(no_more_than: this.max_backward_distance)
+        }
+        distance = this.distance_code
+        n = this.copy_length
+        if (distance > max_distance) or (distance == 0) {
+            break.outer
+        }
+        dst_i = this.pos as base.u64
+        src_i = ((this.pos ~mod- distance) & (this.window_size ~mod- 1)) as base.u64
+        if ((dst_i + (n as base.u64)) >= (this.rb_size as base.u64)) or
+                ((src_i + (n as base.u64)) > (this.window_size as base.u64)) or
+                ((this.window_size as base.u64) > args.workbuf.length()) {
+            break.outer
+        }
+        this.max_distance = max_distance
+        this.dist_rb[this.dist_rb_idx & 3] = distance
+        this.dist_rb_idx ~mod+= 1
+        this.mb_remaining ~mod-= n
+        // Copy in chunks of at most distance bytes, like process_commands.
+        k64 = 0
+        while k64 < (n as base.u64) {
+            n64 = (n as base.u64) ~mod- k64
+            n64 = n64.min(no_more_than: distance as base.u64)
+            dlo = dst_i ~mod+ k64
+            dhi = dlo ~mod+ n64
+            slo = src_i ~mod+ k64
+            shi = slo ~mod+ n64
+            if (n64 == 0) or (dlo > dhi) or (dhi > args.workbuf.length()) or
+                    (slo > shi) or (shi > args.workbuf.length()) {
+                break
+            }
+            args.workbuf[dlo .. dhi].copy_from_slice!(s: args.workbuf[slo .. shi])
+            k64 ~mod+= n64
+        }
+        this.pos ~mod+= (k64 & 0xFFFF_FFFF) as base.u32
+        n ~mod-= (k64 & 0xFFFF_FFFF) as base.u32
+        // n == 0, unless the (unreachable) break above was taken. This.pos
+        // stays below this.rb_size, so there is no ring buffer event.
+        while n > 0 {
+            this.put_byte!(workbuf: args.workbuf, b: this.get_byte(workbuf: args.workbuf, distance: distance))
+            n -= 1
+        }
+        this.cmd_state = 0
+        if (this.mb_remaining == 0) or (this.mb_remaining >= 0x8000_0000) {
+            this.cmd_state = 4
+            break.outer
+        }
+    }.outer
+
+    // Give back the whole bytes left in the bit buffer.
+    while n_bits >= 8 {
+        if not args.src.can_undo_byte() {
+            return "#internal error: inconsistent bit reader"
+        }
+        args.src.undo_byte!()
+        n_bits -= 8
+    }
+    this.bits = ((bits & (((1 as base.u64) << n_bits) - 1)) & 0xFFFF_FFFF) as base.u32
+    this.n_bits = n_bits
+    return ret
 }
 
 // update_dist_htree_index sets this.dist_htree_index from the distance
@@ -631,10 +1023,15 @@ pri func decoder.update_dist_htree_index!() {
 
 // Mirrors ReadDistanceInternal in decode.c.
 pri func decoder.read_distance?(src: base.io_reader) {
-    var code : base.u32
+    var code  : base.u32
+    var fr    : base.u32
+    var nbits : base.u32[..= 32]
 
-    this.read_symbol?(src: args.src,
-            hoff: DIST_HUFFS_BASE + (this.dist_htree_index * DIST_HUFFS_STRIDE))
+    fr = this.read_symbol_fast!(src: args.src, hoff: DIST_HUFFS_BASE + (this.dist_htree_index * DIST_HUFFS_STRIDE))
+    if fr <> 0 {
+        this.read_symbol?(src: args.src,
+                hoff: DIST_HUFFS_BASE + (this.dist_htree_index * DIST_HUFFS_STRIDE))
+    }
     code = this.symbol
     this.block_length[2] ~mod-= 1
     // Convert the distance code to the actual distance by possibly looking up
@@ -649,7 +1046,14 @@ pri func decoder.read_distance?(src: base.io_reader) {
     }
     // The C code uses BrotliSafeReadBits32, as large-window brotli can have
     // more than 24 extra bits.
-    this.read_bits32?(src: args.src, n: this.dist_extra_bits[code].min(no_more_than: 32) as base.u32)
+    nbits = this.dist_extra_bits[code].min(no_more_than: 32) as base.u32
+    fr = 1
+    if nbits <= 24 {
+        fr = this.read_bits_fast!(src: args.src, n: nbits)
+    }
+    if fr <> 0 {
+        this.read_bits32?(src: args.src, n: nbits)
+    }
     if code >= 1128 {
         return "#internal error: inconsistent Huffman table"
     }
