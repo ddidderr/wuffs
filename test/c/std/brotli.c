@@ -1293,8 +1293,10 @@ test_wuffs_brotli_encode_parameters() {
   BROTLI_ENC_CHECK(status.repr == wuffs_base__error__bad_workbuf_length,
                    "short workbuf");
 
-  // Qualities 2 to 11 are unsupported.
-  for (uint32_t q = 2; q <= 12; q++) {
+  // Qualities 10 and 11 (and 12, which sanitizes to 11) are unsupported, and
+  // so is large-window brotli at qualities 3 and above.
+  for (uint32_t q = 3; q <= 12; q++) {
+    bool large_window = q < 10;
     free(enc);
     enc = wuffs_brotli__encoder__alloc();
     if (!enc) {
@@ -1302,11 +1304,17 @@ test_wuffs_brotli_encode_parameters() {
     }
     wuffs_brotli__encoder__set_quirk(enc, WUFFS_BROTLI__QUIRK_ENCODER_QUALITY,
                                      q);
+    if (large_window) {
+      wuffs_brotli__encoder__set_quirk(enc, WUFFS_BROTLI__QUIRK_LARGE_WINDOW,
+                                       1);
+    }
+    BROTLI_ENC_CHECK(wuffs_brotli__encoder__workbuf_len(enc).max_incl == 0,
+                     "workbuf_len for an unsupported quality");
     status = wuffs_brotli__encoder__transform_io(enc, &dst, &src,
                                                  g_work_slice_u8);
     BROTLI_ENC_CHECK(
         status.repr == wuffs_brotli__error__unsupported_encoder_quality,
-        "quality 2..11");
+        large_window ? "large window at quality 3..9" : "quality 10..11");
   }
 
   // Requests.

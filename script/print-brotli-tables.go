@@ -864,6 +864,12 @@ func mainEncoder() error {
 	printTable(w, "From enc/brotli_bit_stream.c kHuffmanBitLengthHuffmanCodeBitLengths.",
 		"HUFFMAN_BIT_LENGTH_HUFFMAN_CODE_BIT_LENGTHS", "base.u32[..= 4]", hblhcBitLengths, 16, false)
 
+	// ---- Tables for qualities 2 and above.
+
+	if err := printEncoderTablesQ2(w, readFile); err != nil {
+		return err
+	}
+
 	// Drop the final blank line.
 	_, err = os.Stdout.Write(bytes.TrimSuffix(w.Bytes(), []byte("\n")))
 	return err
@@ -921,4 +927,161 @@ func parseIntsAfterPadded(s string, name string, wantLen int) ([]int64, error) {
 		ret = append(ret, 0)
 	}
 	return ret, nil
+}
+
+// printEncoderTablesQ2 prints the tables used by the encoder's quality 2 (and
+// above) code paths: the static dictionary hash table, the insert and copy
+// length code tables, the static command and distance codes and the static
+// literal context maps.
+func printEncoderTablesQ2(w *bytes.Buffer, readFile func(string) (string, error)) error {
+	// ---- enc/dictionary_hash_inc.h
+
+	dictHashC, err := readFile("enc/dictionary_hash_inc.h")
+	if err != nil {
+		return err
+	}
+	hashWords, err := parseIntsAfter(dictHashC, "kStaticDictionaryHashWords", 32768)
+	if err != nil {
+		return err
+	}
+	hashLengths, err := parseIntsAfter(dictHashC, "kStaticDictionaryHashLengths", 32768)
+	if err != nil {
+		return err
+	}
+	printTable(w, "From enc/dictionary_hash_inc.h kStaticDictionaryHashWords.",
+		"STATIC_DICTIONARY_HASH_WORDS", "base.u16", hashWords, 16, false)
+	printTable(w, "From enc/dictionary_hash_inc.h kStaticDictionaryHashLengths.",
+		"STATIC_DICTIONARY_HASH_LENGTHS", "base.u8[..= 31]", hashLengths, 32, false)
+
+	// ---- enc/hash.h
+
+	hashH, err := readFile("enc/hash.h")
+	if err != nil {
+		return err
+	}
+	cutoffCount, err := parseScalarAfter(hashH, "kCutoffTransformsCount")
+	if err != nil {
+		return err
+	}
+	cutoffTransforms, err := parseMakeUint64After(hashH, "kCutoffTransforms =")
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(w, "// From enc/hash.h kCutoffTransformsCount.\n")
+	fmt.Fprintf(w, "pri const CUTOFF_TRANSFORMS_COUNT : base.u64 = %d\n\n", cutoffCount)
+	fmt.Fprintf(w, "// From enc/hash.h kCutoffTransforms.\n")
+	fmt.Fprintf(w, "pri const CUTOFF_TRANSFORMS : base.u64 = 0x%X\n\n", uint64(cutoffTransforms))
+
+	// ---- enc/command.c
+
+	commandC, err := readFile("enc/command.c")
+	if err != nil {
+		return err
+	}
+	for _, x := range []struct {
+		cName    string
+		wuffName string
+		elemType string
+	}{
+		{"kBrotliInsBase", "INS_BASE", "base.u32[..= 22594]"},
+		{"kBrotliInsExtra", "INS_EXTRA", "base.u32[..= 24]"},
+		{"kBrotliCopyBase", "COPY_BASE", "base.u32[..= 2118]"},
+		{"kBrotliCopyExtra", "COPY_EXTRA", "base.u32[..= 24]"},
+	} {
+		vs, err := parseIntsAfter(commandC, x.cName, 24)
+		if err != nil {
+			return err
+		}
+		printTable(w, "From enc/command.c "+x.cName+".", x.wuffName, x.elemType, vs, 12, false)
+	}
+
+	// ---- enc/entropy_encode_static.h
+
+	staticH, err := readFile("enc/entropy_encode_static.h")
+	if err != nil {
+		return err
+	}
+	cmdDepth, err := parseIntsAfter(staticH, "kStaticCommandCodeDepth", 704)
+	if err != nil {
+		return err
+	}
+	cmdBits, err := parseIntsAfter(staticH, "kStaticCommandCodeBits", 704)
+	if err != nil {
+		return err
+	}
+	distDepth, err := parseIntsAfter(staticH, "kStaticDistanceCodeDepth", 64)
+	if err != nil {
+		return err
+	}
+	distBits, err := parseIntsAfter(staticH, "kStaticDistanceCodeBits", 64)
+	if err != nil {
+		return err
+	}
+	staticCmdTree, err := parseMakeUint64After(staticH, "StoreStaticCommandHuffmanTree")
+	if err != nil {
+		return err
+	}
+	writeBitsRE := regexp.MustCompile(`BrotliWriteBits\(\s*([0-9]+)\s*,\s*(0x[0-9A-Fa-f]+)[uU]?\s*,`)
+	parseWriteBits := func(after string, nth int) (int64, int64, error) {
+		i := strings.Index(staticH, after)
+		if i < 0 {
+			return 0, 0, fmt.Errorf("could not find %q", after)
+		}
+		ms := writeBitsRE.FindAllStringSubmatch(staticH[i:], nth+1)
+		if len(ms) <= nth {
+			return 0, 0, fmt.Errorf("could not parse %q's BrotliWriteBits", after)
+		}
+		n, err := strconv.ParseInt(ms[nth][1], 10, 64)
+		if err != nil {
+			return 0, 0, err
+		}
+		v, err := strconv.ParseInt(ms[nth][2], 0, 64)
+		return n, v, err
+	}
+	cmdTreeN2, cmdTreeV2, err := parseWriteBits("StoreStaticCommandHuffmanTree", 0)
+	if err != nil {
+		return err
+	}
+	distTreeN, distTreeV, err := parseWriteBits("StoreStaticDistanceHuffmanTree", 0)
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(w, "// From enc/entropy_encode_static.h StoreStaticCommandHuffmanTree: 56 bits\n")
+	fmt.Fprintf(w, "// and then STATIC_COMMAND_TREE_NUM_BITS_2 bits of STATIC_COMMAND_TREE_BITS_2.\n")
+	fmt.Fprintf(w, "pri const STATIC_COMMAND_TREE_BITS : base.u64 = 0x%X\n\n", uint64(staticCmdTree))
+	fmt.Fprintf(w, "pri const STATIC_COMMAND_TREE_NUM_BITS_2 : base.u32 = %d\n\n", cmdTreeN2)
+	fmt.Fprintf(w, "pri const STATIC_COMMAND_TREE_BITS_2 : base.u64 = 0x%X\n\n", cmdTreeV2)
+	fmt.Fprintf(w, "// From enc/entropy_encode_static.h StoreStaticDistanceHuffmanTree.\n")
+	fmt.Fprintf(w, "pri const STATIC_DISTANCE_TREE_NUM_BITS : base.u32 = %d\n\n", distTreeN)
+	fmt.Fprintf(w, "pri const STATIC_DISTANCE_TREE_BITS : base.u64 = 0x%X\n\n", distTreeV)
+	printTable(w, "From enc/entropy_encode_static.h kStaticCommandCodeDepth.",
+		"STATIC_COMMAND_CODE_DEPTH", "base.u8[..= 15]", cmdDepth, 16, false)
+	printTable(w, "From enc/entropy_encode_static.h kStaticCommandCodeBits.",
+		"STATIC_COMMAND_CODE_BITS", "base.u16", cmdBits, 16, false)
+	printTable(w, "From enc/entropy_encode_static.h kStaticDistanceCodeDepth.",
+		"STATIC_DISTANCE_CODE_DEPTH", "base.u8[..= 15]", distDepth, 16, false)
+	printTable(w, "From enc/entropy_encode_static.h kStaticDistanceCodeBits.",
+		"STATIC_DISTANCE_CODE_BITS", "base.u16", distBits, 16, false)
+
+	// ---- enc/encode.c
+
+	encodeC, err := readFile("enc/encode.c")
+	if err != nil {
+		return err
+	}
+	for _, x := range []struct {
+		cName    string
+		wuffName string
+	}{
+		{"kStaticContextMapContinuation", "STATIC_CONTEXT_MAP_CONTINUATION"},
+		{"kStaticContextMapSimpleUTF8", "STATIC_CONTEXT_MAP_SIMPLE_UTF8"},
+		{"kStaticContextMapComplexUTF8", "STATIC_CONTEXT_MAP_COMPLEX_UTF8"},
+	} {
+		vs, err := parseIntsAfter(encodeC, x.cName, 64)
+		if err != nil {
+			return err
+		}
+		printTable(w, "From enc/encode.c "+x.cName+".", x.wuffName, "base.u8[..= 12]", vs, 16, false)
+	}
+	return nil
 }

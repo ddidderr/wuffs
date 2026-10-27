@@ -17,8 +17,8 @@
 // The C code's HuffmanTree array (a pool of nodes) is the encoder.tree_count,
 // encoder.tree_left and encoder.tree_right arrays. A node's int16_t
 // index_left_ and index_right_or_value_ fields are stored as base.u16 values,
-// with 0xFFFF meaning -1. The C code's pools hold at most (2 * 256) + 1
-// nodes. The arrays have 1024 elements so that indexes can be masked.
+// with 0xFFFF meaning -1. The C code's pools hold at most (2 * 704) + 1
+// nodes. The arrays have 2048 elements so that indexes can be masked.
 
 // TREE_NONE is the C code's -1 for a HuffmanTree index.
 pri const TREE_NONE : base.u16 = 0xFFFF
@@ -33,16 +33,16 @@ pri func encoder.set_depth!(p0: base.u32, depth: slice base.u8, max_depth: base.
     stack[0] = 0xFFFF_FFFF
     p = args.p0
     while true {
-        if this.tree_left[p & 1023] <> TREE_NONE {
+        if this.tree_left[p & 2047] <> TREE_NONE {
             if (level >= args.max_depth) or (level >= 15) {
                 return false
             }
             level += 1
-            stack[level] = this.tree_right[p & 1023] as base.u32
-            p = this.tree_left[p & 1023] as base.u32
+            stack[level] = this.tree_right[p & 2047] as base.u32
+            p = this.tree_left[p & 2047] as base.u32
             continue
         }
-        v = this.tree_right[p & 1023] as base.u64
+        v = this.tree_right[p & 2047] as base.u64
         if v < args.depth.length() {
             args.depth[v] = level as base.u8
         }
@@ -84,29 +84,29 @@ pri func encoder.sort_huffman_tree_items!(n: base.u32, tie_break: base.bool) {
         // Insertion sort.
         i = 1
         while i < args.n {
-            tc = this.tree_count[i & 1023]
-            tl = this.tree_left[i & 1023]
-            tr = this.tree_right[i & 1023]
+            tc = this.tree_count[i & 2047]
+            tl = this.tree_left[i & 2047]
+            tr = this.tree_right[i & 2047]
             k = i
             j = i ~mod- 1
             while this.huffman_tree_less(
                     c0: tc,
                     r0: tr,
-                    c1: this.tree_count[j & 1023],
-                    r1: this.tree_right[j & 1023],
+                    c1: this.tree_count[j & 2047],
+                    r1: this.tree_right[j & 2047],
                     tie_break: args.tie_break) {
-                this.tree_count[k & 1023] = this.tree_count[j & 1023]
-                this.tree_left[k & 1023] = this.tree_left[j & 1023]
-                this.tree_right[k & 1023] = this.tree_right[j & 1023]
+                this.tree_count[k & 2047] = this.tree_count[j & 2047]
+                this.tree_left[k & 2047] = this.tree_left[j & 2047]
+                this.tree_right[k & 2047] = this.tree_right[j & 2047]
                 k = j
                 if j == 0 {
                     break
                 }
                 j -= 1
             }
-            this.tree_count[k & 1023] = tc
-            this.tree_left[k & 1023] = tl
-            this.tree_right[k & 1023] = tr
+            this.tree_count[k & 2047] = tc
+            this.tree_left[k & 2047] = tl
+            this.tree_right[k & 2047] = tr
             i ~mod+= 1
         }
         return nothing
@@ -122,26 +122,26 @@ pri func encoder.sort_huffman_tree_items!(n: base.u32, tie_break: base.bool) {
         i = gap
         while i < args.n {
             j = i
-            tc = this.tree_count[i & 1023]
-            tl = this.tree_left[i & 1023]
-            tr = this.tree_right[i & 1023]
+            tc = this.tree_count[i & 2047]
+            tl = this.tree_left[i & 2047]
+            tr = this.tree_right[i & 2047]
             while j >= gap {
                 if not this.huffman_tree_less(
                         c0: tc,
                         r0: tr,
-                        c1: this.tree_count[(j ~mod- gap) & 1023],
-                        r1: this.tree_right[(j ~mod- gap) & 1023],
+                        c1: this.tree_count[(j ~mod- gap) & 2047],
+                        r1: this.tree_right[(j ~mod- gap) & 2047],
                         tie_break: args.tie_break) {
                     break
                 }
-                this.tree_count[j & 1023] = this.tree_count[(j ~mod- gap) & 1023]
-                this.tree_left[j & 1023] = this.tree_left[(j ~mod- gap) & 1023]
-                this.tree_right[j & 1023] = this.tree_right[(j ~mod- gap) & 1023]
+                this.tree_count[j & 2047] = this.tree_count[(j ~mod- gap) & 2047]
+                this.tree_left[j & 2047] = this.tree_left[(j ~mod- gap) & 2047]
+                this.tree_right[j & 2047] = this.tree_right[(j ~mod- gap) & 2047]
                 j ~mod-= gap
             }
-            this.tree_count[j & 1023] = tc
-            this.tree_left[j & 1023] = tl
-            this.tree_right[j & 1023] = tr
+            this.tree_count[j & 2047] = tc
+            this.tree_left[j & 2047] = tl
+            this.tree_right[j & 2047] = tr
             i ~mod+= 1
         }
         g ~mod+= 1
@@ -150,9 +150,9 @@ pri func encoder.sort_huffman_tree_items!(n: base.u32, tie_break: base.bool) {
 
 // set_sentinel sets the pool's i'th node to the C code's sentinel node.
 pri func encoder.set_sentinel!(i: base.u32) {
-    this.tree_count[args.i & 1023] = 0xFFFF_FFFF
-    this.tree_left[args.i & 1023] = TREE_NONE
-    this.tree_right[args.i & 1023] = TREE_NONE
+    this.tree_count[args.i & 2047] = 0xFFFF_FFFF
+    this.tree_left[args.i & 2047] = TREE_NONE
+    this.tree_right[args.i & 2047] = TREE_NONE
 }
 
 // merge_huffman_nodes runs the C code's "for (k = n - 1; k != 0; --k)" loop
@@ -173,14 +173,14 @@ pri func encoder.merge_huffman_nodes!(n: base.u32) {
     j = args.n ~mod+ 1
     k = args.n ~mod- 1
     while k <> 0 {
-        if this.tree_count[i & 1023] <= this.tree_count[j & 1023] {
+        if this.tree_count[i & 2047] <= this.tree_count[j & 2047] {
             left = i
             i ~mod+= 1
         } else {
             left = j
             j ~mod+= 1
         }
-        if this.tree_count[i & 1023] <= this.tree_count[j & 1023] {
+        if this.tree_count[i & 2047] <= this.tree_count[j & 2047] {
             right = i
             i ~mod+= 1
         } else {
@@ -188,9 +188,9 @@ pri func encoder.merge_huffman_nodes!(n: base.u32) {
             j ~mod+= 1
         }
         j_end = (args.n ~mod* 2) ~mod- k
-        this.tree_count[j_end & 1023] = this.tree_count[left & 1023] ~mod+ this.tree_count[right & 1023]
-        this.tree_left[j_end & 1023] = (left & 0xFFFF) as base.u16
-        this.tree_right[j_end & 1023] = (right & 0xFFFF) as base.u16
+        this.tree_count[j_end & 2047] = this.tree_count[left & 2047] ~mod+ this.tree_count[right & 2047]
+        this.tree_left[j_end & 2047] = (left & 0xFFFF) as base.u16
+        this.tree_right[j_end & 2047] = (right & 0xFFFF) as base.u16
         this.set_sentinel!(i: j_end ~mod+ 1)
         k -= 1
     }
@@ -198,8 +198,9 @@ pri func encoder.merge_huffman_nodes!(n: base.u32) {
 
 // Mirrors BrotliCreateHuffmanTree in entropy_encode.c. Wuffs' C code
 // generator does not support "slice base.u32" arguments, so the C code's data
-// argument is either this.cmd_histo[args.off ..] (when args.src is 0) or
-// this.cl_histo[args.off ..] (when args.src is 1).
+// argument is this.cmd_histo[args.off ..] (when args.src is 0),
+// this.cl_histo[args.off ..] (when args.src is 1) or
+// this.huff_histo[args.off ..] (when args.src is 2).
 pri func encoder.create_huffman_tree!(src: base.u32, off: base.u32, length: base.u32, tree_limit: base.u32[..= 15], depth: slice base.u8) {
     var count_limit : base.u32
     var n           : base.u32
@@ -216,13 +217,15 @@ pri func encoder.create_huffman_tree!(src: base.u32, off: base.u32, length: base
             i -= 1
             if args.src == 0 {
                 count = this.cmd_histo[((args.off as base.u64) ~mod+ i) & 127]
-            } else {
+            } else if args.src == 1 {
                 count = this.cl_histo[((args.off as base.u64) ~mod+ i) & 31]
+            } else {
+                count = this.huff_histo[((args.off as base.u64) ~mod+ i) & 1023]
             }
             if count <> 0 {
-                this.tree_count[n & 1023] = count.max(no_less_than: count_limit)
-                this.tree_left[n & 1023] = TREE_NONE
-                this.tree_right[n & 1023] = (i & 0xFFFF) as base.u16
+                this.tree_count[n & 2047] = count.max(no_less_than: count_limit)
+                this.tree_left[n & 2047] = TREE_NONE
+                this.tree_right[n & 2047] = (i & 0xFFFF) as base.u16
                 n ~mod+= 1
             }
         }
@@ -268,8 +271,8 @@ pri func encoder.reverse_bits(num_bits: base.u32, bits: base.u16) base.u16 {
 
 // Mirrors BrotliConvertBitDepthsToSymbols in entropy_encode.c. Wuffs' C code
 // generator does not support "slice base.u16" arguments, so the C code's bits
-// argument is this.tmp_bits, this.cmd_bits[64 ..], this.cl_bits or
-// this.lit_bits when args.dst is 0, 1, 2 or 3.
+// argument is this.tmp_bits, this.cmd_bits[64 ..], this.cl_bits,
+// this.lit_bits or this.huff_bits when args.dst is 0, 1, 2, 3 or 4.
 pri func encoder.convert_bit_depths_to_symbols!(depth: slice base.u8, len: base.u32, dst: base.u32) {
     var bl_count  : array[16] base.u16
     var next_code : array[16] base.u16
@@ -306,6 +309,8 @@ pri func encoder.convert_bit_depths_to_symbols!(depth: slice base.u8, len: base.
                     this.cmd_bits[(i ~mod+ 64) & 127] = r
                 } else if args.dst == 2 {
                     this.cl_bits[i & 31] = r
+                } else if args.dst == 4 {
+                    this.huff_bits[i & 1023] = r
                 } else {
                     this.lit_bits[i & 255] = r
                 }
@@ -695,12 +700,12 @@ pri func encoder.build_and_store_huffman_tree_fast!(histogram_total: base.u64, m
             h = this.histogram[l & 255]
             if h <> 0 {
                 if h >= count_limit {
-                    this.tree_count[n & 1023] = h
+                    this.tree_count[n & 2047] = h
                 } else {
-                    this.tree_count[n & 1023] = count_limit
+                    this.tree_count[n & 2047] = count_limit
                 }
-                this.tree_left[n & 1023] = TREE_NONE
-                this.tree_right[n & 1023] = (l & 0xFFFF) as base.u16
+                this.tree_left[n & 2047] = TREE_NONE
+                this.tree_right[n & 2047] = (l & 0xFFFF) as base.u16
                 n ~mod+= 1
             }
         }

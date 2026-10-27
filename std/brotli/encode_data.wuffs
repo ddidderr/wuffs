@@ -1,0 +1,988 @@
+// Copyright 2026 The Wuffs Authors.
+//
+// Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
+// https://www.apache.org/licenses/LICENSE-2.0> or the MIT license
+// <LICENSE-MIT or https://opensource.org/licenses/MIT>, at your
+// option. This file may not be copied, modified, or distributed
+// except according to those terms.
+//
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+
+// --------
+
+// This file mirrors the parts of encode.c (and ringbuffer.h) that qualities 2
+// to 9 use: the ring buffer, EncodeData, WriteMetaBlockInternal and the
+// literal context modeling heuristics. It also computes the workbuf layout.
+//
+// The workbuf holds, in this order (see README.md's "Encoder Workbuf Layout"
+// section, which compute_layout_offset mirrors):
+//  - the storage (the C code's GetBrotliStorage) for one metablock,
+//  - the ring buffer (the C code's RingBuffer.data_),
+//  - the hasher's memory (the C code's common->extra),
+//  - the commands (16 bytes each), and
+//  - at qualities 4 and above, the metablock split (see
+//    encode_metablock_greedy.wuffs), the literal context map, the
+//    EncodeContextMap symbols and the block encoders' depths and bits.
+
+// The workbuf layout's region indexes. LAYOUT_END's offset is the total
+// length.
+pri const LAYOUT_STORAGE    : base.u32 = 0
+pri const LAYOUT_RB         : base.u32 = 1
+pri const LAYOUT_HASH       : base.u32 = 2
+pri const LAYOUT_CMDS       : base.u32 = 3
+pri const LAYOUT_TYPES_0    : base.u32 = 4
+pri const LAYOUT_LENGTHS_0  : base.u32 = 7
+pri const LAYOUT_HISTO_0    : base.u32 = 10
+pri const LAYOUT_COMB       : base.u32 = 13
+pri const LAYOUT_CMAP       : base.u32 = 14
+pri const LAYOUT_RLE        : base.u32 = 15
+pri const LAYOUT_BE_DEPTH_0 : base.u32 = 16
+pri const LAYOUT_BE_BITS_0  : base.u32 = 19
+pri const LAYOUT_END        : base.u32 = 22
+
+// The C code's MAX_NUM_DELAYED_SYMBOLS (in quality.h).
+pri const MAX_NUM_DELAYED_SYMBOLS : base.u64 = 0x2FFF
+
+// The doubles 0.99, 7.92, 1.0 / 13.0, 1.0, 10.0, 0.2, 0.02 and 3.0.
+pri const F64_0_99   : base.u64 = 0x3FEF_AE14_7AE1_47AE
+pri const F64_7_92   : base.u64 = 0x401F_AE14_7AE1_47AE
+pri const F64_INV_13 : base.u64 = 0x3FB3_B13B_13B1_3B14
+pri const F64_1      : base.u64 = 0x3FF0_0000_0000_0000
+pri const F64_10     : base.u64 = 0x4024_0000_0000_0000
+pri const F64_0_2    : base.u64 = 0x3FC9_9999_9999_999A
+pri const F64_0_02   : base.u64 = 0x3F94_7AE1_47AE_147B
+pri const F64_3      : base.u64 = 0x4008_0000_0000_0000
+
+// computed_lgblock mirrors ComputeLgBlock in quality.h.
+pri func encoder.computed_lgblock(quality: base.u32[..= 11], lgwin: base.u32[..= 30]) base.u32[..= 30] {
+    var lgblock : base.u32
+
+    if args.quality <= 1 {
+        return args.lgwin
+    } else if args.quality < 4 {
+        return 14
+    } else if this.p_lgblock == 0 {
+        if (args.quality >= 9) and (args.lgwin > 16) {
+            return args.lgwin.min(no_more_than: 18)
+        }
+        return 16
+    }
+    lgblock = this.p_lgblock
+    if lgblock >= 0x8000_0000 {
+        // A negative (int) value.
+        lgblock = 16
+    }
+    return lgblock.max(no_less_than: 16).min(no_more_than: 24)
+}
+
+// rb_bits mirrors ComputeRbBits in quality.h.
+pri func encoder.rb_bits(lgwin: base.u32[..= 30], lgblock: base.u32[..= 30]) base.u32[..= 31] {
+    return 1 + args.lgwin.max(no_less_than: args.lgblock)
+}
+
+// max_metablock_size mirrors MaxMetablockSize in quality.h.
+pri func encoder.max_metablock_size(lgwin: base.u32[..= 30], lgblock: base.u32[..= 30]) base.u64 {
+    var b : base.u32[..= 31]
+
+    b = this.rb_bits(lgwin: args.lgwin, lgblock: args.lgblock)
+    return (1 as base.u64) << b.min(no_more_than: 24)
+}
+
+// hasher_total_size returns the sum of FN(HashMemAllocInBytes)'s
+// alloc_size[i] for the hasher that ChooseHasher picks for the given
+// quality, lgwin and size_hint.
+pri func encoder.hasher_total_size(quality: base.u32[..= 11], lgwin: base.u32[..= 30], size_hint: base.u32) base.u64 {
+    var htype       : base.u32
+    var bucket_bits : base.u32[..= 24]
+    var block_bits  : base.u32[..= 16]
+
+    if (args.quality == 4) and (args.size_hint >= 0x10_0000) {
+        htype = 54
+    } else if args.quality < 5 {
+        htype = args.quality
+    } else if args.lgwin <= 16 {
+        htype = 40
+        if args.quality >= 9 {
+            htype = 42
+        }
+    } else if (args.size_hint >= 0x10_0000) and (args.lgwin >= 19) {
+        htype = 6
+        if args.quality <= 6 {
+            htype = 68
+        }
+        bucket_bits = 15
+        block_bits = args.quality - 1
+    } else {
+        htype = 5
+        if args.quality <= 6 {
+            htype = 58
+        }
+        bucket_bits = 15
+        if args.quality < 7 {
+            bucket_bits = 14
+        }
+        block_bits = args.quality - 1
+    }
+    return (this.hasher_alloc_size(htype: htype, bucket_bits: bucket_bits, block_bits: block_bits, i: 0) ~mod+
+            this.hasher_alloc_size(htype: htype, bucket_bits: bucket_bits, block_bits: block_bits, i: 1)) ~mod+
+            this.hasher_alloc_size(htype: htype, bucket_bits: bucket_bits, block_bits: block_bits, i: 2)
+}
+
+// hash_region_size returns the workbuf length reserved for the hasher's
+// memory. When the size_hint parameter is unset (zero), the hasher choice
+// depends on the size hint that UpdateSizeHint computes (from the input's
+// length), so this is the larger of the two possible choices.
+pri func encoder.hash_region_size(quality: base.u32[..= 11], lgwin: base.u32[..= 30]) base.u64 {
+    var a : base.u64
+    var b : base.u64
+
+    if this.p_size_hint <> 0 {
+        return this.hasher_total_size(quality: args.quality, lgwin: args.lgwin, size_hint: this.p_size_hint)
+    }
+    a = this.hasher_total_size(quality: args.quality, lgwin: args.lgwin, size_hint: 0)
+    b = this.hasher_total_size(quality: args.quality, lgwin: args.lgwin, size_hint: 0x10_0000)
+    return a.max(no_less_than: b)
+}
+
+// commands_capacity returns how many commands EncodeData can hold at once:
+// at most one per two bytes of the metablock (plus the final insert-only
+// command), and at most one per two bytes of an input block on top of those
+// that EncodeData kept (merged with the next block), which is fewer than
+// MaxMetablockSize / 8 (and, below quality 4, fewer than
+// MAX_NUM_DELAYED_SYMBOLS).
+pri func encoder.commands_capacity(quality: base.u32[..= 11], lgwin: base.u32[..= 30], lgblock: base.u32[..= 30]) base.u64 {
+    var max_len : base.u64
+    var prior   : base.u64
+
+    max_len = this.max_metablock_size(lgwin: args.lgwin, lgblock: args.lgblock)
+    prior = (max_len / 8) ~mod- 1
+    if args.quality < 4 {
+        prior = prior.min(no_more_than: MAX_NUM_DELAYED_SYMBOLS - 1)
+    }
+    return this.min64(a: (prior ~mod+ (((1 as base.u64) << args.lgblock) / 2)) ~mod+ 1, b: (max_len / 2) + 1)
+}
+
+// compute_layout_offset returns the workbuf offset of the given LAYOUT_ETC
+// region, for qualities 2 to 9.
+pri func encoder.compute_layout_offset(quality: base.u32[..= 11], lgwin: base.u32[..= 30], lgblock: base.u32[..= 30], idx: base.u32) base.u64 {
+    var max_len   : base.u64
+    var cmds_cap  : base.u64
+    var off       : base.u64
+    var i         : base.u32
+    var size      : base.u64
+    var num_histo : base.u64
+    var hlen      : base.u64
+
+    max_len = this.max_metablock_size(lgwin: args.lgwin, lgblock: args.lgblock)
+    cmds_cap = this.commands_capacity(quality: args.quality, lgwin: args.lgwin, lgblock: args.lgblock)
+    off = 0
+    i = 0
+    while i < args.idx.min(no_more_than: LAYOUT_END) {
+        size = 0
+        if i == LAYOUT_STORAGE {
+            size = ((2 ~mod* max_len) ~mod+ 503) ~mod+ STORAGE_SLACK
+        } else if i == LAYOUT_RB {
+            size = ((2 + ((1 as base.u64) << this.rb_bits(lgwin: args.lgwin, lgblock: args.lgblock))) ~mod+
+                    ((1 as base.u64) << args.lgblock)) ~mod+ 7
+        } else if i == LAYOUT_HASH {
+            size = this.hash_region_size(quality: args.quality, lgwin: args.lgwin)
+        } else if i == LAYOUT_CMDS {
+            size = 16 ~mod* cmds_cap
+        } else if args.quality >= 4 {
+            if i == (LAYOUT_TYPES_0 + 0) {
+                size = (max_len / 512) + 1
+            } else if i == (LAYOUT_TYPES_0 + 1) {
+                size = (cmds_cap / 1024) ~mod+ 1
+            } else if i == (LAYOUT_TYPES_0 + 2) {
+                size = (cmds_cap / 512) ~mod+ 1
+            } else if i == (LAYOUT_LENGTHS_0 + 0) {
+                size = 4 * ((max_len / 512) + 1)
+            } else if i == (LAYOUT_LENGTHS_0 + 1) {
+                size = 4 ~mod* ((cmds_cap / 1024) ~mod+ 1)
+            } else if i == (LAYOUT_LENGTHS_0 + 2) {
+                size = 4 ~mod* ((cmds_cap / 512) ~mod+ 1)
+            } else if (LAYOUT_HISTO_0 <= i) and (i < (LAYOUT_HISTO_0 + 3)) {
+                // At most 260 literal histograms ((256 / 13) + 1 types of 13
+                // contexts each), 257 command histograms and 257 distance
+                // histograms.
+                if i == (LAYOUT_HISTO_0 + 0) {
+                    size = 260 * 256 * 4
+                } else if i == (LAYOUT_HISTO_0 + 1) {
+                    size = 257 * 704 * 4
+                } else {
+                    size = 257 * 544 * 4
+                }
+            } else if i == LAYOUT_COMB {
+                size = 2 * 13 * 256 * 4
+            } else if i == LAYOUT_CMAP {
+                size = 256 * 64
+            } else if i == LAYOUT_RLE {
+                size = 256 * 64 * 4
+            } else if (LAYOUT_BE_DEPTH_0 <= i) and (i < (LAYOUT_BE_BITS_0 + 3)) {
+                // At most 256 histograms (types times contexts) per category.
+                num_histo = 256
+                hlen = 256
+                if (i == (LAYOUT_BE_DEPTH_0 + 1)) or (i == (LAYOUT_BE_BITS_0 + 1)) {
+                    hlen = 704
+                } else if (i == (LAYOUT_BE_DEPTH_0 + 2)) or (i == (LAYOUT_BE_BITS_0 + 2)) {
+                    hlen = 544
+                }
+                size = num_histo ~mod* hlen
+                if i >= LAYOUT_BE_BITS_0 {
+                    size = 2 ~mod* size
+                }
+            }
+        }
+        off ~mod+= size
+        i ~mod+= 1
+    }
+    return off
+}
+
+// compute_layout sets the workbuf offsets (the this.etc_off fields) for the
+// current parameters, at qualities 2 to 9.
+pri func encoder.compute_layout!() {
+    var q  : base.u32[..= 11]
+    var lw : base.u32[..= 30]
+    var lb : base.u32[..= 30]
+    var c  : base.u32
+
+    q = this.quality
+    lw = this.lgwin
+    lb = this.lgblock
+    this.rb_off = this.compute_layout_offset(quality: q, lgwin: lw, lgblock: lb, idx: LAYOUT_RB)
+    this.rb_buf_off = this.rb_off ~mod+ 2
+    this.h_off0 = this.compute_layout_offset(quality: q, lgwin: lw, lgblock: lb, idx: LAYOUT_HASH)
+    this.cmds_off = this.compute_layout_offset(quality: q, lgwin: lw, lgblock: lb, idx: LAYOUT_CMDS)
+    this.cmds_cap = this.commands_capacity(quality: q, lgwin: lw, lgblock: lb)
+    c = 0
+    while c < 3 {
+        this.gbs_types_off[c] = this.compute_layout_offset(quality: q, lgwin: lw, lgblock: lb, idx: LAYOUT_TYPES_0 + c)
+        this.gbs_lengths_off[c] = this.compute_layout_offset(quality: q, lgwin: lw, lgblock: lb, idx: LAYOUT_LENGTHS_0 + c)
+        this.gbs_histo_off_base[c] = this.compute_layout_offset(quality: q, lgwin: lw, lgblock: lb, idx: LAYOUT_HISTO_0 + c)
+        this.be_depth_off[c] = this.compute_layout_offset(quality: q, lgwin: lw, lgblock: lb, idx: LAYOUT_BE_DEPTH_0 + c)
+        this.be_bits_off[c] = this.compute_layout_offset(quality: q, lgwin: lw, lgblock: lb, idx: LAYOUT_BE_BITS_0 + c)
+        c ~mod+= 1
+    }
+    this.mb_comb_off = this.compute_layout_offset(quality: q, lgwin: lw, lgblock: lb, idx: LAYOUT_COMB)
+    this.mb_cmap_off = this.compute_layout_offset(quality: q, lgwin: lw, lgblock: lb, idx: LAYOUT_CMAP)
+    this.mb_rle_off = this.compute_layout_offset(quality: q, lgwin: lw, lgblock: lb, idx: LAYOUT_RLE)
+    this.workbuf_end = this.compute_layout_offset(quality: q, lgwin: lw, lgblock: lb, idx: LAYOUT_END)
+
+    // RingBufferSetup.
+    this.rb_size = (1 as base.u32) << this.rb_bits(lgwin: lw, lgblock: lb)
+    this.rb_mask = this.rb_size ~mod- 1
+    this.rb_tail_size = (1 as base.u32) << lb
+    this.rb_total_size = this.rb_size ~mod+ this.rb_tail_size
+}
+
+// Mirrors BrotliInitDistanceParams in metablock.c (without large window).
+pri func encoder.init_distance_params!() {
+    var npostfix : base.u32
+    var ndirect  : base.u32
+
+    npostfix = this.distance_postfix_bits & 3
+    ndirect = this.num_direct_distance_codes
+    this.dist_alphabet_size_max = (16 ~mod+ ndirect) ~mod+ ((24 as base.u32) << (npostfix + 1))
+    this.dist_alphabet_size_limit = this.dist_alphabet_size_max
+    this.dist_max_distance = ((ndirect ~mod+ ((1 as base.u32) << (24 + npostfix + 2))) ~mod-
+            ((1 as base.u32) << (npostfix + 2))) as base.u64
+}
+
+// Mirrors WrapPosition in encode.c.
+pri func encoder.wrap_position(position: base.u64) base.u64 {
+    var result : base.u32
+    var gb     : base.u64
+
+    result = (args.position & 0xFFFF_FFFF) as base.u32
+    gb = args.position >> 30
+    if gb > 2 {
+        // Wrap every 2GiB; The first 3GB are continuous.
+        result = (result & 0x3FFF_FFFF) | ((((((gb ~mod- 1) & 1) as base.u32) + 1)) << 30)
+    }
+    return result as base.u64
+}
+
+// Mirrors RingBufferInitBuffer in ringbuffer.h. The buffer's workbuf offset
+// is fixed, so re-allocating it keeps its contents in place.
+pri func encoder.rb_init_buffer!(wb: slice base.u8, buflen: base.u32) {
+    this.rb_cur_size = args.buflen
+    this.set_byte!(s: args.wb, i: this.rb_off ~mod+ 0, v: 0)
+    this.set_byte!(s: args.wb, i: this.rb_off ~mod+ 1, v: 0)
+    this.fill_bytes!(s: args.wb, i: this.rb_buf_off ~mod+ (args.buflen as base.u64), n: 7, v: 0)
+}
+
+// rb_copy copies src to the workbuf at the ring buffer's position dst.
+pri func encoder.rb_copy!(wb: slice base.u8, dst: base.u64, src: roslice base.u8) {
+    var a : base.u64
+    var q : slice base.u8
+
+    a = this.rb_buf_off ~mod+ args.dst
+    if a <= args.wb.length() {
+        q = args.wb[a ..]
+        if args.src.length() <= q.length() {
+            q.copy_from_slice!(s: args.src)
+        }
+    }
+}
+
+// Mirrors RingBufferWrite (and RingBufferWriteTail) in ringbuffer.h.
+pri func encoder.rb_write!(wb: slice base.u8, bytes: roslice base.u8) {
+    var n             : base.u64
+    var masked_pos    : base.u64
+    var size          : base.u64
+    var tail_size     : base.u64
+    var total_size    : base.u64
+    var k             : base.u64
+    var not_first_lap : base.bool
+
+    n = args.bytes.length()
+    size = this.rb_size as base.u64
+    tail_size = this.rb_tail_size as base.u64
+    total_size = this.rb_total_size as base.u64
+
+    if (this.rb_pos == 0) and (n < tail_size) {
+        // Special case for the first write: to process the first block, we
+        // don't need to allocate the whole ring-buffer and we don't need the
+        // tail either.
+        this.rb_pos = (n & 0xFFFF_FFFF) as base.u32
+        this.rb_init_buffer!(wb: args.wb, buflen: this.rb_pos)
+        this.rb_copy!(wb: args.wb, dst: 0, src: args.bytes)
+        return nothing
+    }
+    if this.rb_cur_size < this.rb_total_size {
+        // Lazily allocate the full buffer.
+        this.rb_init_buffer!(wb: args.wb, buflen: this.rb_total_size)
+        // Initialize the last two bytes to zero, so that we don't have to
+        // worry later when we copy the last two bytes to the first two
+        // positions.
+        this.set_byte!(s: args.wb, i: (this.rb_buf_off ~mod+ size) ~mod- 2, v: 0)
+        this.set_byte!(s: args.wb, i: (this.rb_buf_off ~mod+ size) ~mod- 1, v: 0)
+        // Initialize tail; might be touched by "best_len++" optimization
+        // when ring buffer is "full".
+        this.set_byte!(s: args.wb, i: this.rb_buf_off ~mod+ size, v: 241)
+    }
+
+    masked_pos = (this.rb_pos & this.rb_mask) as base.u64
+    // RingBufferWriteTail.
+    if masked_pos < tail_size {
+        // Just fill the tail buffer with the beginning data.
+        k = this.min64(a: n, b: tail_size ~mod- masked_pos)
+        if k <= args.bytes.length() {
+            this.rb_copy!(wb: args.wb, dst: size ~mod+ masked_pos, src: args.bytes[.. k])
+        }
+    }
+    if (masked_pos ~mod+ n) <= size {
+        // A single write fits.
+        this.rb_copy!(wb: args.wb, dst: masked_pos, src: args.bytes)
+    } else {
+        // Split into two writes. Copy into the end of the buffer, including
+        // the tail buffer.
+        k = this.min64(a: n, b: total_size ~mod- masked_pos)
+        if k <= args.bytes.length() {
+            this.rb_copy!(wb: args.wb, dst: masked_pos, src: args.bytes[.. k])
+        }
+        // Copy into the beginning of the buffer.
+        k = size ~mod- masked_pos
+        if k <= args.bytes.length() {
+            this.rb_copy!(wb: args.wb, dst: 0, src: args.bytes[k ..])
+        }
+    }
+
+    not_first_lap = (this.rb_pos & 0x8000_0000) <> 0
+    this.set_byte!(s: args.wb, i: this.rb_off ~mod+ 0, v: this.byte_at(s: args.wb, i: (this.rb_buf_off ~mod+ size) ~mod- 2))
+    this.set_byte!(s: args.wb, i: this.rb_off ~mod+ 1, v: this.byte_at(s: args.wb, i: (this.rb_buf_off ~mod+ size) ~mod- 1))
+    this.rb_pos = (this.rb_pos & 0x7FFF_FFFF) ~mod+ ((n & 0x7FFF_FFFF) as base.u32)
+    if not_first_lap {
+        // Wrap, but preserve not-a-first-lap feature.
+        this.rb_pos |= 0x8000_0000
+    }
+}
+
+// Mirrors CopyInputToRingBuffer in encode.c.
+pri func encoder.copy_input_to_ring_buffer!(wb: slice base.u8, bytes: roslice base.u8) {
+    this.rb_write!(wb: args.wb, bytes: args.bytes)
+    this.input_pos ~mod+= args.bytes.length()
+    if this.rb_pos <= this.rb_mask {
+        // This is the first time when the ring buffer is being written. We
+        // clear 7 bytes just after the bytes that have been copied from the
+        // input buffer.
+        this.fill_bytes!(s: args.wb, i: this.rb_buf_off ~mod+ (this.rb_pos as base.u64), n: 7, v: 0)
+    }
+}
+
+// Mirrors UpdateLastProcessedPos in encode.c.
+pri func encoder.update_last_processed_pos!() base.bool {
+    var wrapped_last_processed_pos : base.u64
+    var wrapped_input_pos          : base.u64
+
+    wrapped_last_processed_pos = this.wrap_position(position: this.last_processed_pos)
+    wrapped_input_pos = this.wrap_position(position: this.input_pos)
+    this.last_processed_pos = this.input_pos
+    return wrapped_input_pos < wrapped_last_processed_pos
+}
+
+// Mirrors RemainingInputBlockSize in encode.c.
+pri func encoder.remaining_input_block_size() base.u64 {
+    var delta      : base.u64
+    var block_size : base.u64
+
+    delta = this.input_pos ~mod- this.last_processed_pos
+    block_size = (1 as base.u64) << this.lgblock
+    if delta >= block_size {
+        return 0
+    }
+    return block_size ~mod- delta
+}
+
+// Mirrors UpdateSizeHint in encode.c.
+pri func encoder.update_size_hint!(available_in: base.u64) {
+    var delta : base.u64
+    var tail  : base.u64
+    var limit : base.u64
+
+    if this.size_hint == 0 {
+        delta = this.input_pos ~mod- this.last_processed_pos
+        tail = args.available_in
+        limit = 0x4000_0000
+        if (delta >= limit) or (tail >= limit) or ((delta ~mod+ tail) >= limit) {
+            this.size_hint = 0x4000_0000
+        } else {
+            this.size_hint = ((delta ~mod+ tail) & 0xFFFF_FFFF) as base.u32
+        }
+    }
+}
+
+// Mirrors ExtendLastCommand in encode.c (without a compound dictionary). It
+// returns how many bytes it extended the last command by: the caller
+// subtracts that from bytes and adds it to wrapped_last_processed_pos.
+pri func encoder.extend_last_command!(wb: slice base.u8, bytes: base.u64, wrapped_last_processed_pos: base.u64) base.u64 {
+    var last                  : base.u64
+    var max_backward_distance : base.u64
+    var copy_len              : base.u32
+    var last_copy_len         : base.u64
+    var last_processed_pos    : base.u64
+    var max_distance          : base.u64
+    var cmd_dist              : base.u64
+    var distance_code         : base.u32
+    var n                     : base.u64
+    var p                     : base.u64
+
+    last = this.num_cmds ~mod- 1
+    max_backward_distance = ((1 as base.u64) << this.lgwin) ~mod- 16
+    copy_len = this.cmd_copy_len_raw(wb: args.wb, i: last)
+    last_copy_len = (copy_len & 0x1FF_FFFF) as base.u64
+    last_processed_pos = this.last_processed_pos ~mod- last_copy_len
+    max_distance = last_processed_pos.min(no_more_than: max_backward_distance)
+    cmd_dist = this.dist_cache_u64(i: 0)
+    distance_code = this.cmd_restore_distance_code(wb: args.wb, i: last)
+    if (distance_code < 16) or (((distance_code ~mod- 15) as base.u64) == cmd_dist) {
+        if cmd_dist <= max_distance {
+            p = args.wrapped_last_processed_pos
+            while (n < args.bytes) and
+                    (this.rb_byte(wb: args.wb, pos: p) == this.rb_byte(wb: args.wb, pos: p ~mod- cmd_dist)) {
+                copy_len ~mod+= 1
+                n ~mod+= 1
+                p = (p ~mod+ 1) & 0xFFFF_FFFF
+            }
+        }
+        // The copy length is at most the metablock size, and thus
+        // expressible.
+        this.set_cmd!(wb: args.wb, i: last,
+                insert_len: this.cmd_insert_len(wb: args.wb, i: last),
+                copy_len: copy_len,
+                dist_extra: this.cmd_dist_extra(wb: args.wb, i: last),
+                cmd_prefix: this.get_length_code(
+                insertlen: this.cmd_insert_len(wb: args.wb, i: last) as base.u64,
+                copylen: ((copy_len & 0x1FF_FFFF) ~mod+ (copy_len >> 25)) as base.u64,
+                use_last_distance: (this.cmd_dist_prefix(wb: args.wb, i: last) & 0x3FF) == 0),
+                dist_prefix: this.cmd_dist_prefix(wb: args.wb, i: last))
+    }
+    return n
+}
+
+// Mirrors EstimateEntropy in encode.c, for the size u32 values of
+// this.ctx_histo starting at off.
+pri func encoder.estimate_entropy(off: base.u32, size: base.u32) base.u64 {
+    var total  : base.u64
+    var result : base.u64
+    var i      : base.u32
+    var p      : base.u32
+
+    i = 0
+    while i < args.size {
+        p = this.ctx_histo[(args.off ~mod+ i) & 511]
+        total ~mod+= p as base.u64
+        result = this.sf.f64_add(a: result, b: this.sf.f64_mul(
+                a: this.sf.f64_from_u32(a: p), b: this.bc.fast_log2(v: p as base.u64)))
+        i ~mod+= 1
+    }
+    return this.sf.f64_sub(a: this.sf.f64_mul(
+            a: this.sf.f64_from_u64(a: total), b: this.bc.fast_log2(v: total)), b: result)
+}
+
+// Mirrors ChooseContextMap in encode.c. The bigram_histo is
+// this.ctx_histo[0 .. 9]. It returns num_literal_contexts.
+pri func encoder.choose_context_map!() base.u32 {
+    var i     : base.u32
+    var total : base.u32
+    var e0    : base.u64
+    var e1    : base.u64
+    var e2    : base.u64
+    var e3    : base.u64
+
+    // monogram_histo is this.ctx_histo[16 .. 19] and two_prefix_histo is
+    // this.ctx_histo[24 .. 30].
+    i = 16
+    while i < 32 {
+        this.ctx_histo[i] = 0
+        i ~mod+= 1
+    }
+    i = 0
+    while i < 9 {
+        this.ctx_histo[16 + (i % 3)] ~mod+= this.ctx_histo[i]
+        this.ctx_histo[24 + (i % 6)] ~mod+= this.ctx_histo[i]
+        i ~mod+= 1
+    }
+    e1 = this.estimate_entropy(off: 16, size: 3)
+    e2 = this.sf.f64_add(a: this.estimate_entropy(off: 24, size: 3), b: this.estimate_entropy(off: 27, size: 3))
+    e3 = 0
+    i = 0
+    while i < 3 {
+        e3 = this.sf.f64_add(a: e3, b: this.estimate_entropy(off: 3 * i, size: 3))
+        i ~mod+= 1
+    }
+
+    total = (this.ctx_histo[16] ~mod+ this.ctx_histo[17]) ~mod+ this.ctx_histo[18]
+    e0 = this.sf.f64_div(a: F64_1, b: this.sf.f64_from_u32(a: total))
+    e1 = this.sf.f64_mul(a: e1, b: e0)
+    e2 = this.sf.f64_mul(a: e2, b: e0)
+    e3 = this.sf.f64_mul(a: e3, b: e0)
+
+    if this.quality < 7 {
+        // 3 context models is a bit slower, don't use it at lower qualities.
+        e3 = this.sf.f64_mul(a: e1, b: F64_10)
+    }
+    // If expected savings by symbol are less than 0.2 bits, skip the context
+    // modeling -- in exchange for faster decoding speed.
+    if (this.sf.f64_lt(a: this.sf.f64_sub(a: e1, b: e2), b: F64_0_2) <> 0) and
+            (this.sf.f64_lt(a: this.sf.f64_sub(a: e1, b: e3), b: F64_0_2) <> 0) {
+        return 1
+    } else if this.sf.f64_lt(a: this.sf.f64_sub(a: e2, b: e3), b: F64_0_02) <> 0 {
+        return 2
+    }
+    return 3
+}
+
+// Mirrors ShouldUseComplexStaticContextMap in encode.c. It returns 13 (the
+// number of literal contexts) if it should, or 0 if it should not. The
+// combined_histo is this.ctx_histo[0 .. 32] and the context_histo is
+// this.ctx_histo[32 .. 448].
+pri func encoder.should_use_complex_static_context_map!(wb: roslice base.u8, start_pos: base.u64, length: base.u64) base.u32 {
+    var start_pos      : base.u64
+    var end_pos        : base.u64
+    var stride_end_pos : base.u64
+    var pos            : base.u64
+    var total          : base.u32
+    var prev1          : base.u8
+    var prev2          : base.u8
+    var literal        : base.u8
+    var context        : base.u32
+    var i              : base.u32
+    var e0             : base.u64
+    var e1             : base.u64
+    var e2             : base.u64
+
+    // Try the more complex static context map only for long data.
+    if this.size_hint < 0x10_0000 {
+        return 0
+    }
+    start_pos = args.start_pos
+    end_pos = start_pos ~mod+ args.length
+    i = 0
+    while i < 448 {
+        this.ctx_histo[i] = 0
+        i ~mod+= 1
+    }
+    while (start_pos ~mod+ 64) <= end_pos {
+        stride_end_pos = start_pos ~mod+ 64
+        prev2 = this.rb_byte(wb: args.wb, pos: start_pos)
+        prev1 = this.rb_byte(wb: args.wb, pos: start_pos ~mod+ 1)
+        // To make the analysis of the data faster we only examine 64 byte
+        // long strides at every 4kB intervals.
+        pos = start_pos ~mod+ 2
+        while pos < stride_end_pos {
+            literal = this.rb_byte(wb: args.wb, pos: pos)
+            context = STATIC_CONTEXT_MAP_COMPLEX_UTF8[(CONTEXT_LOOKUP[1024 + (prev1 as base.u32)] |
+                    CONTEXT_LOOKUP[1280 + (prev2 as base.u32)]) & 63] as base.u32
+            total ~mod+= 1
+            this.ctx_histo[(literal >> 3) & 31] ~mod+= 1
+            this.ctx_histo[(32 + (context << 5) + ((literal >> 3) as base.u32)) & 511] ~mod+= 1
+            prev2 = prev1
+            prev1 = literal
+            pos ~mod+= 1
+        }
+        start_pos ~mod+= 4096
+    }
+    e1 = this.estimate_entropy(off: 0, size: 32)
+    e2 = 0
+    i = 0
+    while i < 13 {
+        e2 = this.sf.f64_add(a: e2, b: this.estimate_entropy(off: 32 + (i << 5), size: 32))
+        i ~mod+= 1
+    }
+    e0 = this.sf.f64_div(a: F64_1, b: this.sf.f64_from_u32(a: total))
+    e1 = this.sf.f64_mul(a: e1, b: e0)
+    e2 = this.sf.f64_mul(a: e2, b: e0)
+    // The triggering heuristics below were tuned by compressing the
+    // individual files of the silesia corpus.
+    if (this.sf.f64_gt(a: e2, b: F64_3) <> 0) or
+            (this.sf.f64_lt(a: this.sf.f64_sub(a: e1, b: e2), b: F64_0_2) <> 0) {
+        return 0
+    }
+    return 13
+}
+
+// Mirrors DecideOverLiteralContextModeling in encode.c. It returns
+// num_literal_contexts.
+pri func encoder.decide_over_literal_context_modeling!(wb: roslice base.u8, start_pos: base.u64, length: base.u64) base.u32 {
+    var start_pos      : base.u64
+    var end_pos        : base.u64
+    var stride_end_pos : base.u64
+    var pos            : base.u64
+    var prev           : base.u32[..= 6]
+    var lit_lut        : base.u32[..= 2]
+    var i              : base.u32
+
+    if (this.quality < 5) or (args.length < 64) {
+        return 1
+    }
+    i = this.should_use_complex_static_context_map!(wb: args.wb, start_pos: args.start_pos, length: args.length)
+    if i <> 0 {
+        return 13
+    }
+    // Gather bi-gram data of the UTF8 byte prefixes. To make the analysis of
+    // UTF8 data faster we only examine 64 byte long strides at every 4kB
+    // intervals.
+    start_pos = args.start_pos
+    end_pos = start_pos ~mod+ args.length
+    i = 0
+    while i < 9 {
+        this.ctx_histo[i] = 0
+        i ~mod+= 1
+    }
+    while (start_pos ~mod+ 64) <= end_pos {
+        stride_end_pos = start_pos ~mod+ 64
+        prev = this.utf8_prefix_lut(b: this.rb_byte(wb: args.wb, pos: start_pos)) * 3
+        pos = start_pos ~mod+ 1
+        while pos < stride_end_pos {
+            lit_lut = this.utf8_prefix_lut(b: this.rb_byte(wb: args.wb, pos: pos))
+            this.ctx_histo[(prev + lit_lut) & 511] ~mod+= 1
+            prev = lit_lut * 3
+            pos ~mod+= 1
+        }
+        start_pos ~mod+= 4096
+    }
+    i = this.choose_context_map!()
+    return i
+}
+
+// utf8_prefix_lut returns DecideOverLiteralContextModeling's lut[b >> 6].
+pri func encoder.utf8_prefix_lut(b: base.u8) base.u32[..= 2] {
+    if args.b < 0x80 {
+        return 0
+    } else if args.b < 0xC0 {
+        return 0
+    } else if args.b < 0xE0 {
+        return 1
+    }
+    return 2
+}
+
+// Mirrors ShouldCompress in encode.c.
+pri func encoder.should_compress!(wb: roslice base.u8, last_flush_pos: base.u64, bytes: base.u64, num_literals: base.u64, num_commands: base.u64) base.bool {
+    var bit_cost_threshold : base.u64
+    var t                  : base.u64
+    var pos                : base.u32
+    var i                  : base.u64
+
+    if args.bytes <= 2 {
+        return false
+    }
+    if args.num_commands < ((args.bytes >> 8) + 2) {
+        if this.sf.f64_gt(
+                a: this.sf.f64_from_u64(a: args.num_literals),
+                b: this.sf.f64_mul(a: F64_0_99, b: this.sf.f64_from_u64(a: args.bytes))) <> 0 {
+            i = 0
+            while i < 256 {
+                this.ctx_histo[i] = 0
+                i ~mod+= 1
+            }
+            bit_cost_threshold = this.sf.f64_mul(
+                    a: this.sf.f64_mul(a: this.sf.f64_from_u64(a: args.bytes), b: F64_7_92),
+                    b: F64_INV_13)
+            t = (args.bytes ~mod+ 12) / 13
+            pos = (args.last_flush_pos & 0xFFFF_FFFF) as base.u32
+            i = 0
+            while i < t {
+                this.ctx_histo[this.rb_byte(wb: args.wb, pos: pos as base.u64)] ~mod+= 1
+                pos ~mod+= 13
+                i ~mod+= 1
+            }
+            if this.sf.f64_gt(a: this.ctx_histo_bits_entropy(), b: bit_cost_threshold) <> 0 {
+                return false
+            }
+        }
+    }
+    return true
+}
+
+// ctx_histo_bits_entropy returns BrotliBitsEntropy of this.ctx_histo[0 ..
+// 256], like bit_cost.bits_entropy.
+pri func encoder.ctx_histo_bits_entropy() base.u64 {
+    var sum    : base.u64
+    var retval : base.u64
+    var p      : base.u64
+    var i      : base.u32
+
+    i = 0
+    while i < 256 {
+        p = this.ctx_histo[i] as base.u64
+        sum ~mod+= p
+        retval = this.sf.f64_sub(a: retval, b: this.sf.f64_mul(
+                a: this.sf.f64_from_u64(a: p), b: this.bc.fast_log2(v: p)))
+        i ~mod+= 1
+    }
+    if sum <> 0 {
+        retval = this.sf.f64_add(a: retval, b: this.sf.f64_mul(
+                a: this.sf.f64_from_u64(a: sum), b: this.bc.fast_log2(v: sum)))
+    }
+    if this.sf.f64_lt(a: retval, b: this.sf.f64_from_u64(a: sum)) <> 0 {
+        retval = this.sf.f64_from_u64(a: sum)
+    }
+    return retval
+}
+
+// Mirrors WriteMetaBlockInternal in encode.c. The storage is args.s, with
+// args.s[0] and args.s[1] holding the last_bytes and this.bw_ix the
+// last_bytes_bits.
+pri func encoder.write_meta_block_internal!(wb: slice base.u8, last_flush_pos: base.u64, bytes: base.u64, is_last: base.bool,
+        prev_byte: base.u8, prev_byte2: base.u8, s: slice base.u8) {
+    var wrapped_last_flush_pos : base.u64
+    var last_bytes             : base.u16
+    var last_bytes_bits        : base.u64
+    var num_literal_contexts   : base.u32
+    var i                      : base.u32
+    var compress               : base.bool
+
+    wrapped_last_flush_pos = this.wrap_position(position: args.last_flush_pos)
+
+    if args.bytes == 0 {
+        // Write the ISLAST and ISEMPTY bits.
+        this.write_bits!(n_bits: 2, bits: 3, s: args.s)
+        this.bw_ix = (this.bw_ix ~mod+ 7) & 0xFFFF_FFFF_FFFF_FFF8
+        return nothing
+    }
+
+    compress = this.should_compress!(wb: args.wb, last_flush_pos: args.last_flush_pos, bytes: args.bytes,
+            num_literals: this.num_lits, num_commands: this.num_cmds)
+    if not compress {
+        // Restore the distance cache, as its last update by
+        // CreateBackwardReferences is now unused.
+        i = 0
+        while i < 4 {
+            this.dist_cache[i] = this.saved_dist_cache[i]
+            i ~mod+= 1
+        }
+        this.store_uncompressed_meta_block!(is_final_block: args.is_last, wb: args.wb,
+                position: wrapped_last_flush_pos, len: args.bytes, s: args.s)
+        return nothing
+    }
+
+    last_bytes = this.peek_u16(s: args.s, i: 0)
+    last_bytes_bits = this.bw_ix
+    if this.quality <= 2 {
+        this.store_meta_block_fast!(wb: args.wb, start_pos: wrapped_last_flush_pos, length: args.bytes,
+                is_last: args.is_last, n_commands: this.num_cmds, s: args.s)
+    } else if this.quality < 4 {
+        this.store_meta_block_trivial!(wb: args.wb, start_pos: wrapped_last_flush_pos, length: args.bytes,
+                is_last: args.is_last, n_commands: this.num_cmds, s: args.s)
+    } else {
+        num_literal_contexts = 1
+        if this.p_disable_lcm == 0 {
+            num_literal_contexts = this.decide_over_literal_context_modeling!(
+                    wb: args.wb, start_pos: wrapped_last_flush_pos, length: args.bytes)
+        }
+        this.build_meta_block_greedy!(wb: args.wb, pos: wrapped_last_flush_pos,
+                prev_byte: args.prev_byte, prev_byte2: args.prev_byte2,
+                num_contexts: num_literal_contexts, n_commands: this.num_cmds)
+        // MIN_QUALITY_FOR_OPTIMIZE_HISTOGRAMS is 4.
+        this.optimize_histograms!(wb: args.wb, num_distance_codes: this.dist_alphabet_size_limit)
+        this.store_meta_block!(wb: args.wb, start_pos: wrapped_last_flush_pos, length: args.bytes,
+                prev_byte: args.prev_byte, prev_byte2: args.prev_byte2,
+                is_last: args.is_last, n_commands: this.num_cmds, s: args.s)
+    }
+    if (args.bytes ~mod+ 4) < (this.bw_ix >> 3) {
+        // Restore the distance cache and last byte.
+        i = 0
+        while i < 4 {
+            this.dist_cache[i] = this.saved_dist_cache[i]
+            i ~mod+= 1
+        }
+        this.poke_u16!(s: args.s, i: 0, v: last_bytes)
+        this.bw_ix = last_bytes_bits
+        this.store_uncompressed_meta_block!(is_final_block: args.is_last, wb: args.wb,
+                position: wrapped_last_flush_pos, len: args.bytes, s: args.s)
+    }
+}
+
+// Mirrors EncodeData in encode.c, for qualities 2 to 9. On a new metablock,
+// it sets the pending output (this.out_etc) to the storage (or tiny_buf).
+pri func encoder.encode_data!(wb: slice base.u8, is_last: base.bool, force_flush: base.bool) base.status {
+    var status                     : base.status
+    var delta                      : base.u64
+    var bytes                      : base.u64
+    var wrapped_last_processed_pos : base.u64
+    var n                          : base.u64
+    var max_length                 : base.u64
+    var processed_bytes            : base.u64
+    var next_input_fits_metablock  : base.bool
+    var should_flush               : base.bool
+    var metablock_size             : base.u64
+    var storage_len                : base.u64
+    var ix                         : base.u64
+    var i                          : base.u32
+    var wrapped                    : base.bool
+
+    delta = this.input_pos ~mod- this.last_processed_pos
+    bytes = delta & 0xFFFF_FFFF
+    wrapped_last_processed_pos = this.wrap_position(position: this.last_processed_pos)
+
+    if delta == 0 {
+        // No new input; still might want to flush or finish.
+        if this.rb_cur_size == 0 {
+            // No input has been processed so far.
+            if args.is_last {
+                // Emit complete finalized stream.
+                this.last_bytes |= ((3 as base.u32) << this.last_bytes_bits) & 0xFFFF
+                if this.last_bytes_bits <= 13 {
+                    this.last_bytes_bits += 2
+                }
+                this.tiny_buf[0] = (this.last_bytes & 0xFF) as base.u8
+                this.tiny_buf[1] = (this.last_bytes >> 8) as base.u8
+                this.out_in_tiny_buf = true
+                this.out_pos = 0
+                this.out_len = ((this.last_bytes_bits + 7) >> 3) as base.u64
+            }
+            return ok
+        } else if (not args.is_last) and (not args.force_flush) {
+            // Another no-op.
+            return ok
+        }
+    }
+
+    // Adding more blocks after "last" block is forbidden.
+    if this.is_last_block_emitted {
+        return "#internal error: inconsistent encoder state"
+    }
+    if args.is_last {
+        this.is_last_block_emitted = true
+    }
+    if delta > ((1 as base.u64) << this.lgblock) {
+        return "#internal error: inconsistent encoder state"
+    }
+
+    // InitOrStitchToPreviousBlock.
+    this.hasher_setup!(wb: args.wb, position: wrapped_last_processed_pos, input_size: bytes, is_last: args.is_last)
+    this.hasher_stitch_to_previous_block!(wb: args.wb, num_bytes: bytes, position: wrapped_last_processed_pos)
+
+    if (this.num_cmds > 0) and (this.last_insert_len == 0) {
+        n = this.extend_last_command!(wb: args.wb, bytes: bytes,
+                wrapped_last_processed_pos: wrapped_last_processed_pos)
+        bytes ~mod-= n
+        wrapped_last_processed_pos = (wrapped_last_processed_pos ~mod+ n) & 0xFFFF_FFFF
+    }
+
+    status = this.create_backward_references!(wb: args.wb, num_bytes: bytes, position: wrapped_last_processed_pos)
+    if not status.is_ok() {
+        return status
+    }
+
+    max_length = this.max_metablock_size(lgwin: this.lgwin, lgblock: this.lgblock)
+    processed_bytes = this.input_pos ~mod- this.last_flush_pos
+    // If maximal possible additional block doesn't fit metablock, flush now.
+    next_input_fits_metablock = (processed_bytes ~mod+ ((1 as base.u64) << this.lgblock)) <= max_length
+    // If block splitting is not used, then flush as soon as there is some
+    // amount of commands / literals produced.
+    should_flush = (this.quality < 4) and ((this.num_lits ~mod+ this.num_cmds) >= MAX_NUM_DELAYED_SYMBOLS)
+    if (not args.is_last) and (not args.force_flush) and (not should_flush) and
+            next_input_fits_metablock and
+            (this.num_lits < (max_length / 8)) and
+            (this.num_cmds < (max_length / 8)) {
+        // Merge with next input block. Everything will happen later.
+        wrapped = this.update_last_processed_pos!()
+        if wrapped {
+            this.h_is_prepared = false
+        }
+        return ok
+    }
+
+    // Create the last insert-only command.
+    if this.last_insert_len > 0 {
+        if this.num_cmds >= this.cmds_cap {
+            return "#internal error: inconsistent encoder state"
+        }
+        this.init_insert_command!(wb: args.wb, n: this.num_cmds, insertlen: this.last_insert_len)
+        this.num_cmds ~mod+= 1
+        this.num_lits ~mod+= this.last_insert_len
+        this.last_insert_len = 0
+    }
+
+    if (not args.is_last) and (this.input_pos == this.last_flush_pos) {
+        // We have no new input data and we don't have to finish the stream,
+        // so nothing to do.
+        return ok
+    }
+
+    metablock_size = (this.input_pos ~mod- this.last_flush_pos) & 0xFFFF_FFFF
+    storage_len = (2 * metablock_size) + 503 + STORAGE_SLACK
+    if (storage_len > this.rb_off) or (this.rb_off > args.wb.length()) {
+        return "#internal error: inconsistent encoder state"
+    }
+    this.set_byte!(s: args.wb, i: 0, v: (this.last_bytes & 0xFF) as base.u8)
+    this.set_byte!(s: args.wb, i: 1, v: (this.last_bytes >> 8) as base.u8)
+    this.bw_ix = this.last_bytes_bits as base.u64
+    if storage_len > args.wb.length() {
+        return "#internal error: inconsistent encoder state"
+    }
+    this.write_meta_block_internal!(wb: args.wb, last_flush_pos: this.last_flush_pos, bytes: metablock_size,
+            is_last: args.is_last, prev_byte: this.prev_byte, prev_byte2: this.prev_byte2,
+            s: args.wb[.. storage_len])
+    ix = this.bw_ix >> 3
+    this.last_bytes = this.byte_at(s: args.wb, i: ix) as base.u32
+    this.last_bytes_bits = (this.bw_ix & 7) as base.u32
+    this.last_flush_pos = this.input_pos
+    wrapped = this.update_last_processed_pos!()
+    if wrapped {
+        this.h_is_prepared = false
+    }
+    if this.last_flush_pos > 0 {
+        this.prev_byte = this.rb_byte(wb: args.wb, pos: ((this.last_flush_pos & 0xFFFF_FFFF) ~mod- 1) & 0xFFFF_FFFF)
+    }
+    if this.last_flush_pos > 1 {
+        this.prev_byte2 = this.rb_byte(wb: args.wb, pos: (this.last_flush_pos ~mod- 2) & 0xFFFF_FFFF)
+    }
+    this.num_cmds = 0
+    this.num_lits = 0
+    // Save the state of the distance cache in case we need to restore it for
+    // emitting an uncompressed block.
+    i = 0
+    while i < 4 {
+        this.saved_dist_cache[i] = this.dist_cache[i]
+        i ~mod+= 1
+    }
+    this.out_in_tiny_buf = false
+    this.out_pos = 0
+    this.out_len = ix
+    return ok
+}

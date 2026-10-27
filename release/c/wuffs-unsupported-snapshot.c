@@ -9858,7 +9858,7 @@ struct wuffs_brotli__encoder__struct {
     uint32_t f_stream_offset;
     uint32_t f_distance_postfix_bits;
     uint32_t f_num_direct_distance_codes;
-    uint32_t f_dist_cache[4];
+    uint32_t f_dist_cache[16];
     uint32_t f_saved_dist_cache[4];
     uint32_t f_flint;
     uint32_t f_last_bytes;
@@ -9876,12 +9876,59 @@ struct wuffs_brotli__encoder__struct {
     uint32_t f_huffman_tree_size;
     uint32_t f_num_commands;
     uint32_t f_num_literals;
+    uint64_t f_input_pos;
+    uint64_t f_last_processed_pos;
+    uint64_t f_last_flush_pos;
+    uint8_t f_prev_byte;
+    uint8_t f_prev_byte2;
+    bool f_is_last_block_emitted;
+    uint64_t f_last_insert_len;
+    uint64_t f_num_cmds;
+    uint64_t f_num_lits;
+    uint64_t f_workbuf_end;
+    uint64_t f_cmds_off;
+    uint64_t f_cmds_cap;
+    uint64_t f_rb_off;
+    uint64_t f_rb_buf_off;
+    uint32_t f_rb_size;
+    uint32_t f_rb_mask;
+    uint32_t f_rb_tail_size;
+    uint32_t f_rb_total_size;
+    uint32_t f_rb_cur_size;
+    uint32_t f_rb_pos;
+    uint32_t f_dist_alphabet_size_max;
+    uint32_t f_dist_alphabet_size_limit;
+    uint64_t f_dist_max_distance;
+    uint32_t f_hasher_type;
+    uint32_t f_h_bucket_bits;
+    uint32_t f_h_block_bits;
+    uint32_t f_h_num_last_distances;
+    uint64_t f_h_off0;
+    uint64_t f_h_off1;
+    uint64_t f_h_off2;
+    bool f_h_is_setup;
+    bool f_h_is_prepared;
+    uint64_t f_dict_num_lookups;
+    uint64_t f_dict_num_matches;
+    uint64_t f_fc_max_hops;
+    uint64_t f_sr_len;
+    uint64_t f_sr_distance;
+    uint64_t f_sr_score;
+    uint64_t f_sr_len_code_delta;
+    uint64_t f_hist_lit_total;
+    uint64_t f_hist_cmd_total;
+    uint64_t f_hist_dist_total;
+    uint64_t f_mb_comb_off;
+    uint64_t f_mb_cmap_off;
+    uint64_t f_mb_cmap_size;
+    uint64_t f_mb_rle_off;
 
     uint32_t p_transform_io;
   } private_impl;
 
   struct {
     wuffs_softfloat__arith f_sf;
+    wuffs_brotli__bit_cost f_bc;
     uint8_t f_tiny_buf[32];
     uint8_t f_lit_depth[256];
     uint16_t f_lit_bits[256];
@@ -9892,9 +9939,60 @@ struct wuffs_brotli__encoder__struct {
     uint32_t f_histogram[256];
     uint8_t f_tmp_depth[704];
     uint16_t f_tmp_bits[64];
-    uint32_t f_tree_count[1024];
-    uint16_t f_tree_left[1024];
-    uint16_t f_tree_right[1024];
+    uint32_t f_tree_count[2048];
+    uint16_t f_tree_left[2048];
+    uint16_t f_tree_right[2048];
+    uint32_t f_huff_histo[1024];
+    uint8_t f_huff_depth[1024];
+    uint16_t f_huff_bits[1024];
+    uint32_t f_hist_lit[256];
+    uint32_t f_hist_cmd[1024];
+    uint32_t f_hist_dist[1024];
+    uint8_t f_mb_lit_depth[256];
+    uint16_t f_mb_lit_bits[256];
+    uint8_t f_mb_cmd_depth[1024];
+    uint16_t f_mb_cmd_bits[1024];
+    uint8_t f_mb_dist_depth[1024];
+    uint16_t f_mb_dist_bits[1024];
+    uint16_t f_fc_free_slot_idx[512];
+    uint32_t f_gbs_alphabet_size[4];
+    uint32_t f_gbs_data_size[4];
+    uint32_t f_gbs_num_contexts[4];
+    uint32_t f_gbs_max_block_types[4];
+    uint32_t f_gbs_min_block_size[4];
+    uint64_t f_gbs_split_threshold[4];
+    uint64_t f_gbs_num_blocks[4];
+    uint32_t f_gbs_num_types[4];
+    uint64_t f_gbs_split_num_blocks[4];
+    uint64_t f_gbs_histograms_size[4];
+    uint64_t f_gbs_target_block_size[4];
+    uint64_t f_gbs_block_size[4];
+    uint64_t f_gbs_curr_histogram_ix[4];
+    uint64_t f_gbs_merge_last_count[4];
+    uint64_t f_gbs_types_off[4];
+    uint64_t f_gbs_lengths_off[4];
+    uint64_t f_gbs_histo_off_base[4];
+    uint64_t f_gbs_last_histogram_ix[8];
+    uint64_t f_gbs_last_entropy[128];
+    uint64_t f_gbs_entropy_tmp[16];
+    uint64_t f_gbs_comb_entropy[32];
+    uint8_t f_good_for_rle[1024];
+    uint32_t f_be_histogram_length[4];
+    uint32_t f_be_num_block_types[4];
+    uint64_t f_be_num_blocks[4];
+    uint64_t f_be_block_ix[4];
+    uint32_t f_be_block_len[4];
+    uint64_t f_be_entropy_ix[4];
+    uint32_t f_be_last_type[4];
+    uint32_t f_be_second_last_type[4];
+    uint64_t f_be_depth_off[4];
+    uint64_t f_be_bits_off[4];
+    uint8_t f_be_type_depth[2048];
+    uint16_t f_be_type_bits[2048];
+    uint8_t f_be_length_depth[128];
+    uint16_t f_be_length_bits[128];
+    uint8_t f_mtf[256];
+    uint32_t f_ctx_histo[512];
     uint8_t f_huffman_tree[1024];
     uint8_t f_huffman_tree_extra_bits[1024];
     uint32_t f_cl_histo[32];
@@ -9911,6 +10009,7 @@ struct wuffs_brotli__encoder__struct {
       uint64_t v_storage_len;
       uint32_t v_table_bits;
       uint64_t v_mark;
+      uint64_t v_copy_input_size;
       uint64_t scratch;
     } s_transform_io;
   } private_data;
@@ -43274,6 +43373,8492 @@ WUFFS_BROTLI__HUFFMAN_BIT_LENGTH_HUFFMAN_CODE_BIT_LENGTHS[6] WUFFS_BASE__POTENTI
   2u, 4u, 3u, 2u, 2u, 4u,
 };
 
+static const uint16_t
+WUFFS_BROTLI__STATIC_DICTIONARY_HASH_WORDS[32768] WUFFS_BASE__POTENTIALLY_UNUSED = {
+  1002u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 683u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 1265u, 0u, 0u, 0u, 0u, 0u, 1431u,
+  0u, 0u, 0u, 0u, 0u, 0u, 40u, 0u,
+  0u, 0u, 0u, 155u, 8u, 741u, 0u, 624u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 66u, 503u, 0u, 0u,
+  0u, 451u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 835u, 70u, 0u, 0u, 539u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 113u,
+  0u, 0u, 0u, 0u, 718u, 0u, 0u, 0u,
+  0u, 0u, 0u, 520u, 0u, 1070u, 0u, 0u,
+  0u, 0u, 0u, 1515u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 78u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 610u, 0u, 0u, 750u,
+  0u, 0u, 0u, 307u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 964u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 999u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 645u, 75u,
+  0u, 649u, 52u, 282u, 0u, 200u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 1621u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  211u, 225u, 0u, 0u, 687u, 718u, 0u, 0u,
+  110u, 0u, 58u, 0u, 0u, 0u, 0u, 0u,
+  0u, 345u, 0u, 0u, 301u, 0u, 0u, 0u,
+  203u, 0u, 0u, 1154u, 674u, 1949u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 259u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 1275u,
+  0u, 0u, 0u, 1231u, 254u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 277u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 248u, 0u, 0u, 800u, 0u, 0u, 0u,
+  29u, 116u, 100u, 490u, 0u, 0u, 0u, 0u,
+  0u, 1641u, 0u, 543u, 0u, 0u, 0u, 0u,
+  41u, 181u, 0u, 657u, 0u, 0u, 202u, 25u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 423u, 0u, 0u, 0u, 113u, 0u,
+  0u, 0u, 927u, 963u, 0u, 976u, 0u, 206u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 2002u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 696u, 0u, 1170u,
+  0u, 0u, 0u, 0u, 226u, 13u, 0u, 769u,
+  678u, 551u, 0u, 0u, 0u, 0u, 0u, 0u,
+  57u, 0u, 0u, 0u, 10u, 188u, 0u, 0u,
+  0u, 624u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 1941u, 130u, 0u, 0u, 0u,
+  0u, 378u, 269u, 0u, 0u, 528u, 0u, 1146u,
+  0u, 0u, 0u, 1105u, 0u, 1616u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 656u, 0u, 1940u,
+  0u, 0u, 0u, 0u, 0u, 173u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 457u, 342u, 810u, 0u, 0u, 0u, 0u,
+  620u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  967u, 95u, 447u, 406u, 0u, 0u, 0u, 477u,
+  0u, 1268u, 944u, 1941u, 0u, 0u, 0u, 629u,
+  0u, 0u, 0u, 0u, 0u, 375u, 0u, 0u,
+  0u, 1636u, 0u, 0u, 0u, 0u, 774u, 0u,
+  1u, 1034u, 0u, 0u, 0u, 0u, 0u, 824u,
+  0u, 0u, 0u, 0u, 0u, 118u, 0u, 0u,
+  560u, 296u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 1009u, 894u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 1474u, 366u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 79u, 1723u, 0u, 0u,
+  200u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 1759u, 372u, 0u, 16u, 0u, 943u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 258u, 0u, 0u, 900u, 1839u, 707u, 30u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 2004u, 0u, 0u, 10u, 115u,
+  0u, 50u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 520u, 1u, 0u, 738u,
+  98u, 482u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 701u, 2u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 557u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  347u, 0u, 0u, 0u, 0u, 572u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 832u,
+  0u, 0u, 797u, 809u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 528u,
+  0u, 0u, 0u, 861u, 0u, 0u, 294u, 0u,
+  0u, 0u, 109u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 1187u, 290u, 266u, 0u, 0u,
+  0u, 0u, 49u, 50u, 748u, 0u, 0u, 466u,
+  399u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  378u, 0u, 519u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 667u,
+  351u, 902u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 180u, 0u, 0u, 869u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 260u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 523u, 36u, 0u, 0u, 587u, 510u,
+  809u, 29u, 260u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 570u, 0u, 565u, 0u, 1464u,
+  0u, 0u, 0u, 0u, 0u, 0u, 10u, 0u,
+  0u, 787u, 399u, 380u, 200u, 0u, 0u, 0u,
+  0u, 516u, 0u, 844u, 887u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 44u, 0u, 0u, 0u,
+  305u, 1655u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  786u, 10u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 2031u, 0u, 0u, 0u, 0u,
+  0u, 684u, 0u, 0u, 0u, 0u, 0u, 1480u,
+  0u, 0u, 0u, 27u, 0u, 0u, 0u, 395u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 813u, 511u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 56u, 0u, 0u, 0u,
+  206u, 496u, 0u, 0u, 0u, 0u, 0u, 909u,
+  0u, 891u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 687u, 0u, 0u, 0u, 1342u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 160u, 41u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 1718u,
+  778u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 1610u, 0u, 0u, 0u, 0u,
+  0u, 115u, 0u, 0u, 0u, 0u, 314u, 294u,
+  0u, 0u, 0u, 983u, 178u, 193u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 174u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 848u, 1796u, 0u, 0u, 0u, 0u,
+  0u, 0u, 221u, 0u, 687u, 1660u, 0u, 0u,
+  0u, 0u, 262u, 0u, 0u, 179u, 0u, 0u,
+  0u, 0u, 0u, 66u, 0u, 773u, 0u, 352u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  35u, 0u, 152u, 0u, 0u, 1197u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 560u, 0u, 0u, 564u, 0u, 0u,
+  0u, 797u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 556u, 0u, 819u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 719u, 544u, 637u, 5u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 101u, 0u, 1441u, 0u, 0u,
+  0u, 893u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 238u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 1296u, 0u, 0u, 969u, 1729u,
+  314u, 60u, 0u, 0u, 0u, 0u, 0u, 1144u,
+  0u, 1147u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 437u, 1853u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 828u, 0u, 176u,
+  0u, 0u, 0u, 0u, 0u, 0u, 434u, 39u,
+  0u, 0u, 0u, 0u, 0u, 159u, 0u, 0u,
+  0u, 902u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 270u, 0u, 0u, 0u, 0u,
+  801u, 556u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 416u, 19u, 197u, 369u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 28u, 34u,
+  0u, 757u, 0u, 0u, 898u, 1553u, 0u, 721u,
+  0u, 0u, 0u, 0u, 1012u, 0u, 0u, 0u,
+  0u, 1102u, 0u, 898u, 183u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 136u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  247u, 277u, 0u, 0u, 0u, 435u, 0u, 0u,
+  0u, 0u, 0u, 1311u, 0u, 0u, 0u, 0u,
+  0u, 0u, 211u, 437u, 0u, 0u, 0u, 28u,
+  0u, 0u, 750u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 2012u,
+  0u, 702u, 0u, 808u, 0u, 0u, 0u, 0u,
+  739u, 166u, 0u, 0u, 0u, 0u, 0u, 0u,
+  719u, 170u, 500u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 1500u, 327u, 0u, 0u, 450u,
+  0u, 0u, 0u, 1318u, 0u, 0u, 0u, 1602u,
+  0u, 0u, 331u, 754u, 0u, 0u, 0u, 0u,
+  0u, 1368u, 0u, 0u, 557u, 0u, 0u, 0u,
+  799u, 850u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 908u, 0u, 0u, 0u, 0u, 0u,
+  19u, 62u, 459u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 1802u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 1397u, 0u, 0u, 0u, 0u, 120u, 238u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 1324u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 602u, 201u, 0u, 0u,
+  164u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 615u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 1243u, 0u, 0u,
+  0u, 0u, 968u, 0u, 0u, 0u, 0u, 0u,
+  0u, 882u, 0u, 0u, 0u, 907u, 329u, 100u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 176u, 26u, 9u, 0u, 0u,
+  265u, 256u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 643u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 127u, 610u,
+  0u, 0u, 0u, 0u, 973u, 2001u, 0u, 0u,
+  0u, 0u, 0u, 0u, 522u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  553u, 0u, 0u, 0u, 0u, 0u, 0u, 1582u,
+  0u, 1578u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 795u, 0u, 0u,
+  0u, 432u, 0u, 0u, 0u, 0u, 0u, 0u,
+  84u, 126u, 0u, 0u, 0u, 0u, 790u, 0u,
+  377u, 64u, 0u, 1529u, 0u, 0u, 0u, 0u,
+  530u, 1857u, 539u, 1104u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  977u, 0u, 0u, 0u, 34u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  24u, 26u, 0u, 0u, 918u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 183u, 379u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 792u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 1920u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 771u, 0u, 0u, 0u, 1979u, 0u, 901u,
+  254u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 140u, 0u, 0u, 0u,
+  0u, 0u, 440u, 37u, 0u, 508u, 0u, 0u,
+  0u, 513u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 8u, 0u, 0u, 533u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 752u, 920u,
+  0u, 1048u, 0u, 153u, 0u, 0u, 391u, 0u,
+  0u, 1952u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 126u, 0u, 0u, 0u,
+  0u, 640u, 0u, 483u, 69u, 1616u, 0u, 0u,
+  0u, 0u, 0u, 734u, 0u, 0u, 0u, 0u,
+  0u, 0u, 480u, 0u, 495u, 0u, 472u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 874u,
+  229u, 0u, 0u, 0u, 0u, 948u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 1009u, 748u,
+  0u, 555u, 0u, 0u, 0u, 0u, 0u, 0u,
+  193u, 0u, 653u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 984u, 0u, 0u,
+  0u, 172u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 83u, 1568u, 0u, 0u, 384u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 164u, 880u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 367u, 121u, 0u, 0u, 828u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 1541u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 343u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  561u, 57u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 926u, 0u, 0u, 0u, 0u, 827u, 0u,
+  194u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 22u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  896u, 1249u, 0u, 0u, 0u, 0u, 0u, 1614u,
+  0u, 0u, 0u, 860u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 964u, 102u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 899u, 0u, 569u,
+  0u, 0u, 0u, 0u, 795u, 2045u, 0u, 0u,
+  0u, 0u, 0u, 0u, 104u, 52u, 0u, 0u,
+  0u, 0u, 0u, 604u, 0u, 0u, 0u, 0u,
+  779u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  32u, 0u, 0u, 0u, 0u, 494u, 0u, 677u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 508u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 1014u, 0u, 957u, 0u, 0u, 630u, 310u,
+  0u, 0u, 0u, 570u, 0u, 0u, 449u, 0u,
+  64u, 537u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 244u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  702u, 1650u, 49u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  338u, 0u, 0u, 0u, 0u, 1279u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 896u, 0u, 0u,
+  178u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 808u, 695u,
+  0u, 0u, 0u, 0u, 539u, 1117u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 257u, 0u,
+  1003u, 0u, 0u, 0u, 1u, 448u, 0u, 516u,
+  0u, 0u, 960u, 0u, 125u, 4u, 0u, 1268u,
+  30u, 748u, 0u, 0u, 852u, 0u, 0u, 0u,
+  6u, 0u, 0u, 848u, 236u, 1385u, 862u, 1811u,
+  0u, 0u, 0u, 0u, 698u, 803u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 610u, 992u, 0u,
+  0u, 878u, 0u, 1847u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 383u, 0u, 1404u, 0u, 0u,
+  0u, 0u, 986u, 0u, 347u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  592u, 572u, 0u, 1411u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 64u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 606u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 1829u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 700u, 748u, 0u, 0u, 0u, 0u,
+  0u, 0u, 365u, 0u, 0u, 127u, 0u, 0u,
+  83u, 198u, 0u, 0u, 0u, 0u, 0u, 0u,
+  864u, 55u, 0u, 0u, 0u, 0u, 726u, 1752u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 1066u, 0u, 764u,
+  0u, 0u, 0u, 0u, 683u, 0u, 550u, 309u,
+  0u, 0u, 874u, 1212u, 0u, 0u, 0u, 1364u,
+  0u, 986u, 381u, 723u, 0u, 0u, 0u, 1573u,
+  0u, 0u, 0u, 0u, 0u, 1025u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 1559u, 0u, 0u, 0u, 0u, 493u, 133u,
+  0u, 0u, 0u, 0u, 148u, 119u, 0u, 0u,
+  0u, 0u, 0u, 0u, 537u, 14u, 541u, 0u,
+  635u, 126u, 0u, 0u, 0u, 495u, 0u, 0u,
+  0u, 0u, 861u, 998u, 1009u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 359u, 368u, 0u, 0u,
+  0u, 0u, 304u, 1577u, 0u, 0u, 0u, 0u,
+  0u, 1107u, 0u, 0u, 0u, 0u, 0u, 929u,
+  0u, 0u, 0u, 1142u, 0u, 0u, 0u, 0u,
+  289u, 175u, 0u, 432u, 0u, 219u, 0u, 0u,
+  0u, 0u, 0u, 785u, 0u, 0u, 595u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 80u, 0u, 0u, 0u,
+  0u, 0u, 0u, 931u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 1323u,
+  0u, 0u, 0u, 0u, 290u, 0u, 559u, 1751u,
+  127u, 0u, 0u, 0u, 934u, 1167u, 0u, 963u,
+  0u, 260u, 0u, 0u, 0u, 573u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 580u, 1689u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 1164u, 0u, 0u, 982u, 1922u, 0u, 63u,
+  0u, 0u, 0u, 0u, 0u, 793u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 67u, 790u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 391u,
+  443u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 271u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 1140u, 0u, 0u,
+  0u, 0u, 340u, 300u, 0u, 897u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  890u, 0u, 0u, 0u, 0u, 818u, 321u, 53u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 468u, 0u, 243u, 0u, 870u, 0u, 0u,
+  0u, 1765u, 121u, 0u, 0u, 0u, 180u, 518u,
+  0u, 822u, 419u, 634u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 898u, 0u, 0u,
+  0u, 0u, 454u, 36u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  806u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 1326u, 0u, 104u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 260u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 542u, 45u,
+  0u, 0u, 263u, 1516u, 42u, 0u, 0u, 0u,
+  0u, 0u, 468u, 0u, 1005u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 288u, 87u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  502u, 988u, 133u, 0u, 0u, 0u, 0u, 0u,
+  0u, 141u, 0u, 0u, 872u, 1842u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 261u, 619u,
+  0u, 0u, 0u, 0u, 189u, 246u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 678u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 285u, 35u,
+  0u, 517u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 540u, 214u, 667u, 0u,
+  74u, 0u, 0u, 125u, 0u, 0u, 0u, 0u,
+  0u, 761u, 131u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  333u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 1338u, 94u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 449u, 0u, 646u, 103u, 86u,
+  641u, 2028u, 0u, 0u, 0u, 1u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 869u, 87u, 277u, 117u, 39u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 938u, 297u,
+  0u, 0u, 0u, 0u, 558u, 464u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  731u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 1608u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 1429u,
+  0u, 0u, 733u, 1010u, 0u, 0u, 338u, 1656u,
+  0u, 0u, 0u, 1038u, 979u, 2010u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 1005u, 0u, 0u,
+  121u, 0u, 0u, 0u, 219u, 20u, 0u, 0u,
+  0u, 0u, 0u, 0u, 872u, 1440u, 0u, 0u,
+  0u, 683u, 0u, 1070u, 0u, 0u, 522u, 0u,
+  0u, 0u, 0u, 439u, 669u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 1245u, 0u, 0u,
+  0u, 0u, 0u, 1218u, 0u, 0u, 547u, 233u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 482u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 886u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 795u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 371u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 622u, 0u, 625u,
+  0u, 0u, 0u, 339u, 29u, 0u, 0u, 338u,
+  0u, 0u, 0u, 0u, 130u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 307u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 2044u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 308u, 770u, 0u, 0u, 0u, 0u,
+  0u, 1266u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 400u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 690u, 739u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 990u, 0u, 0u,
+  0u, 1831u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 613u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 763u, 0u, 878u,
+  0u, 0u, 0u, 977u, 0u, 100u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 463u,
+  0u, 0u, 0u, 0u, 623u, 318u, 0u, 0u,
+  296u, 463u, 137u, 0u, 0u, 454u, 0u, 0u,
+  0u, 1527u, 58u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 18u, 48u, 0u, 0u, 0u, 0u,
+  0u, 729u, 0u, 0u, 0u, 442u, 0u, 0u,
+  0u, 0u, 40u, 449u, 0u, 853u, 0u, 0u,
+  0u, 0u, 0u, 0u, 227u, 0u, 0u, 0u,
+  0u, 0u, 0u, 1491u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 161u, 55u,
+  0u, 450u, 0u, 1174u, 62u, 0u, 207u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 869u,
+  0u, 0u, 0u, 0u, 80u, 213u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  354u, 820u, 0u, 0u, 747u, 0u, 0u, 0u,
+  954u, 0u, 0u, 1073u, 0u, 556u, 0u, 0u,
+  0u, 692u, 0u, 191u, 0u, 804u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 831u, 162u,
+  0u, 0u, 35u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 1235u, 0u, 0u, 0u, 0u,
+  0u, 1234u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 96u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 149u, 0u, 0u, 0u,
+  902u, 204u, 0u, 0u, 833u, 0u, 287u, 366u,
+  0u, 0u, 0u, 0u, 0u, 0u, 992u, 2020u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 356u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 784u, 0u, 0u, 567u, 630u,
+  0u, 0u, 0u, 539u, 0u, 0u, 27u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 755u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 814u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 987u, 0u, 0u, 255u,
+  761u, 194u, 0u, 1086u, 0u, 0u, 0u, 0u,
+  0u, 0u, 1016u, 0u, 0u, 1396u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 562u, 271u, 913u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 320u, 153u, 45u, 475u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 713u,
+  0u, 327u, 0u, 0u, 0u, 0u, 0u, 0u,
+  604u, 552u, 3u, 359u, 0u, 0u, 0u, 0u,
+  853u, 80u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 2016u, 6u, 887u, 0u, 0u, 0u, 0u,
+  975u, 0u, 961u, 0u, 0u, 0u, 0u, 0u,
+  916u, 1891u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 100u, 101u,
+  390u, 708u, 0u, 0u, 0u, 587u, 983u, 512u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 645u, 0u, 0u, 0u, 851u,
+  0u, 0u, 0u, 0u, 0u, 498u, 140u, 217u,
+  0u, 0u, 0u, 1448u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 905u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 643u, 105u, 0u, 792u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 56u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 535u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 1748u,
+  0u, 0u, 0u, 0u, 0u, 754u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 91u, 0u, 0u, 1565u, 0u, 91u,
+  792u, 939u, 3u, 370u, 0u, 0u, 0u, 0u,
+  95u, 0u, 0u, 0u, 0u, 551u, 7u, 619u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 1150u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 671u,
+  0u, 0u, 0u, 0u, 0u, 888u, 368u, 149u,
+  0u, 0u, 105u, 1134u, 0u, 983u, 0u, 0u,
+  458u, 31u, 0u, 643u, 0u, 0u, 0u, 312u,
+  0u, 740u, 0u, 0u, 0u, 1642u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 236u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 59u, 68u, 0u,
+  0u, 0u, 0u, 0u, 867u, 795u, 0u, 0u,
+  0u, 0u, 970u, 1977u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 1148u, 0u, 775u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 970u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  665u, 71u, 0u, 0u, 0u, 0u, 827u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 479u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 99u, 607u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 1960u, 0u, 0u, 0u, 793u,
+  0u, 0u, 871u, 41u, 0u, 0u, 241u, 94u,
+  0u, 0u, 0u, 0u, 209u, 0u, 0u, 1497u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 98u, 0u, 0u, 0u, 463u, 0u, 0u,
+  0u, 0u, 291u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 984u, 0u, 0u,
+  0u, 0u, 0u, 205u, 0u, 0u, 0u, 0u,
+  0u, 0u, 205u, 42u, 0u, 801u, 0u, 0u,
+  0u, 0u, 0u, 635u, 0u, 0u, 533u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 371u, 0u, 1282u,
+  0u, 0u, 0u, 825u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 357u, 879u, 467u,
+  0u, 317u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 924u, 0u, 0u, 0u, 0u, 849u, 1795u,
+  0u, 0u, 0u, 0u, 895u, 1799u, 43u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 1820u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 525u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 110u,
+  0u, 493u, 0u, 174u, 417u, 0u, 0u, 0u,
+  0u, 0u, 583u, 733u, 0u, 0u, 0u, 0u,
+  0u, 0u, 481u, 215u, 0u, 0u, 0u, 0u,
+  477u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 308u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 297u, 126u, 0u, 0u, 361u, 1551u,
+  0u, 0u, 0u, 0u, 0u, 0u, 871u, 1807u,
+  0u, 0u, 0u, 0u, 0u, 1307u, 0u, 685u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 797u,
+  0u, 858u, 0u, 565u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  434u, 252u, 826u, 0u, 0u, 0u, 0u, 0u,
+  0u, 791u, 0u, 0u, 0u, 0u, 509u, 231u,
+  178u, 601u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 43u, 1591u, 0u, 0u, 0u, 0u,
+  0u, 1683u, 0u, 0u, 0u, 0u, 45u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 1120u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 556u, 494u, 0u, 398u,
+  0u, 0u, 0u, 1030u, 0u, 0u, 0u, 0u,
+  0u, 0u, 168u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 973u, 0u, 642u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 1615u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 378u, 594u, 0u, 1093u, 0u, 679u,
+  112u, 0u, 0u, 0u, 0u, 1492u, 540u, 1374u,
+  714u, 1486u, 0u, 0u, 0u, 0u, 825u, 1511u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 952u, 0u, 0u,
+  736u, 143u, 0u, 700u, 0u, 1540u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 1557u, 0u, 0u, 0u, 860u, 990u, 0u,
+  0u, 0u, 807u, 0u, 0u, 0u, 0u, 0u,
+  131u, 515u, 0u, 646u, 0u, 0u, 0u, 0u,
+  117u, 728u, 508u, 121u, 0u, 0u, 0u, 0u,
+  0u, 0u, 357u, 0u, 0u, 0u, 0u, 0u,
+  0u, 237u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 1784u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 713u,
+  348u, 1536u, 0u, 738u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 434u, 0u, 0u, 0u, 0u,
+  0u, 0u, 366u, 1877u, 39u, 0u, 0u, 0u,
+  0u, 0u, 0u, 580u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 873u, 0u, 0u, 0u, 0u, 171u,
+  0u, 625u, 550u, 107u, 343u, 943u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 768u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 799u, 0u, 0u,
+  0u, 894u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 1673u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 1052u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 272u,
+  0u, 441u, 0u, 0u, 3u, 9u, 0u, 0u,
+  0u, 1182u, 0u, 1346u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 682u, 0u, 0u, 1004u,
+  24u, 0u, 0u, 968u, 0u, 0u, 0u, 2u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 185u, 0u,
+  0u, 0u, 578u, 474u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 113u, 530u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 556u, 0u, 0u, 0u, 0u, 0u, 0u,
+  16u, 1317u, 0u, 0u, 97u, 0u, 0u, 0u,
+  703u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 892u, 0u, 0u, 0u, 1571u, 0u, 0u,
+  426u, 186u, 0u, 1101u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 937u, 585u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 644u, 291u,
+  0u, 0u, 0u, 0u, 749u, 0u, 162u, 0u,
+  0u, 381u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 762u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 628u, 21u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 919u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  633u, 0u, 0u, 0u, 0u, 332u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 1489u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 832u, 398u, 0u, 645u, 0u, 0u, 0u,
+  13u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 20u, 0u, 800u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 1993u, 0u, 0u, 0u, 0u,
+  769u, 0u, 0u, 0u, 665u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 1426u,
+  0u, 0u, 0u, 0u, 60u, 0u, 0u, 0u,
+  641u, 1874u, 0u, 644u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 1757u, 0u, 0u, 0u, 0u,
+  0u, 937u, 0u, 1652u, 0u, 654u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 527u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 226u, 0u, 0u, 0u, 0u,
+  0u, 1486u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 325u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 1345u, 0u, 0u,
+  91u, 0u, 404u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 973u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 1176u,
+  0u, 549u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 976u, 0u, 0u, 0u,
+  0u, 0u, 21u, 0u, 0u, 0u, 0u, 0u,
+  51u, 0u, 0u, 0u, 0u, 314u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 4u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  198u, 6u, 0u, 1093u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 1776u, 0u, 0u, 0u, 0u, 0u, 1528u,
+  0u, 419u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 76u, 138u, 0u, 0u, 0u, 0u,
+  638u, 29u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 1418u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 1710u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 532u, 23u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 862u, 0u, 0u, 946u, 592u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 70u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 812u, 0u, 0u, 0u,
+  76u, 0u, 0u, 988u, 0u, 442u, 0u, 0u,
+  0u, 896u, 0u, 0u, 0u, 0u, 0u, 0u,
+  483u, 0u, 0u, 0u, 0u, 1709u, 0u, 0u,
+  0u, 0u, 0u, 0u, 119u, 0u, 0u, 0u,
+  117u, 0u, 309u, 0u, 0u, 0u, 0u, 0u,
+  596u, 976u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 768u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 518u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 863u, 0u,
+  0u, 0u, 24u, 145u, 1020u, 0u, 0u, 1984u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 658u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 106u, 1827u, 0u, 1010u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 582u, 87u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 267u,
+  0u, 0u, 0u, 703u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 496u, 0u, 0u, 0u, 0u, 1121u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 249u, 561u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 760u, 0u, 0u, 154u, 0u,
+  0u, 0u, 255u, 0u, 419u, 323u, 0u, 0u,
+  0u, 0u, 0u, 368u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 522u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 551u, 562u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 92u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 284u, 525u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 958u, 0u, 0u, 594u,
+  0u, 0u, 0u, 0u, 0u, 0u, 6u, 479u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 61u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 820u, 1641u,
+  0u, 1556u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 302u, 0u, 0u, 0u, 0u, 0u, 148u,
+  0u, 0u, 676u, 0u, 0u, 0u, 0u, 0u,
+  0u, 1674u, 0u, 0u, 0u, 0u, 0u, 0u,
+  178u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  94u, 389u, 0u, 0u, 0u, 0u, 91u, 8u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 112u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 747u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 1746u, 0u, 0u,
+  0u, 0u, 0u, 24u, 0u, 1352u, 158u, 1530u,
+  0u, 0u, 718u, 130u, 280u, 1401u, 0u, 0u,
+  0u, 0u, 0u, 1946u, 8u, 0u, 0u, 0u,
+  0u, 1607u, 0u, 0u, 0u, 0u, 0u, 0u,
+  882u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 417u, 0u, 0u,
+  0u, 1597u, 633u, 433u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 18u, 234u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  680u, 1950u, 0u, 0u, 0u, 0u, 249u, 5u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 1216u, 0u, 1773u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 509u, 180u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 1002u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 931u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 747u, 943u, 0u, 1837u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 641u, 0u, 0u,
+  0u, 0u, 280u, 0u, 0u, 0u, 5u, 0u,
+  0u, 0u, 0u, 0u, 72u, 545u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 742u,
+  0u, 0u, 254u, 151u, 872u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 921u, 0u, 0u, 517u, 833u, 0u, 1680u,
+  0u, 0u, 436u, 251u, 584u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  24u, 500u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 195u, 1775u, 514u, 389u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 743u, 0u, 0u,
+  0u, 0u, 0u, 0u, 292u, 0u, 0u, 0u,
+  227u, 1283u, 774u, 1805u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 119u, 81u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 913u, 1910u,
+  0u, 0u, 0u, 1826u, 490u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 1162u, 700u, 30u,
+  0u, 0u, 0u, 721u, 839u, 0u, 0u, 0u,
+  617u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 169u, 428u, 0u, 0u, 0u, 0u,
+  0u, 1648u, 637u, 1205u, 0u, 0u, 0u, 1596u,
+  0u, 0u, 4u, 266u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 862u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 16u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 279u, 157u, 391u, 604u,
+  0u, 0u, 713u, 945u, 877u, 973u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 859u, 567u, 628u, 1846u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 762u, 0u, 0u, 191u, 0u, 0u, 0u,
+  0u, 298u, 0u, 0u, 767u, 909u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 795u, 0u, 0u,
+  301u, 0u, 0u, 1970u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 1236u, 0u, 0u,
+  0u, 0u, 0u, 0u, 644u, 369u, 15u, 0u,
+  160u, 71u, 0u, 0u, 0u, 0u, 0u, 1447u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  735u, 1255u, 76u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 474u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  841u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 836u, 0u, 0u, 0u, 0u,
+  0u, 1622u, 0u, 0u, 735u, 0u, 0u, 0u,
+  0u, 1601u, 804u, 1390u, 394u, 0u, 0u, 0u,
+  0u, 0u, 0u, 96u, 0u, 289u, 0u, 0u,
+  35u, 688u, 0u, 0u, 0u, 667u, 0u, 513u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 2034u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 704u, 0u, 1524u,
+  0u, 1078u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 306u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 431u, 0u, 1196u, 0u, 0u, 54u, 0u,
+  15u, 1448u, 0u, 1418u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 907u, 0u, 0u,
+  0u, 0u, 0u, 0u, 194u, 1767u, 0u, 0u,
+  0u, 0u, 0u, 840u, 0u, 900u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 1436u, 0u, 0u, 0u, 0u, 642u, 1560u,
+  0u, 0u, 0u, 0u, 0u, 0u, 94u, 386u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 830u, 416u, 0u, 0u, 20u, 731u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  697u, 0u, 0u, 662u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 861u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 871u, 671u, 864u,
+  0u, 928u, 7u, 0u, 332u, 0u, 0u, 0u,
+  0u, 1055u, 0u, 0u, 0u, 0u, 0u, 0u,
+  986u, 0u, 0u, 0u, 0u, 0u, 44u, 76u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 300u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 175u, 518u, 831u, 1108u, 0u, 0u,
+  0u, 836u, 0u, 1852u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 843u, 1804u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  246u, 0u, 0u, 0u, 610u, 202u, 0u, 0u,
+  36u, 0u, 0u, 0u, 240u, 654u, 13u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 391u,
+  0u, 403u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 75u, 0u, 366u, 815u,
+  0u, 0u, 631u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 345u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 952u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 673u,
+  35u, 662u, 0u, 287u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 5u, 34u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 151u, 0u, 427u, 0u,
+  0u, 382u, 0u, 0u, 0u, 329u, 0u, 0u,
+  279u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 906u, 0u, 0u, 366u, 843u,
+  0u, 1443u, 0u, 1372u, 992u, 0u, 36u, 123u,
+  0u, 649u, 0u, 0u, 0u, 0u, 0u, 767u,
+  0u, 1018u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 995u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 72u, 368u, 0u, 0u, 1345u,
+  0u, 0u, 0u, 589u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 1988u, 0u, 0u,
+  220u, 541u, 0u, 0u, 0u, 686u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 32u, 196u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 381u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 1452u,
+  0u, 0u, 0u, 616u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 1229u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  667u, 120u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 1146u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 352u, 0u, 0u,
+  0u, 0u, 0u, 293u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 935u, 0u, 1050u, 0u, 147u, 88u, 0u,
+  0u, 923u, 0u, 0u, 0u, 0u, 0u, 934u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  114u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 341u, 222u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  293u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 637u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 1159u, 0u, 0u,
+  0u, 847u, 0u, 0u, 0u, 0u, 0u, 0u,
+  683u, 0u, 867u, 944u, 0u, 0u, 0u, 0u,
+  0u, 1809u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 395u, 170u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  618u, 535u, 0u, 1625u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 23u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 778u,
+  0u, 0u, 0u, 0u, 0u, 46u, 0u, 2032u,
+  0u, 0u, 37u, 1458u, 0u, 938u, 363u, 34u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 314u, 0u,
+  0u, 0u, 0u, 0u, 0u, 889u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 462u, 0u, 0u, 0u, 0u, 525u, 0u,
+  0u, 23u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 676u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 498u, 725u, 0u, 0u, 0u, 0u,
+  7u, 0u, 0u, 0u, 0u, 773u, 0u, 0u,
+  0u, 164u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 936u, 583u, 659u, 1462u, 0u, 220u,
+  0u, 0u, 0u, 0u, 803u, 0u, 0u, 544u,
+  119u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 181u, 176u, 0u, 1192u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 1878u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 26u, 0u,
+  0u, 0u, 0u, 0u, 0u, 944u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 273u, 0u, 0u,
+  0u, 0u, 0u, 855u, 0u, 0u, 0u, 0u,
+  5u, 127u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 752u, 230u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 68u, 162u,
+  0u, 654u, 48u, 156u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 240u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  197u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  963u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 858u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 676u, 1978u,
+  0u, 0u, 102u, 972u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 361u, 0u, 461u, 0u, 0u,
+  0u, 472u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  747u, 905u, 0u, 0u, 0u, 155u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  319u, 163u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 848u, 0u, 0u, 36u, 631u,
+  0u, 0u, 0u, 0u, 0u, 1769u, 0u, 0u,
+  0u, 0u, 0u, 144u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 369u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 555u, 247u,
+  0u, 0u, 996u, 0u, 0u, 189u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  280u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 526u, 746u, 0u, 0u,
+  345u, 0u, 0u, 0u, 1017u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 651u, 428u, 0u, 0u,
+  0u, 1162u, 230u, 327u, 546u, 792u, 0u, 0u,
+  0u, 1203u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 672u, 189u, 0u, 0u, 0u,
+  0u, 0u, 0u, 99u, 0u, 0u, 0u, 298u,
+  0u, 0u, 0u, 0u, 0u, 0u, 555u, 397u,
+  0u, 0u, 0u, 0u, 0u, 1157u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  398u, 1523u, 0u, 366u, 0u, 0u, 787u, 0u,
+  0u, 0u, 282u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 157u, 0u, 941u, 0u, 0u, 0u, 0u,
+  0u, 1336u, 0u, 0u, 116u, 0u, 0u, 0u,
+  0u, 0u, 0u, 787u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 170u, 160u,
+  0u, 1815u, 0u, 0u, 0u, 0u, 0u, 866u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 689u, 0u, 0u, 0u, 0u, 820u, 0u,
+  498u, 108u, 0u, 0u, 0u, 1119u, 0u, 0u,
+  0u, 244u, 609u, 1005u, 0u, 581u, 0u, 0u,
+  0u, 0u, 0u, 895u, 0u, 0u, 0u, 1898u,
+  0u, 0u, 0u, 0u, 0u, 926u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 538u, 496u, 294u, 301u, 0u,
+  0u, 0u, 18u, 0u, 0u, 757u, 0u, 0u,
+  0u, 0u, 0u, 1263u, 0u, 820u, 0u, 722u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 2028u, 0u, 0u, 0u, 0u,
+  124u, 1875u, 0u, 0u, 0u, 881u, 0u, 0u,
+  0u, 1348u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 911u, 0u, 954u, 0u, 0u, 0u, 0u,
+  414u, 0u, 0u, 0u, 0u, 517u, 0u, 0u,
+  0u, 0u, 0u, 816u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 713u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 33u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 593u, 150u, 0u, 0u, 0u, 0u,
+  0u, 553u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 108u, 0u, 0u, 0u,
+  0u, 420u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 1777u, 0u, 0u,
+  55u, 493u, 0u, 0u, 81u, 0u, 321u, 980u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 362u, 112u,
+  0u, 74u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 625u, 0u, 0u, 0u, 0u, 0u, 0u,
+  377u, 16u, 0u, 0u, 61u, 281u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 224u, 1031u, 0u, 0u,
+  0u, 0u, 0u, 0u, 51u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 211u, 309u, 15u, 125u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  789u, 173u, 0u, 439u, 9u, 648u, 0u, 0u,
+  294u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  374u, 8u, 0u, 1099u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 575u, 0u, 0u, 0u, 518u,
+  0u, 0u, 0u, 702u, 0u, 0u, 0u, 0u,
+  0u, 0u, 87u, 0u, 0u, 0u, 438u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  464u, 122u, 0u, 0u, 0u, 1802u, 0u, 0u,
+  0u, 0u, 0u, 0u, 499u, 0u, 0u, 0u,
+  87u, 476u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 840u, 283u, 0u, 0u, 0u, 0u, 1620u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 609u, 1160u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 600u,
+  323u, 372u, 0u, 0u, 0u, 0u, 471u, 722u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  5u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 477u, 1304u, 0u, 1774u,
+  0u, 0u, 88u, 0u, 438u, 12u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 671u, 997u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 639u, 22u,
+  0u, 0u, 782u, 681u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 1013u, 664u,
+  0u, 942u, 0u, 1349u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  356u, 0u, 0u, 32u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 215u, 289u, 0u, 1975u, 109u, 450u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 705u, 0u, 0u, 664u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 1238u, 0u, 0u,
+  318u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 960u, 1872u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 103u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  239u, 777u, 0u, 26u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  375u, 414u, 0u, 17u, 0u, 0u, 0u, 1350u,
+  0u, 955u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 887u, 960u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 708u, 710u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 919u, 0u, 0u, 0u, 0u, 502u, 280u,
+  7u, 45u, 0u, 0u, 0u, 0u, 777u, 0u,
+  0u, 0u, 0u, 410u, 0u, 1110u, 0u, 0u,
+  0u, 0u, 0u, 0u, 414u, 341u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 787u, 0u, 0u, 0u, 436u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 1707u, 613u, 377u,
+  96u, 0u, 0u, 0u, 0u, 451u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 680u, 0u, 483u, 916u, 0u,
+  0u, 0u, 0u, 0u, 0u, 937u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 739u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  82u, 0u, 0u, 663u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  128u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 1087u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 503u, 0u, 0u, 0u, 0u, 0u, 0u,
+  9u, 113u, 104u, 324u, 0u, 460u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 935u, 702u, 434u,
+  485u, 1014u, 949u, 423u, 0u, 900u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 2018u, 574u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 1206u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 38u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 1022u, 0u, 0u, 0u, 0u,
+  143u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 2029u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 523u, 0u, 0u, 0u,
+  0u, 0u, 0u, 625u, 0u, 0u, 425u, 37u,
+  0u, 0u, 0u, 1943u, 0u, 0u, 0u, 0u,
+  0u, 765u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 551u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 168u, 0u, 0u, 1010u, 0u, 0u, 1994u,
+  0u, 0u, 0u, 91u, 0u, 0u, 0u, 0u,
+  532u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 1884u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  240u, 15u, 0u, 0u, 0u, 1227u, 0u, 1534u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 392u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 655u, 562u, 395u, 0u, 0u,
+  0u, 501u, 1019u, 0u, 0u, 0u, 0u, 509u,
+  267u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 1099u, 0u, 0u,
+  0u, 0u, 0u, 0u, 948u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 462u, 114u, 0u, 0u,
+  258u, 404u, 0u, 1717u, 0u, 0u, 0u, 0u,
+  82u, 1061u, 0u, 724u, 0u, 0u, 0u, 0u,
+  0u, 1133u, 0u, 0u, 0u, 0u, 0u, 0u,
+  1021u, 841u, 0u, 1021u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 488u, 373u,
+  37u, 0u, 0u, 0u, 0u, 564u, 0u, 0u,
+  0u, 0u, 0u, 513u, 0u, 0u, 0u, 825u,
+  0u, 0u, 899u, 0u, 0u, 778u, 0u, 0u,
+  12u, 1417u, 0u, 1116u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 114u, 545u, 0u, 5u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 192u, 0u, 0u,
+  763u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  755u, 759u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 370u, 0u, 1237u, 0u, 0u,
+  0u, 0u, 0u, 0u, 298u, 87u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 31u, 0u, 0u, 0u, 0u, 0u,
+  0u, 814u, 991u, 0u, 757u, 57u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 540u,
+  0u, 0u, 0u, 0u, 608u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 1014u, 0u, 0u,
+  0u, 902u, 0u, 0u, 0u, 0u, 553u, 1668u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 559u, 60u, 0u, 0u, 0u, 0u, 0u,
+  511u, 0u, 0u, 675u, 0u, 0u, 156u, 0u,
+  0u, 0u, 0u, 0u, 0u, 709u, 0u, 698u,
+  0u, 0u, 0u, 1745u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 714u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 206u, 8u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 776u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 1272u, 0u, 0u, 0u, 0u, 0u, 1059u,
+  0u, 0u, 0u, 0u, 0u, 0u, 406u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 947u, 0u, 0u, 0u, 0u, 0u, 0u,
+  168u, 0u, 0u, 0u, 0u, 0u, 0u, 870u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 554u, 0u,
+  0u, 0u, 0u, 784u, 908u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 396u, 358u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 2u, 228u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 845u, 14u, 0u, 716u, 1820u,
+  594u, 0u, 81u, 1428u, 0u, 161u, 0u, 782u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 64u, 0u, 0u, 0u,
+  0u, 0u, 998u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 1043u,
+  0u, 1496u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 781u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 817u, 1114u, 0u, 1814u, 958u, 0u,
+  0u, 0u, 0u, 812u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  139u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 236u, 643u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 1172u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 1338u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 54u, 0u, 0u, 0u, 256u,
+  0u, 0u, 351u, 0u, 955u, 1885u, 0u, 469u,
+  0u, 0u, 0u, 1270u, 0u, 744u, 0u, 313u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  402u, 969u, 0u, 0u, 0u, 0u, 0u, 0u,
+  50u, 0u, 0u, 0u, 0u, 572u, 0u, 0u,
+  0u, 0u, 847u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 248u, 43u, 0u, 369u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 766u, 0u, 363u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 678u, 0u, 0u, 409u, 258u, 82u, 249u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 32u, 393u, 0u, 788u,
+  0u, 0u, 0u, 1281u, 509u, 1968u, 0u, 0u,
+  0u, 0u, 39u, 291u, 0u, 0u, 0u, 589u,
+  0u, 0u, 54u, 1059u, 0u, 0u, 0u, 0u,
+  0u, 0u, 824u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 1005u, 0u, 1598u,
+  0u, 0u, 0u, 0u, 0u, 919u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 52u, 132u,
+  0u, 0u, 0u, 0u, 0u, 328u, 0u, 0u,
+  0u, 0u, 173u, 0u, 0u, 0u, 0u, 0u,
+  65u, 1411u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 442u, 0u, 842u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  534u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 845u, 210u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  892u, 0u, 0u, 223u, 0u, 0u, 0u, 0u,
+  529u, 0u, 0u, 0u, 807u, 0u, 137u, 218u,
+  0u, 1444u, 0u, 0u, 0u, 0u, 0u, 332u,
+  661u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  76u, 1517u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 418u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 481u, 379u,
+  0u, 0u, 0u, 0u, 0u, 149u, 18u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 742u,
+  304u, 142u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  799u, 925u, 195u, 51u, 0u, 0u, 0u, 0u,
+  688u, 0u, 0u, 0u, 0u, 697u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 1169u, 751u, 0u,
+  0u, 0u, 452u, 929u, 0u, 221u, 0u, 1437u,
+  0u, 0u, 0u, 0u, 955u, 1251u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 192u, 0u, 132u, 0u, 0u,
+  0u, 0u, 0u, 865u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 767u, 672u, 42u, 0u, 0u,
+  0u, 1050u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 368u, 44u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 570u, 29u, 0u, 0u, 0u,
+  0u, 0u, 0u, 227u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 522u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 1529u, 0u, 0u, 0u, 0u,
+  0u, 0u, 739u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 1667u, 0u, 0u, 0u, 0u, 0u, 0u,
+  132u, 511u, 0u, 138u, 208u, 1020u, 0u, 0u,
+  23u, 565u, 0u, 344u, 0u, 0u, 0u, 0u,
+  0u, 922u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 240u, 0u, 0u, 415u, 171u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  402u, 0u, 0u, 754u, 31u, 716u, 0u, 982u,
+  731u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  888u, 0u, 0u, 0u, 803u, 847u, 0u, 0u,
+  823u, 0u, 0u, 0u, 0u, 0u, 0u, 785u,
+  0u, 0u, 2u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 532u, 0u, 0u, 681u, 0u, 0u,
+  314u, 0u, 384u, 684u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 649u, 447u,
+  0u, 1818u, 1007u, 0u, 321u, 0u, 66u, 360u,
+  0u, 0u, 0u, 385u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 900u, 73u, 254u, 0u, 0u,
+  0u, 0u, 683u, 1959u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  86u, 0u, 0u, 725u, 0u, 0u, 0u, 0u,
+  0u, 196u, 0u, 0u, 0u, 0u, 0u, 831u,
+  0u, 0u, 0u, 0u, 723u, 0u, 0u, 0u,
+  0u, 0u, 994u, 627u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 764u, 66u,
+  0u, 0u, 0u, 0u, 205u, 36u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 950u, 0u, 0u,
+  0u, 887u, 111u, 0u, 0u, 831u, 388u, 165u,
+  0u, 0u, 0u, 0u, 0u, 155u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 780u, 755u, 0u, 0u,
+  0u, 0u, 898u, 146u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 45u, 7u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 607u, 0u, 0u,
+  0u, 0u, 0u, 0u, 65u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 88u, 0u,
+  0u, 0u, 0u, 0u, 621u, 600u, 0u, 367u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 561u,
+  0u, 559u, 0u, 585u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 287u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 672u,
+  157u, 0u, 0u, 0u, 0u, 714u, 0u, 0u,
+  0u, 0u, 0u, 456u, 0u, 925u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 19u, 0u,
+  0u, 0u, 0u, 1473u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 113u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 69u, 463u, 0u, 0u,
+  82u, 193u, 2u, 471u, 0u, 0u, 0u, 0u,
+  633u, 0u, 0u, 0u, 0u, 0u, 0u, 1148u,
+  129u, 1392u, 542u, 803u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  438u, 0u, 0u, 0u, 0u, 0u, 0u, 875u,
+  0u, 0u, 0u, 0u, 0u, 237u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 65u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  563u, 0u, 0u, 0u, 9u, 444u, 0u, 0u,
+  43u, 1260u, 0u, 0u, 0u, 0u, 0u, 0u,
+  971u, 0u, 0u, 699u, 0u, 0u, 0u, 0u,
+  0u, 1116u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 829u,
+  242u, 0u, 0u, 593u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 201u, 36u, 224u, 0u,
+  0u, 0u, 0u, 0u, 0u, 1430u, 0u, 1806u,
+  0u, 523u, 0u, 0u, 212u, 1889u, 0u, 0u,
+  0u, 827u, 0u, 0u, 0u, 0u, 0u, 2043u,
+  136u, 242u, 0u, 0u, 0u, 0u, 0u, 0u,
+  284u, 148u, 10u, 0u, 0u, 0u, 0u, 0u,
+  0u, 1249u, 0u, 0u, 0u, 807u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  94u, 0u, 0u, 0u, 494u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 1510u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  505u, 1306u, 0u, 0u, 764u, 268u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 384u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 1703u, 0u, 0u,
+  0u, 0u, 159u, 964u, 583u, 0u, 0u, 0u,
+  0u, 0u, 0u, 515u, 0u, 0u, 854u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 1123u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 136u, 0u, 0u, 0u, 0u,
+  0u, 1782u, 0u, 0u, 44u, 1287u, 0u, 0u,
+  0u, 0u, 0u, 732u, 0u, 0u, 0u, 0u,
+  313u, 679u, 0u, 0u, 316u, 0u, 0u, 0u,
+  0u, 595u, 0u, 0u, 0u, 0u, 0u, 0u,
+  753u, 147u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 137u, 0u, 0u, 0u,
+  0u, 414u, 0u, 1762u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 599u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 1749u, 0u, 0u, 0u, 1627u, 0u, 488u,
+  0u, 0u, 0u, 0u, 0u, 83u, 0u, 0u,
+  0u, 0u, 676u, 0u, 0u, 1639u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 278u,
+  0u, 0u, 0u, 0u, 0u, 0u, 97u, 0u,
+  14u, 1085u, 0u, 0u, 0u, 0u, 0u, 0u,
+  781u, 388u, 0u, 849u, 59u, 229u, 0u, 0u,
+  0u, 0u, 0u, 1115u, 0u, 0u, 0u, 0u,
+  108u, 0u, 0u, 0u, 0u, 700u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 1414u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 660u, 737u, 1035u,
+  0u, 0u, 0u, 0u, 0u, 0u, 521u, 690u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 272u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 1744u,
+  0u, 0u, 0u, 0u, 0u, 0u, 128u, 733u,
+  0u, 0u, 277u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 4u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 936u, 1981u, 40u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 775u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 306u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 979u,
+  0u, 0u, 0u, 0u, 0u, 611u, 0u, 0u,
+  0u, 0u, 0u, 178u, 0u, 0u, 0u, 1969u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 664u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 390u,
+  0u, 0u, 0u, 1510u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 493u,
+  0u, 0u, 37u, 0u, 0u, 0u, 0u, 724u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 96u, 1537u,
+  0u, 0u, 168u, 473u, 0u, 0u, 0u, 105u,
+  0u, 0u, 0u, 0u, 627u, 438u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  11u, 1256u, 0u, 0u, 0u, 1626u, 0u, 779u,
+  0u, 0u, 0u, 0u, 25u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 308u, 0u, 0u, 0u, 0u,
+  0u, 741u, 0u, 671u, 0u, 0u, 0u, 0u,
+  649u, 150u, 0u, 0u, 99u, 521u, 0u, 0u,
+  3u, 339u, 0u, 0u, 0u, 543u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 1358u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 234u, 155u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 1628u,
+  0u, 766u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 829u,
+  0u, 0u, 0u, 1445u, 0u, 0u, 0u, 486u,
+  0u, 0u, 0u, 0u, 2u, 1635u, 0u, 0u,
+  0u, 0u, 558u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 1461u, 0u, 0u,
+  0u, 0u, 0u, 599u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 1376u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  93u, 0u, 0u, 0u, 0u, 0u, 0u, 447u,
+  0u, 0u, 66u, 1432u, 0u, 0u, 0u, 0u,
+  0u, 0u, 307u, 0u, 413u, 609u, 0u, 0u,
+  0u, 930u, 0u, 0u, 0u, 0u, 21u, 939u,
+  0u, 0u, 0u, 0u, 0u, 962u, 4u, 651u,
+  0u, 0u, 0u, 0u, 15u, 579u, 0u, 0u,
+  0u, 0u, 0u, 597u, 0u, 0u, 0u, 0u,
+  0u, 981u, 0u, 0u, 0u, 545u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 1558u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 800u, 17u, 0u, 0u,
+  17u, 0u, 907u, 0u, 0u, 0u, 110u, 0u,
+  0u, 0u, 53u, 458u, 0u, 1983u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  443u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 924u, 1844u, 0u, 1232u,
+  0u, 0u, 0u, 0u, 70u, 519u, 0u, 993u,
+  0u, 0u, 0u, 0u, 0u, 0u, 14u, 530u,
+  0u, 907u, 0u, 0u, 0u, 0u, 0u, 733u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  55u, 0u, 188u, 531u, 56u, 0u, 0u, 1693u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  441u, 0u, 192u, 928u, 0u, 0u, 0u, 0u,
+  0u, 241u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 1525u, 0u, 259u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 512u, 185u, 0u, 464u, 1603u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 1113u, 284u, 720u, 0u, 0u,
+  722u, 0u, 0u, 0u, 0u, 0u, 13u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 4u, 289u,
+  43u, 0u, 0u, 0u, 0u, 0u, 0u, 1694u,
+  0u, 0u, 0u, 0u, 193u, 0u, 0u, 0u,
+  0u, 409u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 308u, 0u,
+  0u, 1863u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 790u, 0u, 0u, 745u, 1002u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 289u, 68u, 477u, 13u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 609u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 367u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 528u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 694u, 58u, 548u, 0u, 0u, 0u, 0u,
+  0u, 0u, 687u, 0u, 0u, 0u, 0u, 1749u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  1004u, 661u, 0u, 0u, 0u, 0u, 0u, 0u,
+  445u, 0u, 0u, 0u, 74u, 0u, 0u, 0u,
+  0u, 213u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 834u,
+  0u, 0u, 189u, 1672u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 1548u, 192u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 32u, 751u, 0u, 78u, 0u, 0u,
+  0u, 0u, 0u, 0u, 544u, 1602u, 105u, 473u,
+  0u, 0u, 0u, 0u, 0u, 0u, 156u, 1949u,
+  0u, 1779u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 763u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 29u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 883u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 488u, 0u, 617u, 0u, 0u, 50u, 0u,
+  694u, 1518u, 785u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 546u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 22u, 0u, 0u, 0u, 0u, 1016u,
+  0u, 0u, 0u, 577u, 0u, 0u, 0u, 0u,
+  0u, 0u, 184u, 935u, 114u, 720u, 0u, 0u,
+  100u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 3u, 0u, 0u, 0u, 0u, 0u,
+  95u, 14u, 0u, 969u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 727u, 0u, 1021u, 0u, 0u,
+  0u, 0u, 0u, 1190u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 153u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 798u, 0u, 587u, 0u, 0u,
+  695u, 42u, 0u, 1929u, 141u, 957u, 0u, 465u,
+  7u, 908u, 0u, 0u, 450u, 148u, 0u, 0u,
+  0u, 1166u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 253u, 0u,
+  1003u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 46u, 0u, 0u, 879u,
+  0u, 806u, 0u, 1868u, 0u, 0u, 0u, 0u,
+  0u, 1846u, 0u, 0u, 0u, 730u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 965u, 0u, 0u,
+  0u, 0u, 506u, 0u, 0u, 0u, 10u, 0u,
+  0u, 0u, 22u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  960u, 296u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 587u, 0u, 0u,
+  0u, 0u, 20u, 0u, 0u, 0u, 32u, 982u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 941u, 0u, 0u, 0u, 0u, 435u,
+  0u, 0u, 0u, 0u, 0u, 0u, 71u, 419u,
+  0u, 0u, 0u, 0u, 0u, 0u, 688u, 740u,
+  94u, 345u, 0u, 0u, 679u, 582u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 945u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 539u, 0u, 684u, 1993u, 0u, 0u,
+  0u, 659u, 0u, 583u, 0u, 803u, 0u, 704u,
+  0u, 0u, 0u, 0u, 0u, 198u, 181u, 347u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 481u, 405u, 203u, 0u, 0u,
+  99u, 826u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 492u, 0u, 408u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 4u, 0u,
+  0u, 0u, 0u, 665u, 349u, 137u, 0u, 0u,
+  0u, 0u, 612u, 1270u, 0u, 0u, 0u, 0u,
+  0u, 371u, 0u, 0u, 0u, 826u, 0u, 0u,
+  0u, 0u, 21u, 1535u, 858u, 374u, 0u, 0u,
+  0u, 0u, 0u, 0u, 311u, 0u, 0u, 0u,
+  991u, 1968u, 0u, 0u, 0u, 0u, 494u, 1647u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 769u, 0u, 0u, 0u, 0u,
+  0u, 642u, 0u, 0u, 157u, 123u, 0u, 0u,
+  0u, 1435u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 79u, 0u, 0u, 0u,
+  0u, 0u, 0u, 1425u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 106u, 393u, 486u, 1690u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 756u, 184u, 0u, 0u, 0u, 1382u,
+  0u, 0u, 0u, 175u, 0u, 1493u, 0u, 1007u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 219u, 0u, 0u, 0u, 0u,
+  515u, 99u, 0u, 851u, 0u, 0u, 0u, 0u,
+  0u, 1278u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 1000u, 982u, 0u, 762u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 910u, 1819u,
+  0u, 0u, 0u, 0u, 0u, 0u, 906u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 1730u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 1185u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 40u, 0u,
+  0u, 0u, 147u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  650u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  56u, 30u, 0u, 553u, 0u, 0u, 20u, 597u,
+  0u, 1614u, 0u, 0u, 0u, 0u, 0u, 327u,
+  49u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  78u, 0u, 0u, 786u, 134u, 0u, 0u, 0u,
+  12u, 496u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 42u, 204u, 0u, 614u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 147u, 247u,
+  0u, 0u, 0u, 0u, 942u, 0u, 0u, 2023u,
+  0u, 0u, 0u, 0u, 0u, 0u, 67u, 285u,
+  0u, 0u, 8u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 1309u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 41u, 532u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 1692u,
+  0u, 0u, 0u, 0u, 55u, 1704u, 0u, 0u,
+  0u, 0u, 988u, 0u, 0u, 0u, 223u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 57u, 1123u,
+  0u, 0u, 0u, 0u, 0u, 1764u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 2015u,
+  0u, 0u, 0u, 1599u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 129u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 534u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 504u, 621u, 1248u, 321u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 1397u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 441u, 75u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  841u, 0u, 0u, 0u, 0u, 0u, 693u, 0u,
+  650u, 314u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 913u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 880u, 0u,
+  475u, 0u, 0u, 1016u, 179u, 602u, 111u, 329u,
+  0u, 0u, 0u, 1864u, 0u, 0u, 0u, 0u,
+  846u, 1888u, 0u, 0u, 780u, 0u, 0u, 0u,
+  82u, 0u, 0u, 0u, 0u, 821u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 956u, 112u, 0u, 0u, 0u, 261u, 455u,
+  0u, 0u, 0u, 0u, 0u, 0u, 337u, 385u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 184u, 1865u,
+  0u, 0u, 721u, 16u, 0u, 486u, 0u, 0u,
+  0u, 265u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 621u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 234u, 0u,
+  0u, 815u, 0u, 0u, 743u, 1987u, 205u, 197u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 314u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  219u, 452u, 589u, 0u, 176u, 333u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 1110u, 47u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 864u, 0u, 0u, 300u, 0u, 1237u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 1685u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 7u, 135u, 395u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 631u, 0u, 0u, 0u, 0u, 0u, 0u,
+  835u, 0u, 0u, 0u, 606u, 459u, 0u, 979u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 612u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 158u, 372u,
+  0u, 854u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 1492u, 0u, 0u, 0u, 833u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 1739u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 195u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 730u, 1997u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 61u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 266u, 751u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 821u,
+  0u, 0u, 0u, 715u, 0u, 0u, 0u, 868u,
+  0u, 959u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 1053u, 0u, 0u,
+  0u, 950u, 0u, 1081u, 0u, 1595u, 0u, 0u,
+  0u, 0u, 59u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 47u, 684u, 0u,
+  0u, 0u, 0u, 0u, 0u, 1606u, 0u, 777u,
+  0u, 1020u, 0u, 0u, 0u, 1094u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 350u, 0u, 0u,
+  0u, 0u, 0u, 0u, 242u, 1812u, 0u, 0u,
+  0u, 967u, 0u, 0u, 0u, 473u, 286u, 0u,
+  0u, 0u, 0u, 0u, 0u, 798u, 629u, 222u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 513u, 337u, 306u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 146u, 0u,
+  0u, 1646u, 0u, 0u, 0u, 0u, 0u, 465u,
+  0u, 0u, 0u, 525u, 0u, 0u, 0u, 0u,
+  0u, 0u, 299u, 165u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 1064u, 0u, 0u, 0u, 0u,
+  0u, 596u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  238u, 1741u, 0u, 1233u, 451u, 1824u, 0u, 0u,
+  0u, 0u, 733u, 495u, 0u, 0u, 0u, 0u,
+  0u, 1204u, 0u, 0u, 0u, 559u, 341u, 0u,
+  224u, 21u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 97u, 1446u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 729u, 0u, 0u, 565u, 727u,
+  0u, 1948u, 0u, 0u, 0u, 519u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 1193u,
+  0u, 0u, 0u, 0u, 0u, 0u, 790u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  323u, 2u, 201u, 0u, 0u, 59u, 0u, 0u,
+  34u, 0u, 896u, 961u, 0u, 1285u, 0u, 0u,
+  46u, 0u, 479u, 0u, 0u, 0u, 0u, 549u,
+  0u, 663u, 0u, 0u, 0u, 0u, 0u, 783u,
+  65u, 682u, 0u, 0u, 0u, 0u, 0u, 11u,
+  0u, 0u, 0u, 0u, 0u, 522u, 0u, 0u,
+  0u, 52u, 0u, 0u, 0u, 0u, 0u, 383u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  127u, 0u, 0u, 0u, 0u, 0u, 397u, 194u,
+  0u, 0u, 635u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 975u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  116u, 0u, 51u, 0u, 0u, 858u, 0u, 1075u,
+  535u, 448u, 0u, 0u, 0u, 0u, 0u, 610u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 191u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 267u,
+  673u, 319u, 94u, 92u, 0u, 551u, 0u, 0u,
+  218u, 1406u, 69u, 256u, 0u, 0u, 952u, 1980u,
+  0u, 833u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 39u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 81u, 0u,
+  0u, 0u, 352u, 634u, 0u, 0u, 0u, 0u,
+  0u, 618u, 0u, 0u, 0u, 0u, 0u, 0u,
+  73u, 339u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  169u, 759u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 1075u,
+  0u, 0u, 0u, 0u, 0u, 0u, 482u, 649u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  386u, 336u, 0u, 0u, 0u, 1035u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 924u, 0u, 73u, 0u, 0u, 0u, 0u,
+  0u, 1971u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 1344u, 0u, 501u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 46u, 799u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 276u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 770u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 158u, 0u, 0u,
+  0u, 0u, 0u, 1432u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 25u, 0u,
+  0u, 2001u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 478u,
+  0u, 0u, 0u, 0u, 0u, 0u, 91u, 1461u,
+  211u, 602u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 1068u, 0u, 0u, 124u, 567u,
+  0u, 0u, 0u, 1006u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 735u, 812u, 0u,
+  0u, 323u, 0u, 0u, 0u, 304u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 148u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 523u, 0u, 0u, 144u, 730u, 0u, 0u,
+  981u, 0u, 0u, 111u, 0u, 0u, 132u, 0u,
+  0u, 0u, 0u, 0u, 0u, 890u, 0u, 0u,
+  0u, 0u, 0u, 444u, 0u, 1787u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  7u, 0u, 0u, 0u, 0u, 2041u, 932u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 937u, 0u, 995u, 0u, 0u, 255u, 0u,
+  0u, 138u, 863u, 965u, 0u, 0u, 631u, 0u,
+  0u, 0u, 0u, 1394u, 16u, 652u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 897u, 0u, 321u, 0u, 0u,
+  0u, 0u, 0u, 922u, 0u, 619u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 844u, 0u, 0u, 0u, 0u, 0u,
+  0u, 1659u, 0u, 1100u, 0u, 0u, 0u, 1173u,
+  0u, 1930u, 268u, 251u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 390u, 711u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 744u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 624u,
+  0u, 0u, 0u, 1998u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 1125u,
+  0u, 0u, 0u, 594u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 268u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 563u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  2u, 39u, 0u, 0u, 0u, 1332u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 508u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 66u, 796u,
+  0u, 0u, 0u, 0u, 527u, 0u, 0u, 0u,
+  0u, 98u, 0u, 0u, 576u, 0u, 0u, 0u,
+  0u, 0u, 122u, 0u, 276u, 37u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 645u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 290u, 0u, 0u, 762u, 1292u, 0u, 0u,
+  0u, 1315u, 0u, 1955u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 210u, 131u,
+  0u, 0u, 0u, 0u, 797u, 0u, 38u, 0u,
+  11u, 488u, 0u, 936u, 0u, 441u, 0u, 0u,
+  0u, 0u, 0u, 595u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 991u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 653u,
+  0u, 523u, 0u, 0u, 0u, 903u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 80u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 432u, 0u, 0u, 314u,
+  0u, 0u, 0u, 0u, 232u, 1368u, 534u, 0u,
+  0u, 0u, 0u, 0u, 27u, 0u, 0u, 0u,
+  12u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 264u, 736u, 0u, 1657u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 1117u, 0u, 127u,
+  0u, 0u, 0u, 1208u, 0u, 1294u, 0u, 0u,
+  0u, 0u, 364u, 0u, 0u, 0u, 0u, 0u,
+  125u, 1334u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  792u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  849u, 699u, 0u, 0u, 0u, 0u, 0u, 968u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 1446u, 124u, 397u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 641u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 127u, 346u, 0u, 0u,
+  517u, 75u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 83u, 0u, 0u, 0u, 0u, 0u,
+  0u, 1031u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 1470u, 0u, 954u, 0u, 0u, 345u, 304u,
+  410u, 0u, 0u, 0u, 0u, 734u, 0u, 0u,
+  0u, 0u, 0u, 1822u, 0u, 0u, 0u, 1798u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 14u, 0u, 0u,
+  0u, 0u, 0u, 0u, 161u, 1865u, 69u, 0u,
+  0u, 0u, 0u, 0u, 0u, 922u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 541u, 0u, 627u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 166u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 849u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 717u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 600u, 0u,
+  0u, 0u, 0u, 0u, 0u, 654u, 0u, 0u,
+  188u, 273u, 0u, 0u, 0u, 543u, 0u, 410u,
+  87u, 0u, 0u, 941u, 0u, 0u, 186u, 250u,
+  0u, 1785u, 0u, 0u, 0u, 0u, 0u, 1339u,
+  462u, 961u, 0u, 780u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 529u, 0u, 0u,
+  0u, 0u, 0u, 0u, 474u, 1276u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 24u, 948u, 0u, 0u,
+  0u, 0u, 657u, 753u, 0u, 0u, 0u, 0u,
+  941u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 706u, 985u, 837u, 0u, 1861u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 292u, 933u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 767u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 641u, 0u, 0u, 0u, 1233u, 114u, 0u,
+  883u, 0u, 274u, 2008u, 0u, 1794u, 285u, 0u,
+  0u, 571u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 823u, 960u, 16u, 617u,
+  0u, 431u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 567u, 0u, 401u, 0u,
+  2u, 781u, 424u, 33u, 0u, 2006u, 0u, 0u,
+  274u, 0u, 0u, 1882u, 0u, 794u, 0u, 0u,
+  0u, 1848u, 0u, 0u, 0u, 0u, 0u, 0u,
+  448u, 47u, 0u, 0u, 0u, 1199u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 417u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 295u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 1019u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 620u,
+  0u, 0u, 0u, 0u, 464u, 0u, 0u, 0u,
+  0u, 208u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 442u, 0u, 930u, 0u, 0u, 0u,
+  0u, 0u, 516u, 68u, 0u, 0u, 0u, 0u,
+  0u, 1128u, 104u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 787u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 491u, 0u, 0u, 0u,
+  0u, 0u, 0u, 711u, 0u, 0u, 9u, 0u,
+  101u, 441u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 160u, 396u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 679u, 326u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 1128u,
+  0u, 0u, 0u, 0u, 0u, 737u, 0u, 1796u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 338u, 574u, 0u, 0u,
+  0u, 0u, 0u, 1096u, 491u, 405u, 0u, 0u,
+  0u, 0u, 0u, 1081u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 1676u, 0u, 1207u, 0u, 0u, 0u, 0u,
+  0u, 0u, 969u, 354u, 0u, 0u, 0u, 0u,
+  598u, 0u, 297u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 1772u, 751u, 0u, 37u, 0u,
+  0u, 1828u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 257u, 191u, 582u, 0u, 0u,
+  0u, 0u, 0u, 0u, 790u, 0u, 0u, 0u,
+  0u, 0u, 47u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 449u, 306u, 1011u, 0u, 0u, 0u,
+  0u, 0u, 299u, 0u, 0u, 0u, 0u, 0u,
+  0u, 837u, 0u, 0u, 0u, 0u, 0u, 0u,
+  10u, 329u, 0u, 0u, 0u, 0u, 0u, 1320u,
+  0u, 0u, 0u, 0u, 0u, 0u, 158u, 657u,
+  0u, 1191u, 0u, 0u, 0u, 0u, 0u, 0u,
+  7u, 0u, 974u, 1939u, 0u, 1665u, 0u, 0u,
+  0u, 0u, 8u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  288u, 66u, 0u, 0u, 0u, 0u, 494u, 175u,
+  0u, 1643u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 570u, 750u, 719u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 13u, 0u, 0u, 1247u, 0u, 0u,
+  221u, 356u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 694u, 1809u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 411u, 0u, 44u,
+  31u, 0u, 0u, 0u, 0u, 669u, 0u, 673u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 1303u, 704u, 299u, 0u, 0u, 0u, 275u,
+  0u, 0u, 216u, 1761u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 1319u,
+  0u, 0u, 428u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 514u, 0u, 0u,
+  0u, 0u, 0u, 0u, 49u, 55u, 102u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 364u, 0u, 0u,
+  0u, 0u, 379u, 0u, 921u, 971u, 52u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 1258u, 0u, 0u,
+  0u, 1058u, 0u, 0u, 0u, 0u, 0u, 656u,
+  0u, 0u, 0u, 0u, 0u, 144u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 1373u, 10u, 605u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 838u, 0u, 1012u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 154u, 365u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 340u,
+  0u, 0u, 0u, 0u, 0u, 810u, 0u, 0u,
+  0u, 0u, 0u, 0u, 495u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 261u, 0u,
+  535u, 248u, 0u, 358u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 567u, 445u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 697u, 0u, 0u, 0u, 1336u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 917u, 174u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 972u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 351u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 286u, 0u, 0u, 56u, 438u,
+  0u, 0u, 0u, 0u, 0u, 1950u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 738u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  969u, 2047u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 818u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 866u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 1467u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 972u,
+  0u, 355u, 0u, 0u, 0u, 116u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 267u, 189u, 104u, 0u,
+  0u, 0u, 0u, 1613u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 116u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 886u, 0u, 86u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  45u, 0u, 0u, 863u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 1953u, 450u, 1773u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 381u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 1142u, 0u, 1189u, 0u, 0u, 0u, 663u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 846u,
+  0u, 0u, 528u, 0u, 393u, 378u, 0u, 0u,
+  0u, 0u, 0u, 0u, 325u, 899u, 680u, 1880u,
+  0u, 1770u, 0u, 0u, 0u, 0u, 0u, 648u,
+  0u, 0u, 0u, 0u, 0u, 0u, 185u, 167u,
+  0u, 2046u, 0u, 0u, 0u, 0u, 0u, 0u,
+  249u, 1645u, 0u, 152u, 0u, 0u, 0u, 1733u,
+  0u, 0u, 0u, 0u, 0u, 1006u, 0u, 0u,
+  0u, 0u, 0u, 420u, 0u, 0u, 0u, 832u,
+  0u, 0u, 0u, 0u, 0u, 351u, 0u, 0u,
+  0u, 0u, 6u, 40u, 0u, 0u, 60u, 0u,
+  0u, 0u, 0u, 1354u, 745u, 724u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 772u, 1951u,
+  275u, 108u, 639u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 500u, 1758u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 1886u, 711u, 205u, 0u, 0u, 965u, 865u,
+  0u, 0u, 0u, 534u, 0u, 0u, 0u, 0u,
+  691u, 0u, 0u, 0u, 237u, 443u, 0u, 878u,
+  0u, 0u, 0u, 0u, 0u, 1410u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 995u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 578u, 0u, 0u, 0u, 0u, 881u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 822u,
+  0u, 923u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 924u, 0u, 0u,
+  0u, 665u, 0u, 0u, 0u, 0u, 0u, 1901u,
+  0u, 0u, 0u, 0u, 0u, 950u, 498u, 93u,
+  0u, 0u, 0u, 1451u, 0u, 0u, 0u, 0u,
+  0u, 747u, 828u, 788u, 400u, 184u, 0u, 198u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 994u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 615u, 320u, 0u, 0u,
+  0u, 978u, 843u, 905u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 850u, 974u, 0u, 0u,
+  0u, 0u, 6u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 509u, 0u, 0u, 0u, 0u, 0u, 273u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 201u, 0u, 0u,
+  0u, 1041u, 0u, 0u, 0u, 1040u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 693u,
+  234u, 774u, 0u, 336u, 0u, 1399u, 22u, 0u,
+  805u, 802u, 777u, 167u, 789u, 0u, 0u, 1705u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 10u, 13u, 11u, 0u, 0u,
+  204u, 264u, 0u, 0u, 56u, 0u, 0u, 1917u,
+  0u, 470u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 1198u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  1015u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 715u,
+  0u, 0u, 1002u, 0u, 0u, 0u, 298u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 867u,
+  0u, 0u, 724u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 768u,
+  0u, 0u, 0u, 0u, 0u, 1066u, 0u, 0u,
+  0u, 0u, 67u, 0u, 174u, 948u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 764u, 0u, 0u, 0u, 0u,
+  75u, 137u, 0u, 756u, 0u, 0u, 0u, 0u,
+  0u, 0u, 1008u, 842u, 643u, 0u, 0u, 0u,
+  67u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 135u, 821u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 736u, 0u,
+  389u, 355u, 0u, 0u, 786u, 0u, 0u, 0u,
+  0u, 0u, 0u, 2044u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 1030u, 0u, 0u, 0u, 1083u, 0u, 0u,
+  0u, 0u, 0u, 1226u, 0u, 0u, 0u, 0u,
+  356u, 319u, 8u, 389u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 474u,
+  0u, 0u, 0u, 427u, 0u, 413u, 0u, 730u,
+  0u, 0u, 0u, 0u, 0u, 373u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 799u,
+  0u, 0u, 0u, 1793u, 0u, 0u, 0u, 322u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 89u, 290u, 2u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 672u, 699u, 1860u, 0u, 0u, 0u, 737u,
+  0u, 0u, 0u, 1612u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 145u,
+  124u, 884u, 0u, 0u, 0u, 0u, 0u, 387u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 679u, 0u, 550u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 1305u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 576u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 686u, 0u, 607u,
+  0u, 0u, 37u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 101u, 1726u, 0u, 0u,
+  0u, 0u, 0u, 958u, 0u, 0u, 0u, 903u,
+  0u, 0u, 0u, 0u, 147u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  367u, 0u, 0u, 0u, 0u, 690u, 0u, 705u,
+  273u, 0u, 0u, 887u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 90u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 908u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 1261u,
+  0u, 0u, 497u, 1235u, 0u, 429u, 0u, 0u,
+  0u, 0u, 904u, 0u, 12u, 125u, 0u, 0u,
+  0u, 841u, 0u, 0u, 0u, 0u, 0u, 860u,
+  946u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  768u, 0u, 770u, 160u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  271u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  719u, 0u, 699u, 581u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 862u, 304u,
+  0u, 631u, 0u, 0u, 0u, 0u, 880u, 1513u,
+  0u, 0u, 0u, 0u, 0u, 981u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 434u, 0u, 0u,
+  0u, 0u, 0u, 550u, 0u, 0u, 476u, 930u,
+  824u, 553u, 0u, 0u, 452u, 0u, 151u, 0u,
+  0u, 0u, 0u, 0u, 0u, 772u, 0u, 292u,
+  135u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  504u, 0u, 0u, 1089u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 783u,
+  0u, 0u, 0u, 0u, 0u, 0u, 206u, 393u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  232u, 912u, 0u, 0u, 0u, 0u, 0u, 977u,
+  0u, 0u, 716u, 98u, 0u, 0u, 0u, 0u,
+  0u, 733u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 19u, 0u, 0u, 0u, 0u, 668u,
+  0u, 360u, 0u, 0u, 0u, 0u, 0u, 0u,
+  656u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  9u, 726u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 72u, 0u,
+  0u, 1269u, 0u, 0u, 463u, 0u, 0u, 0u,
+  0u, 0u, 0u, 1454u, 0u, 1287u, 245u, 0u,
+  989u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 107u, 164u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 1061u, 0u, 0u, 0u, 0u,
+  2u, 484u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 1127u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 460u, 0u, 0u, 0u, 0u, 0u, 932u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 588u,
+  625u, 0u, 0u, 0u, 0u, 76u, 92u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 104u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 763u, 0u, 622u, 0u, 0u,
+  0u, 253u, 0u, 546u, 0u, 0u, 110u, 0u,
+  256u, 916u, 0u, 0u, 35u, 212u, 0u, 0u,
+  746u, 0u, 0u, 0u, 150u, 0u, 0u, 1466u,
+  0u, 0u, 0u, 1299u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 1518u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 1229u, 0u, 0u, 0u, 816u,
+  0u, 0u, 0u, 0u, 0u, 0u, 159u, 0u,
+  0u, 0u, 0u, 0u, 734u, 869u, 126u, 1716u,
+  0u, 0u, 0u, 0u, 0u, 0u, 202u, 232u,
+  0u, 0u, 0u, 0u, 212u, 0u, 0u, 0u,
+  0u, 0u, 111u, 1003u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 1712u,
+  0u, 0u, 216u, 0u, 0u, 0u, 0u, 516u,
+  0u, 0u, 0u, 0u, 0u, 650u, 0u, 0u,
+  0u, 0u, 57u, 99u, 0u, 0u, 0u, 0u,
+  300u, 574u, 0u, 0u, 0u, 0u, 1023u, 0u,
+  0u, 302u, 0u, 1871u, 0u, 728u, 252u, 0u,
+  0u, 461u, 0u, 0u, 0u, 323u, 0u, 0u,
+  0u, 0u, 0u, 0u, 775u, 461u, 0u, 0u,
+  0u, 0u, 0u, 0u, 172u, 0u, 0u, 464u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 73u, 727u, 0u, 1023u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 577u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 1037u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 280u, 677u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 799u, 0u, 0u, 0u, 0u, 159u, 0u,
+  446u, 1730u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 395u, 0u, 0u, 0u, 0u,
+  145u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  20u, 0u, 0u, 426u, 608u, 0u, 0u, 0u,
+  0u, 0u, 977u, 0u, 250u, 0u, 0u, 0u,
+  0u, 0u, 100u, 0u, 0u, 0u, 0u, 1982u,
+  0u, 0u, 0u, 0u, 0u, 476u, 0u, 0u,
+  0u, 0u, 0u, 0u, 594u, 76u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  447u, 0u, 0u, 0u, 0u, 526u, 0u, 0u,
+  14u, 1124u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 188u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 362u, 301u,
+  0u, 0u, 0u, 1743u, 0u, 178u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 872u,
+  0u, 831u, 0u, 0u, 208u, 202u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 1954u, 0u, 0u,
+  0u, 0u, 516u, 872u, 0u, 0u, 313u, 224u,
+  0u, 0u, 24u, 0u, 11u, 546u, 0u, 0u,
+  0u, 1937u, 242u, 241u, 46u, 0u, 0u, 0u,
+  830u, 1273u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 825u, 327u, 1006u, 0u, 0u, 0u, 0u,
+  0u, 1580u, 516u, 366u, 0u, 0u, 0u, 0u,
+  0u, 1736u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 1935u, 0u, 826u,
+  0u, 0u, 0u, 0u, 139u, 331u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 288u, 0u, 916u, 0u, 0u, 0u, 0u,
+  0u, 1888u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 1471u, 0u, 1570u, 0u, 394u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 1931u, 0u, 1719u,
+  0u, 658u, 228u, 0u, 0u, 0u, 0u, 0u,
+  374u, 0u, 0u, 0u, 0u, 735u, 0u, 0u,
+  0u, 0u, 0u, 0u, 323u, 498u, 0u, 1063u,
+  0u, 0u, 0u, 0u, 155u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 906u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 1139u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 108u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 616u, 902u, 0u, 0u, 0u, 0u, 0u,
+  692u, 0u, 0u, 0u, 0u, 0u, 0u, 823u,
+  0u, 0u, 0u, 305u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 681u, 0u, 0u, 0u, 0u,
+  0u, 214u, 1004u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 23u, 0u, 0u, 1703u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 1443u,
+  0u, 0u, 19u, 714u, 0u, 0u, 0u, 0u,
+  64u, 737u, 0u, 0u, 345u, 1758u, 0u, 0u,
+  579u, 47u, 0u, 0u, 539u, 139u, 0u, 0u,
+  0u, 0u, 388u, 0u, 0u, 0u, 0u, 253u,
+  0u, 0u, 0u, 0u, 0u, 0u, 252u, 0u,
+  745u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 504u, 107u, 0u, 871u,
+  0u, 0u, 0u, 229u, 0u, 0u, 0u, 0u,
+  0u, 903u, 0u, 0u, 71u, 0u, 0u, 549u,
+  6u, 47u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 980u, 865u, 705u, 0u, 0u,
+  0u, 161u, 0u, 0u, 0u, 0u, 143u, 1331u,
+  0u, 0u, 0u, 1388u, 33u, 724u, 0u, 0u,
+  0u, 19u, 0u, 0u, 0u, 395u, 0u, 0u,
+  0u, 0u, 0u, 846u, 210u, 0u, 0u, 0u,
+  122u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 695u, 937u, 497u, 0u, 0u, 0u, 0u,
+  0u, 718u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 1581u, 0u, 0u, 0u, 0u, 0u, 0u,
+  161u, 49u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 597u, 0u, 0u, 0u, 1094u,
+  0u, 0u, 0u, 811u, 908u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 1471u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 42u, 1935u, 0u, 0u, 0u, 2014u,
+  66u, 2007u, 0u, 0u, 586u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 28u, 1077u,
+  0u, 0u, 0u, 1221u, 0u, 0u, 62u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 1766u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 25u, 0u,
+  499u, 1388u, 0u, 0u, 97u, 10u, 0u, 0u,
+  0u, 0u, 0u, 481u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 37u, 134u,
+  155u, 486u, 0u, 1442u, 0u, 0u, 0u, 0u,
+  0u, 591u, 0u, 0u, 0u, 0u, 0u, 0u,
+  310u, 1173u, 0u, 0u, 0u, 0u, 409u, 1156u,
+  0u, 0u, 0u, 482u, 0u, 0u, 263u, 926u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 804u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 1265u, 0u, 415u, 0u, 348u,
+  0u, 0u, 0u, 1012u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  165u, 1803u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 408u, 0u, 0u, 0u, 0u, 0u, 0u,
+  257u, 1321u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 1138u,
+  0u, 0u, 0u, 249u, 0u, 0u, 0u, 576u,
+  0u, 0u, 0u, 0u, 231u, 0u, 0u, 0u,
+  288u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 433u, 1487u, 569u, 1678u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 87u, 0u, 0u, 0u, 0u, 0u,
+  779u, 538u, 0u, 0u, 0u, 413u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  495u, 0u, 0u, 0u, 0u, 0u, 191u, 54u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 530u, 567u, 0u, 0u, 0u, 0u,
+  0u, 1484u, 0u, 0u, 0u, 0u, 0u, 0u,
+  815u, 609u, 0u, 0u, 0u, 0u, 0u, 484u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 900u, 0u, 0u, 0u, 0u, 1335u,
+  0u, 1724u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 640u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 1831u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 474u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 1103u, 0u, 1504u, 655u, 1034u, 0u, 0u,
+  0u, 0u, 0u, 305u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 1236u, 0u, 0u,
+  429u, 217u, 0u, 0u, 0u, 0u, 739u, 278u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 708u,
+  0u, 0u, 0u, 0u, 0u, 1840u, 233u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 2017u,
+  0u, 0u, 0u, 0u, 0u, 1488u, 0u, 0u,
+  0u, 1590u, 0u, 0u, 0u, 0u, 0u, 1800u,
+  28u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 45u, 0u, 36u, 0u, 22u, 1442u,
+  378u, 0u, 0u, 0u, 0u, 0u, 0u, 1507u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 39u, 0u, 0u, 1054u, 725u, 1955u,
+  0u, 2036u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 896u, 1871u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  805u, 0u, 0u, 0u, 0u, 2046u, 0u, 0u,
+  0u, 0u, 17u, 712u, 0u, 617u, 55u, 320u,
+  271u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 445u, 0u, 184u, 103u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 659u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 676u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 337u, 0u, 0u, 0u,
+  506u, 0u, 0u, 0u, 0u, 0u, 843u, 77u,
+  0u, 458u, 0u, 0u, 0u, 0u, 0u, 1420u,
+  382u, 109u, 142u, 330u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  87u, 0u, 0u, 0u, 492u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 1239u,
+  0u, 0u, 0u, 0u, 0u, 0u, 211u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 1049u, 0u, 321u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 1985u, 0u, 0u, 122u, 0u,
+  0u, 234u, 0u, 0u, 0u, 1098u, 0u, 0u,
+  0u, 0u, 0u, 0u, 549u, 253u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 522u, 131u,
+  0u, 0u, 149u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 507u, 0u, 0u, 0u, 0u, 811u, 630u,
+  0u, 0u, 0u, 343u, 0u, 0u, 0u, 0u,
+  0u, 448u, 591u, 455u, 0u, 1381u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 575u, 0u, 0u,
+  0u, 0u, 0u, 1175u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 653u, 0u, 0u,
+  0u, 1761u, 0u, 1198u, 0u, 0u, 0u, 0u,
+  297u, 1127u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 678u, 0u, 0u, 164u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 35u, 0u, 45u, 0u, 0u, 0u,
+  0u, 0u, 121u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 125u, 0u, 0u, 0u, 1622u,
+  0u, 0u, 0u, 0u, 0u, 721u, 145u, 0u,
+  0u, 0u, 970u, 792u, 0u, 0u, 0u, 715u,
+  0u, 0u, 0u, 0u, 0u, 1999u, 0u, 0u,
+  74u, 531u, 0u, 0u, 65u, 0u, 0u, 0u,
+  105u, 220u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 960u, 0u, 0u, 0u, 0u, 0u, 0u,
+  428u, 19u, 0u, 0u, 401u, 96u, 0u, 0u,
+  0u, 0u, 0u, 1595u, 116u, 0u, 1021u, 0u,
+  0u, 0u, 0u, 0u, 750u, 1961u, 0u, 0u,
+  148u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 75u, 0u,
+  0u, 1383u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  779u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 598u, 0u, 424u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 1222u, 0u, 0u, 0u, 876u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 133u, 0u, 0u, 0u, 0u, 187u, 0u,
+  8u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  429u, 0u, 685u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 132u, 472u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 938u, 0u, 0u, 874u, 0u, 0u, 0u,
+  0u, 0u, 774u, 0u, 0u, 0u, 0u, 0u,
+  92u, 0u, 0u, 0u, 0u, 0u, 0u, 830u,
+  701u, 0u, 0u, 0u, 0u, 0u, 426u, 350u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 603u, 59u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 293u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 441u, 163u, 4u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 806u, 0u, 0u,
+  0u, 0u, 0u, 0u, 233u, 0u, 0u, 0u,
+  0u, 1994u, 0u, 1739u, 0u, 0u, 393u, 0u,
+  47u, 1038u, 0u, 0u, 0u, 309u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 363u, 0u, 0u, 0u,
+  175u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  666u, 0u, 0u, 1675u, 0u, 1600u, 0u, 0u,
+  0u, 808u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 280u, 54u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 421u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 249u, 0u, 0u, 103u, 254u,
+  0u, 262u, 1u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 805u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 1630u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 671u, 972u, 989u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 889u, 0u, 0u,
+  0u, 1382u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 775u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 388u, 202u, 0u, 0u,
+  0u, 0u, 16u, 560u, 0u, 0u, 0u, 841u,
+  0u, 0u, 566u, 0u, 0u, 0u, 938u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 912u, 0u, 0u, 0u, 1361u, 0u, 0u,
+  0u, 0u, 0u, 0u, 618u, 236u, 0u, 1854u,
+  0u, 0u, 318u, 190u, 0u, 1376u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 349u, 0u, 0u,
+  0u, 0u, 951u, 1972u, 0u, 0u, 0u, 0u,
+  0u, 0u, 344u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 850u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 910u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 19u, 0u,
+  163u, 85u, 0u, 487u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 145u, 0u, 83u, 0u, 0u, 1013u,
+  0u, 0u, 0u, 1922u, 0u, 0u, 169u, 557u,
+  66u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 1193u,
+  82u, 0u, 352u, 454u, 57u, 0u, 0u, 1333u,
+  396u, 107u, 0u, 370u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 204u, 0u, 0u,
+  0u, 0u, 0u, 1706u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  394u, 1204u, 0u, 0u, 0u, 0u, 0u, 1007u,
+  0u, 0u, 0u, 1696u, 0u, 1519u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 981u, 0u, 0u, 0u,
+  0u, 1072u, 0u, 0u, 0u, 712u, 0u, 1629u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 728u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 1271u, 0u, 0u, 0u, 1608u,
+  16u, 0u, 0u, 0u, 0u, 485u, 0u, 0u,
+  0u, 0u, 0u, 0u, 153u, 27u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 1991u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 52u, 0u, 21u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  819u, 0u, 0u, 0u, 0u, 0u, 917u, 0u,
+  0u, 0u, 0u, 784u, 0u, 0u, 0u, 0u,
+  135u, 0u, 0u, 0u, 0u, 0u, 454u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  852u, 1719u, 0u, 0u, 0u, 0u, 0u, 852u,
+  0u, 0u, 0u, 0u, 0u, 952u, 0u, 0u,
+  0u, 0u, 568u, 0u, 0u, 0u, 0u, 0u,
+  448u, 0u, 0u, 0u, 67u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 1826u, 657u, 0u, 729u, 666u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 669u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 402u,
+  0u, 0u, 152u, 0u, 0u, 0u, 0u, 912u,
+  0u, 0u, 0u, 0u, 0u, 0u, 51u, 320u,
+  0u, 445u, 0u, 0u, 0u, 0u, 308u, 0u,
+  0u, 0u, 0u, 0u, 386u, 0u, 0u, 239u,
+  0u, 0u, 130u, 83u, 0u, 143u, 0u, 348u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 958u,
+  0u, 0u, 0u, 0u, 0u, 210u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 430u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 7u, 213u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 801u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 936u, 0u, 108u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 885u, 587u, 219u, 398u, 364u, 0u, 1165u,
+  0u, 0u, 342u, 241u, 303u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 1454u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 254u, 562u, 0u, 786u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 1294u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  493u, 216u, 0u, 0u, 0u, 0u, 219u, 341u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 130u, 1734u, 154u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 701u, 604u,
+  0u, 0u, 879u, 0u, 195u, 666u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 1669u, 0u, 0u, 0u, 1791u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 1228u, 0u, 0u, 0u, 0u, 0u, 623u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 798u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 84u, 122u, 0u, 0u,
+  0u, 837u, 0u, 0u, 0u, 0u, 0u, 0u,
+  1013u, 0u, 0u, 577u, 0u, 0u, 0u, 460u,
+  932u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 31u, 131u, 0u, 0u,
+  0u, 605u, 0u, 0u, 0u, 1246u, 0u, 0u,
+  0u, 0u, 68u, 278u, 165u, 307u, 781u, 0u,
+  0u, 0u, 0u, 0u, 0u, 33u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 1113u, 0u, 0u, 720u, 1953u, 203u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 425u, 326u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 241u, 1316u, 0u, 0u, 0u, 0u,
+  0u, 416u, 0u, 0u, 0u, 1300u, 0u, 847u,
+  0u, 0u, 662u, 358u, 0u, 0u, 0u, 0u,
+  839u, 1823u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  654u, 1522u, 0u, 0u, 0u, 0u, 0u, 0u,
+  163u, 0u, 0u, 0u, 0u, 0u, 314u, 978u,
+  0u, 0u, 0u, 601u, 0u, 0u, 0u, 0u,
+  0u, 946u, 434u, 0u, 0u, 0u, 402u, 411u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 13u, 1467u, 410u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 483u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 677u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 70u, 0u,
+  0u, 0u, 0u, 1405u, 0u, 0u, 0u, 0u,
+  0u, 0u, 108u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 777u, 0u, 0u, 0u, 0u, 0u, 747u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  68u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 505u, 0u, 326u, 0u, 0u,
+  164u, 628u, 654u, 0u, 0u, 0u, 37u, 32u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 668u, 152u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 581u, 0u, 0u, 0u, 0u, 44u, 126u,
+  89u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 1531u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 203u, 1167u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 531u, 1232u, 0u, 0u,
+  0u, 0u, 0u, 943u, 0u, 670u, 231u, 880u,
+  0u, 1617u, 0u, 0u, 0u, 1957u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 975u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 242u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 421u, 0u, 0u, 14u, 834u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 465u, 0u, 0u, 0u,
+  0u, 0u, 834u, 688u, 413u, 855u, 0u, 0u,
+  0u, 590u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 114u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 45u, 169u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 198u, 0u, 0u, 565u, 585u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 691u, 0u, 0u,
+  0u, 593u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 913u, 116u, 0u, 0u, 0u,
+  0u, 1360u, 0u, 0u, 0u, 802u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 673u, 308u, 0u, 709u,
+  1006u, 1895u, 0u, 228u, 0u, 0u, 0u, 1840u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 608u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 1573u, 0u, 2039u,
+  136u, 540u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 897u, 0u, 0u, 938u, 1878u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 1469u,
+  0u, 999u, 0u, 299u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 578u, 0u, 0u, 0u, 0u,
+  0u, 456u, 0u, 0u, 0u, 1679u, 163u, 693u,
+  0u, 0u, 0u, 0u, 0u, 0u, 48u, 755u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 338u, 0u, 0u, 0u,
+  0u, 1091u, 0u, 0u, 0u, 0u, 695u, 0u,
+  0u, 1464u, 0u, 0u, 0u, 0u, 0u, 975u,
+  0u, 0u, 335u, 0u, 0u, 1979u, 0u, 0u,
+  0u, 0u, 269u, 1566u, 630u, 396u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 1815u, 634u, 0u, 0u, 0u, 966u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 9u, 412u,
+  0u, 958u, 0u, 0u, 579u, 382u, 0u, 212u,
+  0u, 0u, 0u, 0u, 965u, 681u, 0u, 0u,
+  16u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 655u, 0u, 0u,
+  0u, 0u, 67u, 0u, 0u, 0u, 0u, 0u,
+  0u, 751u, 0u, 0u, 0u, 0u, 423u, 231u,
+  0u, 0u, 1016u, 300u, 0u, 0u, 0u, 0u,
+  100u, 237u, 0u, 0u, 0u, 1370u, 0u, 0u,
+  0u, 1208u, 0u, 0u, 0u, 0u, 0u, 1219u,
+  129u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 199u,
+  0u, 0u, 427u, 0u, 0u, 0u, 0u, 949u,
+  665u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 712u, 0u, 0u,
+  0u, 0u, 0u, 1186u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 295u, 312u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 151u, 0u,
+  0u, 0u, 0u, 588u, 4u, 0u, 0u, 0u,
+  0u, 0u, 414u, 104u, 0u, 0u, 757u, 263u,
+  0u, 561u, 0u, 0u, 0u, 320u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 225u, 0u, 0u, 0u, 0u, 37u, 817u,
+  0u, 974u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 2026u,
+  131u, 235u, 16u, 0u, 590u, 1157u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 221u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 140u, 390u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 1144u, 0u, 0u, 0u, 464u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 204u, 407u, 303u, 1218u,
+  0u, 0u, 0u, 0u, 5u, 325u, 0u, 0u,
+  0u, 0u, 12u, 800u, 0u, 1783u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  504u, 621u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 920u, 0u, 376u, 0u, 0u,
+  0u, 0u, 0u, 218u, 580u, 0u, 768u, 454u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 676u, 0u, 0u, 0u,
+  0u, 0u, 0u, 164u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 50u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 120u, 285u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 226u, 343u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 29u, 0u, 0u, 1812u,
+  0u, 0u, 8u, 0u, 0u, 0u, 21u, 1125u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 1327u, 0u, 0u,
+  0u, 0u, 575u, 1598u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 895u, 0u, 0u,
+  0u, 959u, 0u, 0u, 0u, 0u, 0u, 1759u,
+  173u, 0u, 0u, 0u, 0u, 266u, 261u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 1427u, 0u, 0u, 300u, 1033u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 584u, 0u, 0u, 0u, 0u, 52u, 734u,
+  0u, 0u, 217u, 239u, 0u, 1129u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 732u, 20u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 418u, 0u, 0u, 0u, 613u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 632u, 0u, 0u, 85u, 984u, 0u, 0u,
+  0u, 0u, 909u, 694u, 7u, 1109u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 167u, 0u, 0u,
+  0u, 0u, 280u, 62u, 0u, 0u, 33u, 0u,
+  0u, 359u, 186u, 980u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 585u,
+  0u, 0u, 0u, 211u, 0u, 0u, 336u, 145u,
+  0u, 1130u, 0u, 873u, 0u, 0u, 840u, 263u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 916u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 155u, 0u, 0u, 0u,
+  461u, 97u, 0u, 0u, 0u, 0u, 0u, 1356u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 593u,
+  0u, 0u, 0u, 0u, 0u, 1392u, 0u, 0u,
+  0u, 0u, 126u, 0u, 0u, 0u, 0u, 1179u,
+  0u, 0u, 0u, 0u, 0u, 162u, 0u, 0u,
+  0u, 0u, 0u, 765u, 0u, 187u, 0u, 1286u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 635u, 0u, 0u, 23u, 215u, 0u, 0u,
+  0u, 1306u, 0u, 0u, 97u, 716u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 657u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 299u, 0u, 0u, 0u, 0u,
+  0u, 0u, 134u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 658u, 1082u,
+  0u, 0u, 0u, 0u, 0u, 2002u, 0u, 0u,
+  0u, 0u, 0u, 0u, 833u, 248u, 0u, 0u,
+  0u, 0u, 0u, 1654u, 0u, 0u, 531u, 0u,
+  0u, 0u, 0u, 0u, 0u, 634u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 853u,
+  573u, 249u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 527u, 0u, 0u, 0u, 0u, 1419u,
+  0u, 0u, 0u, 0u, 0u, 0u, 20u, 49u,
+  0u, 0u, 0u, 992u, 0u, 0u, 0u, 728u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 497u, 1579u, 0u, 0u,
+  0u, 0u, 62u, 268u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 1201u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  495u, 193u, 0u, 0u, 0u, 0u, 106u, 0u,
+  0u, 859u, 0u, 0u, 23u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 813u, 925u, 0u, 0u,
+  223u, 613u, 953u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 666u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 670u, 0u, 0u,
+  40u, 216u, 0u, 0u, 0u, 0u, 0u, 0u,
+  259u, 0u, 0u, 0u, 440u, 1114u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 74u, 475u,
+  0u, 0u, 188u, 139u, 0u, 797u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 1572u, 0u, 0u,
+  0u, 0u, 39u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 1594u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 290u,
+  0u, 232u, 0u, 0u, 887u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  521u, 14u, 0u, 0u, 0u, 0u, 0u, 741u,
+  0u, 0u, 0u, 992u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 111u, 0u, 0u, 425u,
+  0u, 0u, 0u, 0u, 0u, 789u, 0u, 0u,
+  0u, 1593u, 0u, 1768u, 0u, 0u, 233u, 0u,
+  0u, 0u, 0u, 943u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 955u, 225u, 245u, 0u, 0u,
+  0u, 0u, 0u, 0u, 241u, 0u, 0u, 0u,
+  0u, 1943u, 0u, 0u, 0u, 1284u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 709u, 0u, 0u,
+  0u, 0u, 0u, 0u, 554u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 1564u, 0u, 0u,
+  0u, 443u, 0u, 0u, 0u, 0u, 0u, 0u,
+  280u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 729u, 0u, 0u, 0u, 348u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 758u, 848u, 298u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 829u, 1422u,
+  189u, 121u, 0u, 0u, 632u, 812u, 0u, 0u,
+  556u, 0u, 0u, 0u, 0u, 0u, 436u, 172u,
+  530u, 844u, 232u, 984u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 147u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 537u,
+  0u, 0u, 0u, 0u, 0u, 859u, 0u, 0u,
+  842u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 1291u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 1482u,
+  612u, 392u, 0u, 0u, 0u, 262u, 31u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 753u, 549u, 0u, 0u, 0u, 0u, 0u,
+  0u, 696u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 834u, 0u, 0u, 0u, 0u, 0u, 771u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 921u, 0u, 0u,
+  0u, 674u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 308u, 444u, 0u, 0u,
+  0u, 0u, 0u, 0u, 805u, 180u, 0u, 0u,
+  278u, 271u, 0u, 0u, 214u, 505u, 0u, 1215u,
+  0u, 0u, 0u, 0u, 0u, 0u, 387u, 271u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 1645u, 42u, 92u,
+  0u, 459u, 0u, 0u, 330u, 1557u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 113u, 18u,
+  0u, 0u, 0u, 1742u, 0u, 0u, 0u, 965u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 182u, 0u, 0u,
+  65u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 973u, 0u, 0u,
+  0u, 0u, 0u, 328u, 0u, 0u, 588u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 1786u, 0u, 0u, 962u, 1985u, 0u, 0u,
+  0u, 308u, 508u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 588u, 0u, 0u, 0u, 0u, 0u,
+  0u, 614u, 793u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 290u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 1136u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  796u, 719u, 0u, 0u, 326u, 210u, 0u, 0u,
+  0u, 701u, 758u, 472u, 0u, 0u, 0u, 1947u,
+  278u, 1079u, 0u, 0u, 0u, 0u, 0u, 0u,
+  497u, 41u, 0u, 0u, 634u, 46u, 961u, 0u,
+  810u, 524u, 0u, 0u, 33u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 532u, 0u, 997u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 1301u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 1298u, 0u, 671u, 0u, 0u,
+  0u, 306u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 693u, 1823u, 0u, 0u,
+  0u, 759u, 0u, 0u, 0u, 0u, 0u, 1932u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 88u, 182u,
+  0u, 0u, 0u, 1964u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 521u,
+  0u, 0u, 0u, 0u, 0u, 0u, 424u, 857u,
+  0u, 0u, 0u, 0u, 671u, 328u, 0u, 529u,
+  0u, 0u, 0u, 0u, 0u, 716u, 0u, 1509u,
+  80u, 67u, 0u, 0u, 0u, 0u, 59u, 141u,
+  0u, 0u, 0u, 0u, 0u, 0u, 783u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 1498u,
+  0u, 0u, 0u, 0u, 343u, 430u, 803u, 1183u,
+  677u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 1357u, 53u, 0u,
+  0u, 0u, 0u, 590u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 329u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 469u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 460u, 0u, 0u, 1743u,
+  0u, 0u, 963u, 340u, 0u, 0u, 0u, 0u,
+  0u, 1603u, 0u, 0u, 250u, 0u, 0u, 0u,
+  0u, 0u, 646u, 218u, 0u, 1794u, 0u, 0u,
+  0u, 571u, 0u, 455u, 0u, 0u, 0u, 1012u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 597u, 161u, 0u, 349u,
+  0u, 524u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 322u, 432u,
+  0u, 0u, 0u, 0u, 0u, 0u, 325u, 223u,
+  0u, 0u, 0u, 0u, 0u, 566u, 0u, 0u,
+  0u, 1394u, 481u, 436u, 0u, 48u, 457u, 610u,
+  756u, 618u, 0u, 0u, 0u, 755u, 0u, 1217u,
+  0u, 0u, 0u, 0u, 0u, 197u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 544u, 492u, 107u, 414u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 1007u, 0u, 0u, 0u, 0u,
+  5u, 0u, 0u, 1580u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 673u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 1843u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 165u, 0u, 0u, 0u, 0u,
+  0u, 0u, 809u, 885u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 498u, 0u, 0u, 0u,
+  306u, 9u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 437u, 721u, 146u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 177u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 1377u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 200u, 0u, 959u,
+  0u, 0u, 0u, 1928u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 1435u, 0u, 481u, 0u, 0u,
+  0u, 0u, 0u, 0u, 142u, 84u, 0u, 0u,
+  0u, 0u, 0u, 1015u, 0u, 0u, 0u, 315u,
+  0u, 0u, 0u, 0u, 0u, 0u, 759u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 712u,
+  0u, 0u, 0u, 1722u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  222u, 0u, 985u, 1414u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 1273u,
+  538u, 706u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 115u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 1781u, 0u, 0u,
+  0u, 0u, 0u, 431u, 97u, 665u, 42u, 237u,
+  0u, 0u, 0u, 264u, 0u, 0u, 213u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 455u, 0u,
+  0u, 0u, 906u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 624u, 0u, 574u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 354u, 0u, 0u, 0u, 1558u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 68u, 235u, 723u, 1813u,
+  0u, 0u, 0u, 957u, 0u, 830u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 23u, 0u, 0u, 496u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 547u, 239u, 88u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 1310u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 80u, 1076u, 0u, 0u, 118u, 0u,
+  0u, 0u, 479u, 274u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 497u,
+  0u, 0u, 669u, 261u, 0u, 0u, 0u, 0u,
+  13u, 0u, 0u, 0u, 0u, 0u, 0u, 791u,
+  250u, 642u, 0u, 0u, 0u, 1429u, 939u, 949u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 818u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 982u, 330u, 0u, 0u, 0u, 0u,
+  545u, 0u, 0u, 0u, 0u, 0u, 0u, 947u,
+  0u, 1188u, 0u, 0u, 0u, 0u, 0u, 904u,
+  0u, 0u, 0u, 0u, 0u, 1372u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 693u, 377u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 695u, 0u, 0u, 713u, 386u, 0u, 0u,
+  0u, 0u, 128u, 1575u, 0u, 0u, 0u, 0u,
+  0u, 0u, 424u, 893u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  904u, 0u, 0u, 0u, 0u, 0u, 552u, 322u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  28u, 1808u, 49u, 0u, 0u, 0u, 0u, 1832u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 421u, 0u, 0u, 442u, 415u, 0u, 0u,
+  289u, 0u, 0u, 0u, 0u, 0u, 206u, 110u,
+  0u, 0u, 0u, 0u, 0u, 205u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 19u, 1539u,
+  0u, 0u, 0u, 0u, 0u, 1340u, 0u, 1194u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  549u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 1720u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 319u, 0u, 0u, 0u, 0u,
+  112u, 1180u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 967u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 1940u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 735u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 897u, 132u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  38u, 838u, 0u, 0u, 0u, 379u, 218u, 8u,
+  660u, 1017u, 0u, 0u, 0u, 0u, 0u, 0u,
+  111u, 387u, 647u, 877u, 0u, 0u, 53u, 790u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  458u, 0u, 0u, 0u, 0u, 0u, 0u, 954u,
+  0u, 0u, 0u, 394u, 0u, 1367u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 882u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 1409u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 38u, 124u,
+  342u, 199u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 724u, 628u, 0u, 0u,
+  0u, 0u, 804u, 266u, 0u, 0u, 0u, 0u,
+  0u, 208u, 0u, 79u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 741u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 606u,
+  0u, 1494u, 821u, 1553u, 0u, 0u, 135u, 405u,
+  0u, 0u, 178u, 100u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 481u, 0u, 0u, 0u, 1378u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 791u, 33u, 1227u, 857u, 0u,
+  467u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 447u, 0u, 0u, 0u, 0u, 0u, 0u,
+  86u, 128u, 0u, 0u, 0u, 0u, 0u, 0u,
+  587u, 0u, 0u, 0u, 692u, 1018u, 0u, 195u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 1546u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 684u, 0u, 0u, 345u, 0u,
+  0u, 0u, 0u, 0u, 0u, 365u, 0u, 1683u,
+  0u, 0u, 472u, 0u, 433u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 28u, 0u, 0u, 0u,
+  997u, 0u, 705u, 3u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 229u, 0u, 0u,
+  0u, 0u, 102u, 0u, 0u, 0u, 0u, 866u,
+  1022u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 55u, 0u, 115u, 0u, 0u, 0u,
+  0u, 933u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 702u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 1728u, 26u, 484u, 0u, 0u, 0u, 185u,
+  618u, 417u, 0u, 803u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 1262u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 633u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 479u, 262u, 0u, 0u, 0u,
+  0u, 0u, 0u, 830u, 0u, 0u, 0u, 0u,
+  26u, 70u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 217u, 0u, 640u, 51u, 0u, 0u,
+  360u, 1586u, 0u, 0u, 0u, 0u, 0u, 652u,
+  0u, 0u, 0u, 0u, 0u, 766u, 0u, 0u,
+  0u, 0u, 298u, 737u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 655u, 222u,
+  906u, 0u, 0u, 1013u, 991u, 2009u, 0u, 0u,
+  0u, 0u, 503u, 0u, 0u, 0u, 216u, 154u,
+  0u, 0u, 0u, 716u, 0u, 844u, 0u, 0u,
+  0u, 0u, 621u, 252u, 0u, 0u, 0u, 0u,
+  748u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 103u, 0u, 2u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 576u, 0u, 0u,
+  0u, 648u, 0u, 0u, 0u, 331u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 632u, 0u, 0u, 0u, 518u, 107u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  851u, 0u, 0u, 0u, 0u, 504u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 7u, 883u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 922u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 91u, 993u, 0u, 0u,
+  0u, 0u, 0u, 0u, 200u, 131u, 10u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 365u, 1433u, 0u, 0u,
+  0u, 0u, 28u, 103u, 0u, 0u, 798u, 1013u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  39u, 1925u, 0u, 853u, 0u, 0u, 271u, 519u,
+  0u, 0u, 0u, 0u, 338u, 0u, 0u, 300u,
+  470u, 419u, 0u, 0u, 0u, 0u, 0u, 0u,
+  836u, 0u, 0u, 0u, 0u, 0u, 0u, 1937u,
+  0u, 0u, 0u, 0u, 0u, 393u, 0u, 0u,
+  357u, 0u, 0u, 0u, 0u, 0u, 703u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 387u, 0u, 0u,
+  0u, 0u, 0u, 0u, 75u, 708u, 453u, 1351u,
+  0u, 303u, 0u, 0u, 772u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 749u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 1065u, 0u, 0u, 717u, 226u,
+  0u, 0u, 0u, 0u, 0u, 890u, 431u, 626u,
+  0u, 0u, 0u, 0u, 706u, 0u, 0u, 0u,
+  51u, 698u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 828u, 0u, 0u,
+  17u, 0u, 0u, 0u, 0u, 1929u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 84u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 27u, 871u,
+  498u, 0u, 101u, 1793u, 0u, 0u, 0u, 0u,
+  0u, 0u, 435u, 0u, 0u, 0u, 0u, 0u,
+  966u, 0u, 129u, 1644u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 997u, 502u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 823u,
+  0u, 1927u, 0u, 0u, 0u, 0u, 98u, 1756u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 8u, 0u, 160u, 1046u,
+  0u, 492u, 0u, 0u, 0u, 0u, 0u, 0u,
+  129u, 45u, 0u, 0u, 0u, 0u, 0u, 0u,
+  353u, 558u, 0u, 0u, 0u, 0u, 0u, 785u,
+  0u, 0u, 0u, 1145u, 189u, 0u, 0u, 0u,
+  26u, 353u, 0u, 0u, 0u, 0u, 0u, 2024u,
+  0u, 0u, 0u, 606u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 32u, 855u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 2011u, 0u, 0u, 5u, 4u,
+  0u, 0u, 461u, 764u, 0u, 0u, 0u, 1449u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 1445u,
+  0u, 0u, 0u, 1168u, 0u, 0u, 0u, 233u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 255u, 0u, 0u, 216u, 0u, 0u, 0u,
+  286u, 0u, 0u, 0u, 3u, 0u, 0u, 0u,
+  723u, 536u, 0u, 0u, 0u, 0u, 0u, 285u,
+  0u, 0u, 0u, 560u, 0u, 0u, 0u, 0u,
+  0u, 690u, 0u, 0u, 0u, 0u, 0u, 1246u,
+  0u, 0u, 63u, 0u, 33u, 0u, 0u, 0u,
+  0u, 0u, 520u, 1862u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  630u, 0u, 0u, 0u, 0u, 554u, 0u, 0u,
+  0u, 0u, 0u, 1001u, 0u, 0u, 0u, 0u,
+  0u, 446u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 1313u, 0u, 0u, 837u, 636u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 278u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 868u,
+  0u, 0u, 0u, 0u, 1010u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 1231u, 0u, 304u, 0u, 506u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 26u, 0u,
+  93u, 1408u, 794u, 843u, 704u, 0u, 285u, 114u,
+  485u, 898u, 145u, 0u, 19u, 2035u, 0u, 0u,
+  0u, 1933u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 1728u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 746u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 995u, 1964u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 1550u,
+  0u, 874u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 1018u,
+  0u, 0u, 0u, 814u, 126u, 0u, 0u, 1264u,
+  0u, 0u, 814u, 955u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 981u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 915u, 56u, 0u, 0u,
+  100u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 638u, 0u, 0u, 0u, 0u, 738u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 758u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 1112u, 0u, 0u, 214u, 0u,
+  0u, 0u, 133u, 0u, 196u, 168u, 0u, 0u,
+  0u, 0u, 0u, 1152u, 0u, 1245u, 0u, 0u,
+  538u, 169u, 871u, 1816u, 0u, 0u, 413u, 133u,
+  0u, 0u, 0u, 978u, 0u, 0u, 43u, 93u,
+  371u, 0u, 0u, 0u, 0u, 0u, 0u, 526u,
+  25u, 0u, 754u, 335u, 0u, 0u, 0u, 0u,
+  182u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 39u, 601u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 181u, 370u, 0u,
+  0u, 1652u, 358u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 176u, 286u, 0u, 788u,
+  0u, 0u, 0u, 0u, 0u, 1223u, 780u, 254u,
+  1003u, 896u, 0u, 0u, 0u, 1447u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  744u, 0u, 0u, 0u, 0u, 0u, 126u, 0u,
+  41u, 788u, 0u, 0u, 0u, 629u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 293u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 420u, 37u, 1900u,
+  0u, 0u, 0u, 0u, 542u, 1570u, 957u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 373u, 31u,
+  0u, 0u, 0u, 0u, 125u, 325u, 0u, 0u,
+  0u, 0u, 0u, 0u, 323u, 0u, 0u, 1547u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 1216u, 0u, 0u,
+  0u, 0u, 0u, 0u, 198u, 1905u, 629u, 15u,
+  0u, 0u, 0u, 0u, 0u, 0u, 20u, 75u,
+  543u, 1353u, 0u, 0u, 0u, 533u, 0u, 0u,
+  6u, 0u, 0u, 0u, 0u, 0u, 0u, 538u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 338u, 0u, 0u, 0u, 0u,
+  11u, 0u, 0u, 0u, 284u, 659u, 0u, 989u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 848u, 0u, 0u, 507u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 188u, 991u, 884u,
+  0u, 0u, 0u, 0u, 60u, 959u, 0u, 0u,
+  0u, 0u, 0u, 1653u, 0u, 0u, 922u, 337u,
+  0u, 638u, 0u, 0u, 500u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  166u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 418u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  760u, 0u, 0u, 0u, 0u, 0u, 0u, 1277u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 770u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 243u, 89u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 1396u, 0u, 560u,
+  0u, 0u, 3u, 1658u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 586u, 0u, 0u, 1271u,
+  0u, 0u, 0u, 505u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 637u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 1947u, 41u, 445u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  57u, 189u, 0u, 0u, 371u, 0u, 0u, 0u,
+  0u, 552u, 0u, 883u, 0u, 923u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 875u, 0u, 0u, 0u, 1788u, 49u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 661u, 0u, 0u, 1945u, 0u, 0u,
+  0u, 0u, 0u, 794u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 1135u, 0u, 0u, 0u, 745u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 84u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 410u,
+  0u, 976u, 0u, 0u, 0u, 0u, 0u, 703u,
+  0u, 0u, 0u, 0u, 0u, 0u, 187u, 322u,
+  0u, 0u, 0u, 227u, 0u, 0u, 0u, 0u,
+  560u, 0u, 31u, 1395u, 0u, 0u, 0u, 0u,
+  0u, 466u, 0u, 0u, 0u, 0u, 643u, 167u,
+  0u, 0u, 0u, 1428u, 0u, 412u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 1118u,
+  562u, 0u, 0u, 0u, 0u, 0u, 256u, 0u,
+  0u, 0u, 0u, 0u, 0u, 1771u, 0u, 0u,
+  0u, 0u, 0u, 1190u, 132u, 0u, 66u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 317u, 0u, 0u, 0u, 63u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 1475u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 288u, 0u, 0u,
+  0u, 0u, 608u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 1225u, 0u, 1189u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 1468u, 0u, 0u,
+  0u, 0u, 0u, 689u, 120u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 1u, 0u, 329u, 0u,
+  0u, 0u, 0u, 226u, 0u, 0u, 0u, 0u,
+  0u, 1855u, 0u, 0u, 461u, 0u, 0u, 0u,
+  0u, 1346u, 0u, 0u, 0u, 0u, 0u, 85u,
+  0u, 0u, 299u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 1171u, 0u, 0u,
+  0u, 980u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 637u, 279u, 0u, 0u, 0u, 0u,
+  0u, 293u, 0u, 0u, 0u, 0u, 528u, 17u,
+  0u, 0u, 0u, 0u, 5u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 48u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 601u, 0u,
+  0u, 0u, 0u, 0u, 0u, 779u, 0u, 196u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 1322u, 737u, 752u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 412u,
+  192u, 80u, 0u, 0u, 8u, 1470u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 873u,
+  0u, 0u, 0u, 0u, 0u, 835u, 0u, 0u,
+  0u, 0u, 256u, 38u, 986u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 91u, 257u,
+  278u, 911u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 749u, 151u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  989u, 0u, 0u, 990u, 0u, 0u, 90u, 194u,
+  0u, 0u, 0u, 0u, 0u, 425u, 0u, 0u,
+  0u, 0u, 0u, 774u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 646u, 827u,
+  752u, 0u, 0u, 0u, 662u, 0u, 22u, 21u,
+  0u, 0u, 0u, 0u, 0u, 0u, 95u, 239u,
+  0u, 0u, 0u, 431u, 0u, 0u, 0u, 0u,
+  0u, 874u, 0u, 0u, 265u, 65u, 0u, 0u,
+  0u, 1350u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 1887u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 809u, 0u, 696u,
+  0u, 1074u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 630u, 0u, 0u,
+  802u, 0u, 0u, 0u, 56u, 776u, 0u, 970u,
+  0u, 0u, 797u, 0u, 0u, 0u, 0u, 0u,
+  400u, 0u, 0u, 1951u, 0u, 0u, 41u, 0u,
+  11u, 118u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 251u, 615u, 0u, 0u, 0u, 1044u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 225u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 370u, 0u, 0u,
+  0u, 0u, 104u, 48u, 209u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 930u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 1286u, 0u, 759u,
+  0u, 120u, 385u, 0u, 0u, 0u, 429u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 820u,
+  0u, 0u, 0u, 0u, 0u, 0u, 199u, 0u,
+  10u, 151u, 0u, 0u, 0u, 761u, 365u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  46u, 1086u, 0u, 0u, 0u, 0u, 11u, 1624u,
+  58u, 344u, 0u, 0u, 1008u, 1868u, 0u, 0u,
+  0u, 888u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 711u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  440u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  914u, 1913u, 0u, 958u, 0u, 885u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 847u, 276u, 0u, 302u, 65u,
+  0u, 0u, 0u, 510u, 0u, 1514u, 0u, 0u,
+  0u, 0u, 0u, 0u, 152u, 291u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 282u, 589u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 130u, 0u, 0u, 463u, 42u, 0u, 0u,
+  0u, 0u, 0u, 372u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 680u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 977u, 1997u,
+  0u, 0u, 0u, 810u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 1390u, 0u, 0u,
+  0u, 644u, 0u, 0u, 867u, 982u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 540u, 0u, 123u,
+  0u, 0u, 0u, 1978u, 0u, 0u, 0u, 0u,
+  789u, 623u, 0u, 1723u, 0u, 1220u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 480u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 888u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 299u, 1995u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 788u, 179u,
+  0u, 0u, 0u, 0u, 0u, 0u, 431u, 156u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 1373u, 39u, 80u, 196u, 0u,
+  0u, 507u, 0u, 0u, 0u, 646u, 0u, 0u,
+  0u, 0u, 0u, 1214u, 0u, 0u, 0u, 0u,
+  926u, 0u, 0u, 0u, 1u, 114u, 0u, 0u,
+  0u, 0u, 0u, 446u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 490u,
+  0u, 0u, 0u, 491u, 0u, 1584u, 0u, 0u,
+  507u, 250u, 0u, 0u, 0u, 158u, 10u, 362u,
+  1u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 408u, 228u, 860u, 480u, 0u, 779u,
+  0u, 0u, 0u, 557u, 0u, 0u, 142u, 197u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 1490u, 11u, 378u, 316u, 1057u,
+  0u, 0u, 18u, 579u, 299u, 1546u, 0u, 177u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 411u, 0u, 0u, 0u, 0u, 727u, 439u,
+  0u, 0u, 0u, 0u, 0u, 1528u, 0u, 0u,
+  0u, 0u, 0u, 0u, 58u, 0u, 482u, 0u,
+  0u, 0u, 505u, 1952u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 242u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 953u,
+  0u, 0u, 0u, 0u, 802u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 290u,
+  0u, 0u, 791u, 52u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 112u,
+  0u, 0u, 0u, 0u, 0u, 1028u, 0u, 0u,
+  138u, 0u, 0u, 0u, 0u, 1811u, 0u, 0u,
+  0u, 0u, 0u, 0u, 934u, 1821u, 0u, 0u,
+  0u, 0u, 371u, 38u, 0u, 0u, 0u, 1296u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 723u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 1330u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 1255u, 296u, 109u,
+  0u, 0u, 0u, 0u, 0u, 660u, 0u, 0u,
+  0u, 0u, 270u, 591u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 1090u, 81u, 0u, 0u, 0u,
+  0u, 391u, 0u, 0u, 0u, 0u, 249u, 322u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 1412u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 526u, 632u, 0u, 0u, 0u, 0u,
+  0u, 0u, 235u, 144u, 0u, 0u, 0u, 0u,
+  0u, 940u, 0u, 0u, 0u, 52u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 309u, 196u, 0u, 0u,
+  0u, 0u, 0u, 1912u, 0u, 1290u, 0u, 686u,
+  0u, 0u, 625u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 412u, 0u,
+  0u, 0u, 0u, 43u, 0u, 0u, 0u, 0u,
+  11u, 967u, 758u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 220u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 873u, 11u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 890u, 0u, 0u, 2u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 1774u,
+  393u, 263u, 0u, 0u, 0u, 0u, 0u, 0u,
+  818u, 456u, 0u, 0u, 251u, 178u, 393u, 97u,
+  0u, 0u, 0u, 0u, 0u, 674u, 168u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 159u, 1639u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  59u, 934u, 0u, 191u, 0u, 0u, 0u, 0u,
+  346u, 165u, 0u, 877u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 128u, 0u, 0u, 0u, 0u, 0u,
+  0u, 1297u, 0u, 0u, 0u, 0u, 0u, 0u,
+  164u, 0u, 0u, 0u, 15u, 132u, 241u, 1073u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  228u, 324u, 53u, 0u, 0u, 910u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 734u, 705u,
+  217u, 73u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 636u, 389u, 0u, 1409u, 0u, 0u,
+  0u, 0u, 0u, 893u, 0u, 0u, 0u, 0u,
+  21u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 721u, 0u,
+  0u, 0u, 959u, 0u, 0u, 0u, 0u, 1433u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 174u, 189u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  22u, 2u, 0u, 0u, 815u, 354u, 0u, 0u,
+  0u, 0u, 425u, 0u, 411u, 60u, 13u, 1611u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 1478u, 596u, 0u,
+  0u, 398u, 0u, 50u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 192u, 1159u,
+  0u, 0u, 0u, 0u, 0u, 592u, 223u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 245u, 64u,
+  0u, 0u, 0u, 0u, 278u, 0u, 604u, 0u,
+  0u, 1502u, 265u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 310u, 1763u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 129u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 1356u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  505u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  1000u, 0u, 0u, 966u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 839u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 637u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  590u, 0u, 0u, 0u, 0u, 280u, 0u, 0u,
+  0u, 1386u, 0u, 0u, 0u, 281u, 0u, 1064u,
+  0u, 0u, 0u, 0u, 0u, 917u, 0u, 0u,
+  15u, 555u, 0u, 0u, 1014u, 1883u, 0u, 0u,
+  0u, 965u, 0u, 0u, 117u, 33u, 0u, 0u,
+  0u, 801u, 0u, 0u, 0u, 0u, 0u, 877u,
+  0u, 824u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 365u, 0u, 0u,
+  0u, 0u, 0u, 0u, 774u, 7u, 0u, 430u,
+  0u, 0u, 231u, 360u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 822u, 740u, 0u, 0u,
+  929u, 1485u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 852u, 0u, 0u,
+  0u, 0u, 17u, 0u, 0u, 0u, 0u, 0u,
+  0u, 1001u, 0u, 0u, 0u, 0u, 35u, 831u,
+  0u, 0u, 384u, 457u, 0u, 0u, 0u, 1351u,
+  0u, 27u, 0u, 0u, 984u, 0u, 264u, 552u,
+  0u, 401u, 0u, 0u, 0u, 710u, 0u, 1211u,
+  0u, 0u, 11u, 205u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  5u, 579u, 0u, 717u, 0u, 0u, 1011u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 805u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 489u, 0u, 0u, 0u, 1024u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 892u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 473u, 0u, 0u, 0u,
+  659u, 864u, 0u, 0u, 0u, 0u, 0u, 0u,
+  152u, 819u, 0u, 51u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 130u, 0u,
+  0u, 0u, 0u, 0u, 229u, 0u, 0u, 0u,
+  0u, 674u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 770u, 52u, 79u, 0u, 0u,
+  0u, 1666u, 0u, 409u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 195u, 0u, 688u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 889u, 174u, 160u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 872u, 0u, 918u, 569u, 268u, 0u, 0u,
+  0u, 1224u, 0u, 1361u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 374u, 0u, 0u,
+  0u, 0u, 0u, 731u, 0u, 0u, 0u, 0u,
+  190u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  202u, 506u, 444u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  835u, 0u, 17u, 1526u, 0u, 0u, 0u, 0u,
+  0u, 477u, 0u, 0u, 994u, 1374u, 76u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 355u, 287u,
+  0u, 1389u, 0u, 0u, 0u, 0u, 0u, 0u,
+  455u, 384u, 0u, 0u, 0u, 264u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 1001u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 28u,
+  0u, 0u, 0u, 851u, 175u, 359u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 287u, 740u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 857u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 819u, 1402u, 0u, 0u, 0u, 0u,
+  0u, 0u, 174u, 224u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 1649u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 655u, 573u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  128u, 351u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 918u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 687u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 1525u, 0u, 0u, 0u, 1009u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 340u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 861u, 0u, 176u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 96u, 985u,
+  0u, 615u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 1919u, 0u, 0u, 0u, 0u, 0u, 1131u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 247u,
+  0u, 0u, 0u, 0u, 27u, 23u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 38u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 1015u, 0u, 0u, 0u, 0u,
+  0u, 1088u, 0u, 0u, 0u, 0u, 0u, 1585u,
+  0u, 0u, 0u, 0u, 227u, 0u, 0u, 0u,
+  478u, 360u, 0u, 0u, 0u, 95u, 0u, 0u,
+  0u, 0u, 0u, 0u, 699u, 0u, 0u, 0u,
+  26u, 0u, 0u, 0u, 0u, 1119u, 0u, 0u,
+  0u, 739u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 741u, 67u, 0u, 0u, 0u, 0u,
+  0u, 0u, 464u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  42u, 0u, 96u, 0u, 0u, 0u, 26u, 342u,
+  0u, 0u, 0u, 0u, 0u, 0u, 203u, 0u,
+  0u, 449u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 256u, 311u, 0u, 0u,
+  0u, 0u, 0u, 0u, 758u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 827u, 0u, 0u,
+  0u, 0u, 581u, 64u, 0u, 1047u, 0u, 0u,
+  0u, 0u, 0u, 288u, 0u, 0u, 0u, 0u,
+  0u, 1375u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 1309u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 376u, 12u,
+  0u, 0u, 0u, 0u, 0u, 154u, 0u, 1520u,
+  0u, 1753u, 95u, 502u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 269u, 291u, 1197u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  15u, 0u, 0u, 0u, 0u, 1341u, 0u, 1017u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  857u, 1810u, 533u, 0u, 0u, 1453u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 836u, 211u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 19u, 0u, 156u, 0u,
+  0u, 0u, 0u, 1009u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 820u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 228u, 0u, 0u, 0u, 1131u,
+  0u, 1276u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 849u, 1792u,
+  0u, 0u, 389u, 291u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 525u, 0u,
+  0u, 0u, 453u, 0u, 0u, 0u, 0u, 666u,
+  0u, 0u, 0u, 422u, 0u, 355u, 0u, 0u,
+  0u, 0u, 165u, 0u, 260u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 865u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 1625u, 0u, 0u,
+  0u, 234u, 0u, 1383u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 306u, 0u, 0u, 0u,
+  802u, 1921u, 0u, 0u, 0u, 0u, 0u, 0u,
+  180u, 0u, 0u, 0u, 0u, 1312u, 814u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 707u, 0u, 0u, 0u, 1493u, 11u, 61u,
+  733u, 0u, 0u, 0u, 341u, 0u, 0u, 0u,
+  98u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 1014u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 142u, 102u, 0u, 0u,
+  30u, 0u, 0u, 823u, 0u, 1045u, 0u, 0u,
+  0u, 1930u, 0u, 1512u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 87u, 0u, 1243u, 245u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 48u, 68u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  126u, 77u, 625u, 938u, 0u, 0u, 351u, 0u,
+  0u, 0u, 174u, 1668u, 0u, 707u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 403u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 6u, 0u,
+  0u, 282u, 0u, 0u, 0u, 0u, 0u, 0u,
+  8u, 44u, 0u, 0u, 363u, 115u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 545u, 761u, 0u, 0u, 835u, 1254u,
+  0u, 0u, 0u, 0u, 930u, 1936u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 653u, 0u,
+  0u, 0u, 0u, 0u, 344u, 0u, 0u, 1483u,
+  673u, 185u, 0u, 0u, 460u, 93u, 753u, 478u,
+  0u, 0u, 0u, 0u, 0u, 1020u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 103u, 0u, 0u,
+  0u, 499u, 0u, 0u, 0u, 0u, 0u, 0u,
+  207u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 96u,
+  0u, 968u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 3u, 0u, 0u, 0u, 0u, 399u,
+  0u, 0u, 0u, 0u, 224u, 563u, 0u, 0u,
+  0u, 0u, 0u, 704u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 1559u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 861u, 0u, 0u, 0u,
+  0u, 946u, 333u, 746u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 910u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 652u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 1393u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 1514u, 0u, 0u,
+  0u, 0u, 201u, 0u, 510u, 717u, 0u, 0u,
+  528u, 0u, 0u, 0u, 0u, 20u, 0u, 0u,
+  0u, 1251u, 0u, 0u, 0u, 1163u, 0u, 0u,
+  0u, 307u, 0u, 0u, 0u, 0u, 0u, 1091u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 429u, 0u, 0u, 0u, 881u,
+  0u, 0u, 0u, 0u, 0u, 621u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 736u, 0u, 348u,
+  0u, 868u, 0u, 0u, 0u, 0u, 433u, 0u,
+  0u, 0u, 771u, 1495u, 0u, 0u, 0u, 0u,
+  215u, 0u, 0u, 0u, 0u, 0u, 124u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 55u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 112u, 62u, 0u, 856u, 270u, 0u,
+  572u, 0u, 0u, 0u, 0u, 939u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 352u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 647u,
+  0u, 0u, 0u, 0u, 10u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 220u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 464u, 0u, 0u, 109u, 0u, 0u,
+  0u, 1746u, 0u, 0u, 0u, 515u, 0u, 0u,
+  0u, 566u, 0u, 0u, 0u, 0u, 0u, 0u,
+  67u, 40u, 0u, 0u, 722u, 992u, 0u, 0u,
+  923u, 0u, 0u, 0u, 0u, 0u, 0u, 1145u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 568u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 247u, 0u, 0u, 0u, 0u, 645u,
+  0u, 0u, 328u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 1363u,
+  0u, 0u, 0u, 0u, 0u, 1280u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  7u, 28u, 360u, 162u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 764u,
+  0u, 0u, 833u, 862u, 0u, 856u, 0u, 0u,
+  0u, 0u, 0u, 0u, 736u, 92u, 0u, 0u,
+  948u, 1944u, 0u, 1479u, 63u, 590u, 0u, 0u,
+  0u, 1521u, 0u, 0u, 0u, 709u, 0u, 0u,
+  61u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 483u, 0u, 0u, 0u, 0u, 1213u,
+  0u, 0u, 0u, 0u, 29u, 1022u, 0u, 1712u,
+  0u, 466u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 731u,
+  0u, 0u, 0u, 0u, 0u, 0u, 171u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  241u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 964u, 2005u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 1100u, 0u, 0u,
+  0u, 954u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 1958u, 0u, 0u, 34u, 549u,
+  994u, 0u, 0u, 449u, 137u, 850u, 0u, 0u,
+  670u, 146u, 0u, 0u, 0u, 0u, 518u, 159u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  151u, 0u, 0u, 1027u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 983u, 0u,
+  0u, 0u, 0u, 993u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 141u, 501u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 452u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  233u, 149u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 582u, 0u, 0u, 0u, 801u, 0u,
+  0u, 0u, 0u, 0u, 0u, 70u, 0u, 0u,
+  369u, 0u, 36u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 204u, 721u, 430u, 241u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 1817u, 16u, 1078u, 1021u, 0u, 0u, 406u,
+  0u, 0u, 0u, 0u, 0u, 69u, 0u, 0u,
+  0u, 0u, 0u, 1830u, 0u, 0u, 0u, 824u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 826u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 816u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 1000u, 717u, 1845u,
+  0u, 423u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 510u, 0u, 0u, 1048u, 0u, 0u,
+  0u, 618u, 0u, 0u, 0u, 520u, 0u, 0u,
+  0u, 0u, 990u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 321u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 1135u, 0u, 0u, 921u, 0u,
+  0u, 0u, 24u, 397u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 856u, 0u, 0u, 0u, 139u,
+  282u, 981u, 0u, 288u, 0u, 0u, 0u, 1890u,
+  651u, 56u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 261u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 617u, 1403u,
+  0u, 1205u, 0u, 0u, 563u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 333u, 0u, 0u,
+  0u, 0u, 0u, 369u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 622u, 0u, 0u,
+  0u, 1407u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 624u, 160u,
+  0u, 363u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 619u, 0u, 174u, 292u,
+  0u, 0u, 656u, 616u, 0u, 0u, 0u, 685u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 647u, 0u, 0u,
+  0u, 631u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 1267u, 0u, 0u,
+  0u, 1797u, 0u, 0u, 0u, 1684u, 0u, 0u,
+  469u, 0u, 531u, 1230u, 73u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 268u, 0u,
+  0u, 0u, 0u, 0u, 102u, 558u, 109u, 65u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 595u, 0u, 0u, 0u,
+  0u, 0u, 374u, 1832u, 0u, 0u, 0u, 0u,
+  0u, 0u, 16u, 0u, 405u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 881u,
+  0u, 1495u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 142u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 21u, 466u,
+  23u, 257u, 0u, 0u, 0u, 0u, 0u, 0u,
+  77u, 404u, 0u, 0u, 0u, 0u, 0u, 0u,
+  712u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 860u, 1848u, 0u, 0u, 652u, 629u,
+  0u, 0u, 0u, 0u, 13u, 377u, 0u, 1842u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 1501u, 0u, 0u, 0u, 1906u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 491u, 234u, 171u, 0u, 0u,
+  0u, 0u, 631u, 1186u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  931u, 0u, 170u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 1587u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 765u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 424u, 0u, 0u,
+  714u, 0u, 0u, 0u, 0u, 685u, 0u, 0u,
+  0u, 0u, 0u, 0u, 285u, 0u, 0u, 0u,
+  0u, 0u, 0u, 429u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 71u, 18u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 116u, 828u, 0u, 0u, 0u, 0u,
+  0u, 0u, 289u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 675u, 0u, 0u, 0u, 1424u,
+  0u, 0u, 0u, 0u, 0u, 647u, 0u, 0u,
+  0u, 1334u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  36u, 209u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 342u, 0u, 0u, 0u, 928u, 0u, 0u,
+  0u, 0u, 0u, 1838u, 118u, 856u, 654u, 318u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 915u,
+  895u, 454u, 0u, 0u, 513u, 1425u, 0u, 0u,
+  0u, 0u, 0u, 0u, 791u, 0u, 153u, 0u,
+  0u, 0u, 0u, 0u, 0u, 796u, 909u, 445u,
+  345u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 578u, 0u, 0u, 0u, 1387u, 0u, 0u,
+  0u, 555u, 0u, 0u, 0u, 0u, 0u, 0u,
+  766u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 541u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 880u, 0u, 0u, 0u, 0u, 0u, 1506u,
+  0u, 0u, 983u, 0u, 768u, 0u, 0u, 0u,
+  0u, 584u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 737u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 226u, 30u, 426u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 117u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 462u, 0u, 0u, 0u, 385u, 0u, 398u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 347u, 0u, 0u, 0u, 0u, 125u, 1259u,
+  644u, 136u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 469u, 0u, 0u, 0u, 0u, 0u, 1367u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 719u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 1423u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 749u, 0u, 0u, 0u, 0u,
+  546u, 645u, 0u, 0u, 0u, 0u, 0u, 0u,
+  277u, 0u, 0u, 1275u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 453u, 536u, 555u, 0u, 0u,
+  987u, 1107u, 0u, 0u, 90u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 860u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 257u, 0u, 1768u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 1071u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 83u,
+  0u, 835u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 2006u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  696u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  95u, 1718u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 26u, 0u, 550u, 0u, 0u, 0u, 0u,
+  0u, 901u, 0u, 0u, 0u, 0u, 0u, 0u,
+  822u, 0u, 0u, 122u, 0u, 0u, 0u, 807u,
+  0u, 0u, 0u, 0u, 0u, 262u, 0u, 620u,
+  601u, 34u, 0u, 0u, 170u, 0u, 0u, 0u,
+  0u, 537u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 332u, 0u, 0u, 208u, 1909u,
+  182u, 261u, 0u, 0u, 0u, 1721u, 0u, 0u,
+  0u, 0u, 0u, 933u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 1609u, 0u, 895u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 812u,
+  0u, 0u, 942u, 1916u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 778u, 0u, 0u, 0u, 137u,
+  0u, 1314u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 1661u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 1591u, 0u, 0u, 0u, 0u, 0u, 0u,
+  820u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 185u, 89u,
+  0u, 1160u, 230u, 6u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 63u, 29u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 1740u, 0u, 0u, 177u, 170u,
+  0u, 1961u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 91u, 0u,
+  17u, 44u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 270u, 0u, 296u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 1523u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  757u, 7u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 530u, 588u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 786u,
+  0u, 0u, 0u, 0u, 0u, 580u, 627u, 88u,
+  447u, 57u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 845u, 735u, 0u, 0u, 0u, 0u,
+  0u, 31u, 15u, 0u, 460u, 521u, 12u, 424u,
+  0u, 0u, 0u, 1302u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 595u, 0u, 0u, 0u, 13u,
+  548u, 97u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 1472u, 452u, 1767u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 115u, 0u,
+  0u, 0u, 0u, 0u, 0u, 1543u, 0u, 1111u,
+  0u, 0u, 0u, 0u, 1u, 0u, 359u, 488u,
+  0u, 267u, 0u, 0u, 0u, 1983u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 1155u, 0u, 1575u,
+  0u, 1438u, 31u, 0u, 0u, 377u, 101u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 476u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 2023u, 0u, 0u,
+  0u, 0u, 0u, 1836u, 0u, 0u, 0u, 0u,
+  35u, 843u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 554u, 0u, 0u, 0u, 536u, 625u, 207u,
+  0u, 1371u, 0u, 0u, 0u, 424u, 785u, 336u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 896u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 27u, 750u, 0u, 0u,
+  0u, 0u, 238u, 0u, 0u, 0u, 0u, 0u,
+  383u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 603u, 725u, 11u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 476u, 0u, 0u,
+  0u, 0u, 0u, 1552u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 680u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 435u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 1431u, 0u, 0u,
+  13u, 112u, 0u, 0u, 356u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 1963u,
+  0u, 0u, 0u, 1244u, 18u, 0u, 0u, 0u,
+  0u, 0u, 0u, 867u, 0u, 0u, 0u, 0u,
+  0u, 0u, 50u, 708u, 73u, 592u, 0u, 502u,
+  0u, 0u, 0u, 0u, 0u, 0u, 161u, 347u,
+  0u, 0u, 0u, 0u, 470u, 33u, 0u, 246u,
+  571u, 10u, 0u, 465u, 614u, 0u, 237u, 0u,
+  0u, 0u, 0u, 0u, 24u, 18u, 0u, 506u,
+  0u, 0u, 0u, 0u, 0u, 0u, 33u, 309u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 140u, 0u, 0u, 0u, 0u, 1056u,
+  0u, 0u, 0u, 1704u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 1036u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 1315u, 432u, 86u,
+  264u, 524u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 107u, 0u, 0u, 0u, 0u, 0u,
+  123u, 927u, 0u, 0u, 957u, 1149u, 0u, 0u,
+  0u, 0u, 0u, 778u, 0u, 502u, 196u, 0u,
+  0u, 0u, 0u, 1312u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 855u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 45u, 1400u,
+  0u, 0u, 0u, 1003u, 0u, 0u, 0u, 0u,
+  0u, 1097u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 545u, 612u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  54u, 0u, 0u, 0u, 0u, 172u, 0u, 0u,
+  0u, 1029u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 568u, 0u, 0u, 0u, 732u,
+  617u, 0u, 0u, 974u, 94u, 989u, 733u, 0u,
+  0u, 0u, 0u, 0u, 0u, 1789u, 0u, 0u,
+  665u, 2015u, 0u, 0u, 0u, 0u, 0u, 0u,
+  806u, 287u, 0u, 0u, 0u, 0u, 0u, 1539u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 182u, 1563u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 484u, 0u, 0u,
+  0u, 0u, 0u, 1623u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 878u, 1833u, 0u, 1569u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  93u, 0u, 715u, 994u, 0u, 0u, 0u, 0u,
+  0u, 63u, 0u, 591u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 749u, 0u, 0u, 0u, 0u,
+  547u, 366u, 0u, 0u, 0u, 1747u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 89u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 1463u,
+  0u, 772u, 893u, 0u, 0u, 0u, 48u, 0u,
+  0u, 941u, 0u, 0u, 690u, 1785u, 106u, 440u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 32u, 0u, 332u, 216u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 852u, 0u, 0u,
+  416u, 564u, 0u, 918u, 0u, 1764u, 0u, 0u,
+  3u, 0u, 0u, 274u, 0u, 0u, 0u, 0u,
+  501u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  851u, 743u, 0u, 49u, 0u, 879u, 0u, 0u,
+  47u, 0u, 0u, 0u, 0u, 0u, 0u, 865u,
+  0u, 1202u, 0u, 0u, 0u, 0u, 0u, 0u,
+  47u, 272u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 1455u, 0u, 0u,
+  0u, 0u, 891u, 1911u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 761u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 407u,
+  0u, 183u, 0u, 0u, 490u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 35u, 731u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 819u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 575u, 0u, 0u, 0u, 0u,
+  45u, 818u, 0u, 0u, 77u, 222u, 0u, 0u,
+  0u, 0u, 849u, 1880u, 0u, 0u, 0u, 633u,
+  0u, 1308u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 86u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 817u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 882u, 0u, 0u,
+  0u, 914u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 865u, 0u, 0u, 426u,
+  399u, 58u, 0u, 0u, 0u, 0u, 0u, 0u,
+  538u, 102u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 876u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 139u, 566u, 0u, 63u,
+  12u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 3u, 114u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  576u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 933u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 692u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 752u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 375u, 0u, 1011u, 0u, 0u,
+  96u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 148u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 337u, 56u,
+  666u, 0u, 246u, 394u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 437u, 0u, 0u, 0u,
+  506u, 0u, 0u, 0u, 0u, 1003u, 0u, 1163u,
+  0u, 328u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 1000u, 0u, 0u, 0u, 0u, 0u,
+  744u, 101u, 0u, 0u, 0u, 0u, 0u, 726u,
+  0u, 0u, 176u, 0u, 146u, 9u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 839u, 0u, 0u, 0u, 0u, 0u, 0u,
+  223u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 246u, 1931u, 29u, 0u, 0u, 1771u,
+  0u, 0u, 0u, 0u, 0u, 846u, 6u, 157u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 875u, 0u, 0u, 477u, 773u, 177u, 639u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 1747u,
+  0u, 0u, 0u, 0u, 158u, 873u, 0u, 659u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 391u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  668u, 883u, 0u, 78u, 628u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 1460u, 0u, 962u, 0u, 0u, 0u, 0u,
+  0u, 460u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  34u, 199u, 0u, 0u, 0u, 388u, 474u, 0u,
+  271u, 0u, 333u, 608u, 0u, 0u, 0u, 0u,
+  0u, 0u, 49u, 0u, 988u, 0u, 707u, 617u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 756u,
+  0u, 0u, 0u, 0u, 0u, 1583u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  285u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 344u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  515u, 1709u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 404u, 0u, 0u, 0u, 0u, 500u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 68u, 216u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 488u, 353u, 0u, 0u, 177u, 236u,
+  0u, 0u, 458u, 490u, 0u, 0u, 0u, 0u,
+  0u, 0u, 756u, 1504u, 0u, 757u, 0u, 1735u,
+  0u, 0u, 108u, 598u, 0u, 0u, 0u, 0u,
+};
+
+static const uint8_t
+WUFFS_BROTLI__STATIC_DICTIONARY_HASH_LENGTHS[32768] WUFFS_BASE__POTENTIALLY_UNUSED = {
+  8u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 4u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 6u, 0u, 0u, 0u, 0u, 0u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 12u, 0u,
+  0u, 0u, 0u, 4u, 22u, 5u, 0u, 4u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 14u, 6u, 0u, 0u,
+  0u, 5u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 7u, 13u, 0u, 0u, 4u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 6u,
+  0u, 0u, 0u, 0u, 8u, 0u, 0u, 0u,
+  0u, 0u, 0u, 7u, 0u, 7u, 0u, 0u,
+  0u, 0u, 0u, 6u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 15u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 12u, 0u, 0u, 4u,
+  0u, 0u, 0u, 4u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 5u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 10u, 4u,
+  0u, 5u, 13u, 7u, 0u, 4u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 7u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  9u, 6u, 0u, 0u, 8u, 7u, 0u, 0u,
+  9u, 0u, 8u, 0u, 0u, 0u, 0u, 0u,
+  0u, 6u, 0u, 0u, 9u, 0u, 0u, 0u,
+  11u, 0u, 0u, 6u, 8u, 7u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 7u,
+  0u, 0u, 0u, 6u, 8u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 11u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 5u, 0u, 0u, 9u, 0u, 0u, 0u,
+  8u, 4u, 13u, 7u, 0u, 0u, 0u, 0u,
+  0u, 7u, 0u, 5u, 0u, 0u, 0u, 0u,
+  8u, 5u, 0u, 5u, 0u, 0u, 8u, 7u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 9u, 0u, 0u, 0u, 8u, 0u,
+  0u, 0u, 10u, 4u, 0u, 5u, 0u, 4u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 6u,
+  0u, 0u, 0u, 0u, 8u, 7u, 0u, 4u,
+  9u, 4u, 0u, 0u, 0u, 0u, 0u, 0u,
+  9u, 0u, 0u, 0u, 8u, 5u, 0u, 0u,
+  0u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 7u, 18u, 0u, 0u, 0u,
+  0u, 4u, 9u, 0u, 0u, 4u, 0u, 6u,
+  0u, 0u, 0u, 6u, 0u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 6u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 5u, 8u, 7u, 0u, 0u, 0u, 0u,
+  9u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  8u, 6u, 10u, 6u, 0u, 0u, 0u, 4u,
+  0u, 6u, 8u, 6u, 0u, 0u, 0u, 4u,
+  0u, 0u, 0u, 0u, 0u, 5u, 0u, 0u,
+  0u, 6u, 0u, 0u, 0u, 0u, 10u, 0u,
+  12u, 7u, 0u, 0u, 0u, 0u, 0u, 4u,
+  0u, 0u, 0u, 0u, 0u, 5u, 0u, 0u,
+  8u, 7u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 9u, 5u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 6u, 11u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 8u, 7u, 0u, 0u,
+  10u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 6u, 10u, 0u, 17u, 0u, 8u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 5u, 0u, 0u, 8u, 6u, 9u, 5u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 7u, 0u, 0u, 11u, 4u,
+  0u, 5u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 10u, 5u, 0u, 6u,
+  8u, 5u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 11u, 5u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 8u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  9u, 0u, 0u, 0u, 0u, 5u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 6u,
+  0u, 0u, 8u, 7u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 5u,
+  0u, 0u, 0u, 6u, 0u, 0u, 10u, 0u,
+  0u, 0u, 20u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 6u, 9u, 5u, 0u, 0u,
+  0u, 0u, 10u, 4u, 8u, 0u, 0u, 4u,
+  13u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  9u, 0u, 9u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 4u,
+  8u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 12u, 0u, 0u, 4u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 4u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 12u, 5u, 0u, 0u, 10u, 4u,
+  10u, 7u, 13u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 6u, 0u, 6u, 0u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 19u, 0u,
+  0u, 4u, 12u, 6u, 9u, 0u, 0u, 0u,
+  0u, 4u, 0u, 4u, 11u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 12u, 0u, 0u, 0u,
+  8u, 7u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  11u, 4u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 6u, 0u, 0u, 0u, 0u,
+  0u, 5u, 0u, 0u, 0u, 0u, 0u, 6u,
+  0u, 0u, 0u, 6u, 0u, 0u, 0u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 4u, 8u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 17u, 0u, 0u, 0u,
+  9u, 6u, 0u, 0u, 0u, 0u, 0u, 4u,
+  0u, 4u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 4u, 0u, 0u, 0u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 13u, 6u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 6u,
+  8u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 6u, 0u, 0u, 0u, 0u,
+  0u, 5u, 0u, 0u, 0u, 0u, 14u, 4u,
+  0u, 0u, 0u, 4u, 12u, 5u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 7u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 8u, 6u, 0u, 0u, 0u, 0u,
+  0u, 0u, 12u, 0u, 9u, 6u, 0u, 0u,
+  0u, 0u, 13u, 0u, 0u, 5u, 0u, 0u,
+  0u, 0u, 0u, 4u, 0u, 6u, 0u, 7u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  13u, 0u, 9u, 0u, 0u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 12u, 0u, 0u, 5u, 0u, 0u,
+  0u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 6u, 0u, 6u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 8u, 7u, 8u, 4u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 7u, 0u, 7u, 0u, 0u,
+  0u, 4u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 5u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 6u, 0u, 0u, 8u, 6u,
+  8u, 4u, 0u, 0u, 0u, 0u, 0u, 6u,
+  0u, 7u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 10u, 7u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 5u, 0u, 7u,
+  0u, 0u, 0u, 0u, 0u, 0u, 9u, 5u,
+  0u, 0u, 0u, 0u, 0u, 7u, 0u, 0u,
+  0u, 5u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 6u, 0u, 0u, 0u, 0u,
+  9u, 4u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 4u, 12u, 5u, 11u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 8u, 7u,
+  0u, 5u, 0u, 0u, 8u, 7u, 0u, 5u,
+  0u, 0u, 0u, 0u, 8u, 0u, 0u, 0u,
+  0u, 7u, 0u, 4u, 10u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 9u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  13u, 5u, 0u, 0u, 0u, 4u, 0u, 0u,
+  0u, 0u, 0u, 6u, 0u, 0u, 0u, 0u,
+  0u, 0u, 14u, 5u, 0u, 0u, 0u, 7u,
+  0u, 0u, 10u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 6u,
+  0u, 4u, 0u, 5u, 0u, 0u, 0u, 0u,
+  8u, 5u, 0u, 0u, 0u, 0u, 0u, 0u,
+  9u, 5u, 9u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 6u, 9u, 0u, 0u, 4u,
+  0u, 0u, 0u, 7u, 0u, 0u, 0u, 6u,
+  0u, 0u, 10u, 4u, 0u, 0u, 0u, 0u,
+  0u, 6u, 0u, 0u, 10u, 0u, 0u, 0u,
+  8u, 5u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 10u, 0u, 0u, 0u, 0u, 0u,
+  18u, 4u, 12u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 6u, 0u, 0u, 0u, 0u, 8u, 7u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 6u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 8u, 4u, 0u, 0u,
+  8u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 5u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 7u, 0u, 0u,
+  0u, 0u, 8u, 0u, 0u, 0u, 0u, 0u,
+  0u, 6u, 0u, 0u, 0u, 4u, 10u, 5u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 4u, 8u, 7u, 0u, 0u,
+  8u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 4u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 10u, 6u,
+  0u, 0u, 0u, 0u, 8u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 12u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  10u, 0u, 0u, 0u, 0u, 0u, 0u, 6u,
+  0u, 7u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 7u, 0u, 0u, 0u, 0u, 0u, 0u,
+  8u, 7u, 0u, 0u, 0u, 0u, 8u, 0u,
+  12u, 6u, 0u, 6u, 0u, 0u, 0u, 0u,
+  9u, 7u, 11u, 7u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  11u, 0u, 0u, 0u, 9u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  8u, 7u, 0u, 0u, 10u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 8u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 5u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 7u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 6u, 0u, 0u, 0u, 7u, 0u, 4u,
+  14u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 14u, 0u, 0u, 0u,
+  0u, 0u, 8u, 4u, 0u, 4u, 0u, 0u,
+  0u, 5u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 20u, 0u, 0u, 4u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 12u, 5u,
+  0u, 7u, 0u, 5u, 0u, 0u, 10u, 0u,
+  0u, 7u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 14u, 0u, 0u, 0u,
+  0u, 6u, 0u, 4u, 9u, 7u, 0u, 0u,
+  0u, 0u, 0u, 7u, 0u, 0u, 0u, 0u,
+  0u, 0u, 10u, 0u, 9u, 0u, 9u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 4u,
+  9u, 0u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 11u, 4u,
+  0u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  8u, 0u, 8u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 4u, 0u, 0u,
+  0u, 5u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 13u, 6u, 0u, 0u, 11u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 9u, 7u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 6u, 18u, 0u, 0u, 4u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 5u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  9u, 7u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 6u, 0u, 0u, 0u, 0u, 9u, 0u,
+  8u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 7u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  11u, 7u, 0u, 0u, 0u, 0u, 0u, 6u,
+  0u, 0u, 0u, 7u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 11u, 4u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 4u, 0u, 4u,
+  0u, 0u, 0u, 0u, 8u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 9u, 6u, 0u, 0u,
+  0u, 0u, 0u, 4u, 0u, 0u, 0u, 0u,
+  8u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  19u, 0u, 0u, 0u, 0u, 6u, 0u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 7u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 6u, 0u, 6u, 0u, 0u, 10u, 6u,
+  0u, 0u, 0u, 7u, 0u, 0u, 8u, 0u,
+  8u, 7u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 4u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  10u, 6u, 20u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  9u, 0u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 5u, 0u, 0u,
+  18u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 9u, 6u,
+  0u, 0u, 0u, 0u, 8u, 7u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 12u, 0u,
+  12u, 0u, 0u, 0u, 11u, 6u, 0u, 5u,
+  0u, 0u, 12u, 0u, 12u, 5u, 0u, 7u,
+  11u, 6u, 0u, 0u, 11u, 0u, 0u, 0u,
+  12u, 0u, 0u, 4u, 12u, 7u, 8u, 6u,
+  0u, 0u, 0u, 0u, 8u, 5u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 4u, 11u, 0u,
+  0u, 6u, 0u, 7u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 5u, 0u, 6u, 0u, 0u,
+  0u, 0u, 8u, 0u, 10u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  9u, 7u, 0u, 7u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 11u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 7u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 11u, 7u, 0u, 0u, 0u, 0u,
+  0u, 0u, 10u, 0u, 0u, 5u, 0u, 0u,
+  12u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  10u, 6u, 0u, 0u, 0u, 0u, 8u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 7u, 0u, 5u,
+  0u, 0u, 0u, 0u, 11u, 0u, 10u, 6u,
+  0u, 0u, 8u, 6u, 0u, 0u, 0u, 6u,
+  0u, 7u, 10u, 6u, 0u, 0u, 0u, 7u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 7u, 0u, 0u, 0u, 0u, 10u, 7u,
+  0u, 0u, 0u, 0u, 10u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 8u, 5u, 11u, 0u,
+  8u, 4u, 0u, 0u, 0u, 4u, 0u, 0u,
+  0u, 0u, 9u, 4u, 8u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 11u, 6u, 0u, 0u,
+  0u, 0u, 10u, 7u, 0u, 0u, 0u, 0u,
+  0u, 6u, 0u, 0u, 0u, 0u, 0u, 6u,
+  0u, 0u, 0u, 7u, 0u, 0u, 0u, 0u,
+  9u, 6u, 0u, 5u, 0u, 7u, 0u, 0u,
+  0u, 0u, 0u, 7u, 0u, 0u, 11u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 12u, 0u, 0u, 0u,
+  0u, 0u, 0u, 5u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 6u,
+  0u, 0u, 0u, 0u, 13u, 0u, 8u, 6u,
+  13u, 0u, 0u, 0u, 11u, 7u, 0u, 7u,
+  0u, 6u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 9u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 6u, 0u, 0u, 9u, 6u, 0u, 6u,
+  0u, 0u, 0u, 0u, 0u, 5u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 5u, 9u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 4u,
+  9u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 4u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 0u, 9u, 7u, 0u, 7u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  10u, 0u, 0u, 0u, 0u, 5u, 11u, 5u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 4u, 0u, 7u, 0u, 6u, 0u, 0u,
+  0u, 6u, 20u, 0u, 0u, 0u, 10u, 7u,
+  0u, 5u, 14u, 4u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 0u, 8u, 6u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  9u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 4u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 7u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 9u, 7u,
+  0u, 0u, 11u, 6u, 15u, 0u, 0u, 0u,
+  0u, 0u, 10u, 0u, 8u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 14u, 7u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  9u, 7u, 13u, 0u, 0u, 0u, 0u, 0u,
+  0u, 7u, 0u, 0u, 8u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 9u, 4u,
+  0u, 0u, 0u, 0u, 8u, 5u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 5u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 8u, 5u,
+  0u, 4u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 12u, 6u, 8u, 0u,
+  12u, 0u, 0u, 7u, 0u, 0u, 0u, 0u,
+  0u, 5u, 10u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  8u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 7u, 14u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 5u, 0u, 5u, 8u, 7u,
+  10u, 7u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 6u, 18u, 6u, 14u, 7u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 11u, 6u,
+  0u, 0u, 0u, 0u, 8u, 7u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  12u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 6u,
+  0u, 0u, 11u, 7u, 0u, 0u, 10u, 7u,
+  0u, 0u, 0u, 6u, 8u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 0u,
+  19u, 0u, 0u, 0u, 9u, 5u, 0u, 0u,
+  0u, 0u, 0u, 0u, 11u, 7u, 0u, 0u,
+  0u, 7u, 0u, 6u, 0u, 0u, 11u, 0u,
+  0u, 0u, 0u, 4u, 8u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 0u, 0u, 6u, 0u, 0u, 8u, 4u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 4u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 4u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 5u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 7u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 7u, 0u, 7u,
+  0u, 0u, 0u, 7u, 15u, 0u, 0u, 5u,
+  0u, 0u, 0u, 0u, 10u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 12u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 7u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 9u, 6u, 0u, 0u, 0u, 0u,
+  0u, 7u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 4u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 11u, 7u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 7u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 4u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 5u, 0u, 4u,
+  0u, 0u, 0u, 4u, 0u, 4u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 6u,
+  0u, 0u, 0u, 0u, 11u, 6u, 0u, 0u,
+  8u, 5u, 14u, 0u, 0u, 4u, 0u, 0u,
+  0u, 7u, 17u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 13u, 5u, 0u, 0u, 0u, 0u,
+  0u, 5u, 0u, 0u, 0u, 5u, 0u, 0u,
+  0u, 0u, 16u, 6u, 0u, 4u, 0u, 0u,
+  0u, 0u, 0u, 0u, 12u, 0u, 0u, 0u,
+  0u, 0u, 0u, 6u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 12u, 5u,
+  0u, 5u, 0u, 6u, 10u, 0u, 12u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 7u,
+  0u, 0u, 0u, 0u, 8u, 4u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  8u, 7u, 0u, 0u, 8u, 0u, 0u, 0u,
+  8u, 0u, 0u, 6u, 0u, 7u, 0u, 0u,
+  0u, 5u, 0u, 6u, 0u, 4u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 8u, 6u,
+  0u, 0u, 22u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 7u, 0u, 0u, 0u, 0u,
+  0u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 13u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 18u, 0u, 0u, 0u,
+  9u, 4u, 0u, 0u, 8u, 0u, 9u, 7u,
+  0u, 0u, 0u, 0u, 0u, 0u, 8u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 5u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 6u, 0u, 0u, 9u, 7u,
+  0u, 0u, 0u, 6u, 0u, 0u, 14u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 11u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 8u, 0u, 0u, 7u,
+  10u, 4u, 0u, 6u, 0u, 0u, 0u, 0u,
+  0u, 0u, 8u, 0u, 0u, 7u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 5u, 9u, 6u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 11u, 6u, 12u, 7u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 6u,
+  0u, 5u, 0u, 0u, 0u, 0u, 0u, 0u,
+  9u, 6u, 11u, 6u, 0u, 0u, 0u, 0u,
+  9u, 5u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 6u, 8u, 5u, 0u, 0u, 0u, 0u,
+  8u, 0u, 10u, 0u, 0u, 0u, 0u, 0u,
+  9u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 9u, 5u,
+  10u, 7u, 0u, 0u, 0u, 5u, 8u, 7u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 6u, 0u, 0u, 0u, 6u,
+  0u, 0u, 0u, 0u, 0u, 4u, 8u, 7u,
+  0u, 0u, 0u, 6u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 5u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 8u, 7u, 0u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 22u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 5u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 7u,
+  0u, 0u, 0u, 0u, 0u, 5u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 17u, 0u, 0u, 6u, 0u, 6u,
+  12u, 4u, 19u, 6u, 0u, 0u, 0u, 0u,
+  16u, 0u, 0u, 0u, 0u, 7u, 15u, 7u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 7u,
+  0u, 0u, 0u, 0u, 0u, 4u, 10u, 4u,
+  0u, 0u, 8u, 7u, 0u, 7u, 0u, 0u,
+  9u, 4u, 0u, 6u, 0u, 0u, 0u, 4u,
+  0u, 5u, 0u, 0u, 0u, 7u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 4u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 7u, 10u, 0u,
+  0u, 0u, 0u, 0u, 11u, 7u, 0u, 0u,
+  0u, 0u, 12u, 6u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 6u, 0u, 4u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 8u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  10u, 4u, 0u, 0u, 0u, 0u, 11u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 4u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 8u, 7u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 6u, 0u, 0u, 0u, 4u,
+  0u, 0u, 11u, 4u, 0u, 0u, 12u, 7u,
+  0u, 0u, 0u, 0u, 9u, 0u, 0u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 5u, 0u, 0u, 0u, 4u, 0u, 0u,
+  0u, 0u, 14u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 5u, 0u, 0u,
+  0u, 0u, 0u, 6u, 0u, 0u, 0u, 0u,
+  0u, 0u, 9u, 4u, 0u, 6u, 0u, 0u,
+  0u, 0u, 0u, 4u, 0u, 0u, 11u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 4u, 0u, 6u,
+  0u, 0u, 0u, 5u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 7u, 9u, 6u,
+  0u, 7u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 6u, 0u, 0u, 0u, 0u, 8u, 6u,
+  0u, 0u, 0u, 0u, 10u, 6u, 11u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 7u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 5u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 6u,
+  0u, 5u, 0u, 4u, 8u, 0u, 0u, 0u,
+  0u, 0u, 9u, 7u, 0u, 0u, 0u, 0u,
+  0u, 0u, 13u, 5u, 0u, 0u, 0u, 0u,
+  8u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 5u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 8u, 5u, 0u, 0u, 11u, 7u,
+  0u, 0u, 0u, 0u, 0u, 0u, 8u, 6u,
+  0u, 0u, 0u, 0u, 0u, 7u, 0u, 4u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 5u,
+  0u, 6u, 0u, 5u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  10u, 4u, 9u, 0u, 0u, 0u, 0u, 0u,
+  0u, 4u, 0u, 0u, 0u, 0u, 10u, 5u,
+  10u, 7u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 16u, 7u, 0u, 0u, 0u, 0u,
+  0u, 7u, 0u, 0u, 0u, 0u, 11u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 7u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 9u, 5u, 0u, 4u,
+  0u, 0u, 0u, 7u, 0u, 0u, 0u, 0u,
+  0u, 0u, 13u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 7u, 0u, 4u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 13u, 7u, 0u, 7u, 0u, 4u,
+  16u, 0u, 0u, 0u, 0u, 6u, 8u, 7u,
+  9u, 7u, 0u, 0u, 0u, 0u, 8u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 0u,
+  8u, 5u, 0u, 4u, 0u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 7u, 0u, 0u, 0u, 5u, 11u, 7u,
+  0u, 0u, 11u, 0u, 0u, 0u, 0u, 0u,
+  9u, 5u, 0u, 4u, 0u, 0u, 0u, 0u,
+  9u, 7u, 8u, 6u, 0u, 0u, 0u, 0u,
+  0u, 0u, 10u, 0u, 0u, 0u, 0u, 0u,
+  0u, 5u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 7u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 4u,
+  10u, 6u, 0u, 7u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 5u, 0u, 0u, 0u, 0u,
+  0u, 0u, 10u, 7u, 10u, 0u, 0u, 0u,
+  0u, 0u, 0u, 4u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 9u, 0u, 0u, 0u, 0u, 7u,
+  0u, 6u, 8u, 7u, 12u, 4u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 5u, 14u, 0u,
+  0u, 0u, 0u, 0u, 0u, 4u, 0u, 0u,
+  0u, 4u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 7u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 6u,
+  0u, 4u, 0u, 0u, 20u, 4u, 0u, 0u,
+  0u, 7u, 0u, 6u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 8u, 0u, 0u, 6u,
+  15u, 0u, 0u, 6u, 0u, 0u, 0u, 4u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 12u, 0u,
+  0u, 0u, 9u, 7u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 14u, 5u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 5u, 0u, 0u, 0u, 0u, 0u, 0u,
+  8u, 6u, 0u, 0u, 18u, 0u, 0u, 0u,
+  10u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 6u, 0u, 0u, 0u, 6u, 0u, 0u,
+  9u, 6u, 0u, 6u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 9u, 4u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 11u, 7u,
+  0u, 0u, 0u, 0u, 9u, 0u, 9u, 0u,
+  0u, 4u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 6u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 9u, 5u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 11u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  10u, 0u, 0u, 0u, 0u, 7u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 7u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 4u, 8u, 0u, 8u, 0u, 0u, 0u,
+  16u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 6u, 0u, 4u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 6u, 0u, 0u, 0u, 0u,
+  8u, 0u, 0u, 0u, 11u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 6u,
+  0u, 0u, 0u, 0u, 11u, 0u, 0u, 0u,
+  9u, 7u, 0u, 6u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 7u, 0u, 0u, 0u, 0u,
+  0u, 7u, 0u, 7u, 0u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 7u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 5u, 0u, 0u, 0u, 0u,
+  0u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 0u,
+  18u, 0u, 8u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 5u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 7u,
+  0u, 4u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 8u, 0u, 0u, 0u,
+  0u, 0u, 16u, 0u, 0u, 0u, 0u, 0u,
+  16u, 0u, 0u, 0u, 0u, 7u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 18u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  9u, 7u, 0u, 6u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 7u, 0u, 0u, 0u, 0u, 0u, 6u,
+  0u, 4u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 9u, 4u, 0u, 0u, 0u, 0u,
+  12u, 5u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 7u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 12u, 5u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 5u, 0u, 0u, 10u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 8u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 9u, 0u, 0u, 0u,
+  11u, 0u, 0u, 6u, 0u, 6u, 0u, 0u,
+  0u, 7u, 0u, 0u, 0u, 0u, 0u, 0u,
+  8u, 0u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 19u, 0u, 0u, 0u,
+  12u, 0u, 9u, 0u, 0u, 0u, 0u, 0u,
+  10u, 7u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 4u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 4u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 9u, 0u,
+  0u, 0u, 16u, 7u, 12u, 0u, 0u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 12u, 6u, 0u, 5u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 10u, 5u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 4u,
+  0u, 0u, 0u, 5u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 9u, 0u, 0u, 0u, 0u, 7u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 10u, 4u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 4u, 0u, 0u, 9u, 0u,
+  0u, 0u, 8u, 0u, 12u, 4u, 0u, 0u,
+  0u, 0u, 0u, 4u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 8u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 8u, 7u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 9u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 12u, 6u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 11u, 0u, 0u, 5u,
+  0u, 0u, 0u, 0u, 0u, 0u, 13u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 17u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 8u, 6u,
+  0u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 4u, 0u, 0u, 0u, 0u, 0u, 6u,
+  0u, 0u, 9u, 0u, 0u, 0u, 0u, 0u,
+  0u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  11u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  10u, 6u, 0u, 0u, 0u, 0u, 8u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 9u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 7u, 0u, 0u,
+  0u, 0u, 0u, 7u, 0u, 6u, 10u, 7u,
+  0u, 0u, 10u, 5u, 11u, 6u, 0u, 0u,
+  0u, 0u, 0u, 7u, 16u, 0u, 0u, 0u,
+  0u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  10u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 5u, 0u, 0u,
+  0u, 7u, 9u, 5u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 9u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  8u, 7u, 0u, 0u, 0u, 0u, 11u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 6u, 0u, 6u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 8u, 7u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 4u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 4u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 12u, 7u, 0u, 7u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 0u, 9u, 0u, 0u, 0u, 23u, 0u,
+  0u, 0u, 0u, 0u, 10u, 5u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 4u,
+  0u, 0u, 11u, 7u, 10u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 6u, 0u, 0u, 8u, 7u, 0u, 7u,
+  0u, 0u, 8u, 7u, 8u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  14u, 5u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 18u, 6u, 8u, 7u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 4u, 0u, 0u,
+  0u, 0u, 0u, 0u, 11u, 0u, 0u, 0u,
+  9u, 7u, 12u, 6u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 12u, 5u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 9u, 6u,
+  0u, 0u, 0u, 7u, 11u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 6u, 8u, 7u,
+  0u, 0u, 0u, 6u, 10u, 0u, 0u, 0u,
+  9u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 8u, 6u, 0u, 0u, 0u, 0u,
+  0u, 6u, 10u, 7u, 0u, 0u, 0u, 7u,
+  0u, 0u, 8u, 4u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 4u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 19u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 8u, 7u, 8u, 6u,
+  0u, 0u, 11u, 7u, 10u, 4u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 9u, 4u, 8u, 7u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 5u, 0u, 0u, 13u, 0u, 0u, 0u,
+  0u, 5u, 0u, 0u, 9u, 7u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 4u, 0u, 0u,
+  11u, 0u, 0u, 7u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 12u, 7u, 19u, 0u,
+  8u, 6u, 0u, 0u, 0u, 0u, 0u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  10u, 6u, 8u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  10u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 6u, 0u, 0u, 0u, 0u,
+  0u, 7u, 0u, 0u, 12u, 0u, 0u, 0u,
+  0u, 6u, 9u, 6u, 14u, 0u, 0u, 0u,
+  0u, 0u, 0u, 6u, 0u, 5u, 0u, 0u,
+  8u, 7u, 0u, 0u, 0u, 6u, 0u, 4u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 4u, 0u, 6u,
+  0u, 7u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 5u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 5u, 0u, 7u, 0u, 0u, 10u, 0u,
+  9u, 7u, 0u, 6u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 12u, 6u, 0u, 0u,
+  0u, 0u, 0u, 5u, 0u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 6u, 0u, 0u, 0u, 0u, 9u, 7u,
+  0u, 0u, 0u, 0u, 0u, 0u, 11u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 11u, 7u, 0u, 0u, 13u, 7u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  12u, 0u, 0u, 4u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 4u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 6u, 11u, 5u,
+  0u, 5u, 13u, 0u, 8u, 0u, 0u, 0u,
+  0u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  11u, 0u, 0u, 0u, 0u, 0u, 8u, 7u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 11u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 11u, 5u, 9u, 6u, 0u, 0u,
+  0u, 4u, 0u, 7u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 8u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  10u, 0u, 0u, 0u, 8u, 5u, 0u, 0u,
+  9u, 0u, 0u, 0u, 8u, 7u, 9u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 7u,
+  0u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 11u, 0u, 13u, 6u,
+  0u, 0u, 9u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 5u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 7u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 5u,
+  21u, 6u, 0u, 4u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 24u, 5u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 10u, 0u, 8u, 0u,
+  0u, 6u, 0u, 0u, 0u, 4u, 0u, 0u,
+  9u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 4u, 0u, 0u, 8u, 6u,
+  0u, 6u, 0u, 7u, 10u, 0u, 8u, 4u,
+  0u, 4u, 0u, 0u, 0u, 0u, 0u, 5u,
+  0u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 5u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 6u, 12u, 0u, 0u, 7u,
+  0u, 0u, 0u, 5u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 0u,
+  8u, 6u, 0u, 0u, 0u, 5u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 15u, 7u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 5u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 6u,
+  0u, 0u, 24u, 7u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 7u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  9u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 7u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 4u, 0u, 0u,
+  0u, 0u, 0u, 6u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 6u, 0u, 6u, 0u, 4u, 12u, 0u,
+  0u, 7u, 0u, 0u, 0u, 0u, 0u, 5u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  15u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 8u, 7u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  8u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 4u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  9u, 0u, 9u, 6u, 0u, 0u, 0u, 0u,
+  0u, 7u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 8u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  8u, 4u, 0u, 7u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 22u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 4u,
+  0u, 0u, 0u, 0u, 0u, 4u, 0u, 7u,
+  0u, 0u, 21u, 7u, 0u, 7u, 9u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 10u, 0u,
+  0u, 0u, 0u, 0u, 0u, 7u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 4u, 0u, 0u, 0u, 0u, 8u, 0u,
+  0u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 4u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 8u, 7u, 0u, 0u, 0u, 0u,
+  23u, 0u, 0u, 0u, 0u, 7u, 0u, 0u,
+  0u, 4u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 9u, 4u, 11u, 7u, 0u, 5u,
+  0u, 0u, 0u, 0u, 11u, 0u, 0u, 4u,
+  20u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 11u, 5u, 0u, 7u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 7u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 21u, 0u,
+  0u, 0u, 0u, 0u, 0u, 7u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 5u, 0u, 0u,
+  0u, 0u, 0u, 6u, 0u, 0u, 0u, 0u,
+  11u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 9u, 6u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 8u, 5u,
+  0u, 4u, 9u, 4u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 4u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  9u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  10u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 7u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 8u, 7u,
+  0u, 0u, 11u, 7u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 4u, 0u, 4u, 0u, 0u,
+  0u, 4u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  10u, 6u, 0u, 0u, 0u, 5u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  8u, 7u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 6u, 0u, 0u, 21u, 6u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 0u, 0u, 4u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 14u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 9u, 6u,
+  0u, 0u, 8u, 0u, 0u, 7u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  10u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 8u, 7u, 0u, 0u,
+  11u, 0u, 0u, 0u, 8u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 10u, 5u, 0u, 0u,
+  0u, 7u, 13u, 7u, 10u, 4u, 0u, 0u,
+  0u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 5u, 10u, 0u, 0u, 0u,
+  0u, 0u, 0u, 5u, 0u, 0u, 0u, 7u,
+  0u, 0u, 0u, 0u, 0u, 0u, 8u, 4u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  12u, 7u, 0u, 6u, 0u, 0u, 10u, 0u,
+  0u, 0u, 9u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 4u, 0u, 6u, 0u, 0u, 0u, 0u,
+  0u, 7u, 0u, 0u, 8u, 0u, 0u, 0u,
+  0u, 0u, 0u, 6u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 10u, 5u,
+  0u, 6u, 0u, 0u, 0u, 0u, 0u, 4u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 4u, 0u, 0u, 0u, 0u, 9u, 0u,
+  11u, 4u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 5u, 12u, 7u, 0u, 5u, 0u, 0u,
+  0u, 0u, 0u, 4u, 0u, 0u, 0u, 7u,
+  0u, 0u, 0u, 0u, 0u, 4u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 4u, 13u, 6u, 10u, 0u,
+  0u, 0u, 17u, 0u, 0u, 4u, 0u, 0u,
+  0u, 0u, 0u, 6u, 0u, 4u, 0u, 5u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 6u, 0u, 0u, 0u, 0u,
+  11u, 7u, 0u, 0u, 0u, 7u, 0u, 0u,
+  0u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 6u, 0u, 4u, 0u, 0u, 0u, 0u,
+  8u, 0u, 0u, 0u, 0u, 5u, 0u, 0u,
+  0u, 0u, 0u, 4u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 9u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 9u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 9u, 5u, 0u, 0u, 0u, 0u,
+  0u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 12u, 0u, 0u, 0u,
+  0u, 7u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 7u, 0u, 0u,
+  16u, 4u, 0u, 0u, 11u, 0u, 8u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 8u, 7u,
+  0u, 4u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 4u, 0u, 0u, 0u, 0u, 0u, 0u,
+  8u, 6u, 0u, 0u, 8u, 7u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 10u, 7u, 0u, 0u,
+  0u, 0u, 0u, 0u, 9u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 12u, 5u, 10u, 5u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  10u, 5u, 0u, 5u, 18u, 7u, 0u, 0u,
+  14u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  9u, 4u, 0u, 7u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 5u, 0u, 0u, 0u, 6u,
+  0u, 0u, 0u, 6u, 0u, 0u, 0u, 0u,
+  0u, 0u, 8u, 0u, 0u, 0u, 10u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  10u, 5u, 0u, 0u, 0u, 7u, 0u, 0u,
+  0u, 0u, 0u, 0u, 11u, 0u, 0u, 0u,
+  10u, 7u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 4u, 14u, 0u, 0u, 0u, 0u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 11u, 7u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 5u,
+  14u, 6u, 0u, 0u, 0u, 0u, 11u, 4u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  9u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 10u, 7u, 0u, 6u,
+  0u, 0u, 9u, 0u, 9u, 5u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 10u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 8u, 6u,
+  0u, 0u, 8u, 5u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 11u, 4u,
+  0u, 6u, 0u, 6u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  11u, 0u, 0u, 5u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 12u, 4u, 0u, 6u, 8u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 8u, 0u, 0u, 5u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 7u, 0u, 0u,
+  13u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 9u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 9u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  12u, 7u, 0u, 6u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  13u, 4u, 0u, 7u, 0u, 0u, 0u, 7u,
+  0u, 7u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 10u, 4u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 9u, 5u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 6u, 0u, 0u, 0u, 0u, 10u, 6u,
+  21u, 5u, 0u, 0u, 0u, 0u, 8u, 0u,
+  0u, 0u, 0u, 4u, 0u, 7u, 0u, 0u,
+  0u, 0u, 0u, 0u, 11u, 5u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 7u, 0u, 0u, 0u, 4u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 7u, 9u, 6u,
+  11u, 0u, 0u, 0u, 0u, 4u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 6u, 0u, 7u, 10u, 0u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 5u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  19u, 0u, 0u, 7u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  18u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 7u, 0u, 0u, 0u, 0u, 0u, 0u,
+  9u, 4u, 10u, 4u, 0u, 7u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 4u, 9u, 7u,
+  9u, 7u, 10u, 4u, 0u, 7u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 6u, 12u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 6u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 20u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 6u, 0u, 0u, 0u, 0u,
+  14u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 7u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 8u, 0u, 0u, 0u,
+  0u, 0u, 0u, 5u, 0u, 0u, 8u, 7u,
+  0u, 0u, 0u, 7u, 0u, 0u, 0u, 0u,
+  0u, 4u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 11u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 4u, 0u, 0u, 8u, 0u, 0u, 6u,
+  0u, 0u, 0u, 7u, 0u, 0u, 0u, 0u,
+  10u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 7u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  10u, 6u, 0u, 0u, 0u, 6u, 0u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 11u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 7u, 9u, 7u, 0u, 0u,
+  0u, 4u, 8u, 0u, 0u, 0u, 0u, 6u,
+  11u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 10u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 13u, 4u, 0u, 0u,
+  12u, 6u, 0u, 6u, 0u, 0u, 0u, 0u,
+  8u, 7u, 0u, 7u, 0u, 0u, 0u, 0u,
+  0u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  12u, 6u, 0u, 4u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 9u, 7u,
+  22u, 0u, 0u, 0u, 0u, 4u, 0u, 0u,
+  0u, 0u, 0u, 6u, 0u, 0u, 0u, 4u,
+  0u, 0u, 9u, 0u, 0u, 6u, 0u, 0u,
+  24u, 7u, 0u, 7u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 10u, 6u, 0u, 5u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 7u, 0u, 0u,
+  8u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  10u, 5u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 7u, 0u, 7u, 0u, 0u,
+  0u, 0u, 0u, 0u, 13u, 4u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 18u, 0u, 0u, 0u, 0u, 0u,
+  0u, 7u, 12u, 0u, 9u, 4u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 4u,
+  0u, 0u, 0u, 0u, 8u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 4u, 0u, 0u,
+  0u, 7u, 0u, 0u, 0u, 0u, 8u, 7u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 4u, 18u, 0u, 0u, 0u, 0u, 0u,
+  10u, 0u, 0u, 5u, 0u, 0u, 11u, 0u,
+  0u, 0u, 0u, 0u, 0u, 5u, 0u, 6u,
+  0u, 0u, 0u, 6u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 5u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 8u, 7u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 4u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 7u, 0u, 0u, 0u, 0u, 0u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 8u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 4u, 0u, 0u, 0u, 0u, 0u, 0u,
+  10u, 0u, 0u, 0u, 0u, 0u, 0u, 4u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 12u, 0u,
+  0u, 0u, 0u, 5u, 8u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 8u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 20u, 7u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 4u, 9u, 0u, 12u, 6u,
+  8u, 0u, 14u, 7u, 0u, 5u, 0u, 4u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 17u, 0u, 0u, 0u,
+  0u, 0u, 10u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 6u,
+  0u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 12u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 9u, 6u, 0u, 7u, 12u, 0u,
+  0u, 0u, 0u, 4u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  8u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 8u, 7u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 5u, 0u, 0u, 0u, 4u,
+  0u, 0u, 9u, 0u, 12u, 6u, 0u, 5u,
+  0u, 0u, 0u, 6u, 0u, 4u, 0u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  10u, 7u, 0u, 0u, 0u, 0u, 0u, 0u,
+  8u, 0u, 0u, 0u, 0u, 4u, 0u, 0u,
+  0u, 0u, 10u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 8u, 6u, 0u, 5u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 5u, 0u, 5u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 6u, 0u, 0u, 12u, 6u, 20u, 5u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 9u, 5u, 0u, 5u,
+  0u, 0u, 0u, 6u, 13u, 7u, 0u, 0u,
+  0u, 0u, 15u, 6u, 0u, 0u, 0u, 6u,
+  0u, 0u, 13u, 7u, 0u, 0u, 0u, 0u,
+  0u, 0u, 9u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 5u, 0u, 7u,
+  0u, 0u, 0u, 0u, 0u, 4u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 10u, 6u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 0u, 9u, 0u, 0u, 0u, 0u, 0u,
+  19u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 13u, 0u, 11u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  8u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 10u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  10u, 0u, 0u, 6u, 0u, 0u, 0u, 0u,
+  8u, 0u, 0u, 0u, 9u, 0u, 15u, 4u,
+  0u, 6u, 0u, 0u, 0u, 0u, 0u, 6u,
+  12u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  14u, 7u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 5u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 8u, 7u,
+  0u, 0u, 0u, 0u, 0u, 6u, 10u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 7u,
+  8u, 4u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  9u, 7u, 10u, 5u, 0u, 0u, 0u, 0u,
+  8u, 0u, 0u, 0u, 0u, 4u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 6u, 12u, 0u,
+  0u, 0u, 10u, 7u, 0u, 5u, 0u, 6u,
+  0u, 0u, 0u, 0u, 8u, 7u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 6u, 0u, 4u, 0u, 0u,
+  0u, 0u, 0u, 7u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 4u, 9u, 6u, 0u, 0u,
+  0u, 7u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 8u, 6u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 4u, 12u, 0u, 0u, 0u,
+  0u, 0u, 0u, 6u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 5u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 7u, 0u, 0u, 0u, 0u,
+  0u, 0u, 12u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  12u, 6u, 0u, 6u, 9u, 4u, 0u, 0u,
+  8u, 4u, 0u, 6u, 0u, 0u, 0u, 0u,
+  0u, 4u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 6u, 0u, 0u, 9u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  8u, 0u, 0u, 6u, 13u, 4u, 0u, 5u,
+  8u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  8u, 0u, 0u, 0u, 10u, 5u, 0u, 0u,
+  9u, 0u, 0u, 0u, 0u, 0u, 0u, 6u,
+  0u, 0u, 24u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 8u, 0u, 0u, 7u, 0u, 0u,
+  12u, 0u, 8u, 4u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 9u, 7u,
+  0u, 6u, 8u, 0u, 10u, 0u, 9u, 7u,
+  0u, 0u, 0u, 5u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 4u, 8u, 5u, 0u, 0u,
+  0u, 0u, 8u, 7u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  19u, 0u, 0u, 4u, 0u, 0u, 0u, 0u,
+  0u, 6u, 0u, 0u, 0u, 0u, 0u, 5u,
+  0u, 0u, 0u, 0u, 8u, 0u, 0u, 0u,
+  0u, 0u, 8u, 6u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 8u, 6u,
+  0u, 0u, 0u, 0u, 10u, 4u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 4u, 20u, 0u, 0u, 7u, 10u, 6u,
+  0u, 0u, 0u, 0u, 0u, 7u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 10u, 7u, 0u, 0u,
+  0u, 0u, 9u, 6u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 4u, 12u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 4u, 0u, 0u,
+  0u, 0u, 0u, 0u, 12u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 11u, 0u,
+  0u, 0u, 0u, 0u, 9u, 4u, 0u, 5u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 6u,
+  0u, 6u, 0u, 6u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 6u,
+  9u, 0u, 0u, 0u, 0u, 7u, 0u, 0u,
+  0u, 0u, 0u, 6u, 0u, 5u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 9u, 0u,
+  0u, 0u, 0u, 6u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 11u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 17u, 7u, 0u, 0u,
+  13u, 6u, 14u, 6u, 0u, 0u, 0u, 0u,
+  8u, 0u, 0u, 0u, 0u, 0u, 0u, 7u,
+  12u, 7u, 8u, 7u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  8u, 0u, 0u, 0u, 0u, 0u, 0u, 4u,
+  0u, 0u, 0u, 0u, 0u, 4u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 7u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  12u, 0u, 0u, 0u, 12u, 4u, 0u, 0u,
+  10u, 7u, 0u, 0u, 0u, 0u, 0u, 0u,
+  10u, 0u, 0u, 6u, 0u, 0u, 0u, 0u,
+  0u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 4u,
+  12u, 0u, 0u, 6u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 8u, 7u, 12u, 0u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 6u,
+  0u, 4u, 0u, 0u, 18u, 6u, 0u, 0u,
+  0u, 6u, 0u, 0u, 0u, 0u, 0u, 6u,
+  10u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  8u, 7u, 14u, 0u, 0u, 0u, 0u, 0u,
+  0u, 6u, 0u, 0u, 0u, 4u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  19u, 0u, 0u, 0u, 8u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 7u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  8u, 7u, 0u, 0u, 10u, 5u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 4u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 7u, 0u, 0u,
+  0u, 0u, 9u, 4u, 8u, 0u, 0u, 0u,
+  0u, 0u, 0u, 4u, 0u, 0u, 9u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 6u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 4u, 0u, 0u, 0u, 0u,
+  0u, 6u, 0u, 0u, 9u, 7u, 0u, 0u,
+  0u, 0u, 0u, 5u, 0u, 0u, 0u, 0u,
+  8u, 7u, 0u, 0u, 14u, 0u, 0u, 0u,
+  0u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  9u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 10u, 0u, 0u, 0u,
+  0u, 5u, 0u, 7u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 6u, 0u, 0u, 0u, 6u, 0u, 4u,
+  0u, 0u, 0u, 0u, 0u, 4u, 0u, 0u,
+  0u, 0u, 12u, 0u, 0u, 7u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 12u, 0u,
+  16u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  11u, 7u, 0u, 4u, 8u, 7u, 0u, 0u,
+  0u, 0u, 0u, 6u, 0u, 0u, 0u, 0u,
+  16u, 0u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 4u, 10u, 7u,
+  0u, 0u, 0u, 0u, 0u, 0u, 12u, 7u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 10u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 13u, 4u,
+  0u, 0u, 10u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 19u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 8u, 6u, 22u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 7u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 5u,
+  0u, 0u, 0u, 0u, 0u, 5u, 0u, 0u,
+  0u, 0u, 0u, 5u, 0u, 0u, 0u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 4u,
+  0u, 0u, 0u, 6u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 7u,
+  0u, 0u, 18u, 0u, 0u, 0u, 0u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 14u, 7u,
+  0u, 0u, 11u, 5u, 0u, 0u, 0u, 5u,
+  0u, 0u, 0u, 0u, 12u, 5u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  24u, 6u, 0u, 0u, 0u, 7u, 0u, 4u,
+  0u, 0u, 0u, 0u, 8u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 4u, 0u, 0u, 0u, 0u,
+  0u, 7u, 0u, 4u, 0u, 0u, 0u, 0u,
+  8u, 7u, 0u, 0u, 9u, 6u, 0u, 0u,
+  14u, 5u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 12u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 6u,
+  0u, 4u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 7u,
+  0u, 0u, 0u, 7u, 0u, 0u, 0u, 5u,
+  0u, 0u, 0u, 0u, 12u, 7u, 0u, 0u,
+  0u, 0u, 10u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 0u, 0u, 5u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  9u, 0u, 0u, 0u, 0u, 0u, 0u, 6u,
+  0u, 0u, 13u, 7u, 0u, 0u, 0u, 0u,
+  0u, 0u, 14u, 0u, 11u, 4u, 0u, 0u,
+  0u, 4u, 0u, 0u, 0u, 0u, 14u, 5u,
+  0u, 0u, 0u, 0u, 0u, 5u, 11u, 5u,
+  0u, 0u, 0u, 0u, 22u, 5u, 0u, 0u,
+  0u, 0u, 0u, 7u, 0u, 0u, 0u, 0u,
+  0u, 4u, 0u, 0u, 0u, 4u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 10u, 6u, 0u, 0u,
+  17u, 0u, 10u, 0u, 0u, 0u, 8u, 0u,
+  0u, 0u, 19u, 5u, 18u, 7u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  10u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 10u, 6u, 0u, 6u,
+  0u, 0u, 0u, 0u, 10u, 4u, 0u, 4u,
+  0u, 0u, 0u, 0u, 0u, 0u, 14u, 7u,
+  0u, 5u, 0u, 0u, 0u, 0u, 0u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  8u, 0u, 9u, 6u, 12u, 0u, 0u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  12u, 0u, 10u, 6u, 0u, 0u, 0u, 0u,
+  0u, 4u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 7u, 0u, 4u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 5u, 13u, 0u, 9u, 7u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 7u, 9u, 7u, 0u, 0u,
+  8u, 0u, 0u, 0u, 0u, 0u, 22u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 23u, 6u,
+  14u, 0u, 0u, 0u, 0u, 0u, 0u, 7u,
+  0u, 0u, 0u, 0u, 11u, 0u, 0u, 0u,
+  0u, 7u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 10u, 0u,
+  0u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 6u, 0u, 0u, 8u, 5u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 7u, 11u, 6u, 21u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 5u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 4u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 4u, 9u, 7u, 0u, 0u, 0u, 0u,
+  0u, 0u, 12u, 0u, 0u, 0u, 0u, 7u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  10u, 4u, 0u, 0u, 0u, 0u, 0u, 0u,
+  9u, 0u, 0u, 0u, 20u, 0u, 0u, 0u,
+  0u, 7u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 6u,
+  0u, 0u, 11u, 7u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 6u, 15u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 12u, 4u, 0u, 5u, 0u, 0u,
+  0u, 0u, 0u, 0u, 11u, 7u, 17u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 15u, 6u,
+  0u, 7u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 14u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 7u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 6u, 0u, 5u, 0u, 0u, 11u, 0u,
+  11u, 7u, 9u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 4u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 17u, 0u, 0u, 0u, 0u, 6u,
+  0u, 0u, 0u, 5u, 0u, 0u, 0u, 0u,
+  0u, 0u, 8u, 7u, 9u, 6u, 0u, 0u,
+  14u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 16u, 0u, 0u, 0u, 0u, 0u,
+  8u, 7u, 0u, 4u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 6u, 0u, 5u, 0u, 0u,
+  0u, 0u, 0u, 6u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 4u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 5u, 0u, 4u, 0u, 0u,
+  8u, 7u, 0u, 6u, 12u, 5u, 0u, 7u,
+  18u, 7u, 0u, 0u, 8u, 5u, 0u, 0u,
+  0u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 10u, 0u,
+  11u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 9u, 0u, 0u, 4u,
+  0u, 6u, 0u, 7u, 0u, 0u, 0u, 0u,
+  0u, 6u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 7u, 0u, 0u,
+  0u, 0u, 8u, 0u, 0u, 0u, 15u, 0u,
+  0u, 0u, 10u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  10u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 0u, 23u, 0u, 0u, 0u, 10u, 7u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 8u, 0u, 0u, 0u, 0u, 5u,
+  0u, 0u, 0u, 0u, 0u, 0u, 8u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 12u, 7u,
+  9u, 7u, 0u, 0u, 10u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 9u, 0u, 8u, 7u, 0u, 0u,
+  0u, 6u, 0u, 6u, 0u, 4u, 0u, 5u,
+  0u, 0u, 0u, 0u, 0u, 5u, 8u, 7u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 7u, 10u, 5u, 0u, 0u,
+  11u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 6u, 0u, 6u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 14u, 0u,
+  0u, 0u, 0u, 4u, 9u, 7u, 0u, 0u,
+  0u, 0u, 11u, 7u, 0u, 0u, 0u, 0u,
+  0u, 5u, 0u, 0u, 0u, 7u, 0u, 0u,
+  0u, 0u, 23u, 6u, 11u, 4u, 0u, 0u,
+  0u, 0u, 0u, 0u, 9u, 0u, 0u, 0u,
+  10u, 6u, 0u, 0u, 0u, 0u, 9u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 6u, 0u, 0u, 0u, 0u,
+  0u, 6u, 0u, 0u, 10u, 6u, 0u, 0u,
+  0u, 7u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 20u, 0u, 0u, 0u,
+  0u, 0u, 0u, 6u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 13u, 6u, 11u, 7u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 10u, 5u, 0u, 0u, 0u, 6u,
+  0u, 0u, 0u, 5u, 0u, 6u, 0u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 6u, 0u, 0u, 0u, 0u,
+  8u, 7u, 0u, 5u, 0u, 0u, 0u, 0u,
+  0u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 4u, 10u, 0u, 8u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 10u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 10u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 10u, 0u,
+  0u, 0u, 9u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  12u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  11u, 6u, 0u, 4u, 0u, 0u, 14u, 5u,
+  0u, 7u, 0u, 0u, 0u, 0u, 0u, 6u,
+  16u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  10u, 0u, 0u, 7u, 15u, 0u, 0u, 0u,
+  11u, 7u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 8u, 7u, 0u, 4u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 18u, 5u,
+  0u, 0u, 0u, 0u, 8u, 0u, 0u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 9u, 5u,
+  0u, 0u, 23u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 16u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 7u,
+  0u, 0u, 0u, 0u, 15u, 7u, 0u, 0u,
+  0u, 0u, 8u, 0u, 0u, 0u, 14u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 16u, 7u,
+  0u, 0u, 0u, 0u, 0u, 7u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 6u,
+  0u, 0u, 0u, 6u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 4u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 12u, 6u, 11u, 7u, 9u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 7u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 13u, 7u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  9u, 0u, 0u, 0u, 0u, 0u, 12u, 0u,
+  10u, 5u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 4u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 10u, 0u,
+  8u, 0u, 0u, 5u, 8u, 7u, 10u, 6u,
+  0u, 0u, 0u, 7u, 0u, 0u, 0u, 0u,
+  12u, 6u, 0u, 0u, 9u, 0u, 0u, 0u,
+  12u, 0u, 0u, 0u, 0u, 5u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 4u, 10u, 0u, 0u, 0u, 10u, 5u,
+  0u, 0u, 0u, 0u, 0u, 0u, 9u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 18u, 6u,
+  0u, 0u, 9u, 5u, 0u, 4u, 0u, 0u,
+  0u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 5u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 9u, 0u,
+  0u, 5u, 0u, 0u, 8u, 7u, 8u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  10u, 6u, 10u, 0u, 9u, 4u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 6u, 11u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 8u, 0u, 0u, 6u, 0u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 6u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 8u, 7u, 9u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 7u, 0u, 0u, 0u, 0u, 0u, 0u,
+  10u, 0u, 0u, 0u, 8u, 7u, 0u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 5u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 8u, 4u,
+  0u, 5u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 7u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 7u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 5u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 8u, 7u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 22u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 8u, 5u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 7u,
+  0u, 0u, 0u, 6u, 0u, 0u, 0u, 6u,
+  0u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 7u, 0u, 0u,
+  0u, 5u, 0u, 6u, 0u, 7u, 0u, 0u,
+  0u, 0u, 20u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 7u, 9u, 0u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 6u,
+  0u, 7u, 0u, 0u, 0u, 7u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 4u, 0u, 0u,
+  0u, 0u, 0u, 0u, 14u, 7u, 0u, 0u,
+  0u, 5u, 0u, 0u, 22u, 4u, 10u, 0u,
+  0u, 0u, 0u, 0u, 0u, 4u, 8u, 4u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 11u, 5u, 13u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 8u, 0u,
+  0u, 7u, 0u, 0u, 0u, 0u, 0u, 4u,
+  0u, 0u, 0u, 4u, 0u, 0u, 0u, 0u,
+  0u, 0u, 10u, 7u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 6u, 0u, 0u, 0u, 0u,
+  0u, 4u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  11u, 7u, 0u, 7u, 14u, 6u, 0u, 0u,
+  0u, 0u, 9u, 5u, 0u, 0u, 0u, 0u,
+  0u, 6u, 0u, 0u, 0u, 5u, 10u, 0u,
+  8u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 9u, 7u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 6u, 0u, 0u, 8u, 4u,
+  0u, 6u, 0u, 0u, 0u, 5u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 12u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  8u, 7u, 14u, 0u, 0u, 5u, 0u, 0u,
+  18u, 0u, 8u, 4u, 0u, 6u, 0u, 0u,
+  20u, 0u, 13u, 0u, 0u, 0u, 0u, 7u,
+  0u, 4u, 0u, 0u, 0u, 0u, 0u, 4u,
+  8u, 4u, 0u, 0u, 0u, 0u, 0u, 6u,
+  0u, 0u, 0u, 0u, 0u, 4u, 0u, 0u,
+  0u, 4u, 0u, 0u, 0u, 0u, 0u, 4u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  14u, 0u, 0u, 0u, 0u, 0u, 9u, 7u,
+  0u, 0u, 9u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 4u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  20u, 0u, 14u, 0u, 0u, 4u, 0u, 6u,
+  8u, 5u, 0u, 0u, 0u, 0u, 0u, 7u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 8u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 7u,
+  10u, 4u, 12u, 7u, 0u, 6u, 0u, 0u,
+  9u, 7u, 10u, 5u, 0u, 0u, 8u, 6u,
+  0u, 4u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 17u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 18u, 0u,
+  0u, 0u, 14u, 7u, 0u, 0u, 0u, 0u,
+  0u, 4u, 0u, 0u, 0u, 0u, 0u, 0u,
+  17u, 4u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  13u, 4u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 7u,
+  0u, 0u, 0u, 0u, 0u, 0u, 8u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  8u, 5u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 5u, 0u, 7u, 0u, 0u, 0u, 0u,
+  0u, 7u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 7u, 0u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 8u, 5u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 7u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 5u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 7u, 0u, 0u,
+  0u, 0u, 0u, 6u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 23u, 0u,
+  0u, 7u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 4u,
+  0u, 0u, 0u, 0u, 0u, 0u, 12u, 7u,
+  8u, 4u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 6u, 0u, 0u, 9u, 5u,
+  0u, 0u, 0u, 7u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 4u, 10u, 0u,
+  0u, 7u, 0u, 0u, 0u, 5u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 4u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 5u, 0u, 0u, 18u, 7u, 0u, 0u,
+  8u, 0u, 0u, 5u, 0u, 0u, 10u, 0u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 0u, 0u, 5u, 0u, 7u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  16u, 0u, 0u, 0u, 0u, 6u, 8u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 5u, 0u, 6u, 0u, 0u, 10u, 0u,
+  0u, 5u, 10u, 4u, 0u, 0u, 12u, 0u,
+  0u, 0u, 0u, 6u, 22u, 4u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 6u, 0u, 5u, 0u, 0u,
+  0u, 0u, 0u, 7u, 0u, 5u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 12u, 0u, 0u, 0u, 0u, 0u,
+  0u, 6u, 0u, 7u, 0u, 0u, 0u, 6u,
+  0u, 6u, 8u, 5u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 8u, 5u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 5u,
+  0u, 0u, 0u, 7u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 6u,
+  0u, 0u, 0u, 4u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 4u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 5u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  16u, 6u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 12u, 7u,
+  0u, 0u, 0u, 0u, 9u, 0u, 0u, 0u,
+  0u, 6u, 0u, 0u, 11u, 0u, 0u, 0u,
+  0u, 0u, 13u, 0u, 9u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 5u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 4u, 0u, 0u, 10u, 7u, 0u, 0u,
+  0u, 7u, 0u, 6u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 8u, 7u,
+  0u, 0u, 0u, 0u, 11u, 0u, 15u, 0u,
+  22u, 7u, 0u, 4u, 0u, 6u, 0u, 0u,
+  0u, 0u, 0u, 7u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 6u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 4u,
+  0u, 7u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 18u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 14u, 0u, 0u, 4u,
+  0u, 0u, 0u, 0u, 8u, 7u, 9u, 0u,
+  0u, 0u, 0u, 0u, 9u, 0u, 0u, 0u,
+  14u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 11u, 7u, 0u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 7u,
+  0u, 0u, 0u, 6u, 0u, 6u, 0u, 0u,
+  0u, 0u, 8u, 0u, 0u, 0u, 0u, 0u,
+  11u, 7u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  9u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  9u, 4u, 0u, 0u, 0u, 0u, 0u, 4u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 6u, 8u, 7u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 5u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 8u, 6u, 0u, 0u,
+  9u, 5u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 14u, 0u, 0u, 0u, 0u, 0u,
+  0u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 6u, 0u, 5u, 0u, 0u, 10u, 6u,
+  9u, 0u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 0u, 0u, 6u, 0u, 0u, 0u, 7u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 11u, 7u, 12u, 0u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 4u, 0u, 5u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 7u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 5u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 8u, 0u,
+  0u, 0u, 0u, 0u, 0u, 5u, 0u, 0u,
+  10u, 6u, 0u, 0u, 0u, 4u, 0u, 7u,
+  13u, 0u, 0u, 4u, 0u, 0u, 11u, 4u,
+  0u, 6u, 0u, 0u, 0u, 0u, 0u, 6u,
+  8u, 7u, 0u, 4u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 5u, 0u, 0u,
+  0u, 0u, 0u, 0u, 8u, 7u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 20u, 5u, 0u, 0u,
+  0u, 0u, 12u, 6u, 0u, 0u, 0u, 0u,
+  11u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 5u, 11u, 5u, 0u, 7u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 8u, 7u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 7u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 4u, 0u, 0u, 0u, 6u, 17u, 0u,
+  9u, 0u, 10u, 6u, 0u, 6u, 12u, 0u,
+  0u, 4u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 8u, 5u, 12u, 7u,
+  0u, 4u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 11u, 0u, 9u, 0u,
+  10u, 6u, 11u, 5u, 0u, 7u, 0u, 0u,
+  8u, 0u, 0u, 7u, 0u, 4u, 0u, 0u,
+  0u, 7u, 0u, 0u, 0u, 0u, 0u, 0u,
+  8u, 6u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 9u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 5u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 4u,
+  0u, 0u, 0u, 0u, 11u, 0u, 0u, 0u,
+  0u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 10u, 0u, 10u, 0u, 0u, 0u,
+  0u, 0u, 8u, 6u, 0u, 0u, 0u, 0u,
+  0u, 6u, 12u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 5u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 8u, 0u, 0u, 0u,
+  0u, 0u, 0u, 6u, 0u, 0u, 16u, 0u,
+  11u, 5u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 10u, 7u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 5u, 9u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 7u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 7u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 8u, 4u, 0u, 0u,
+  0u, 0u, 0u, 6u, 10u, 7u, 0u, 0u,
+  0u, 0u, 0u, 7u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 7u, 0u, 6u, 0u, 0u, 0u, 0u,
+  0u, 0u, 9u, 5u, 0u, 0u, 0u, 0u,
+  8u, 0u, 9u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 7u, 10u, 0u, 13u, 0u,
+  0u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 6u, 9u, 4u, 0u, 0u,
+  0u, 0u, 0u, 0u, 10u, 0u, 0u, 0u,
+  0u, 0u, 10u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 10u, 6u, 11u, 0u, 0u, 0u,
+  0u, 0u, 9u, 0u, 0u, 0u, 0u, 0u,
+  0u, 4u, 0u, 0u, 0u, 0u, 0u, 0u,
+  10u, 5u, 0u, 0u, 0u, 0u, 0u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 18u, 4u,
+  0u, 7u, 0u, 0u, 0u, 0u, 0u, 0u,
+  24u, 0u, 8u, 6u, 0u, 7u, 0u, 0u,
+  0u, 0u, 15u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  8u, 5u, 0u, 0u, 0u, 0u, 10u, 7u,
+  0u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 8u, 5u, 10u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 11u, 0u, 0u, 6u, 0u, 0u,
+  8u, 7u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 12u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 4u, 0u, 5u,
+  15u, 0u, 0u, 0u, 0u, 7u, 0u, 7u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 6u, 10u, 5u, 0u, 0u, 0u, 6u,
+  0u, 0u, 8u, 7u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 7u,
+  0u, 0u, 12u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 5u, 0u, 0u,
+  0u, 0u, 0u, 0u, 14u, 4u, 18u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 5u, 0u, 0u,
+  0u, 0u, 11u, 0u, 10u, 4u, 9u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 6u, 0u, 0u, 0u, 0u, 0u, 4u,
+  0u, 0u, 0u, 0u, 0u, 7u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 7u, 13u, 7u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 5u, 0u, 5u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 8u, 7u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 5u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 11u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 8u, 0u,
+  10u, 6u, 0u, 4u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 6u, 8u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 6u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 10u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 5u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 4u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 4u, 0u, 0u, 9u, 7u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 4u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  10u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 5u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 4u,
+  0u, 6u, 0u, 0u, 0u, 5u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 8u, 6u, 11u, 0u,
+  0u, 0u, 0u, 6u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 6u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 6u, 0u, 4u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  22u, 0u, 0u, 6u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 6u, 10u, 7u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 14u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 6u, 0u, 6u, 0u, 0u, 0u, 5u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 5u,
+  0u, 0u, 10u, 0u, 11u, 5u, 0u, 0u,
+  0u, 0u, 0u, 0u, 14u, 7u, 9u, 7u,
+  0u, 6u, 0u, 0u, 0u, 0u, 0u, 4u,
+  0u, 0u, 0u, 0u, 0u, 0u, 11u, 7u,
+  0u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  9u, 7u, 0u, 4u, 0u, 0u, 0u, 7u,
+  0u, 0u, 0u, 0u, 0u, 5u, 0u, 0u,
+  0u, 0u, 0u, 5u, 0u, 0u, 0u, 7u,
+  0u, 0u, 0u, 0u, 0u, 5u, 0u, 0u,
+  0u, 0u, 17u, 5u, 0u, 0u, 8u, 0u,
+  0u, 0u, 0u, 6u, 9u, 4u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 8u, 7u,
+  11u, 7u, 9u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 8u, 7u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 6u, 9u, 5u, 0u, 0u, 8u, 6u,
+  0u, 0u, 0u, 5u, 0u, 0u, 0u, 0u,
+  9u, 0u, 0u, 0u, 9u, 6u, 0u, 7u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 4u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 4u, 0u, 0u, 0u, 0u, 10u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 4u,
+  0u, 5u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 4u, 0u, 0u,
+  0u, 5u, 0u, 0u, 0u, 0u, 0u, 7u,
+  0u, 0u, 0u, 0u, 0u, 7u, 13u, 5u,
+  0u, 0u, 0u, 7u, 0u, 0u, 0u, 0u,
+  0u, 7u, 9u, 6u, 11u, 7u, 0u, 7u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 7u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 8u, 5u, 0u, 0u,
+  0u, 5u, 9u, 4u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 8u, 4u, 0u, 0u,
+  0u, 0u, 24u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 4u, 0u, 0u, 0u, 0u, 0u, 7u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 7u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 5u,
+  11u, 6u, 0u, 4u, 0u, 7u, 20u, 0u,
+  8u, 5u, 9u, 5u, 9u, 0u, 0u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 7u, 23u, 5u, 0u, 0u,
+  8u, 4u, 0u, 0u, 10u, 0u, 0u, 6u,
+  0u, 5u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 7u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  11u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 5u,
+  0u, 0u, 9u, 0u, 0u, 0u, 10u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 4u,
+  0u, 0u, 8u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 7u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 0u, 14u, 0u, 18u, 4u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 4u, 0u, 0u, 0u, 0u,
+  9u, 6u, 0u, 4u, 0u, 0u, 0u, 0u,
+  0u, 0u, 8u, 4u, 11u, 0u, 0u, 0u,
+  11u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 8u, 4u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 12u, 0u,
+  10u, 7u, 0u, 0u, 10u, 0u, 0u, 0u,
+  0u, 0u, 0u, 6u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 6u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 0u, 0u, 6u, 0u, 0u, 0u, 0u,
+  8u, 6u, 10u, 4u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 5u,
+  0u, 0u, 0u, 4u, 0u, 6u, 0u, 4u,
+  0u, 0u, 0u, 0u, 0u, 5u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 7u,
+  0u, 0u, 0u, 7u, 0u, 0u, 0u, 4u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 17u, 7u, 11u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 4u, 12u, 6u, 0u, 0u, 0u, 5u,
+  0u, 0u, 0u, 6u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 5u,
+  12u, 7u, 0u, 0u, 0u, 0u, 0u, 4u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 6u, 0u, 7u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 7u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 4u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 6u,
+  0u, 0u, 20u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 8u, 7u, 0u, 0u,
+  0u, 0u, 0u, 4u, 0u, 0u, 0u, 5u,
+  0u, 0u, 0u, 0u, 12u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  10u, 0u, 0u, 0u, 0u, 6u, 0u, 4u,
+  13u, 0u, 0u, 7u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 6u,
+  0u, 0u, 12u, 6u, 0u, 7u, 0u, 0u,
+  0u, 0u, 10u, 0u, 23u, 6u, 0u, 0u,
+  0u, 4u, 0u, 0u, 0u, 0u, 0u, 6u,
+  8u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  10u, 0u, 9u, 6u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  12u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  11u, 0u, 9u, 7u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 9u, 7u,
+  0u, 4u, 0u, 0u, 0u, 0u, 8u, 7u,
+  0u, 0u, 0u, 0u, 0u, 7u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 4u, 0u, 0u,
+  0u, 0u, 0u, 6u, 0u, 0u, 10u, 7u,
+  10u, 5u, 0u, 0u, 8u, 0u, 8u, 0u,
+  0u, 0u, 0u, 0u, 0u, 4u, 0u, 5u,
+  10u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  9u, 0u, 0u, 6u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 7u,
+  0u, 0u, 0u, 0u, 0u, 0u, 11u, 7u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  9u, 4u, 0u, 0u, 0u, 0u, 0u, 6u,
+  0u, 0u, 8u, 7u, 0u, 0u, 0u, 0u,
+  0u, 5u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 10u, 0u, 0u, 0u, 0u, 5u,
+  0u, 4u, 0u, 0u, 0u, 0u, 0u, 0u,
+  12u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  24u, 7u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 9u, 0u,
+  0u, 6u, 0u, 0u, 9u, 0u, 0u, 0u,
+  0u, 0u, 0u, 7u, 0u, 6u, 13u, 0u,
+  8u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 9u, 7u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 6u, 0u, 0u, 0u, 0u,
+  8u, 5u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 4u, 0u, 0u, 0u, 0u, 0u, 4u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 6u,
+  8u, 0u, 0u, 0u, 0u, 6u, 8u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 14u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 4u, 0u, 4u, 0u, 0u,
+  0u, 5u, 0u, 7u, 0u, 0u, 10u, 0u,
+  10u, 7u, 0u, 0u, 12u, 5u, 0u, 0u,
+  9u, 0u, 0u, 0u, 10u, 0u, 0u, 6u,
+  0u, 0u, 0u, 6u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 6u, 0u, 0u, 0u, 5u,
+  0u, 0u, 0u, 0u, 0u, 0u, 12u, 0u,
+  0u, 0u, 0u, 0u, 8u, 5u, 13u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 9u, 4u,
+  0u, 0u, 0u, 0u, 8u, 0u, 0u, 0u,
+  0u, 0u, 8u, 7u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 6u,
+  0u, 0u, 14u, 0u, 0u, 0u, 0u, 6u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 0u, 17u, 6u, 0u, 0u, 0u, 0u,
+  12u, 6u, 0u, 0u, 0u, 0u, 8u, 0u,
+  0u, 7u, 0u, 7u, 0u, 4u, 9u, 0u,
+  0u, 6u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 8u, 7u, 0u, 0u,
+  0u, 0u, 0u, 0u, 11u, 0u, 0u, 4u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 18u, 7u, 0u, 4u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 8u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 6u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 12u, 5u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 6u, 0u, 0u, 0u, 0u, 8u, 0u,
+  11u, 7u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 4u, 0u, 0u, 0u, 0u,
+  11u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  21u, 0u, 0u, 6u, 10u, 0u, 0u, 0u,
+  0u, 0u, 9u, 0u, 10u, 0u, 0u, 0u,
+  0u, 0u, 11u, 0u, 0u, 0u, 0u, 6u,
+  0u, 0u, 0u, 0u, 0u, 5u, 0u, 0u,
+  0u, 0u, 0u, 0u, 10u, 5u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  8u, 0u, 0u, 0u, 0u, 4u, 0u, 0u,
+  23u, 7u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 7u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 9u, 7u,
+  0u, 0u, 0u, 7u, 0u, 4u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 4u,
+  0u, 6u, 0u, 0u, 11u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 0u, 10u, 7u, 0u, 0u, 9u, 4u,
+  0u, 0u, 11u, 0u, 8u, 5u, 0u, 0u,
+  0u, 7u, 8u, 5u, 22u, 0u, 0u, 0u,
+  9u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 6u, 10u, 4u, 0u, 0u, 0u, 0u,
+  0u, 7u, 9u, 4u, 0u, 0u, 0u, 0u,
+  0u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 4u,
+  0u, 0u, 0u, 0u, 11u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 7u, 0u, 6u, 0u, 0u, 0u, 0u,
+  0u, 7u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 6u, 0u, 6u, 0u, 4u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 7u, 0u, 7u,
+  0u, 4u, 13u, 0u, 0u, 0u, 0u, 0u,
+  8u, 0u, 0u, 0u, 0u, 7u, 0u, 0u,
+  0u, 0u, 0u, 0u, 11u, 6u, 0u, 7u,
+  0u, 0u, 0u, 0u, 9u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 5u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 10u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 4u, 8u, 0u, 0u, 0u, 0u, 0u,
+  8u, 0u, 0u, 0u, 0u, 0u, 0u, 6u,
+  0u, 0u, 0u, 4u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 6u, 0u, 0u, 0u, 0u,
+  13u, 5u, 8u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 14u, 0u, 0u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 7u,
+  0u, 0u, 17u, 6u, 0u, 0u, 0u, 0u,
+  13u, 4u, 0u, 0u, 9u, 6u, 0u, 0u,
+  10u, 5u, 0u, 0u, 10u, 5u, 0u, 0u,
+  0u, 0u, 13u, 0u, 0u, 0u, 0u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 10u, 0u,
+  12u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 8u, 4u, 0u, 4u,
+  0u, 0u, 0u, 4u, 0u, 0u, 0u, 0u,
+  0u, 4u, 0u, 0u, 12u, 0u, 0u, 5u,
+  9u, 4u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 5u, 8u, 5u, 0u, 0u,
+  0u, 7u, 0u, 0u, 0u, 0u, 8u, 7u,
+  0u, 0u, 0u, 6u, 12u, 5u, 0u, 0u,
+  0u, 5u, 0u, 0u, 0u, 5u, 0u, 0u,
+  0u, 0u, 0u, 4u, 12u, 0u, 0u, 0u,
+  9u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 4u, 8u, 7u, 0u, 0u, 0u, 0u,
+  0u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  9u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 4u, 0u, 0u, 0u, 6u,
+  0u, 0u, 0u, 4u, 11u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 7u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 12u, 7u, 0u, 0u, 0u, 7u,
+  10u, 7u, 0u, 0u, 11u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 11u, 7u,
+  0u, 0u, 0u, 6u, 0u, 0u, 11u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 22u, 0u,
+  10u, 7u, 0u, 0u, 8u, 5u, 0u, 0u,
+  0u, 0u, 0u, 5u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 9u, 6u,
+  8u, 7u, 0u, 6u, 0u, 0u, 0u, 0u,
+  0u, 5u, 0u, 0u, 0u, 0u, 0u, 0u,
+  8u, 7u, 0u, 0u, 0u, 0u, 9u, 7u,
+  0u, 0u, 0u, 6u, 0u, 0u, 8u, 7u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 7u, 0u, 4u, 0u, 5u,
+  0u, 0u, 0u, 4u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  18u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 4u, 0u, 0u, 0u, 0u, 0u, 0u,
+  9u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 6u,
+  0u, 0u, 0u, 4u, 0u, 0u, 0u, 5u,
+  0u, 0u, 0u, 0u, 14u, 0u, 0u, 0u,
+  9u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 9u, 7u, 12u, 7u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 12u, 0u, 0u, 0u, 0u, 0u,
+  12u, 7u, 0u, 0u, 0u, 5u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  8u, 0u, 0u, 0u, 0u, 0u, 10u, 7u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 8u, 7u, 0u, 0u, 0u, 0u,
+  0u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  9u, 6u, 0u, 0u, 0u, 0u, 0u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 9u, 0u, 0u, 0u, 0u, 7u,
+  0u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 5u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 4u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 6u, 0u, 7u, 12u, 6u, 0u, 0u,
+  0u, 0u, 0u, 5u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 7u, 0u, 0u,
+  8u, 6u, 0u, 0u, 0u, 0u, 10u, 7u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 6u,
+  0u, 0u, 0u, 0u, 0u, 6u, 12u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 6u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 6u, 0u, 0u, 0u, 0u, 0u, 6u,
+  16u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 9u, 0u, 17u, 0u, 14u, 7u,
+  8u, 0u, 0u, 0u, 0u, 0u, 0u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 11u, 0u, 0u, 6u, 8u, 7u,
+  0u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 12u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  9u, 0u, 0u, 0u, 0u, 7u, 0u, 0u,
+  0u, 0u, 11u, 5u, 0u, 4u, 9u, 6u,
+  8u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 10u, 0u, 11u, 7u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 9u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 11u, 0u, 0u, 0u,
+  12u, 0u, 0u, 0u, 0u, 0u, 10u, 5u,
+  0u, 4u, 0u, 0u, 0u, 0u, 0u, 7u,
+  10u, 6u, 11u, 6u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  17u, 0u, 0u, 0u, 11u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 11u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 6u, 0u, 7u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 7u, 0u, 0u, 8u, 0u,
+  0u, 4u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 8u, 7u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 9u, 6u,
+  0u, 0u, 14u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 4u, 0u, 0u, 0u, 0u, 9u, 6u,
+  0u, 0u, 0u, 4u, 0u, 0u, 0u, 0u,
+  0u, 4u, 10u, 7u, 0u, 7u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 0u, 0u, 6u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 6u, 0u, 6u, 0u, 0u, 0u, 0u,
+  10u, 7u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 4u, 0u, 0u, 18u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 14u, 0u, 13u, 0u, 0u, 0u,
+  0u, 0u, 10u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 4u, 0u, 0u, 0u, 6u,
+  0u, 0u, 0u, 0u, 0u, 4u, 8u, 0u,
+  0u, 0u, 11u, 7u, 0u, 0u, 0u, 4u,
+  0u, 0u, 0u, 0u, 0u, 7u, 0u, 0u,
+  8u, 5u, 0u, 0u, 16u, 0u, 0u, 0u,
+  13u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 6u, 0u, 0u, 0u, 0u, 20u, 0u,
+  11u, 6u, 0u, 0u, 8u, 7u, 0u, 0u,
+  0u, 0u, 0u, 6u, 17u, 0u, 8u, 0u,
+  0u, 0u, 0u, 0u, 8u, 7u, 0u, 0u,
+  9u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 14u, 0u,
+  0u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  9u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 4u, 0u, 7u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 6u, 0u, 0u, 0u, 4u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 5u, 0u, 0u, 0u, 0u, 8u, 0u,
+  8u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  11u, 0u, 8u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 8u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 6u, 0u, 0u, 9u, 0u, 0u, 0u,
+  0u, 0u, 8u, 0u, 0u, 0u, 0u, 0u,
+  18u, 0u, 0u, 0u, 0u, 0u, 0u, 4u,
+  9u, 0u, 0u, 0u, 0u, 0u, 8u, 5u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 9u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 13u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 7u, 8u, 7u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 4u, 0u, 0u,
+  0u, 0u, 0u, 0u, 14u, 0u, 0u, 0u,
+  0u, 7u, 0u, 6u, 0u, 0u, 8u, 0u,
+  20u, 7u, 0u, 0u, 0u, 7u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 8u, 0u, 0u, 0u,
+  14u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  8u, 0u, 0u, 7u, 0u, 6u, 0u, 0u,
+  0u, 7u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 4u, 12u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 4u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 7u, 0u, 0u, 10u, 6u,
+  0u, 5u, 16u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 6u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 5u, 8u, 4u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 4u, 0u, 0u,
+  0u, 7u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 5u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 12u, 7u, 0u, 0u,
+  0u, 0u, 13u, 6u, 0u, 0u, 0u, 7u,
+  0u, 0u, 8u, 0u, 0u, 0u, 8u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 5u, 0u, 0u, 0u, 7u, 0u, 0u,
+  0u, 0u, 0u, 0u, 11u, 5u, 0u, 6u,
+  0u, 0u, 8u, 5u, 0u, 7u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 7u, 0u, 0u,
+  0u, 0u, 8u, 6u, 0u, 0u, 0u, 0u,
+  0u, 0u, 9u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 4u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 14u, 0u,
+  10u, 7u, 0u, 4u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 10u, 0u, 19u, 0u, 0u, 4u,
+  0u, 0u, 0u, 7u, 0u, 0u, 11u, 5u,
+  11u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 7u,
+  16u, 0u, 10u, 5u, 18u, 0u, 0u, 7u,
+  9u, 6u, 0u, 5u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 5u, 0u, 0u,
+  0u, 0u, 0u, 6u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  8u, 7u, 0u, 0u, 0u, 0u, 0u, 5u,
+  0u, 0u, 0u, 7u, 0u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 9u, 0u, 0u, 0u,
+  0u, 6u, 0u, 0u, 0u, 4u, 0u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 6u, 0u, 0u, 0u, 7u,
+  23u, 0u, 0u, 0u, 0u, 5u, 0u, 0u,
+  0u, 0u, 0u, 0u, 8u, 5u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 6u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 14u, 0u, 20u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  8u, 0u, 0u, 0u, 0u, 0u, 11u, 0u,
+  0u, 0u, 0u, 7u, 0u, 0u, 0u, 0u,
+  15u, 0u, 0u, 0u, 0u, 0u, 10u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  9u, 6u, 0u, 0u, 0u, 0u, 0u, 7u,
+  0u, 0u, 0u, 0u, 0u, 4u, 0u, 0u,
+  0u, 0u, 10u, 0u, 0u, 0u, 0u, 0u,
+  9u, 0u, 0u, 0u, 8u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 6u, 10u, 0u, 11u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 4u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 5u,
+  0u, 0u, 11u, 0u, 0u, 0u, 0u, 7u,
+  0u, 0u, 0u, 0u, 0u, 0u, 8u, 7u,
+  0u, 4u, 0u, 0u, 0u, 0u, 11u, 0u,
+  0u, 0u, 0u, 0u, 11u, 0u, 0u, 5u,
+  0u, 0u, 8u, 7u, 0u, 4u, 0u, 7u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 6u,
+  0u, 0u, 0u, 0u, 0u, 4u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 4u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 10u, 5u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 7u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 5u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 4u, 11u, 5u, 10u, 7u, 0u, 7u,
+  0u, 0u, 9u, 6u, 9u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 9u, 4u, 0u, 4u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 7u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  8u, 6u, 0u, 0u, 0u, 0u, 11u, 7u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 11u, 7u, 12u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 8u, 5u,
+  0u, 0u, 8u, 0u, 9u, 5u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 6u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 7u, 0u, 0u, 0u, 0u, 0u, 4u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 7u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 10u, 7u, 0u, 0u,
+  0u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  8u, 0u, 0u, 6u, 0u, 0u, 0u, 6u,
+  10u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 8u, 5u, 0u, 0u,
+  0u, 6u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 0u, 9u, 5u, 8u, 5u, 8u, 0u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 6u, 0u, 0u, 8u, 7u, 10u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 9u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 11u, 7u, 0u, 0u, 0u, 0u,
+  0u, 5u, 0u, 0u, 0u, 6u, 0u, 7u,
+  0u, 0u, 10u, 5u, 0u, 0u, 0u, 0u,
+  8u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  12u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  11u, 0u, 0u, 0u, 0u, 0u, 13u, 4u,
+  0u, 0u, 0u, 4u, 0u, 0u, 0u, 0u,
+  0u, 5u, 8u, 0u, 0u, 0u, 12u, 7u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 12u, 7u, 14u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 6u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 4u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 9u, 0u,
+  0u, 0u, 0u, 7u, 0u, 0u, 0u, 0u,
+  0u, 0u, 9u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 4u, 0u, 0u, 0u, 0u, 0u, 5u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  14u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 4u, 0u, 5u, 0u, 0u,
+  15u, 6u, 10u, 0u, 0u, 0u, 8u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 9u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 4u, 0u, 0u, 0u, 0u, 14u, 6u,
+  10u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 12u, 6u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 9u, 7u, 0u, 0u,
+  0u, 0u, 0u, 6u, 0u, 5u, 11u, 4u,
+  0u, 6u, 0u, 0u, 0u, 7u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 7u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 5u, 0u, 0u, 8u, 5u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 10u, 0u, 0u, 0u,
+  0u, 0u, 9u, 6u, 9u, 4u, 0u, 0u,
+  0u, 4u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 11u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 8u, 5u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 4u, 0u, 0u, 11u, 5u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 5u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 7u, 12u, 0u, 0u, 0u,
+  0u, 6u, 0u, 0u, 0u, 4u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 9u, 6u, 0u, 4u,
+  9u, 6u, 0u, 4u, 0u, 0u, 0u, 7u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 4u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 7u,
+  8u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 4u, 0u, 0u, 9u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 6u,
+  0u, 5u, 0u, 4u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 5u, 0u, 0u, 0u, 0u,
+  0u, 5u, 0u, 0u, 0u, 7u, 12u, 7u,
+  0u, 0u, 0u, 0u, 0u, 0u, 18u, 4u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 11u, 0u, 0u, 0u,
+  0u, 6u, 0u, 0u, 0u, 0u, 12u, 0u,
+  0u, 7u, 0u, 0u, 0u, 0u, 0u, 7u,
+  0u, 0u, 13u, 0u, 0u, 6u, 0u, 0u,
+  0u, 0u, 8u, 7u, 9u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 7u, 10u, 5u, 0u, 0u, 8u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 8u, 6u,
+  0u, 7u, 0u, 0u, 8u, 4u, 0u, 4u,
+  0u, 0u, 0u, 0u, 10u, 4u, 0u, 0u,
+  14u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 5u, 0u, 0u,
+  0u, 0u, 17u, 0u, 0u, 0u, 0u, 0u,
+  0u, 6u, 0u, 0u, 0u, 0u, 8u, 6u,
+  0u, 0u, 10u, 5u, 0u, 0u, 0u, 0u,
+  8u, 6u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 7u, 0u, 0u, 0u, 0u, 0u, 6u,
+  14u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 5u,
+  0u, 0u, 12u, 0u, 0u, 0u, 0u, 6u,
+  8u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 7u, 0u, 0u,
+  0u, 0u, 0u, 6u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 12u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 9u, 0u,
+  0u, 0u, 0u, 4u, 24u, 0u, 0u, 0u,
+  0u, 0u, 12u, 6u, 0u, 0u, 10u, 6u,
+  0u, 5u, 0u, 0u, 0u, 4u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 4u, 0u, 0u, 0u, 0u, 17u, 7u,
+  0u, 5u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 6u,
+  11u, 5u, 9u, 0u, 8u, 7u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 10u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 10u, 7u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 7u, 0u, 0u, 0u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 11u, 5u, 8u, 7u,
+  0u, 0u, 0u, 0u, 8u, 5u, 0u, 0u,
+  0u, 0u, 10u, 7u, 0u, 7u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  13u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 6u, 0u, 4u, 0u, 0u,
+  0u, 0u, 0u, 6u, 12u, 0u, 8u, 7u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 16u, 0u, 10u, 0u, 0u, 0u,
+  0u, 0u, 0u, 6u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 22u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 13u, 6u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 9u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 22u, 0u, 0u, 6u,
+  0u, 0u, 21u, 0u, 0u, 0u, 22u, 7u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 0u, 9u, 6u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 5u, 0u, 0u, 0u, 0u, 0u, 7u,
+  8u, 0u, 0u, 0u, 0u, 6u, 14u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 6u, 0u, 0u, 8u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 6u, 0u, 0u, 0u, 0u, 8u, 5u,
+  0u, 0u, 11u, 7u, 0u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 8u, 7u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 6u, 0u, 0u, 0u, 5u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 4u, 0u, 0u, 8u, 7u, 0u, 0u,
+  0u, 0u, 8u, 5u, 11u, 7u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 4u, 0u, 0u,
+  0u, 0u, 8u, 5u, 0u, 0u, 10u, 0u,
+  0u, 4u, 13u, 7u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 7u,
+  0u, 0u, 0u, 5u, 0u, 0u, 13u, 6u,
+  0u, 6u, 0u, 7u, 0u, 0u, 8u, 4u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 4u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 15u, 0u, 0u, 0u,
+  10u, 7u, 0u, 0u, 0u, 0u, 0u, 7u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 4u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 0u, 19u, 0u, 0u, 0u, 0u, 6u,
+  0u, 0u, 0u, 0u, 0u, 4u, 0u, 0u,
+  0u, 0u, 0u, 6u, 0u, 5u, 0u, 7u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 6u, 0u, 0u, 11u, 4u, 0u, 0u,
+  0u, 6u, 0u, 0u, 13u, 7u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 8u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 6u, 0u, 0u, 0u, 0u,
+  0u, 0u, 14u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 12u, 6u,
+  0u, 0u, 0u, 0u, 0u, 7u, 0u, 0u,
+  0u, 0u, 0u, 0u, 11u, 7u, 0u, 0u,
+  0u, 0u, 0u, 6u, 0u, 0u, 10u, 0u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 5u,
+  11u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 10u, 0u, 0u, 0u, 0u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 8u, 7u,
+  0u, 0u, 0u, 5u, 0u, 0u, 0u, 5u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 8u, 7u, 0u, 0u,
+  0u, 0u, 9u, 6u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 6u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  10u, 7u, 0u, 0u, 0u, 0u, 10u, 0u,
+  0u, 6u, 0u, 0u, 13u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 9u, 6u, 0u, 0u,
+  8u, 6u, 8u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 4u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 4u, 0u, 0u,
+  9u, 7u, 0u, 0u, 0u, 0u, 0u, 0u,
+  11u, 0u, 0u, 0u, 10u, 7u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 9u, 6u,
+  0u, 0u, 12u, 4u, 0u, 4u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 0u, 21u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 6u,
+  0u, 5u, 0u, 0u, 9u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  8u, 4u, 0u, 0u, 0u, 0u, 0u, 6u,
+  0u, 0u, 0u, 6u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 16u, 0u, 0u, 4u,
+  0u, 0u, 0u, 0u, 0u, 7u, 0u, 0u,
+  0u, 6u, 0u, 6u, 0u, 0u, 11u, 0u,
+  0u, 0u, 0u, 5u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 4u, 8u, 5u, 0u, 0u,
+  0u, 0u, 0u, 0u, 14u, 0u, 0u, 0u,
+  0u, 6u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 7u, 0u, 0u,
+  0u, 0u, 0u, 0u, 8u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 4u, 0u, 0u, 0u, 0u, 0u, 0u,
+  14u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 4u, 0u, 0u, 0u, 4u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 6u, 9u, 4u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 9u, 6u,
+  14u, 7u, 0u, 0u, 9u, 7u, 0u, 0u,
+  11u, 0u, 0u, 0u, 0u, 0u, 10u, 4u,
+  11u, 5u, 13u, 6u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 10u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 5u,
+  0u, 0u, 0u, 0u, 0u, 4u, 0u, 0u,
+  9u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 7u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 6u,
+  12u, 5u, 0u, 0u, 0u, 6u, 14u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 4u, 9u, 4u, 0u, 0u, 0u, 0u,
+  0u, 5u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 4u, 0u, 0u, 0u, 0u, 0u, 4u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 5u, 0u, 0u,
+  0u, 5u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 8u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 11u, 6u, 0u, 0u,
+  13u, 7u, 0u, 0u, 13u, 6u, 0u, 7u,
+  0u, 0u, 0u, 0u, 0u, 0u, 8u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 6u, 10u, 6u,
+  0u, 4u, 0u, 0u, 12u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 10u, 6u,
+  0u, 0u, 0u, 6u, 0u, 0u, 0u, 5u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 0u,
+  10u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 0u, 0u, 7u, 0u, 0u, 9u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 6u, 0u, 0u, 8u, 6u, 0u, 0u,
+  0u, 7u, 11u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 8u, 0u, 0u, 0u, 0u, 0u,
+  0u, 5u, 12u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 12u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  8u, 7u, 0u, 0u, 8u, 5u, 0u, 0u,
+  0u, 4u, 9u, 5u, 0u, 0u, 0u, 7u,
+  10u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  9u, 7u, 0u, 0u, 8u, 5u, 8u, 0u,
+  8u, 4u, 0u, 0u, 13u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 5u, 0u, 5u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 6u, 0u, 6u, 0u, 0u,
+  0u, 4u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 11u, 7u, 0u, 0u,
+  0u, 7u, 0u, 0u, 0u, 0u, 0u, 7u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 17u, 5u,
+  0u, 0u, 0u, 7u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 4u,
+  0u, 0u, 0u, 0u, 0u, 0u, 9u, 7u,
+  0u, 0u, 0u, 0u, 8u, 5u, 0u, 4u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 6u,
+  14u, 6u, 0u, 0u, 0u, 0u, 9u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 8u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 6u,
+  0u, 0u, 0u, 0u, 14u, 7u, 9u, 7u,
+  8u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 6u, 16u, 0u,
+  0u, 0u, 0u, 6u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 7u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 4u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 14u, 0u, 0u, 6u,
+  0u, 0u, 8u, 6u, 0u, 0u, 0u, 0u,
+  0u, 6u, 0u, 0u, 12u, 0u, 0u, 0u,
+  0u, 0u, 8u, 5u, 0u, 7u, 11u, 0u,
+  0u, 5u, 0u, 4u, 0u, 0u, 0u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 9u, 6u, 0u, 4u,
+  0u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 11u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 10u, 5u,
+  0u, 0u, 0u, 0u, 0u, 4u, 0u, 0u,
+  0u, 7u, 11u, 6u, 0u, 4u, 8u, 5u,
+  9u, 5u, 0u, 0u, 0u, 5u, 0u, 7u,
+  0u, 0u, 0u, 0u, 0u, 4u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 8u, 5u, 14u, 7u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 4u, 0u, 0u, 0u, 0u,
+  16u, 0u, 0u, 6u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 4u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 4u, 0u, 0u, 0u, 0u,
+  0u, 0u, 9u, 6u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 9u, 0u, 0u, 0u,
+  12u, 5u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 4u, 10u, 5u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 5u, 0u, 4u,
+  0u, 0u, 0u, 6u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 6u, 0u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 10u, 4u, 0u, 0u,
+  0u, 0u, 0u, 5u, 0u, 0u, 0u, 4u,
+  0u, 0u, 0u, 0u, 0u, 0u, 9u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 6u,
+  0u, 0u, 0u, 6u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  8u, 0u, 10u, 7u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 7u,
+  10u, 7u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 15u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 7u, 0u, 0u,
+  0u, 0u, 0u, 7u, 10u, 7u, 9u, 7u,
+  0u, 0u, 0u, 7u, 0u, 0u, 8u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 9u, 0u,
+  0u, 0u, 8u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 11u, 0u, 8u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 4u, 0u, 0u, 0u, 7u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 15u, 7u, 12u, 6u,
+  0u, 0u, 0u, 7u, 0u, 5u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 18u, 0u, 0u, 5u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 6u, 9u, 5u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 7u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 9u, 7u, 0u, 0u, 14u, 0u,
+  0u, 0u, 11u, 7u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 4u,
+  0u, 0u, 11u, 7u, 0u, 0u, 0u, 0u,
+  8u, 0u, 0u, 0u, 0u, 0u, 0u, 6u,
+  8u, 7u, 0u, 0u, 0u, 7u, 10u, 4u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 4u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 8u, 7u, 0u, 0u, 0u, 0u,
+  10u, 0u, 0u, 0u, 0u, 0u, 0u, 6u,
+  0u, 6u, 0u, 0u, 0u, 0u, 0u, 4u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 4u, 11u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 7u, 0u, 0u, 10u, 7u, 0u, 0u,
+  0u, 0u, 9u, 7u, 0u, 0u, 0u, 0u,
+  0u, 0u, 13u, 7u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  8u, 0u, 0u, 0u, 0u, 0u, 9u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  9u, 6u, 12u, 0u, 0u, 0u, 0u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 7u, 0u, 0u, 9u, 6u, 0u, 0u,
+  11u, 0u, 0u, 0u, 0u, 0u, 14u, 4u,
+  0u, 0u, 0u, 0u, 0u, 7u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 23u, 7u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 7u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  12u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 5u, 0u, 0u, 0u, 0u,
+  20u, 7u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 7u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 8u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 11u, 5u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  10u, 4u, 0u, 0u, 0u, 5u, 8u, 5u,
+  10u, 4u, 0u, 0u, 0u, 0u, 0u, 0u,
+  13u, 6u, 9u, 7u, 0u, 0u, 10u, 7u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  14u, 0u, 0u, 0u, 0u, 0u, 0u, 6u,
+  0u, 0u, 0u, 7u, 0u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 4u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 7u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 8u, 7u,
+  10u, 7u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 12u, 4u, 0u, 0u,
+  0u, 0u, 8u, 7u, 0u, 0u, 0u, 0u,
+  0u, 7u, 0u, 6u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 8u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 6u,
+  0u, 6u, 9u, 6u, 0u, 0u, 12u, 5u,
+  0u, 0u, 8u, 6u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 4u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 5u, 8u, 7u, 9u, 0u,
+  8u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 4u, 0u, 0u, 0u, 0u, 0u, 0u,
+  11u, 4u, 0u, 0u, 0u, 0u, 0u, 0u,
+  8u, 0u, 0u, 0u, 10u, 7u, 0u, 4u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 6u, 0u, 0u, 8u, 0u,
+  0u, 0u, 0u, 0u, 0u, 5u, 0u, 6u,
+  0u, 0u, 10u, 0u, 14u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 23u, 0u, 0u, 0u,
+  12u, 0u, 10u, 5u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 5u, 0u, 0u,
+  0u, 0u, 8u, 0u, 0u, 0u, 0u, 6u,
+  8u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 22u, 0u, 8u, 0u, 0u, 0u,
+  0u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 5u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 6u, 18u, 4u, 0u, 0u, 0u, 7u,
+  10u, 6u, 0u, 6u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 4u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 7u, 10u, 0u, 0u, 0u,
+  0u, 0u, 0u, 6u, 0u, 0u, 0u, 0u,
+  11u, 5u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 15u, 0u, 8u, 6u, 0u, 0u,
+  13u, 7u, 0u, 0u, 0u, 0u, 0u, 7u,
+  0u, 0u, 0u, 0u, 0u, 7u, 0u, 0u,
+  0u, 0u, 8u, 7u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 9u, 5u,
+  9u, 0u, 0u, 6u, 8u, 6u, 0u, 0u,
+  0u, 0u, 10u, 0u, 0u, 0u, 18u, 5u,
+  0u, 0u, 0u, 5u, 0u, 7u, 0u, 0u,
+  0u, 0u, 8u, 6u, 0u, 0u, 0u, 0u,
+  9u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 14u, 0u, 23u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 7u, 0u, 0u,
+  0u, 6u, 0u, 0u, 0u, 5u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 12u, 0u, 0u, 0u, 8u, 5u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  9u, 0u, 0u, 0u, 0u, 4u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 20u, 5u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 5u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 9u, 5u, 0u, 0u,
+  0u, 0u, 0u, 0u, 8u, 4u, 24u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 9u, 7u, 0u, 0u,
+  0u, 0u, 10u, 5u, 0u, 0u, 8u, 5u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  12u, 7u, 0u, 6u, 0u, 0u, 10u, 6u,
+  0u, 0u, 0u, 0u, 14u, 0u, 0u, 4u,
+  9u, 5u, 0u, 0u, 0u, 0u, 0u, 0u,
+  9u, 0u, 0u, 0u, 0u, 0u, 0u, 6u,
+  0u, 0u, 0u, 0u, 0u, 4u, 0u, 0u,
+  8u, 0u, 0u, 0u, 0u, 0u, 11u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 5u, 0u, 0u,
+  0u, 0u, 0u, 0u, 8u, 5u, 11u, 7u,
+  0u, 4u, 0u, 0u, 10u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 4u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 6u, 0u, 0u, 11u, 6u,
+  0u, 0u, 0u, 0u, 0u, 5u, 14u, 6u,
+  0u, 0u, 0u, 0u, 10u, 0u, 0u, 0u,
+  13u, 4u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 0u,
+  10u, 0u, 0u, 0u, 0u, 7u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 19u, 7u,
+  12u, 0u, 10u, 6u, 0u, 0u, 0u, 0u,
+  0u, 0u, 10u, 0u, 0u, 0u, 0u, 0u,
+  10u, 0u, 9u, 7u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 7u, 8u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 4u,
+  0u, 7u, 0u, 0u, 0u, 0u, 9u, 7u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 24u, 0u, 11u, 7u,
+  0u, 7u, 0u, 0u, 0u, 0u, 0u, 0u,
+  8u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  8u, 7u, 0u, 0u, 0u, 0u, 0u, 5u,
+  0u, 0u, 0u, 6u, 9u, 0u, 0u, 0u,
+  23u, 5u, 0u, 0u, 0u, 0u, 0u, 6u,
+  0u, 0u, 0u, 5u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 16u, 7u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 6u, 0u, 0u, 18u, 4u,
+  0u, 0u, 11u, 7u, 0u, 0u, 0u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 6u,
+  0u, 0u, 0u, 6u, 0u, 0u, 0u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 6u, 0u, 0u, 9u, 0u, 0u, 0u,
+  11u, 0u, 0u, 0u, 23u, 0u, 0u, 0u,
+  10u, 4u, 0u, 0u, 0u, 0u, 0u, 7u,
+  0u, 0u, 0u, 7u, 0u, 0u, 0u, 0u,
+  0u, 4u, 0u, 0u, 0u, 0u, 0u, 7u,
+  0u, 0u, 19u, 0u, 11u, 0u, 0u, 0u,
+  0u, 0u, 12u, 7u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  11u, 0u, 0u, 0u, 0u, 5u, 0u, 0u,
+  0u, 0u, 0u, 5u, 0u, 0u, 0u, 0u,
+  0u, 5u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 6u, 0u, 0u, 9u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 11u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 4u,
+  0u, 0u, 0u, 0u, 10u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 7u, 0u, 4u, 0u, 7u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 22u, 0u,
+  8u, 7u, 10u, 4u, 11u, 0u, 13u, 5u,
+  8u, 7u, 9u, 0u, 8u, 7u, 0u, 0u,
+  0u, 7u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 7u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 8u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 8u, 6u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 6u,
+  0u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 4u,
+  0u, 0u, 0u, 4u, 11u, 0u, 0u, 6u,
+  0u, 0u, 8u, 5u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 6u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 8u, 5u, 0u, 0u,
+  20u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 11u, 0u, 0u, 0u, 0u, 5u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 5u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 7u, 0u, 0u, 14u, 0u,
+  0u, 0u, 9u, 0u, 13u, 7u, 0u, 0u,
+  0u, 0u, 0u, 6u, 0u, 7u, 0u, 0u,
+  8u, 6u, 10u, 6u, 0u, 0u, 8u, 6u,
+  0u, 0u, 0u, 6u, 0u, 0u, 12u, 6u,
+  9u, 0u, 0u, 0u, 0u, 0u, 0u, 5u,
+  9u, 0u, 12u, 4u, 0u, 0u, 0u, 0u,
+  11u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 8u, 5u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 4u, 8u, 0u,
+  0u, 6u, 8u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 13u, 6u, 0u, 7u,
+  0u, 0u, 0u, 0u, 0u, 6u, 8u, 7u,
+  8u, 6u, 0u, 0u, 0u, 7u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  12u, 0u, 0u, 0u, 0u, 0u, 18u, 0u,
+  11u, 4u, 0u, 0u, 0u, 5u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 5u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 4u, 14u, 6u,
+  0u, 0u, 0u, 0u, 12u, 7u, 8u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 8u, 7u,
+  0u, 0u, 0u, 0u, 10u, 4u, 0u, 0u,
+  0u, 0u, 0u, 0u, 10u, 0u, 0u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 7u, 0u, 0u,
+  0u, 0u, 0u, 0u, 15u, 6u, 9u, 7u,
+  0u, 0u, 0u, 0u, 0u, 0u, 15u, 6u,
+  11u, 7u, 0u, 0u, 0u, 7u, 0u, 0u,
+  21u, 0u, 0u, 0u, 0u, 0u, 0u, 5u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 4u, 0u, 0u, 0u, 0u,
+  17u, 6u, 0u, 0u, 10u, 5u, 0u, 5u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 7u, 0u, 0u, 10u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 4u, 11u, 5u,
+  0u, 0u, 0u, 0u, 16u, 7u, 0u, 0u,
+  0u, 0u, 0u, 6u, 0u, 0u, 8u, 7u,
+  0u, 4u, 0u, 0u, 10u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  12u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 7u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  8u, 0u, 0u, 0u, 0u, 0u, 0u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 8u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 10u, 4u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 5u,
+  0u, 0u, 9u, 6u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 10u, 0u, 0u, 7u,
+  0u, 0u, 0u, 5u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 6u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 6u, 10u, 7u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  8u, 4u, 0u, 0u, 10u, 0u, 0u, 0u,
+  0u, 4u, 0u, 6u, 0u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 7u, 0u, 0u, 0u, 7u, 17u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 10u, 0u, 0u, 7u, 0u, 0u,
+  0u, 0u, 0u, 6u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 6u, 0u, 0u, 0u, 5u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 5u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 5u,
+  0u, 4u, 0u, 0u, 0u, 0u, 0u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 10u, 5u,
+  0u, 0u, 0u, 5u, 0u, 0u, 0u, 0u,
+  9u, 0u, 19u, 7u, 0u, 0u, 0u, 0u,
+  0u, 7u, 0u, 0u, 0u, 0u, 10u, 6u,
+  0u, 0u, 0u, 6u, 0u, 5u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 6u,
+  8u, 0u, 0u, 0u, 0u, 0u, 11u, 0u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 0u, 0u, 7u, 9u, 0u, 15u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 4u, 0u, 0u, 0u, 5u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 4u, 0u, 0u,
+  0u, 0u, 9u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 6u, 0u, 7u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 0u, 0u, 6u, 10u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 23u, 0u, 14u, 0u,
+  0u, 0u, 0u, 7u, 0u, 0u, 0u, 0u,
+  0u, 7u, 0u, 0u, 9u, 0u, 0u, 0u,
+  0u, 7u, 0u, 0u, 0u, 0u, 0u, 6u,
+  0u, 0u, 14u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 4u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 9u, 5u, 0u, 0u, 0u, 0u,
+  0u, 4u, 0u, 0u, 0u, 0u, 9u, 5u,
+  0u, 0u, 0u, 0u, 22u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 22u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 10u, 0u,
+  0u, 0u, 0u, 0u, 0u, 5u, 0u, 4u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 6u, 11u, 4u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 7u,
+  14u, 7u, 0u, 0u, 12u, 7u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 4u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 0u, 8u, 6u, 10u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 10u, 7u,
+  8u, 5u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 8u, 4u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  10u, 0u, 0u, 5u, 0u, 0u, 9u, 5u,
+  0u, 0u, 0u, 0u, 0u, 5u, 0u, 0u,
+  0u, 0u, 0u, 4u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 12u, 4u,
+  11u, 0u, 0u, 0u, 9u, 0u, 11u, 7u,
+  0u, 0u, 0u, 0u, 0u, 0u, 10u, 6u,
+  0u, 0u, 0u, 6u, 0u, 0u, 0u, 0u,
+  15u, 5u, 0u, 0u, 11u, 6u, 0u, 0u,
+  0u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 7u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 4u, 0u, 4u,
+  0u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 5u, 0u, 0u,
+  8u, 0u, 0u, 0u, 19u, 7u, 0u, 4u,
+  0u, 0u, 9u, 0u, 0u, 0u, 0u, 0u,
+  10u, 0u, 0u, 6u, 0u, 0u, 13u, 0u,
+  12u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 10u, 7u, 0u, 0u, 0u, 7u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 5u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 4u, 0u, 0u,
+  0u, 0u, 13u, 7u, 10u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 6u,
+  0u, 4u, 9u, 0u, 0u, 0u, 10u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 5u,
+  0u, 0u, 0u, 0u, 0u, 0u, 10u, 0u,
+  23u, 6u, 0u, 0u, 0u, 6u, 8u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  17u, 7u, 0u, 0u, 0u, 0u, 11u, 6u,
+  22u, 5u, 0u, 0u, 9u, 6u, 0u, 0u,
+  0u, 5u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 4u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  9u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  9u, 6u, 0u, 5u, 0u, 7u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 4u, 11u, 0u, 9u, 4u,
+  0u, 0u, 0u, 7u, 0u, 7u, 0u, 0u,
+  0u, 0u, 0u, 0u, 12u, 4u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 11u, 4u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 4u, 0u, 0u, 11u, 5u, 0u, 0u,
+  0u, 0u, 0u, 5u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 5u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 8u, 6u,
+  0u, 0u, 0u, 4u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 7u, 0u, 0u,
+  0u, 4u, 0u, 0u, 10u, 4u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 7u, 0u, 7u,
+  0u, 0u, 0u, 6u, 0u, 0u, 0u, 0u,
+  8u, 6u, 0u, 6u, 0u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 7u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 8u, 7u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 10u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 9u, 5u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 6u, 22u, 6u, 12u, 0u,
+  0u, 6u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 0u, 0u, 7u, 0u, 0u, 0u, 0u,
+  11u, 0u, 0u, 0u, 9u, 7u, 0u, 0u,
+  0u, 0u, 0u, 4u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 6u,
+  0u, 0u, 0u, 6u, 0u, 6u, 0u, 0u,
+  8u, 7u, 0u, 0u, 0u, 4u, 9u, 7u,
+  19u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 9u, 6u, 10u, 6u, 0u, 6u,
+  0u, 0u, 0u, 4u, 0u, 0u, 8u, 7u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 6u, 16u, 7u, 10u, 6u,
+  0u, 0u, 23u, 6u, 11u, 7u, 0u, 4u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 5u, 0u, 0u, 0u, 0u, 10u, 7u,
+  0u, 0u, 0u, 0u, 0u, 7u, 0u, 0u,
+  0u, 0u, 0u, 0u, 15u, 0u, 10u, 0u,
+  0u, 0u, 14u, 6u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 5u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 5u,
+  0u, 0u, 0u, 0u, 11u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 5u,
+  0u, 0u, 11u, 5u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 4u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 0u,
+  10u, 0u, 0u, 0u, 0u, 7u, 0u, 0u,
+  0u, 0u, 0u, 0u, 10u, 6u, 0u, 0u,
+  0u, 0u, 8u, 4u, 0u, 0u, 0u, 7u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 5u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 7u, 12u, 5u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 0u, 9u, 6u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 6u, 9u, 0u, 0u, 0u,
+  0u, 6u, 0u, 0u, 0u, 0u, 8u, 7u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 10u, 5u, 0u, 0u, 0u, 0u,
+  0u, 0u, 8u, 6u, 0u, 0u, 0u, 0u,
+  0u, 6u, 0u, 0u, 0u, 7u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 8u, 5u, 0u, 0u,
+  0u, 0u, 0u, 7u, 0u, 7u, 0u, 4u,
+  0u, 0u, 10u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 11u, 0u,
+  0u, 0u, 0u, 5u, 0u, 0u, 0u, 0u,
+  13u, 7u, 12u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 4u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 8u, 7u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 7u, 0u, 0u, 13u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 7u,
+  10u, 5u, 0u, 0u, 0u, 0u, 0u, 0u,
+  9u, 7u, 0u, 0u, 8u, 6u, 9u, 5u,
+  0u, 0u, 0u, 0u, 0u, 6u, 12u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 18u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  19u, 7u, 0u, 4u, 0u, 0u, 0u, 0u,
+  9u, 5u, 0u, 5u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 8u, 0u, 0u, 0u, 0u, 0u,
+  0u, 7u, 0u, 0u, 0u, 0u, 0u, 0u,
+  14u, 0u, 0u, 0u, 23u, 7u, 8u, 7u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  8u, 6u, 22u, 0u, 0u, 7u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 9u, 7u,
+  8u, 4u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 8u, 5u, 0u, 6u, 0u, 0u,
+  0u, 0u, 0u, 6u, 0u, 0u, 0u, 0u,
+  8u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 12u, 0u,
+  0u, 0u, 8u, 0u, 0u, 0u, 0u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 12u, 5u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  8u, 6u, 0u, 0u, 11u, 7u, 0u, 0u,
+  0u, 0u, 12u, 0u, 8u, 6u, 19u, 7u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 6u, 11u, 0u,
+  0u, 6u, 0u, 7u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 11u, 7u,
+  0u, 0u, 0u, 0u, 0u, 4u, 10u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 8u, 7u,
+  0u, 0u, 0u, 0u, 14u, 0u, 8u, 0u,
+  0u, 6u, 10u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 12u, 7u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 5u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  13u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  11u, 0u, 0u, 6u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 6u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 5u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  9u, 0u, 0u, 0u, 0u, 5u, 0u, 0u,
+  0u, 6u, 0u, 0u, 0u, 5u, 0u, 7u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 0u,
+  21u, 7u, 0u, 0u, 9u, 6u, 0u, 0u,
+  0u, 6u, 0u, 0u, 13u, 7u, 0u, 0u,
+  0u, 5u, 0u, 0u, 0u, 0u, 0u, 4u,
+  0u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 4u, 0u, 0u,
+  0u, 0u, 0u, 0u, 11u, 5u, 0u, 6u,
+  0u, 0u, 10u, 5u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 9u, 6u, 0u, 0u,
+  8u, 7u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 4u, 0u, 0u,
+  0u, 0u, 9u, 0u, 0u, 0u, 0u, 0u,
+  0u, 6u, 0u, 0u, 0u, 0u, 15u, 4u,
+  0u, 0u, 12u, 7u, 0u, 0u, 0u, 6u,
+  0u, 7u, 0u, 0u, 8u, 0u, 9u, 5u,
+  0u, 4u, 0u, 0u, 0u, 6u, 0u, 6u,
+  0u, 0u, 23u, 4u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  10u, 7u, 0u, 4u, 0u, 0u, 8u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 4u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 4u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 7u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 9u, 0u, 0u, 0u,
+  12u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  10u, 7u, 0u, 7u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 9u, 0u,
+  0u, 0u, 0u, 0u, 8u, 0u, 0u, 0u,
+  0u, 4u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 4u, 11u, 5u, 0u, 0u,
+  0u, 6u, 0u, 6u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 6u, 0u, 4u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 5u, 8u, 4u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 6u, 0u, 6u, 8u, 7u, 0u, 0u,
+  0u, 6u, 0u, 6u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 5u, 0u, 0u,
+  0u, 0u, 0u, 5u, 0u, 0u, 0u, 0u,
+  11u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  10u, 5u, 9u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  8u, 0u, 23u, 7u, 0u, 0u, 0u, 0u,
+  0u, 7u, 0u, 0u, 10u, 6u, 18u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 8u, 7u,
+  0u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  8u, 5u, 0u, 0u, 0u, 5u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 8u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 6u,
+  0u, 0u, 0u, 4u, 12u, 7u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 10u, 4u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 6u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 9u, 6u, 0u, 0u, 0u, 0u,
+  0u, 0u, 13u, 5u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 7u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 8u, 4u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  11u, 7u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 5u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 6u, 0u, 0u, 0u, 4u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 4u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 10u, 0u, 11u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 17u, 5u,
+  0u, 4u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 7u, 0u, 0u, 0u, 0u, 0u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 4u,
+  0u, 0u, 0u, 0u, 8u, 7u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 13u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 4u, 0u, 0u, 0u, 0u,
+  0u, 6u, 0u, 0u, 0u, 0u, 0u, 6u,
+  0u, 0u, 0u, 0u, 10u, 0u, 0u, 0u,
+  8u, 6u, 0u, 0u, 0u, 7u, 0u, 0u,
+  0u, 0u, 0u, 0u, 8u, 0u, 0u, 0u,
+  14u, 0u, 0u, 0u, 0u, 7u, 0u, 0u,
+  0u, 4u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 9u, 4u, 0u, 0u, 0u, 0u,
+  0u, 0u, 8u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  14u, 0u, 10u, 0u, 0u, 0u, 16u, 5u,
+  0u, 0u, 0u, 0u, 0u, 0u, 8u, 0u,
+  0u, 4u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 9u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 10u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 5u, 0u, 0u,
+  0u, 0u, 12u, 5u, 0u, 7u, 0u, 0u,
+  0u, 0u, 0u, 6u, 0u, 0u, 0u, 0u,
+  0u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 7u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 12u, 6u,
+  0u, 0u, 0u, 0u, 0u, 7u, 0u, 6u,
+  0u, 6u, 12u, 6u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 4u, 8u, 7u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  20u, 0u, 0u, 0u, 0u, 6u, 0u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  10u, 6u, 8u, 0u, 0u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 8u, 4u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 16u, 0u, 8u, 0u,
+  0u, 0u, 0u, 5u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 23u, 5u, 0u, 0u, 0u, 7u,
+  0u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 10u, 6u,
+  0u, 0u, 9u, 5u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 10u, 0u,
+  0u, 0u, 14u, 0u, 0u, 0u, 0u, 7u,
+  0u, 0u, 0u, 4u, 17u, 5u, 0u, 0u,
+  0u, 0u, 11u, 0u, 9u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 5u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 5u, 0u, 7u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 8u, 0u, 0u, 0u,
+  12u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  13u, 0u, 0u, 0u, 0u, 7u, 9u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 5u, 0u, 0u, 0u, 7u, 10u, 7u,
+  12u, 0u, 0u, 0u, 9u, 0u, 0u, 0u,
+  14u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 8u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 15u, 6u, 0u, 0u,
+  23u, 0u, 0u, 7u, 0u, 6u, 0u, 0u,
+  0u, 7u, 0u, 6u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 6u, 0u, 6u, 9u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 8u, 7u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  8u, 7u, 9u, 4u, 0u, 0u, 10u, 0u,
+  0u, 0u, 10u, 6u, 0u, 7u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 5u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 23u, 0u,
+  0u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  9u, 4u, 0u, 0u, 10u, 7u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 9u, 7u, 0u, 0u, 9u, 6u,
+  0u, 0u, 0u, 0u, 8u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 12u, 0u,
+  0u, 0u, 0u, 0u, 8u, 0u, 0u, 6u,
+  11u, 6u, 0u, 0u, 8u, 7u, 8u, 5u,
+  0u, 0u, 0u, 0u, 0u, 5u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 4u, 0u, 0u,
+  0u, 4u, 0u, 0u, 0u, 0u, 0u, 0u,
+  10u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 4u,
+  0u, 7u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 10u, 0u, 0u, 0u, 0u, 7u,
+  0u, 0u, 0u, 0u, 9u, 6u, 0u, 0u,
+  0u, 0u, 0u, 6u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 8u, 0u, 0u, 0u,
+  0u, 6u, 12u, 5u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 4u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 0u, 10u, 0u, 10u, 7u, 0u, 0u,
+  8u, 0u, 0u, 0u, 0u, 4u, 0u, 0u,
+  0u, 6u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 6u, 0u, 0u, 0u, 0u, 0u, 7u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 5u, 0u, 0u, 0u, 4u,
+  0u, 0u, 0u, 0u, 0u, 4u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 6u,
+  0u, 5u, 0u, 0u, 0u, 0u, 8u, 0u,
+  0u, 0u, 10u, 7u, 0u, 0u, 0u, 0u,
+  10u, 0u, 0u, 0u, 0u, 0u, 13u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 12u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 19u, 7u, 0u, 4u, 12u, 0u,
+  8u, 0u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 4u,
+  0u, 0u, 0u, 0u, 18u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 10u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 14u, 0u, 0u, 4u, 0u, 0u,
+  0u, 6u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 7u, 0u, 0u, 0u, 0u, 0u, 0u,
+  10u, 4u, 0u, 0u, 9u, 7u, 0u, 0u,
+  11u, 0u, 0u, 0u, 0u, 0u, 0u, 7u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 7u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 9u, 0u, 0u, 0u, 0u, 4u,
+  0u, 0u, 12u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 6u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  22u, 5u, 9u, 7u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 6u,
+  0u, 0u, 9u, 6u, 0u, 5u, 0u, 0u,
+  0u, 0u, 0u, 0u, 10u, 5u, 0u, 0u,
+  8u, 6u, 0u, 6u, 10u, 5u, 0u, 0u,
+  0u, 6u, 0u, 0u, 0u, 6u, 0u, 0u,
+  20u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 9u, 0u, 0u, 0u, 0u, 6u,
+  0u, 0u, 0u, 0u, 17u, 4u, 0u, 7u,
+  0u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 4u,
+  0u, 0u, 0u, 0u, 0u, 0u, 14u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  10u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 8u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 7u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 7u, 0u, 0u, 8u, 6u,
+  12u, 0u, 0u, 7u, 18u, 7u, 0u, 0u,
+  8u, 4u, 0u, 0u, 0u, 0u, 9u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  13u, 0u, 0u, 6u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 10u, 0u,
+  0u, 0u, 0u, 7u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 10u, 7u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 5u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  8u, 5u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 12u, 0u, 0u, 0u, 8u, 0u,
+  0u, 0u, 0u, 0u, 0u, 4u, 0u, 0u,
+  10u, 0u, 16u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 12u, 7u, 10u, 7u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 6u, 16u, 6u, 10u, 0u, 0u, 5u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 0u, 0u, 7u, 0u, 0u, 0u, 7u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 5u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 9u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 5u, 8u, 7u,
+  0u, 7u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 8u, 0u, 0u, 6u, 0u, 0u,
+  0u, 6u, 0u, 0u, 0u, 4u, 0u, 0u,
+  0u, 0u, 8u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 4u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 7u, 0u, 0u, 8u, 0u,
+  0u, 0u, 9u, 5u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 6u, 0u, 0u, 0u, 7u,
+  13u, 5u, 0u, 5u, 0u, 0u, 0u, 7u,
+  8u, 4u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 12u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 8u, 6u,
+  0u, 6u, 0u, 0u, 11u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 0u, 0u, 4u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 10u, 7u,
+  0u, 4u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 9u, 0u, 11u, 6u,
+  0u, 0u, 10u, 6u, 0u, 0u, 0u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 7u, 0u, 0u,
+  0u, 5u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 6u, 0u, 0u, 0u, 7u, 0u, 0u,
+  9u, 0u, 8u, 7u, 11u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 12u, 0u,
+  0u, 0u, 0u, 0u, 9u, 6u, 10u, 5u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 8u, 0u, 0u, 0u,
+  0u, 0u, 10u, 7u, 0u, 0u, 0u, 0u,
+  0u, 0u, 11u, 0u, 9u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 5u,
+  0u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 5u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 15u, 5u,
+  12u, 5u, 0u, 0u, 0u, 0u, 0u, 0u,
+  12u, 7u, 0u, 0u, 0u, 0u, 0u, 0u,
+  8u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 8u, 6u, 0u, 0u, 12u, 6u,
+  0u, 0u, 0u, 0u, 24u, 4u, 0u, 7u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 6u, 0u, 0u, 0u, 7u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 4u, 10u, 4u, 0u, 0u,
+  0u, 0u, 10u, 7u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  9u, 0u, 11u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 5u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 5u, 0u, 0u,
+  8u, 0u, 0u, 0u, 0u, 7u, 0u, 0u,
+  0u, 0u, 0u, 0u, 10u, 0u, 0u, 0u,
+  0u, 0u, 0u, 4u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 10u, 7u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 14u, 7u, 0u, 0u, 0u, 0u,
+  0u, 0u, 10u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 4u, 0u, 0u, 0u, 6u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  11u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 4u, 0u, 0u, 0u, 4u, 0u, 0u,
+  0u, 0u, 0u, 7u, 20u, 7u, 11u, 4u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 19u, 7u,
+  9u, 6u, 0u, 0u, 12u, 7u, 0u, 0u,
+  0u, 0u, 0u, 0u, 10u, 0u, 12u, 0u,
+  0u, 0u, 0u, 0u, 0u, 4u, 9u, 6u,
+  13u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 6u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 5u, 0u, 0u, 0u, 0u, 0u, 0u,
+  8u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 7u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 6u, 0u, 0u, 0u, 0u, 0u, 6u,
+  0u, 0u, 11u, 0u, 9u, 0u, 0u, 0u,
+  0u, 4u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 12u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 4u, 8u, 5u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 19u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 7u, 0u, 0u, 0u, 4u, 0u, 5u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 4u, 0u, 0u, 0u, 0u, 9u, 7u,
+  8u, 5u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 7u, 0u, 0u, 0u, 0u, 0u, 7u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 5u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 6u, 0u, 0u, 0u, 0u,
+  8u, 7u, 0u, 0u, 0u, 0u, 0u, 0u,
+  12u, 0u, 0u, 6u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 6u, 8u, 4u, 0u, 0u,
+  10u, 7u, 0u, 0u, 10u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 4u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 4u, 0u, 7u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 6u,
+  0u, 4u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  9u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  9u, 7u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 5u, 0u, 4u, 0u, 0u, 0u, 0u,
+  0u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  8u, 0u, 0u, 6u, 0u, 0u, 0u, 6u,
+  0u, 0u, 0u, 0u, 0u, 7u, 0u, 5u,
+  8u, 4u, 0u, 0u, 9u, 0u, 0u, 0u,
+  0u, 4u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 5u, 0u, 0u, 15u, 6u,
+  8u, 6u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 0u, 0u, 4u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 7u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 5u,
+  0u, 0u, 9u, 6u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 7u, 0u, 0u, 0u, 4u,
+  0u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  11u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 9u, 5u,
+  0u, 6u, 12u, 5u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 11u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 6u, 0u, 0u, 8u, 7u,
+  0u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 11u, 0u,
+  12u, 7u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 5u, 0u, 5u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  11u, 4u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 10u, 7u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 6u,
+  0u, 0u, 0u, 0u, 0u, 7u, 8u, 7u,
+  9u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 8u, 6u, 0u, 0u, 0u, 0u,
+  0u, 5u, 12u, 0u, 10u, 5u, 12u, 6u,
+  0u, 0u, 0u, 7u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 5u, 0u, 0u, 0u, 5u,
+  9u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 7u, 11u, 7u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 17u, 0u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 7u,
+  0u, 0u, 0u, 0u, 8u, 0u, 8u, 5u,
+  0u, 6u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 6u,
+  0u, 6u, 9u, 0u, 0u, 5u, 17u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 9u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 7u, 0u, 0u,
+  0u, 0u, 0u, 7u, 0u, 0u, 0u, 0u,
+  16u, 5u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 4u, 0u, 0u, 0u, 5u, 11u, 5u,
+  0u, 7u, 0u, 0u, 0u, 4u, 8u, 7u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 4u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 11u, 7u, 0u, 0u,
+  0u, 0u, 12u, 0u, 0u, 0u, 0u, 0u,
+  12u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 4u, 10u, 4u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 4u, 0u, 0u,
+  0u, 0u, 0u, 6u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 4u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 11u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 7u, 0u, 0u,
+  20u, 5u, 0u, 0u, 10u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 6u,
+  0u, 0u, 0u, 6u, 12u, 0u, 0u, 0u,
+  0u, 0u, 0u, 6u, 0u, 0u, 0u, 0u,
+  0u, 0u, 9u, 4u, 10u, 7u, 0u, 4u,
+  0u, 0u, 0u, 0u, 0u, 0u, 10u, 6u,
+  0u, 0u, 0u, 0u, 8u, 4u, 0u, 7u,
+  8u, 6u, 0u, 6u, 8u, 0u, 10u, 0u,
+  0u, 0u, 0u, 0u, 13u, 5u, 0u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 22u, 4u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 9u, 0u, 0u, 0u, 0u, 6u,
+  0u, 0u, 0u, 6u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 6u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 6u, 10u, 5u,
+  8u, 5u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 10u, 0u, 0u, 0u, 0u, 0u,
+  10u, 4u, 0u, 0u, 10u, 7u, 0u, 0u,
+  0u, 0u, 0u, 5u, 0u, 5u, 8u, 0u,
+  0u, 0u, 0u, 6u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 5u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 10u, 7u,
+  0u, 0u, 0u, 4u, 0u, 0u, 0u, 0u,
+  0u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 8u, 7u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  11u, 0u, 0u, 0u, 0u, 7u, 0u, 0u,
+  0u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 4u, 0u, 0u, 0u, 4u,
+  10u, 0u, 0u, 6u, 13u, 7u, 8u, 0u,
+  0u, 0u, 0u, 0u, 0u, 7u, 0u, 0u,
+  12u, 7u, 0u, 0u, 0u, 0u, 0u, 0u,
+  10u, 5u, 0u, 0u, 0u, 0u, 0u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 13u, 7u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 7u, 0u, 0u,
+  0u, 0u, 0u, 6u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 8u, 6u, 0u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  12u, 0u, 8u, 4u, 0u, 0u, 0u, 0u,
+  0u, 4u, 0u, 4u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 5u, 0u, 0u, 0u, 0u,
+  12u, 5u, 0u, 0u, 0u, 7u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 7u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 6u,
+  0u, 6u, 10u, 0u, 0u, 0u, 20u, 0u,
+  0u, 5u, 0u, 0u, 10u, 7u, 11u, 7u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 17u, 0u, 9u, 4u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 5u, 0u, 0u,
+  10u, 7u, 0u, 4u, 0u, 6u, 0u, 0u,
+  24u, 0u, 0u, 5u, 0u, 0u, 0u, 0u,
+  8u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  10u, 5u, 0u, 4u, 0u, 6u, 0u, 0u,
+  8u, 0u, 0u, 0u, 0u, 0u, 0u, 4u,
+  0u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  9u, 5u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 0u, 9u, 7u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 4u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 4u,
+  0u, 7u, 0u, 0u, 13u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 11u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 4u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 4u, 0u, 0u, 0u, 0u,
+  17u, 7u, 0u, 0u, 11u, 6u, 0u, 0u,
+  0u, 0u, 12u, 6u, 0u, 0u, 0u, 6u,
+  0u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 10u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 4u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 5u, 0u, 0u,
+  0u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 10u, 0u, 0u, 4u,
+  8u, 6u, 0u, 0u, 0u, 0u, 0u, 0u,
+  9u, 7u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 7u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 9u, 5u, 0u, 7u,
+  18u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 8u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  8u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 5u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 10u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 4u, 0u, 6u, 0u, 0u,
+  9u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 13u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 8u, 7u,
+  10u, 0u, 8u, 5u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 9u, 0u, 0u, 0u,
+  10u, 0u, 0u, 0u, 0u, 6u, 0u, 7u,
+  0u, 4u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 8u, 0u, 0u, 0u, 0u, 0u,
+  8u, 4u, 0u, 0u, 0u, 0u, 0u, 5u,
+  0u, 0u, 10u, 0u, 12u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 4u, 0u, 0u, 0u, 0u, 0u, 0u,
+  12u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 18u, 6u, 11u, 0u, 0u, 7u,
+  0u, 0u, 0u, 0u, 0u, 6u, 10u, 5u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 5u, 0u, 0u, 9u, 5u, 12u, 4u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 6u,
+  0u, 0u, 0u, 0u, 13u, 6u, 0u, 4u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 5u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  8u, 4u, 0u, 6u, 12u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 6u, 0u, 6u, 0u, 0u, 0u, 0u,
+  0u, 5u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  11u, 4u, 0u, 0u, 0u, 6u, 14u, 0u,
+  11u, 0u, 9u, 6u, 0u, 0u, 0u, 0u,
+  0u, 0u, 22u, 0u, 12u, 0u, 8u, 6u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 6u,
+  0u, 0u, 0u, 0u, 0u, 6u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  11u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 7u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  10u, 7u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 9u, 0u, 0u, 0u, 0u, 4u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 5u, 11u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 8u, 6u, 0u, 0u, 9u, 7u,
+  0u, 0u, 12u, 4u, 0u, 0u, 0u, 0u,
+  0u, 0u, 12u, 6u, 0u, 6u, 0u, 7u,
+  0u, 0u, 8u, 5u, 0u, 0u, 0u, 0u,
+};
+
+#define WUFFS_BROTLI__CUTOFF_TRANSFORMS_COUNT 10u
+
+#define WUFFS_BROTLI__CUTOFF_TRANSFORMS 512093189200228864u
+
+static const uint32_t
+WUFFS_BROTLI__INS_BASE[24] WUFFS_BASE__POTENTIALLY_UNUSED = {
+  0u, 1u, 2u, 3u, 4u, 5u, 6u, 8u,
+  10u, 14u, 18u, 26u, 34u, 50u, 66u, 98u,
+  130u, 194u, 322u, 578u, 1090u, 2114u, 6210u, 22594u,
+};
+
+static const uint32_t
+WUFFS_BROTLI__INS_EXTRA[24] WUFFS_BASE__POTENTIALLY_UNUSED = {
+  0u, 0u, 0u, 0u, 0u, 0u, 1u, 1u,
+  2u, 2u, 3u, 3u, 4u, 4u, 5u, 5u,
+  6u, 7u, 8u, 9u, 10u, 12u, 14u, 24u,
+};
+
+static const uint32_t
+WUFFS_BROTLI__COPY_BASE[24] WUFFS_BASE__POTENTIALLY_UNUSED = {
+  2u, 3u, 4u, 5u, 6u, 7u, 8u, 9u,
+  10u, 12u, 14u, 18u, 22u, 30u, 38u, 54u,
+  70u, 102u, 134u, 198u, 326u, 582u, 1094u, 2118u,
+};
+
+static const uint32_t
+WUFFS_BROTLI__COPY_EXTRA[24] WUFFS_BASE__POTENTIALLY_UNUSED = {
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  1u, 1u, 2u, 2u, 3u, 3u, 4u, 4u,
+  5u, 5u, 6u, 7u, 8u, 9u, 10u, 24u,
+};
+
+#define WUFFS_BROTLI__STATIC_COMMAND_TREE_BITS 41203391169327107u
+
+#define WUFFS_BROTLI__STATIC_COMMAND_TREE_NUM_BITS_2 3u
+
+#define WUFFS_BROTLI__STATIC_COMMAND_TREE_BITS_2 0u
+
+#define WUFFS_BROTLI__STATIC_DISTANCE_TREE_NUM_BITS 28u
+
+#define WUFFS_BROTLI__STATIC_DISTANCE_TREE_BITS 57269251u
+
+static const uint8_t
+WUFFS_BROTLI__STATIC_COMMAND_CODE_DEPTH[704] WUFFS_BASE__POTENTIALLY_UNUSED = {
+  9u, 9u, 9u, 9u, 9u, 9u, 9u, 9u,
+  9u, 9u, 9u, 9u, 9u, 9u, 9u, 9u,
+  9u, 9u, 9u, 9u, 9u, 9u, 9u, 9u,
+  9u, 9u, 9u, 9u, 9u, 9u, 9u, 9u,
+  9u, 9u, 9u, 9u, 9u, 9u, 9u, 9u,
+  9u, 9u, 9u, 9u, 9u, 9u, 9u, 9u,
+  9u, 9u, 9u, 9u, 9u, 9u, 9u, 9u,
+  9u, 9u, 9u, 9u, 9u, 9u, 9u, 9u,
+  9u, 9u, 9u, 9u, 9u, 9u, 9u, 9u,
+  9u, 9u, 9u, 9u, 9u, 9u, 9u, 9u,
+  9u, 9u, 9u, 9u, 9u, 9u, 9u, 9u,
+  9u, 9u, 9u, 9u, 9u, 9u, 9u, 9u,
+  9u, 9u, 9u, 9u, 9u, 9u, 9u, 9u,
+  9u, 9u, 9u, 9u, 9u, 9u, 9u, 9u,
+  9u, 9u, 9u, 9u, 9u, 9u, 9u, 9u,
+  9u, 9u, 9u, 9u, 9u, 9u, 9u, 9u,
+  9u, 9u, 9u, 9u, 9u, 9u, 9u, 9u,
+  9u, 9u, 9u, 9u, 9u, 9u, 9u, 9u,
+  9u, 9u, 9u, 9u, 9u, 9u, 9u, 9u,
+  9u, 9u, 9u, 9u, 9u, 9u, 9u, 9u,
+  9u, 9u, 9u, 9u, 9u, 9u, 9u, 9u,
+  9u, 9u, 9u, 9u, 9u, 9u, 9u, 9u,
+  9u, 9u, 9u, 9u, 9u, 9u, 9u, 9u,
+  9u, 9u, 9u, 9u, 9u, 9u, 9u, 9u,
+  9u, 9u, 9u, 9u, 9u, 9u, 9u, 9u,
+  9u, 9u, 9u, 9u, 9u, 9u, 9u, 9u,
+  9u, 9u, 9u, 9u, 9u, 9u, 9u, 9u,
+  9u, 9u, 9u, 9u, 9u, 9u, 9u, 9u,
+  9u, 9u, 9u, 9u, 9u, 9u, 9u, 9u,
+  9u, 9u, 9u, 9u, 9u, 9u, 9u, 9u,
+  9u, 9u, 9u, 9u, 9u, 9u, 9u, 9u,
+  9u, 9u, 9u, 9u, 9u, 9u, 9u, 9u,
+  9u, 9u, 9u, 9u, 9u, 9u, 9u, 9u,
+  9u, 9u, 9u, 9u, 9u, 9u, 9u, 9u,
+  9u, 9u, 9u, 9u, 9u, 9u, 9u, 9u,
+  9u, 9u, 9u, 9u, 9u, 9u, 9u, 9u,
+  9u, 9u, 9u, 9u, 9u, 9u, 9u, 9u,
+  9u, 9u, 9u, 9u, 9u, 9u, 9u, 9u,
+  9u, 9u, 9u, 9u, 9u, 9u, 9u, 9u,
+  9u, 9u, 9u, 9u, 9u, 9u, 9u, 9u,
+  9u, 9u, 9u, 9u, 9u, 9u, 9u, 9u,
+  9u, 9u, 9u, 9u, 9u, 9u, 9u, 9u,
+  9u, 9u, 9u, 9u, 9u, 9u, 9u, 9u,
+  9u, 9u, 9u, 9u, 9u, 9u, 9u, 9u,
+  9u, 9u, 9u, 9u, 9u, 9u, 9u, 9u,
+  9u, 9u, 9u, 9u, 9u, 9u, 9u, 9u,
+  9u, 9u, 9u, 9u, 9u, 9u, 9u, 9u,
+  9u, 9u, 9u, 9u, 9u, 9u, 9u, 9u,
+  9u, 9u, 9u, 9u, 9u, 9u, 9u, 9u,
+  9u, 9u, 9u, 9u, 9u, 9u, 9u, 9u,
+  9u, 9u, 9u, 9u, 9u, 9u, 9u, 9u,
+  9u, 9u, 9u, 9u, 9u, 9u, 9u, 9u,
+  9u, 9u, 9u, 9u, 9u, 9u, 9u, 9u,
+  9u, 9u, 9u, 9u, 9u, 9u, 9u, 9u,
+  9u, 9u, 9u, 9u, 9u, 9u, 9u, 9u,
+  9u, 9u, 9u, 9u, 9u, 9u, 9u, 9u,
+  11u, 11u, 11u, 11u, 11u, 11u, 11u, 11u,
+  11u, 11u, 11u, 11u, 11u, 11u, 11u, 11u,
+  11u, 11u, 11u, 11u, 11u, 11u, 11u, 11u,
+  11u, 11u, 11u, 11u, 11u, 11u, 11u, 11u,
+  11u, 11u, 11u, 11u, 11u, 11u, 11u, 11u,
+  11u, 11u, 11u, 11u, 11u, 11u, 11u, 11u,
+  11u, 11u, 11u, 11u, 11u, 11u, 11u, 11u,
+  11u, 11u, 11u, 11u, 11u, 11u, 11u, 11u,
+  11u, 11u, 11u, 11u, 11u, 11u, 11u, 11u,
+  11u, 11u, 11u, 11u, 11u, 11u, 11u, 11u,
+  11u, 11u, 11u, 11u, 11u, 11u, 11u, 11u,
+  11u, 11u, 11u, 11u, 11u, 11u, 11u, 11u,
+  11u, 11u, 11u, 11u, 11u, 11u, 11u, 11u,
+  11u, 11u, 11u, 11u, 11u, 11u, 11u, 11u,
+  11u, 11u, 11u, 11u, 11u, 11u, 11u, 11u,
+  11u, 11u, 11u, 11u, 11u, 11u, 11u, 11u,
+  11u, 11u, 11u, 11u, 11u, 11u, 11u, 11u,
+  11u, 11u, 11u, 11u, 11u, 11u, 11u, 11u,
+  11u, 11u, 11u, 11u, 11u, 11u, 11u, 11u,
+  11u, 11u, 11u, 11u, 11u, 11u, 11u, 11u,
+  11u, 11u, 11u, 11u, 11u, 11u, 11u, 11u,
+  11u, 11u, 11u, 11u, 11u, 11u, 11u, 11u,
+  11u, 11u, 11u, 11u, 11u, 11u, 11u, 11u,
+  11u, 11u, 11u, 11u, 11u, 11u, 11u, 11u,
+  11u, 11u, 11u, 11u, 11u, 11u, 11u, 11u,
+  11u, 11u, 11u, 11u, 11u, 11u, 11u, 11u,
+  11u, 11u, 11u, 11u, 11u, 11u, 11u, 11u,
+  11u, 11u, 11u, 11u, 11u, 11u, 11u, 11u,
+  11u, 11u, 11u, 11u, 11u, 11u, 11u, 11u,
+  11u, 11u, 11u, 11u, 11u, 11u, 11u, 11u,
+  11u, 11u, 11u, 11u, 11u, 11u, 11u, 11u,
+  11u, 11u, 11u, 11u, 11u, 11u, 11u, 11u,
+};
+
+static const uint16_t
+WUFFS_BROTLI__STATIC_COMMAND_CODE_BITS[704] WUFFS_BASE__POTENTIALLY_UNUSED = {
+  0u, 256u, 128u, 384u, 64u, 320u, 192u, 448u,
+  32u, 288u, 160u, 416u, 96u, 352u, 224u, 480u,
+  16u, 272u, 144u, 400u, 80u, 336u, 208u, 464u,
+  48u, 304u, 176u, 432u, 112u, 368u, 240u, 496u,
+  8u, 264u, 136u, 392u, 72u, 328u, 200u, 456u,
+  40u, 296u, 168u, 424u, 104u, 360u, 232u, 488u,
+  24u, 280u, 152u, 408u, 88u, 344u, 216u, 472u,
+  56u, 312u, 184u, 440u, 120u, 376u, 248u, 504u,
+  4u, 260u, 132u, 388u, 68u, 324u, 196u, 452u,
+  36u, 292u, 164u, 420u, 100u, 356u, 228u, 484u,
+  20u, 276u, 148u, 404u, 84u, 340u, 212u, 468u,
+  52u, 308u, 180u, 436u, 116u, 372u, 244u, 500u,
+  12u, 268u, 140u, 396u, 76u, 332u, 204u, 460u,
+  44u, 300u, 172u, 428u, 108u, 364u, 236u, 492u,
+  28u, 284u, 156u, 412u, 92u, 348u, 220u, 476u,
+  60u, 316u, 188u, 444u, 124u, 380u, 252u, 508u,
+  2u, 258u, 130u, 386u, 66u, 322u, 194u, 450u,
+  34u, 290u, 162u, 418u, 98u, 354u, 226u, 482u,
+  18u, 274u, 146u, 402u, 82u, 338u, 210u, 466u,
+  50u, 306u, 178u, 434u, 114u, 370u, 242u, 498u,
+  10u, 266u, 138u, 394u, 74u, 330u, 202u, 458u,
+  42u, 298u, 170u, 426u, 106u, 362u, 234u, 490u,
+  26u, 282u, 154u, 410u, 90u, 346u, 218u, 474u,
+  58u, 314u, 186u, 442u, 122u, 378u, 250u, 506u,
+  6u, 262u, 134u, 390u, 70u, 326u, 198u, 454u,
+  38u, 294u, 166u, 422u, 102u, 358u, 230u, 486u,
+  22u, 278u, 150u, 406u, 86u, 342u, 214u, 470u,
+  54u, 310u, 182u, 438u, 118u, 374u, 246u, 502u,
+  14u, 270u, 142u, 398u, 78u, 334u, 206u, 462u,
+  46u, 302u, 174u, 430u, 110u, 366u, 238u, 494u,
+  30u, 286u, 158u, 414u, 94u, 350u, 222u, 478u,
+  62u, 318u, 190u, 446u, 126u, 382u, 254u, 510u,
+  1u, 257u, 129u, 385u, 65u, 321u, 193u, 449u,
+  33u, 289u, 161u, 417u, 97u, 353u, 225u, 481u,
+  17u, 273u, 145u, 401u, 81u, 337u, 209u, 465u,
+  49u, 305u, 177u, 433u, 113u, 369u, 241u, 497u,
+  9u, 265u, 137u, 393u, 73u, 329u, 201u, 457u,
+  41u, 297u, 169u, 425u, 105u, 361u, 233u, 489u,
+  25u, 281u, 153u, 409u, 89u, 345u, 217u, 473u,
+  57u, 313u, 185u, 441u, 121u, 377u, 249u, 505u,
+  5u, 261u, 133u, 389u, 69u, 325u, 197u, 453u,
+  37u, 293u, 165u, 421u, 101u, 357u, 229u, 485u,
+  21u, 277u, 149u, 405u, 85u, 341u, 213u, 469u,
+  53u, 309u, 181u, 437u, 117u, 373u, 245u, 501u,
+  13u, 269u, 141u, 397u, 77u, 333u, 205u, 461u,
+  45u, 301u, 173u, 429u, 109u, 365u, 237u, 493u,
+  29u, 285u, 157u, 413u, 93u, 349u, 221u, 477u,
+  61u, 317u, 189u, 445u, 125u, 381u, 253u, 509u,
+  3u, 259u, 131u, 387u, 67u, 323u, 195u, 451u,
+  35u, 291u, 163u, 419u, 99u, 355u, 227u, 483u,
+  19u, 275u, 147u, 403u, 83u, 339u, 211u, 467u,
+  51u, 307u, 179u, 435u, 115u, 371u, 243u, 499u,
+  11u, 267u, 139u, 395u, 75u, 331u, 203u, 459u,
+  43u, 299u, 171u, 427u, 107u, 363u, 235u, 491u,
+  27u, 283u, 155u, 411u, 91u, 347u, 219u, 475u,
+  59u, 315u, 187u, 443u, 123u, 379u, 251u, 507u,
+  7u, 1031u, 519u, 1543u, 263u, 1287u, 775u, 1799u,
+  135u, 1159u, 647u, 1671u, 391u, 1415u, 903u, 1927u,
+  71u, 1095u, 583u, 1607u, 327u, 1351u, 839u, 1863u,
+  199u, 1223u, 711u, 1735u, 455u, 1479u, 967u, 1991u,
+  39u, 1063u, 551u, 1575u, 295u, 1319u, 807u, 1831u,
+  167u, 1191u, 679u, 1703u, 423u, 1447u, 935u, 1959u,
+  103u, 1127u, 615u, 1639u, 359u, 1383u, 871u, 1895u,
+  231u, 1255u, 743u, 1767u, 487u, 1511u, 999u, 2023u,
+  23u, 1047u, 535u, 1559u, 279u, 1303u, 791u, 1815u,
+  151u, 1175u, 663u, 1687u, 407u, 1431u, 919u, 1943u,
+  87u, 1111u, 599u, 1623u, 343u, 1367u, 855u, 1879u,
+  215u, 1239u, 727u, 1751u, 471u, 1495u, 983u, 2007u,
+  55u, 1079u, 567u, 1591u, 311u, 1335u, 823u, 1847u,
+  183u, 1207u, 695u, 1719u, 439u, 1463u, 951u, 1975u,
+  119u, 1143u, 631u, 1655u, 375u, 1399u, 887u, 1911u,
+  247u, 1271u, 759u, 1783u, 503u, 1527u, 1015u, 2039u,
+  15u, 1039u, 527u, 1551u, 271u, 1295u, 783u, 1807u,
+  143u, 1167u, 655u, 1679u, 399u, 1423u, 911u, 1935u,
+  79u, 1103u, 591u, 1615u, 335u, 1359u, 847u, 1871u,
+  207u, 1231u, 719u, 1743u, 463u, 1487u, 975u, 1999u,
+  47u, 1071u, 559u, 1583u, 303u, 1327u, 815u, 1839u,
+  175u, 1199u, 687u, 1711u, 431u, 1455u, 943u, 1967u,
+  111u, 1135u, 623u, 1647u, 367u, 1391u, 879u, 1903u,
+  239u, 1263u, 751u, 1775u, 495u, 1519u, 1007u, 2031u,
+  31u, 1055u, 543u, 1567u, 287u, 1311u, 799u, 1823u,
+  159u, 1183u, 671u, 1695u, 415u, 1439u, 927u, 1951u,
+  95u, 1119u, 607u, 1631u, 351u, 1375u, 863u, 1887u,
+  223u, 1247u, 735u, 1759u, 479u, 1503u, 991u, 2015u,
+  63u, 1087u, 575u, 1599u, 319u, 1343u, 831u, 1855u,
+  191u, 1215u, 703u, 1727u, 447u, 1471u, 959u, 1983u,
+  127u, 1151u, 639u, 1663u, 383u, 1407u, 895u, 1919u,
+  255u, 1279u, 767u, 1791u, 511u, 1535u, 1023u, 2047u,
+};
+
+static const uint8_t
+WUFFS_BROTLI__STATIC_DISTANCE_CODE_DEPTH[64] WUFFS_BASE__POTENTIALLY_UNUSED = {
+  6u, 6u, 6u, 6u, 6u, 6u, 6u, 6u,
+  6u, 6u, 6u, 6u, 6u, 6u, 6u, 6u,
+  6u, 6u, 6u, 6u, 6u, 6u, 6u, 6u,
+  6u, 6u, 6u, 6u, 6u, 6u, 6u, 6u,
+  6u, 6u, 6u, 6u, 6u, 6u, 6u, 6u,
+  6u, 6u, 6u, 6u, 6u, 6u, 6u, 6u,
+  6u, 6u, 6u, 6u, 6u, 6u, 6u, 6u,
+  6u, 6u, 6u, 6u, 6u, 6u, 6u, 6u,
+};
+
+static const uint16_t
+WUFFS_BROTLI__STATIC_DISTANCE_CODE_BITS[64] WUFFS_BASE__POTENTIALLY_UNUSED = {
+  0u, 32u, 16u, 48u, 8u, 40u, 24u, 56u,
+  4u, 36u, 20u, 52u, 12u, 44u, 28u, 60u,
+  2u, 34u, 18u, 50u, 10u, 42u, 26u, 58u,
+  6u, 38u, 22u, 54u, 14u, 46u, 30u, 62u,
+  1u, 33u, 17u, 49u, 9u, 41u, 25u, 57u,
+  5u, 37u, 21u, 53u, 13u, 45u, 29u, 61u,
+  3u, 35u, 19u, 51u, 11u, 43u, 27u, 59u,
+  7u, 39u, 23u, 55u, 15u, 47u, 31u, 63u,
+};
+
+static const uint8_t
+WUFFS_BROTLI__STATIC_CONTEXT_MAP_CONTINUATION[64] WUFFS_BASE__POTENTIALLY_UNUSED = {
+  1u, 1u, 2u, 2u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+};
+
+static const uint8_t
+WUFFS_BROTLI__STATIC_CONTEXT_MAP_SIMPLE_UTF8[64] WUFFS_BASE__POTENTIALLY_UNUSED = {
+  0u, 0u, 1u, 1u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+  0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u,
+};
+
+static const uint8_t
+WUFFS_BROTLI__STATIC_CONTEXT_MAP_COMPLEX_UTF8[64] WUFFS_BASE__POTENTIALLY_UNUSED = {
+  11u, 11u, 12u, 12u, 0u, 0u, 0u, 0u,
+  1u, 1u, 9u, 9u, 2u, 2u, 2u, 2u,
+  1u, 1u, 1u, 1u, 8u, 3u, 3u, 3u,
+  1u, 1u, 1u, 1u, 2u, 2u, 2u, 2u,
+  8u, 4u, 4u, 4u, 8u, 7u, 4u, 4u,
+  8u, 0u, 0u, 0u, 3u, 3u, 3u, 3u,
+  5u, 5u, 10u, 5u, 5u, 5u, 10u, 5u,
+  6u, 6u, 6u, 6u, 6u, 6u, 6u, 6u,
+};
+
 #define WUFFS_BROTLI__NUM_TRANSFORMS 121u
 
 #define WUFFS_BROTLI__MAX_AFFIX_LENGTH 8u
@@ -59668,6 +68253,8 @@ WUFFS_BROTLI__DICTIONARY[122784] WUFFS_BASE__POTENTIALLY_UNUSED = {
 
 #define WUFFS_BROTLI__QUIRKS_BASE 716673024u
 
+#define WUFFS_BROTLI__NUM_DISTANCE_SHORT_CODES 16u
+
 #define WUFFS_BROTLI__HISTOGRAM_LITERAL_DATA_SIZE 256u
 
 #define WUFFS_BROTLI__HISTOGRAM_COMMAND_DATA_SIZE 704u
@@ -59704,17 +68291,81 @@ WUFFS_BROTLI__DICTIONARY[122784] WUFFS_BASE__POTENTIALLY_UNUSED = {
 
 #define WUFFS_BROTLI__FLINT_NEEDS_2_BYTES 2u
 
-#define WUFFS_BROTLI__FLINT_DONE 4294967295u
+#define WUFFS_BROTLI__FLINT_WAITING_FOR_PROCESSING 0u
+
+#define WUFFS_BROTLI__FLINT_WAITING_FOR_FLUSHING 4294967295u
+
+#define WUFFS_BROTLI__FLINT_DONE 4294967294u
 
 #define WUFFS_BROTLI__STORAGE_SLACK 16u
 
 #define WUFFS_BROTLI__TWO_PASS_BLOCK_SIZE 131072u
+
+#define WUFFS_BROTLI__LAYOUT_STORAGE 0u
+
+#define WUFFS_BROTLI__LAYOUT_RB 1u
+
+#define WUFFS_BROTLI__LAYOUT_HASH 2u
+
+#define WUFFS_BROTLI__LAYOUT_CMDS 3u
+
+#define WUFFS_BROTLI__LAYOUT_TYPES_0 4u
+
+#define WUFFS_BROTLI__LAYOUT_LENGTHS_0 7u
+
+#define WUFFS_BROTLI__LAYOUT_HISTO_0 10u
+
+#define WUFFS_BROTLI__LAYOUT_COMB 13u
+
+#define WUFFS_BROTLI__LAYOUT_CMAP 14u
+
+#define WUFFS_BROTLI__LAYOUT_RLE 15u
+
+#define WUFFS_BROTLI__LAYOUT_BE_DEPTH_0 16u
+
+#define WUFFS_BROTLI__LAYOUT_BE_BITS_0 19u
+
+#define WUFFS_BROTLI__LAYOUT_END 22u
+
+#define WUFFS_BROTLI__MAX_NUM_DELAYED_SYMBOLS 12287u
+
+#define WUFFS_BROTLI__F64_0_99 4607092346807469998u
+
+#define WUFFS_BROTLI__F64_7_92 4620603145689581486u
+
+#define WUFFS_BROTLI__F64_INV_13 4590207312512236308u
+
+#define WUFFS_BROTLI__F64_1 4607182418800017408u
+
+#define WUFFS_BROTLI__F64_10 4621819117588971520u
+
+#define WUFFS_BROTLI__F64_0_2 4596373779694328218u
+
+#define WUFFS_BROTLI__F64_0_02 4581421828931458171u
+
+#define WUFFS_BROTLI__F64_3 4613937818241073152u
 
 #define WUFFS_BROTLI__TREE_NONE 65535u
 
 #define WUFFS_BROTLI__FRAGMENT_MAX_DISTANCE 262128u
 
 #define WUFFS_BROTLI__HASH_MUL32 506832829u
+
+#define WUFFS_BROTLI__HASH_MUL_32 506832829u
+
+#define WUFFS_BROTLI__HASH_MUL_64 2297779722762296275u
+
+#define WUFFS_BROTLI__SCORE_BASE 1920u
+
+#define WUFFS_BROTLI__GBS_MAX_NUMBER_OF_BLOCK_TYPES 256u
+
+#define WUFFS_BROTLI__GBS_F64_400 4645744490609377280u
+
+#define WUFFS_BROTLI__GBS_F64_500 4647503709213818880u
+
+#define WUFFS_BROTLI__GBS_F64_100 4636737291354636288u
+
+#define WUFFS_BROTLI__GBS_F64_20 4626322717216342016u
 
 // ---------------- Private Initializer Prototypes
 
@@ -60076,6 +68727,150 @@ wuffs_brotli__decoder__take_distance_from_ring_buffer(
 
 WUFFS_BASE__GENERATED_C_CODE
 static uint32_t
+wuffs_brotli__encoder__cmd_insert_len(
+    const wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    uint64_t a_i);
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint32_t
+wuffs_brotli__encoder__cmd_copy_len_raw(
+    const wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    uint64_t a_i);
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint32_t
+wuffs_brotli__encoder__cmd_dist_extra(
+    const wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    uint64_t a_i);
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint16_t
+wuffs_brotli__encoder__cmd_cmd_prefix(
+    const wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    uint64_t a_i);
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint16_t
+wuffs_brotli__encoder__cmd_dist_prefix(
+    const wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    uint64_t a_i);
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__set_cmd(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    uint64_t a_i,
+    uint32_t a_insert_len,
+    uint32_t a_copy_len,
+    uint32_t a_dist_extra,
+    uint16_t a_cmd_prefix,
+    uint16_t a_dist_prefix);
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint32_t
+wuffs_brotli__encoder__cmd_copy_len(
+    const wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    uint64_t a_i);
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint32_t
+wuffs_brotli__encoder__cmd_copy_len_code(
+    const wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    uint64_t a_i);
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint32_t
+wuffs_brotli__encoder__cmd_distance_context(
+    const wuffs_brotli__encoder* self,
+    uint16_t a_cmd_prefix);
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint32_t
+wuffs_brotli__encoder__get_insert_length_code(
+    const wuffs_brotli__encoder* self,
+    uint64_t a_insertlen);
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint32_t
+wuffs_brotli__encoder__get_copy_length_code(
+    const wuffs_brotli__encoder* self,
+    uint64_t a_copylen);
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint16_t
+wuffs_brotli__encoder__combine_length_codes(
+    const wuffs_brotli__encoder* self,
+    uint32_t a_inscode,
+    uint32_t a_copycode,
+    bool a_use_last_distance);
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint16_t
+wuffs_brotli__encoder__get_length_code(
+    const wuffs_brotli__encoder* self,
+    uint64_t a_insertlen,
+    uint64_t a_copylen,
+    bool a_use_last_distance);
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint64_t
+wuffs_brotli__encoder__prefix_encode_copy_distance(
+    const wuffs_brotli__encoder* self,
+    uint64_t a_distance_code,
+    uint64_t a_num_direct_codes,
+    uint32_t a_postfix_bits);
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__init_command(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    uint64_t a_n,
+    uint64_t a_insertlen,
+    uint64_t a_copylen,
+    uint64_t a_copylen_code_delta,
+    uint64_t a_distance_code);
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__init_insert_command(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    uint64_t a_n,
+    uint64_t a_insertlen);
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint32_t
+wuffs_brotli__encoder__cmd_restore_distance_code(
+    const wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    uint64_t a_i);
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint64_t
+wuffs_brotli__encoder__compute_distance_code(
+    const wuffs_brotli__encoder* self,
+    uint64_t a_distance,
+    uint64_t a_max_distance);
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__status
+wuffs_brotli__encoder__create_backward_references(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    uint64_t a_num_bytes,
+    uint64_t a_position);
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint32_t
 wuffs_brotli__bit_cost__ld32(
     const wuffs_brotli__bit_cost* self,
     wuffs_base__slice_u8 a_s,
@@ -60123,6 +68918,235 @@ wuffs_brotli__bit_cost__population_cost(
     const wuffs_brotli__bit_cost* self,
     wuffs_base__slice_u8 a_histogram,
     uint32_t a_data_size);
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint8_t
+wuffs_brotli__encoder__rb_byte(
+    const wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    uint64_t a_pos);
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__jump_to_byte_boundary(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_s);
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__store_compressed_meta_block_header(
+    wuffs_brotli__encoder* self,
+    bool a_is_final_block,
+    uint64_t a_length,
+    wuffs_base__slice_u8 a_s);
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__store_uncompressed_meta_block(
+    wuffs_brotli__encoder* self,
+    bool a_is_final_block,
+    wuffs_base__slice_u8 a_wb,
+    uint64_t a_position,
+    uint64_t a_len,
+    wuffs_base__slice_u8 a_s);
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__copy_rb_to_storage(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    uint64_t a_from,
+    uint64_t a_n,
+    wuffs_base__slice_u8 a_s);
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__store_command_extra(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    uint64_t a_i,
+    wuffs_base__slice_u8 a_s);
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__store_var_len_uint8(
+    wuffs_brotli__encoder* self,
+    uint64_t a_n,
+    wuffs_base__slice_u8 a_s);
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__store_simple_huffman_tree(
+    wuffs_brotli__encoder* self,
+    uint32_t a_symbols[4],
+    uint32_t a_num_symbols,
+    uint32_t a_max_bits,
+    wuffs_base__slice_u8 a_s);
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__build_and_store_huffman_tree(
+    wuffs_brotli__encoder* self,
+    uint32_t a_histogram_length,
+    uint32_t a_alphabet_size,
+    wuffs_base__slice_u8 a_s);
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__build_and_store_huffman_tree_fast_generic(
+    wuffs_brotli__encoder* self,
+    uint64_t a_histogram_total,
+    uint32_t a_max_bits,
+    wuffs_base__slice_u8 a_s);
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__copy_huff_to_mb(
+    wuffs_brotli__encoder* self,
+    uint32_t a_cat,
+    uint32_t a_n);
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__load_huff_histo(
+    wuffs_brotli__encoder* self,
+    uint32_t a_cat,
+    uint32_t a_n);
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__build_histograms(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    uint64_t a_start_pos,
+    uint64_t a_n_commands);
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__store_data_with_huffman_codes(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    uint64_t a_start_pos,
+    uint64_t a_n_commands,
+    bool a_static_codes,
+    wuffs_base__slice_u8 a_s);
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__store_meta_block_trivial(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    uint64_t a_start_pos,
+    uint64_t a_length,
+    bool a_is_last,
+    uint64_t a_n_commands,
+    wuffs_base__slice_u8 a_s);
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__store_meta_block_fast(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    uint64_t a_start_pos,
+    uint64_t a_length,
+    bool a_is_last,
+    uint64_t a_n_commands,
+    wuffs_base__slice_u8 a_s);
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint32_t
+wuffs_brotli__encoder__block_length_prefix_code(
+    const wuffs_brotli__encoder* self,
+    uint32_t a_len);
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint32_t
+wuffs_brotli__encoder__next_block_type_code(
+    wuffs_brotli__encoder* self,
+    uint32_t a_c,
+    uint32_t a_block_type);
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__store_block_switch(
+    wuffs_brotli__encoder* self,
+    uint32_t a_c,
+    uint32_t a_block_len,
+    uint32_t a_block_type,
+    bool a_is_first_block,
+    wuffs_base__slice_u8 a_s);
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__build_and_store_block_split_code(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    uint32_t a_c,
+    wuffs_base__slice_u8 a_s);
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__store_trivial_context_map(
+    wuffs_brotli__encoder* self,
+    uint64_t a_num_types,
+    uint32_t a_context_bits,
+    wuffs_base__slice_u8 a_s);
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__encode_context_map(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    uint64_t a_num_clusters,
+    wuffs_base__slice_u8 a_s);
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint32_t
+wuffs_brotli__encoder__rle_sym(
+    const wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    uint64_t a_i);
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__init_block_encoder(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    uint32_t a_c,
+    uint32_t a_histogram_length);
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__build_and_store_entropy_codes(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    uint32_t a_c,
+    uint32_t a_alphabet_size,
+    wuffs_base__slice_u8 a_s);
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__store_symbol(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    uint32_t a_c,
+    uint64_t a_symbol,
+    bool a_with_context,
+    uint64_t a_context,
+    wuffs_base__slice_u8 a_s);
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__store_meta_block(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    uint64_t a_start_pos,
+    uint64_t a_length,
+    uint8_t a_prev_byte,
+    uint8_t a_prev_byte2,
+    bool a_is_last,
+    uint64_t a_n_commands,
+    wuffs_base__slice_u8 a_s);
 
 WUFFS_BASE__GENERATED_C_CODE
 static wuffs_base__empty_struct
@@ -60257,6 +69281,197 @@ static uint64_t
 wuffs_brotli__encoder__write_metadata_header(
     wuffs_brotli__encoder* self,
     uint32_t a_block_size);
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint32_t
+wuffs_brotli__encoder__computed_lgblock(
+    const wuffs_brotli__encoder* self,
+    uint32_t a_quality,
+    uint32_t a_lgwin);
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint32_t
+wuffs_brotli__encoder__rb_bits(
+    const wuffs_brotli__encoder* self,
+    uint32_t a_lgwin,
+    uint32_t a_lgblock);
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint64_t
+wuffs_brotli__encoder__max_metablock_size(
+    const wuffs_brotli__encoder* self,
+    uint32_t a_lgwin,
+    uint32_t a_lgblock);
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint64_t
+wuffs_brotli__encoder__hasher_total_size(
+    const wuffs_brotli__encoder* self,
+    uint32_t a_quality,
+    uint32_t a_lgwin,
+    uint32_t a_size_hint);
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint64_t
+wuffs_brotli__encoder__hash_region_size(
+    const wuffs_brotli__encoder* self,
+    uint32_t a_quality,
+    uint32_t a_lgwin);
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint64_t
+wuffs_brotli__encoder__commands_capacity(
+    const wuffs_brotli__encoder* self,
+    uint32_t a_quality,
+    uint32_t a_lgwin,
+    uint32_t a_lgblock);
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint64_t
+wuffs_brotli__encoder__compute_layout_offset(
+    const wuffs_brotli__encoder* self,
+    uint32_t a_quality,
+    uint32_t a_lgwin,
+    uint32_t a_lgblock,
+    uint32_t a_idx);
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__compute_layout(
+    wuffs_brotli__encoder* self);
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__init_distance_params(
+    wuffs_brotli__encoder* self);
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint64_t
+wuffs_brotli__encoder__wrap_position(
+    const wuffs_brotli__encoder* self,
+    uint64_t a_position);
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__rb_init_buffer(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    uint32_t a_buflen);
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__rb_copy(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    uint64_t a_dst,
+    wuffs_base__slice_u8 a_src);
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__rb_write(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    wuffs_base__slice_u8 a_bytes);
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__copy_input_to_ring_buffer(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    wuffs_base__slice_u8 a_bytes);
+
+WUFFS_BASE__GENERATED_C_CODE
+static bool
+wuffs_brotli__encoder__update_last_processed_pos(
+    wuffs_brotli__encoder* self);
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint64_t
+wuffs_brotli__encoder__remaining_input_block_size(
+    const wuffs_brotli__encoder* self);
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__update_size_hint(
+    wuffs_brotli__encoder* self,
+    uint64_t a_available_in);
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint64_t
+wuffs_brotli__encoder__extend_last_command(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    uint64_t a_bytes,
+    uint64_t a_wrapped_last_processed_pos);
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint64_t
+wuffs_brotli__encoder__estimate_entropy(
+    const wuffs_brotli__encoder* self,
+    uint32_t a_off,
+    uint32_t a_size);
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint32_t
+wuffs_brotli__encoder__choose_context_map(
+    wuffs_brotli__encoder* self);
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint32_t
+wuffs_brotli__encoder__should_use_complex_static_context_map(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    uint64_t a_start_pos,
+    uint64_t a_length);
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint32_t
+wuffs_brotli__encoder__decide_over_literal_context_modeling(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    uint64_t a_start_pos,
+    uint64_t a_length);
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint32_t
+wuffs_brotli__encoder__utf8_prefix_lut(
+    const wuffs_brotli__encoder* self,
+    uint8_t a_b);
+
+WUFFS_BASE__GENERATED_C_CODE
+static bool
+wuffs_brotli__encoder__should_compress(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    uint64_t a_last_flush_pos,
+    uint64_t a_bytes,
+    uint64_t a_num_literals,
+    uint64_t a_num_commands);
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint64_t
+wuffs_brotli__encoder__ctx_histo_bits_entropy(
+    const wuffs_brotli__encoder* self);
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__write_meta_block_internal(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    uint64_t a_last_flush_pos,
+    uint64_t a_bytes,
+    bool a_is_last,
+    uint8_t a_prev_byte,
+    uint8_t a_prev_byte2,
+    wuffs_base__slice_u8 a_s);
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__status
+wuffs_brotli__encoder__encode_data(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    bool a_is_last,
+    bool a_force_flush);
 
 WUFFS_BASE__GENERATED_C_CODE
 static bool
@@ -60677,6 +69892,242 @@ wuffs_brotli__encoder__compress_fragment_two_pass(
     wuffs_base__slice_u8 a_s);
 
 WUFFS_BASE__GENERATED_C_CODE
+static uint32_t
+wuffs_brotli__encoder__hasher_quickly_bucket_bits(
+    const wuffs_brotli__encoder* self);
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint32_t
+wuffs_brotli__encoder__hasher_quickly_sweep(
+    const wuffs_brotli__encoder* self);
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint64_t
+wuffs_brotli__encoder__hasher_type_length(
+    const wuffs_brotli__encoder* self);
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint32_t
+wuffs_brotli__encoder__fc_num_last_distances(
+    const wuffs_brotli__encoder* self);
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint64_t
+wuffs_brotli__encoder__fc_num_banks_minus_1(
+    const wuffs_brotli__encoder* self);
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint32_t
+wuffs_brotli__encoder__fc_bank_bits(
+    const wuffs_brotli__encoder* self);
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__choose_hasher(
+    wuffs_brotli__encoder* self);
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint64_t
+wuffs_brotli__encoder__hasher_alloc_size(
+    const wuffs_brotli__encoder* self,
+    uint32_t a_htype,
+    uint32_t a_bucket_bits,
+    uint32_t a_block_bits,
+    uint32_t a_i);
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__hasher_setup(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    uint64_t a_position,
+    uint64_t a_input_size,
+    bool a_is_last);
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__hasher_prepare(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    bool a_one_shot,
+    uint64_t a_input_size);
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint32_t
+wuffs_brotli__encoder__hash_quickly(
+    const wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_data,
+    uint64_t a_i);
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint32_t
+wuffs_brotli__encoder__hash_longest(
+    const wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_data,
+    uint64_t a_i);
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint32_t
+wuffs_brotli__encoder__hash_forgetful(
+    const wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_data,
+    uint64_t a_i);
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__hasher_store(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    uint64_t a_ix);
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__hasher_store_range(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    uint64_t a_ix_start,
+    uint64_t a_ix_end);
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__hasher_stitch_to_previous_block(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    uint64_t a_num_bytes,
+    uint64_t a_position);
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__prepare_distance_cache(
+    wuffs_brotli__encoder* self);
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint64_t
+wuffs_brotli__encoder__backward_reference_score(
+    const wuffs_brotli__encoder* self,
+    uint64_t a_copy_length,
+    uint64_t a_backward_reference_offset);
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint64_t
+wuffs_brotli__encoder__backward_reference_score_using_last_distance(
+    const wuffs_brotli__encoder* self,
+    uint64_t a_copy_length);
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint64_t
+wuffs_brotli__encoder__backward_reference_penalty_using_last_distance(
+    const wuffs_brotli__encoder* self,
+    uint64_t a_distance_short_code);
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint64_t
+wuffs_brotli__encoder__find_match_length_dict(
+    const wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_data,
+    uint64_t a_i,
+    uint64_t a_d,
+    uint64_t a_limit);
+
+WUFFS_BASE__GENERATED_C_CODE
+static bool
+wuffs_brotli__encoder__test_static_dictionary_item(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_data,
+    uint64_t a_i,
+    uint32_t a_len,
+    uint64_t a_word_idx,
+    uint64_t a_max_length,
+    uint64_t a_max_backward,
+    uint64_t a_max_distance);
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__search_in_static_dictionary(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_data,
+    uint64_t a_i,
+    uint64_t a_max_length,
+    uint64_t a_max_backward,
+    uint64_t a_max_distance,
+    bool a_shallow);
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__find_longest_match(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    uint64_t a_cur_ix,
+    uint64_t a_max_length,
+    uint64_t a_max_backward,
+    uint64_t a_dictionary_distance,
+    uint64_t a_max_distance);
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__find_longest_match_quickly(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    uint64_t a_cur_ix,
+    uint64_t a_max_length,
+    uint64_t a_max_backward,
+    uint64_t a_dictionary_distance,
+    uint64_t a_max_distance);
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint64_t
+wuffs_brotli__encoder__find_last_distances(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_data,
+    uint64_t a_cur_ix,
+    uint64_t a_max_length,
+    uint64_t a_max_backward);
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint64_t
+wuffs_brotli__encoder__try_bucket_entry(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_data,
+    uint64_t a_cur_ix,
+    uint64_t a_prev_ix_in,
+    uint64_t a_best_len,
+    uint64_t a_max_length,
+    uint64_t a_max_backward);
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__find_longest_match_h5(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    uint64_t a_cur_ix,
+    uint64_t a_max_length,
+    uint64_t a_max_backward,
+    uint64_t a_dictionary_distance,
+    uint64_t a_max_distance);
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__find_longest_match_h58(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    uint64_t a_cur_ix,
+    uint64_t a_max_length,
+    uint64_t a_max_backward,
+    uint64_t a_dictionary_distance,
+    uint64_t a_max_distance);
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__find_longest_match_forgetful(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    uint64_t a_cur_ix,
+    uint64_t a_max_length,
+    uint64_t a_max_backward,
+    uint64_t a_dictionary_distance,
+    uint64_t a_max_distance);
+
+WUFFS_BASE__GENERATED_C_CODE
 static wuffs_base__empty_struct
 wuffs_brotli__bit_cost__histogram_clear(
     wuffs_brotli__bit_cost* self,
@@ -60759,6 +70210,193 @@ static uint32_t
 wuffs_brotli__bit_cost__command_distance_context(
     const wuffs_brotli__bit_cost* self,
     uint32_t a_cmd_prefix);
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint64_t
+wuffs_brotli__encoder__gbs_histo_off(
+    const wuffs_brotli__encoder* self,
+    uint32_t a_c,
+    uint64_t a_ix);
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint64_t
+wuffs_brotli__encoder__gbs_entropy(
+    const wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    uint64_t a_off,
+    uint64_t a_size);
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__gbs_clear(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    uint64_t a_off,
+    uint64_t a_n);
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__gbs_copy(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    uint64_t a_dst,
+    uint64_t a_src,
+    uint64_t a_n);
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__gbs_add_histogram(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    uint64_t a_dst,
+    uint64_t a_src,
+    uint64_t a_n);
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__gbs_init(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    uint32_t a_c,
+    uint32_t a_alphabet_size,
+    uint32_t a_data_size,
+    uint32_t a_num_contexts,
+    uint32_t a_min_block_size,
+    uint64_t a_split_threshold,
+    uint64_t a_num_symbols);
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__gbs_finish_block(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    uint32_t a_c,
+    bool a_is_final);
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__gbs_add_symbol(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    uint32_t a_c,
+    uint64_t a_symbol,
+    uint64_t a_context);
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint32_t
+wuffs_brotli__encoder__static_context_map(
+    const wuffs_brotli__encoder* self,
+    uint32_t a_num_contexts,
+    uint32_t a_j);
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__build_meta_block_greedy(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    uint64_t a_pos,
+    uint8_t a_prev_byte,
+    uint8_t a_prev_byte2,
+    uint32_t a_num_contexts,
+    uint64_t a_n_commands);
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__optimize_histograms(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    uint32_t a_num_distance_codes);
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__optimize_huffman_counts_for_rle(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    uint64_t a_off,
+    uint64_t a_length);
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint32_t
+wuffs_brotli__encoder__ctr(
+    const wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    uint64_t a_off,
+    uint64_t a_i);
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint64_t
+wuffs_brotli__encoder__rle_limit3(
+    const wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    uint64_t a_off,
+    uint64_t a_i);
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint8_t
+wuffs_brotli__encoder__byte_at(
+    const wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_s,
+    uint64_t a_i);
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint16_t
+wuffs_brotli__encoder__peek_u16(
+    const wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_s,
+    uint64_t a_i);
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__poke_u16(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_s,
+    uint64_t a_i,
+    uint16_t a_v);
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__poke_u32(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_s,
+    uint64_t a_i,
+    uint32_t a_v);
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__set_byte(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_s,
+    uint64_t a_i,
+    uint8_t a_v);
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__fill_bytes(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_s,
+    uint64_t a_i,
+    uint64_t a_n,
+    uint8_t a_v);
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint64_t
+wuffs_brotli__encoder__dist_cache_u64(
+    const wuffs_brotli__encoder* self,
+    uint32_t a_i);
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint64_t
+wuffs_brotli__encoder__min64(
+    const wuffs_brotli__encoder* self,
+    uint64_t a_a,
+    uint64_t a_b);
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint64_t
+wuffs_brotli__encoder__max64(
+    const wuffs_brotli__encoder* self,
+    uint64_t a_a,
+    uint64_t a_b);
 
 // ---------------- VTables
 
@@ -60953,6 +70591,13 @@ wuffs_brotli__encoder__initialize(
   {
     wuffs_base__status z = wuffs_softfloat__arith__initialize(
         &self->private_data.f_sf, sizeof(self->private_data.f_sf), WUFFS_VERSION, options);
+    if (z.repr) {
+      return z;
+    }
+  }
+  {
+    wuffs_base__status z = wuffs_brotli__bit_cost__initialize(
+        &self->private_data.f_bc, sizeof(self->private_data.f_bc), WUFFS_VERSION, options);
     if (z.repr) {
       return z;
     }
@@ -64902,6 +74547,532 @@ wuffs_brotli__decoder__take_distance_from_ring_buffer(
   return wuffs_base__make_empty_struct();
 }
 
+// -------- func brotli.encoder.cmd_insert_len
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint32_t
+wuffs_brotli__encoder__cmd_insert_len(
+    const wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    uint64_t a_i) {
+  return wuffs_brotli__encoder__load32le(self, a_wb, ((uint64_t)(self->private_impl.f_cmds_off + ((uint64_t)(a_i * 16u)))));
+}
+
+// -------- func brotli.encoder.cmd_copy_len_raw
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint32_t
+wuffs_brotli__encoder__cmd_copy_len_raw(
+    const wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    uint64_t a_i) {
+  return wuffs_brotli__encoder__load32le(self, a_wb, ((uint64_t)(((uint64_t)(self->private_impl.f_cmds_off + ((uint64_t)(a_i * 16u)))) + 4u)));
+}
+
+// -------- func brotli.encoder.cmd_dist_extra
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint32_t
+wuffs_brotli__encoder__cmd_dist_extra(
+    const wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    uint64_t a_i) {
+  return wuffs_brotli__encoder__load32le(self, a_wb, ((uint64_t)(((uint64_t)(self->private_impl.f_cmds_off + ((uint64_t)(a_i * 16u)))) + 8u)));
+}
+
+// -------- func brotli.encoder.cmd_cmd_prefix
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint16_t
+wuffs_brotli__encoder__cmd_cmd_prefix(
+    const wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    uint64_t a_i) {
+  return wuffs_brotli__encoder__peek_u16(self, a_wb, ((uint64_t)(((uint64_t)(self->private_impl.f_cmds_off + ((uint64_t)(a_i * 16u)))) + 12u)));
+}
+
+// -------- func brotli.encoder.cmd_dist_prefix
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint16_t
+wuffs_brotli__encoder__cmd_dist_prefix(
+    const wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    uint64_t a_i) {
+  return wuffs_brotli__encoder__peek_u16(self, a_wb, ((uint64_t)(((uint64_t)(self->private_impl.f_cmds_off + ((uint64_t)(a_i * 16u)))) + 14u)));
+}
+
+// -------- func brotli.encoder.set_cmd
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__set_cmd(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    uint64_t a_i,
+    uint32_t a_insert_len,
+    uint32_t a_copy_len,
+    uint32_t a_dist_extra,
+    uint16_t a_cmd_prefix,
+    uint16_t a_dist_prefix) {
+  uint64_t v_off = 0;
+
+  v_off = ((uint64_t)(self->private_impl.f_cmds_off + ((uint64_t)(a_i * 16u))));
+  wuffs_brotli__encoder__poke_u32(self, a_wb, v_off, a_insert_len);
+  wuffs_brotli__encoder__poke_u32(self, a_wb, ((uint64_t)(v_off + 4u)), a_copy_len);
+  wuffs_brotli__encoder__poke_u32(self, a_wb, ((uint64_t)(v_off + 8u)), a_dist_extra);
+  wuffs_brotli__encoder__poke_u16(self, a_wb, ((uint64_t)(v_off + 12u)), a_cmd_prefix);
+  wuffs_brotli__encoder__poke_u16(self, a_wb, ((uint64_t)(v_off + 14u)), a_dist_prefix);
+  return wuffs_base__make_empty_struct();
+}
+
+// -------- func brotli.encoder.cmd_copy_len
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint32_t
+wuffs_brotli__encoder__cmd_copy_len(
+    const wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    uint64_t a_i) {
+  return (wuffs_brotli__encoder__cmd_copy_len_raw(self, a_wb, a_i) & 33554431u);
+}
+
+// -------- func brotli.encoder.cmd_copy_len_code
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint32_t
+wuffs_brotli__encoder__cmd_copy_len_code(
+    const wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    uint64_t a_i) {
+  uint32_t v_raw = 0;
+  uint32_t v_modifier = 0;
+  uint32_t v_delta = 0;
+
+  v_raw = wuffs_brotli__encoder__cmd_copy_len_raw(self, a_wb, a_i);
+  v_modifier = (v_raw >> 25u);
+  v_delta = (v_modifier | ((v_modifier & 64u) << 1u));
+  if (v_delta >= 128u) {
+    v_delta |= 4294967040u;
+  }
+  return ((uint32_t)((v_raw & 33554431u) + v_delta));
+}
+
+// -------- func brotli.encoder.cmd_distance_context
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint32_t
+wuffs_brotli__encoder__cmd_distance_context(
+    const wuffs_brotli__encoder* self,
+    uint16_t a_cmd_prefix) {
+  uint32_t v_r = 0;
+  uint32_t v_c = 0;
+
+  v_r = ((uint32_t)(((uint16_t)(a_cmd_prefix >> 6u))));
+  v_c = ((uint32_t)(((uint16_t)(a_cmd_prefix & 7u))));
+  if (((v_r == 0u) ||
+      (v_r == 2u) ||
+      (v_r == 4u) ||
+      (v_r == 7u)) && (v_c <= 2u)) {
+    return v_c;
+  }
+  return 3u;
+}
+
+// -------- func brotli.encoder.get_insert_length_code
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint32_t
+wuffs_brotli__encoder__get_insert_length_code(
+    const wuffs_brotli__encoder* self,
+    uint64_t a_insertlen) {
+  uint32_t v_nbits = 0;
+
+  if (a_insertlen < 6u) {
+    return ((uint32_t)(a_insertlen));
+  } else if (a_insertlen < 130u) {
+    v_nbits = ((uint32_t)(wuffs_brotli__encoder__log2_floor_non_zero(self, (a_insertlen - 2u)) - 1u));
+    return ((uint32_t)(((uint32_t)(((uint32_t)(v_nbits << 1u)) + ((uint32_t)(((a_insertlen - 2u) >> (v_nbits & 63u)))))) + 2u));
+  } else if (a_insertlen < 2114u) {
+    return ((uint32_t)(wuffs_brotli__encoder__log2_floor_non_zero(self, (a_insertlen - 66u)) + 10u));
+  } else if (a_insertlen < 6210u) {
+    return 21u;
+  } else if (a_insertlen < 22594u) {
+    return 22u;
+  }
+  return 23u;
+}
+
+// -------- func brotli.encoder.get_copy_length_code
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint32_t
+wuffs_brotli__encoder__get_copy_length_code(
+    const wuffs_brotli__encoder* self,
+    uint64_t a_copylen) {
+  uint32_t v_nbits = 0;
+
+  if (a_copylen < 10u) {
+    return ((uint32_t)((((uint64_t)(a_copylen - 2u)) & 255u)));
+  } else if (a_copylen < 134u) {
+    v_nbits = ((uint32_t)(wuffs_brotli__encoder__log2_floor_non_zero(self, (a_copylen - 6u)) - 1u));
+    return ((uint32_t)(((uint32_t)(((uint32_t)(v_nbits << 1u)) + ((uint32_t)(((a_copylen - 6u) >> (v_nbits & 63u)))))) + 4u));
+  } else if (a_copylen < 2118u) {
+    return ((uint32_t)(wuffs_brotli__encoder__log2_floor_non_zero(self, (a_copylen - 70u)) + 12u));
+  }
+  return 23u;
+}
+
+// -------- func brotli.encoder.combine_length_codes
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint16_t
+wuffs_brotli__encoder__combine_length_codes(
+    const wuffs_brotli__encoder* self,
+    uint32_t a_inscode,
+    uint32_t a_copycode,
+    bool a_use_last_distance) {
+  uint32_t v_bits64 = 0;
+  uint32_t v_offset = 0;
+
+  v_bits64 = ((a_copycode & 7u) | ((a_inscode & 7u) << 3u));
+  if (a_use_last_distance && (a_inscode < 8u) && (a_copycode < 16u)) {
+    if (a_copycode < 8u) {
+      return ((uint16_t)(v_bits64));
+    }
+    return ((uint16_t)((v_bits64 | 64u)));
+  }
+  v_offset = ((uint32_t)(2u * ((uint32_t)((a_copycode >> 3u) + ((uint32_t)(3u * (a_inscode >> 3u)))))));
+  v_offset = ((uint32_t)(((uint32_t)(((uint32_t)(v_offset << 5u)) + 64u)) + ((((uint32_t)(5377344u)) >> (v_offset & 31u)) & 192u)));
+  return ((uint16_t)((v_offset | v_bits64)));
+}
+
+// -------- func brotli.encoder.get_length_code
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint16_t
+wuffs_brotli__encoder__get_length_code(
+    const wuffs_brotli__encoder* self,
+    uint64_t a_insertlen,
+    uint64_t a_copylen,
+    bool a_use_last_distance) {
+  return wuffs_brotli__encoder__combine_length_codes(self, wuffs_brotli__encoder__get_insert_length_code(self, a_insertlen), wuffs_brotli__encoder__get_copy_length_code(self, a_copylen), a_use_last_distance);
+}
+
+// -------- func brotli.encoder.prefix_encode_copy_distance
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint64_t
+wuffs_brotli__encoder__prefix_encode_copy_distance(
+    const wuffs_brotli__encoder* self,
+    uint64_t a_distance_code,
+    uint64_t a_num_direct_codes,
+    uint32_t a_postfix_bits) {
+  uint64_t v_dist = 0;
+  uint64_t v_bucket = 0;
+  uint64_t v_postfix_mask = 0;
+  uint64_t v_postfix = 0;
+  uint64_t v_prefix = 0;
+  uint64_t v_offset = 0;
+  uint64_t v_nbits = 0;
+  uint64_t v_code = 0;
+  uint64_t v_extra = 0;
+
+  if (a_distance_code < ((uint64_t)(16u + a_num_direct_codes))) {
+    return (a_distance_code & 65535u);
+  }
+  v_dist = ((uint64_t)((((uint64_t)(1u)) << ((a_postfix_bits + 2u) & 63u)) + ((uint64_t)(((uint64_t)(a_distance_code - 16u)) - a_num_direct_codes))));
+  v_bucket = ((uint64_t)(((uint64_t)(wuffs_brotli__encoder__log2_floor_non_zero(self, v_dist))) - 1u));
+  v_postfix_mask = ((uint64_t)((((uint64_t)(1u)) << (a_postfix_bits & 63u)) - 1u));
+  v_postfix = (v_dist & v_postfix_mask);
+  v_prefix = ((v_dist >> (v_bucket & 63u)) & 1u);
+  v_offset = ((uint64_t)(((uint64_t)(2u + v_prefix)) << (v_bucket & 63u)));
+  v_nbits = ((uint64_t)(v_bucket - ((uint64_t)(a_postfix_bits))));
+  v_code = (((uint64_t)(v_nbits << 10u)) | ((uint64_t)(((uint64_t)(((uint64_t)(16u + a_num_direct_codes)) + ((uint64_t)(((uint64_t)(((uint64_t)(2u * ((uint64_t)(v_nbits - 1u)))) + v_prefix)) << (a_postfix_bits & 63u))))) + v_postfix)));
+  v_extra = ((((uint64_t)(v_dist - v_offset)) >> (a_postfix_bits & 63u)) & 4294967295u);
+  return ((v_code & 65535u) | (v_extra << 32u));
+}
+
+// -------- func brotli.encoder.init_command
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__init_command(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    uint64_t a_n,
+    uint64_t a_insertlen,
+    uint64_t a_copylen,
+    uint64_t a_copylen_code_delta,
+    uint64_t a_distance_code) {
+  uint32_t v_delta = 0;
+  uint64_t v_pe = 0;
+  uint16_t v_dist_prefix = 0;
+  uint16_t v_cmd_prefix = 0;
+
+  v_delta = ((uint32_t)((a_copylen_code_delta & 255u)));
+  v_pe = wuffs_brotli__encoder__prefix_encode_copy_distance(self, a_distance_code, ((uint64_t)(self->private_impl.f_num_direct_distance_codes)), (self->private_impl.f_distance_postfix_bits & 3u));
+  v_dist_prefix = ((uint16_t)(v_pe));
+  v_cmd_prefix = wuffs_brotli__encoder__get_length_code(self, a_insertlen, ((uint64_t)(a_copylen + a_copylen_code_delta)), (((uint16_t)(v_dist_prefix & 1023u)) == 0u));
+  wuffs_brotli__encoder__set_cmd(self,
+      a_wb,
+      a_n,
+      ((uint32_t)(a_insertlen)),
+      (((uint32_t)(a_copylen)) | ((uint32_t)(v_delta << 25u))),
+      ((uint32_t)((v_pe >> 32u))),
+      v_cmd_prefix,
+      v_dist_prefix);
+  return wuffs_base__make_empty_struct();
+}
+
+// -------- func brotli.encoder.init_insert_command
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__init_insert_command(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    uint64_t a_n,
+    uint64_t a_insertlen) {
+  wuffs_brotli__encoder__set_cmd(self,
+      a_wb,
+      a_n,
+      ((uint32_t)(a_insertlen)),
+      134217728u,
+      0u,
+      wuffs_brotli__encoder__get_length_code(self, a_insertlen, 4u, false),
+      16u);
+  return wuffs_base__make_empty_struct();
+}
+
+// -------- func brotli.encoder.cmd_restore_distance_code
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint32_t
+wuffs_brotli__encoder__cmd_restore_distance_code(
+    const wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    uint64_t a_i) {
+  uint32_t v_dist_prefix = 0;
+  uint32_t v_dcode = 0;
+  uint32_t v_nbits = 0;
+  uint32_t v_extra = 0;
+  uint32_t v_postfix_mask = 0;
+  uint32_t v_hcode = 0;
+  uint32_t v_lcode = 0;
+  uint32_t v_offset = 0;
+  uint32_t v_npostfix = 0;
+
+  v_dist_prefix = ((uint32_t)(wuffs_brotli__encoder__cmd_dist_prefix(self, a_wb, a_i)));
+  v_npostfix = (self->private_impl.f_distance_postfix_bits & 31u);
+  if ((v_dist_prefix & 1023u) < ((uint32_t)(16u + self->private_impl.f_num_direct_distance_codes))) {
+    return (v_dist_prefix & 1023u);
+  }
+  v_dcode = (v_dist_prefix & 1023u);
+  v_nbits = (v_dist_prefix >> 10u);
+  v_extra = wuffs_brotli__encoder__cmd_dist_extra(self, a_wb, a_i);
+  v_postfix_mask = ((uint32_t)((((uint32_t)(1u)) << v_npostfix) - 1u));
+  v_hcode = (((uint32_t)(((uint32_t)(v_dcode - self->private_impl.f_num_direct_distance_codes)) - 16u)) >> v_npostfix);
+  v_lcode = (((uint32_t)(((uint32_t)(v_dcode - self->private_impl.f_num_direct_distance_codes)) - 16u)) & v_postfix_mask);
+  v_offset = ((uint32_t)(((uint32_t)(((uint32_t)(2u + (v_hcode & 1u))) << (v_nbits & 31u))) - 4u));
+  return ((uint32_t)(((uint32_t)(((uint32_t)(((uint32_t)(((uint32_t)(v_offset + v_extra)) << v_npostfix)) + v_lcode)) + self->private_impl.f_num_direct_distance_codes)) + 16u));
+}
+
+// -------- func brotli.encoder.compute_distance_code
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint64_t
+wuffs_brotli__encoder__compute_distance_code(
+    const wuffs_brotli__encoder* self,
+    uint64_t a_distance,
+    uint64_t a_max_distance) {
+  uint64_t v_distance_plus_3 = 0;
+  uint64_t v_offset0 = 0;
+  uint64_t v_offset1 = 0;
+
+  if (a_distance <= a_max_distance) {
+    v_distance_plus_3 = ((uint64_t)(a_distance + 3u));
+    v_offset0 = ((uint64_t)(v_distance_plus_3 - wuffs_brotli__encoder__dist_cache_u64(self, 0u)));
+    v_offset1 = ((uint64_t)(v_distance_plus_3 - wuffs_brotli__encoder__dist_cache_u64(self, 1u)));
+    if (a_distance == wuffs_brotli__encoder__dist_cache_u64(self, 0u)) {
+      return 0u;
+    } else if (a_distance == wuffs_brotli__encoder__dist_cache_u64(self, 1u)) {
+      return 1u;
+    } else if (v_offset0 < 7u) {
+      return ((((uint64_t)(158663784u)) >> (4u * v_offset0)) & 15u);
+    } else if (v_offset1 < 7u) {
+      return ((((uint64_t)(266017486u)) >> (4u * v_offset1)) & 15u);
+    } else if (a_distance == wuffs_brotli__encoder__dist_cache_u64(self, 2u)) {
+      return 2u;
+    } else if (a_distance == wuffs_brotli__encoder__dist_cache_u64(self, 3u)) {
+      return 3u;
+    }
+  }
+  return ((uint64_t)(a_distance + 15u));
+}
+
+// -------- func brotli.encoder.create_backward_references
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__status
+wuffs_brotli__encoder__create_backward_references(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    uint64_t a_num_bytes,
+    uint64_t a_position) {
+  uint64_t v_position = 0;
+  uint64_t v_max_backward_limit = 0;
+  uint64_t v_position_offset = 0;
+  uint64_t v_insert_length = 0;
+  uint64_t v_pos_end = 0;
+  uint64_t v_store_end = 0;
+  uint64_t v_htl = 0;
+  uint64_t v_random_heuristics_window_size = 0;
+  uint64_t v_apply_random_heuristics = 0;
+  uint64_t v_max_length = 0;
+  uint64_t v_max_distance = 0;
+  uint64_t v_dictionary_start = 0;
+  uint32_t v_delayed_backward_references = 0;
+  uint64_t v_sr_len = 0;
+  uint64_t v_sr_distance = 0;
+  uint64_t v_sr_score = 0;
+  uint64_t v_sr_len_code_delta = 0;
+  uint64_t v_distance_code = 0;
+  uint64_t v_range_start = 0;
+  uint64_t v_range_end = 0;
+  uint64_t v_k_margin = 0;
+  uint64_t v_pos_jump = 0;
+
+  v_position = a_position;
+  v_max_backward_limit = ((uint64_t)((((uint64_t)(1u)) << self->private_impl.f_lgwin) - 16u));
+  v_position_offset = ((uint64_t)(self->private_impl.f_stream_offset));
+  v_insert_length = self->private_impl.f_last_insert_len;
+  v_pos_end = ((uint64_t)(v_position + a_num_bytes));
+  v_htl = wuffs_brotli__encoder__hasher_type_length(self);
+  v_store_end = v_position;
+  if (a_num_bytes >= v_htl) {
+    v_store_end = ((uint64_t)(((uint64_t)(((uint64_t)(v_position + a_num_bytes)) - v_htl)) + 1u));
+  }
+  v_random_heuristics_window_size = 64u;
+  if (self->private_impl.f_quality >= 9u) {
+    v_random_heuristics_window_size = 512u;
+  }
+  v_apply_random_heuristics = ((uint64_t)(v_position + v_random_heuristics_window_size));
+  wuffs_brotli__encoder__prepare_distance_cache(self);
+  while (((uint64_t)(v_position + v_htl)) < v_pos_end) {
+    v_max_length = ((uint64_t)(v_pos_end - v_position));
+    v_max_distance = wuffs_base__u64__min(v_position, v_max_backward_limit);
+    v_dictionary_start = wuffs_brotli__encoder__min64(self, ((uint64_t)(v_position + v_position_offset)), v_max_backward_limit);
+    self->private_impl.f_sr_len = 0u;
+    self->private_impl.f_sr_len_code_delta = 0u;
+    self->private_impl.f_sr_distance = 0u;
+    self->private_impl.f_sr_score = 2020u;
+    wuffs_brotli__encoder__find_longest_match(self,
+        a_wb,
+        v_position,
+        v_max_length,
+        v_max_distance,
+        v_dictionary_start,
+        self->private_impl.f_dist_max_distance);
+    if (self->private_impl.f_sr_score > 2020u) {
+      v_delayed_backward_references = 0u;
+      v_max_length -= 1u;
+      while (true) {
+        v_sr_len = self->private_impl.f_sr_len;
+        v_sr_distance = self->private_impl.f_sr_distance;
+        v_sr_score = self->private_impl.f_sr_score;
+        v_sr_len_code_delta = self->private_impl.f_sr_len_code_delta;
+        self->private_impl.f_sr_len = 0u;
+        if (self->private_impl.f_quality < 5u) {
+          self->private_impl.f_sr_len = wuffs_brotli__encoder__min64(self, ((uint64_t)(v_sr_len - 1u)), v_max_length);
+        }
+        self->private_impl.f_sr_len_code_delta = 0u;
+        self->private_impl.f_sr_distance = 0u;
+        self->private_impl.f_sr_score = 2020u;
+        v_max_distance = wuffs_brotli__encoder__min64(self, ((uint64_t)(v_position + 1u)), v_max_backward_limit);
+        v_dictionary_start = wuffs_brotli__encoder__min64(self, ((uint64_t)(((uint64_t)(v_position + 1u)) + v_position_offset)), v_max_backward_limit);
+        wuffs_brotli__encoder__find_longest_match(self,
+            a_wb,
+            ((uint64_t)(v_position + 1u)),
+            v_max_length,
+            v_max_distance,
+            v_dictionary_start,
+            self->private_impl.f_dist_max_distance);
+        if (self->private_impl.f_sr_score >= ((uint64_t)(v_sr_score + 175u))) {
+          v_position += 1u;
+          v_insert_length += 1u;
+          v_delayed_backward_references += 1u;
+          if ((v_delayed_backward_references < 4u) && (((uint64_t)(v_position + v_htl)) < v_pos_end)) {
+            v_max_length -= 1u;
+            continue;
+          }
+          break;
+        }
+        self->private_impl.f_sr_len = v_sr_len;
+        self->private_impl.f_sr_distance = v_sr_distance;
+        self->private_impl.f_sr_score = v_sr_score;
+        self->private_impl.f_sr_len_code_delta = v_sr_len_code_delta;
+        break;
+      }
+      v_apply_random_heuristics = ((uint64_t)(((uint64_t)(v_position + ((uint64_t)(2u * self->private_impl.f_sr_len)))) + v_random_heuristics_window_size));
+      v_dictionary_start = wuffs_brotli__encoder__min64(self, ((uint64_t)(v_position + v_position_offset)), v_max_backward_limit);
+      v_distance_code = wuffs_brotli__encoder__compute_distance_code(self, self->private_impl.f_sr_distance, v_dictionary_start);
+      if ((self->private_impl.f_sr_distance <= v_dictionary_start) && (v_distance_code > 0u)) {
+        self->private_impl.f_dist_cache[3u] = self->private_impl.f_dist_cache[2u];
+        self->private_impl.f_dist_cache[2u] = self->private_impl.f_dist_cache[1u];
+        self->private_impl.f_dist_cache[1u] = self->private_impl.f_dist_cache[0u];
+        self->private_impl.f_dist_cache[0u] = ((uint32_t)(self->private_impl.f_sr_distance));
+        wuffs_brotli__encoder__prepare_distance_cache(self);
+      }
+      if (self->private_impl.f_num_cmds >= self->private_impl.f_cmds_cap) {
+        return wuffs_base__make_status(wuffs_brotli__error__internal_error_inconsistent_encoder_state);
+      }
+      wuffs_brotli__encoder__init_command(self,
+          a_wb,
+          self->private_impl.f_num_cmds,
+          v_insert_length,
+          self->private_impl.f_sr_len,
+          self->private_impl.f_sr_len_code_delta,
+          v_distance_code);
+      self->private_impl.f_num_cmds += 1u;
+      self->private_impl.f_num_lits += v_insert_length;
+      v_insert_length = 0u;
+      v_range_start = ((uint64_t)(v_position + 2u));
+      v_range_end = wuffs_brotli__encoder__min64(self, ((uint64_t)(v_position + self->private_impl.f_sr_len)), v_store_end);
+      if (self->private_impl.f_sr_distance < (self->private_impl.f_sr_len >> 2u)) {
+        v_range_start = wuffs_base__u64__min(v_range_end, wuffs_base__u64__max(v_range_start, ((uint64_t)(((uint64_t)(v_position + self->private_impl.f_sr_len)) - ((uint64_t)(self->private_impl.f_sr_distance << 2u))))));
+      }
+      wuffs_brotli__encoder__hasher_store_range(self, a_wb, v_range_start, v_range_end);
+      v_position += self->private_impl.f_sr_len;
+    } else {
+      v_insert_length += 1u;
+      v_position += 1u;
+      if (v_position > v_apply_random_heuristics) {
+        if (v_position > ((uint64_t)(v_apply_random_heuristics + ((uint64_t)(4u * v_random_heuristics_window_size))))) {
+          v_k_margin = wuffs_brotli__encoder__max64(self, ((uint64_t)(v_htl - 1u)), 4u);
+          v_pos_jump = wuffs_brotli__encoder__min64(self, ((uint64_t)(v_position + 16u)), ((uint64_t)(v_pos_end - v_k_margin)));
+          while (v_position < v_pos_jump) {
+            wuffs_brotli__encoder__hasher_store(self, a_wb, v_position);
+            v_insert_length += 4u;
+            v_position += 4u;
+          }
+        } else {
+          v_k_margin = wuffs_brotli__encoder__max64(self, ((uint64_t)(v_htl - 1u)), 2u);
+          v_pos_jump = wuffs_brotli__encoder__min64(self, ((uint64_t)(v_position + 8u)), ((uint64_t)(v_pos_end - v_k_margin)));
+          while (v_position < v_pos_jump) {
+            wuffs_brotli__encoder__hasher_store(self, a_wb, v_position);
+            v_insert_length += 2u;
+            v_position += 2u;
+          }
+        }
+      }
+    }
+  }
+  v_insert_length += ((uint64_t)(v_pos_end - v_position));
+  self->private_impl.f_last_insert_len = v_insert_length;
+  return wuffs_base__make_status(NULL);
+}
+
 // -------- func brotli.bit_cost.ld32
 
 WUFFS_BASE__GENERATED_C_CODE
@@ -65171,6 +75342,1307 @@ wuffs_brotli__bit_cost__population_cost(
     v_retval = wuffs_softfloat__arith__f64_from_u64(&self->private_data.f_sf, v_sum);
   }
   return wuffs_softfloat__arith__f64_add(&self->private_data.f_sf, v_bits, v_retval);
+}
+
+// -------- func brotli.encoder.rb_byte
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint8_t
+wuffs_brotli__encoder__rb_byte(
+    const wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    uint64_t a_pos) {
+  return wuffs_brotli__encoder__byte_at(self, a_wb, ((uint64_t)(self->private_impl.f_rb_buf_off + (a_pos & ((uint64_t)(self->private_impl.f_rb_mask))))));
+}
+
+// -------- func brotli.encoder.jump_to_byte_boundary
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__jump_to_byte_boundary(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_s) {
+  self->private_impl.f_bw_ix = (((uint64_t)(self->private_impl.f_bw_ix + 7u)) & 18446744073709551608u);
+  wuffs_brotli__encoder__set_byte(self, a_s, (self->private_impl.f_bw_ix >> 3u), 0u);
+  return wuffs_base__make_empty_struct();
+}
+
+// -------- func brotli.encoder.store_compressed_meta_block_header
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__store_compressed_meta_block_header(
+    wuffs_brotli__encoder* self,
+    bool a_is_final_block,
+    uint64_t a_length,
+    wuffs_base__slice_u8 a_s) {
+  uint32_t v_lg = 0;
+  uint32_t v_mnibbles = 0;
+
+  if (a_is_final_block) {
+    wuffs_brotli__encoder__write_bits(self, 1u, 1u, a_s);
+    wuffs_brotli__encoder__write_bits(self, 1u, 0u, a_s);
+  } else {
+    wuffs_brotli__encoder__write_bits(self, 1u, 0u, a_s);
+  }
+  v_lg = 1u;
+  if (a_length > 1u) {
+    v_lg = (wuffs_brotli__encoder__log2_floor_non_zero(self, ((uint64_t)(a_length - 1u))) + 1u);
+  }
+  v_mnibbles = 4u;
+  if (v_lg >= 16u) {
+    v_mnibbles = ((v_lg + 3u) / 4u);
+  }
+  wuffs_brotli__encoder__write_bits(self, 2u, ((uint64_t)(((uint32_t)(v_mnibbles - 4u)))), a_s);
+  wuffs_brotli__encoder__write_bits(self, ((uint32_t)(v_mnibbles * 4u)), ((uint64_t)(a_length - 1u)), a_s);
+  if ( ! a_is_final_block) {
+    wuffs_brotli__encoder__write_bits(self, 1u, 0u, a_s);
+  }
+  return wuffs_base__make_empty_struct();
+}
+
+// -------- func brotli.encoder.store_uncompressed_meta_block
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__store_uncompressed_meta_block(
+    wuffs_brotli__encoder* self,
+    bool a_is_final_block,
+    wuffs_base__slice_u8 a_wb,
+    uint64_t a_position,
+    uint64_t a_len,
+    wuffs_base__slice_u8 a_s) {
+  uint32_t v_lg = 0;
+  uint32_t v_mnibbles = 0;
+  uint64_t v_masked_pos = 0;
+  uint64_t v_len = 0;
+  uint64_t v_len1 = 0;
+  uint64_t v_mask = 0;
+
+  v_mask = ((uint64_t)(self->private_impl.f_rb_mask));
+  v_masked_pos = (a_position & v_mask);
+  v_len = a_len;
+  wuffs_brotli__encoder__write_bits(self, 1u, 0u, a_s);
+  v_lg = 1u;
+  if (v_len > 1u) {
+    v_lg = (wuffs_brotli__encoder__log2_floor_non_zero(self, ((uint64_t)(v_len - 1u))) + 1u);
+  }
+  v_mnibbles = 4u;
+  if (v_lg >= 16u) {
+    v_mnibbles = ((v_lg + 3u) / 4u);
+  }
+  wuffs_brotli__encoder__write_bits(self, 2u, ((uint64_t)(((uint32_t)(v_mnibbles - 4u)))), a_s);
+  wuffs_brotli__encoder__write_bits(self, ((uint32_t)(v_mnibbles * 4u)), ((uint64_t)(v_len - 1u)), a_s);
+  wuffs_brotli__encoder__write_bits(self, 1u, 1u, a_s);
+  wuffs_brotli__encoder__jump_to_byte_boundary(self, a_s);
+  if (((uint64_t)(v_masked_pos + v_len)) > ((uint64_t)(v_mask + 1u))) {
+    v_len1 = ((uint64_t)(((uint64_t)(v_mask + 1u)) - v_masked_pos));
+    wuffs_brotli__encoder__copy_rb_to_storage(self,
+        a_wb,
+        v_masked_pos,
+        v_len1,
+        a_s);
+    v_len -= v_len1;
+    v_masked_pos = 0u;
+  }
+  wuffs_brotli__encoder__copy_rb_to_storage(self,
+      a_wb,
+      v_masked_pos,
+      v_len,
+      a_s);
+  wuffs_brotli__encoder__set_byte(self, a_s, (self->private_impl.f_bw_ix >> 3u), 0u);
+  if (a_is_final_block) {
+    wuffs_brotli__encoder__write_bits(self, 1u, 1u, a_s);
+    wuffs_brotli__encoder__write_bits(self, 1u, 1u, a_s);
+    wuffs_brotli__encoder__jump_to_byte_boundary(self, a_s);
+  }
+  return wuffs_base__make_empty_struct();
+}
+
+// -------- func brotli.encoder.copy_rb_to_storage
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__copy_rb_to_storage(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    uint64_t a_from,
+    uint64_t a_n,
+    wuffs_base__slice_u8 a_s) {
+  wuffs_base__slice_u8 v_src = {0};
+  wuffs_base__slice_u8 v_dst = {0};
+  uint64_t v_a = 0;
+  uint64_t v_b = 0;
+
+  v_a = ((uint64_t)(self->private_impl.f_rb_buf_off + a_from));
+  v_b = (self->private_impl.f_bw_ix >> 3u);
+  if ((v_a <= ((uint64_t)(a_wb.len))) && (v_b <= ((uint64_t)(a_s.len)))) {
+    v_src = wuffs_base__slice_u8__subslice_i(a_wb, v_a);
+    v_dst = wuffs_base__slice_u8__subslice_i(a_s, v_b);
+    if ((a_n <= ((uint64_t)(v_src.len))) && (a_n <= ((uint64_t)(v_dst.len)))) {
+      wuffs_private_impl__slice_u8__copy_from_slice(v_dst, wuffs_base__slice_u8__subslice_j(v_src, a_n));
+    }
+  }
+  self->private_impl.f_bw_ix += ((uint64_t)(a_n << 3u));
+  return wuffs_base__make_empty_struct();
+}
+
+// -------- func brotli.encoder.store_command_extra
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__store_command_extra(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    uint64_t a_i,
+    wuffs_base__slice_u8 a_s) {
+  uint32_t v_copylen_code = 0;
+  uint32_t v_insert_len = 0;
+  uint32_t v_inscode = 0;
+  uint32_t v_copycode = 0;
+  uint32_t v_insnumextra = 0;
+  uint64_t v_insextraval = 0;
+  uint64_t v_copyextraval = 0;
+
+  v_copylen_code = wuffs_brotli__encoder__cmd_copy_len_code(self, a_wb, a_i);
+  v_insert_len = wuffs_brotli__encoder__cmd_insert_len(self, a_wb, a_i);
+  v_inscode = wuffs_brotli__encoder__get_insert_length_code(self, ((uint64_t)(v_insert_len)));
+  v_copycode = wuffs_brotli__encoder__get_copy_length_code(self, ((uint64_t)(v_copylen_code)));
+  v_insnumextra = WUFFS_BROTLI__INS_EXTRA[wuffs_base__u32__min(v_inscode, 23u)];
+  v_insextraval = ((uint64_t)(((uint32_t)(v_insert_len - WUFFS_BROTLI__INS_BASE[wuffs_base__u32__min(v_inscode, 23u)]))));
+  v_copyextraval = ((uint64_t)(((uint32_t)(v_copylen_code - WUFFS_BROTLI__COPY_BASE[wuffs_base__u32__min(v_copycode, 23u)]))));
+  wuffs_brotli__encoder__write_bits(self, (v_insnumextra + WUFFS_BROTLI__COPY_EXTRA[wuffs_base__u32__min(v_copycode, 23u)]), (((uint64_t)(v_copyextraval << v_insnumextra)) | v_insextraval), a_s);
+  return wuffs_base__make_empty_struct();
+}
+
+// -------- func brotli.encoder.store_var_len_uint8
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__store_var_len_uint8(
+    wuffs_brotli__encoder* self,
+    uint64_t a_n,
+    wuffs_base__slice_u8 a_s) {
+  uint32_t v_nbits = 0;
+
+  if (a_n == 0u) {
+    wuffs_brotli__encoder__write_bits(self, 1u, 0u, a_s);
+  } else {
+    v_nbits = wuffs_brotli__encoder__log2_floor_non_zero(self, a_n);
+    wuffs_brotli__encoder__write_bits(self, 1u, 1u, a_s);
+    wuffs_brotli__encoder__write_bits(self, 3u, ((uint64_t)(v_nbits)), a_s);
+    wuffs_brotli__encoder__write_bits(self, v_nbits, ((uint64_t)(a_n - (((uint64_t)(1u)) << v_nbits))), a_s);
+  }
+  return wuffs_base__make_empty_struct();
+}
+
+// -------- func brotli.encoder.store_simple_huffman_tree
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__store_simple_huffman_tree(
+    wuffs_brotli__encoder* self,
+    uint32_t a_symbols[4],
+    uint32_t a_num_symbols,
+    uint32_t a_max_bits,
+    wuffs_base__slice_u8 a_s) {
+  uint32_t v_symbols[4] = {0};
+  uint32_t v_i = 0;
+  uint32_t v_j = 0;
+  uint32_t v_tmp = 0;
+
+  memcpy(v_symbols,a_symbols, sizeof(v_symbols));
+  wuffs_brotli__encoder__write_bits(self, 2u, 1u, a_s);
+  wuffs_brotli__encoder__write_bits(self, 2u, ((uint64_t)(((uint32_t)(a_num_symbols - 1u)))), a_s);
+  v_i = 0u;
+  while (v_i < a_num_symbols) {
+    v_j = ((uint32_t)(v_i + 1u));
+    while (v_j < a_num_symbols) {
+      if (self->private_data.f_huff_depth[(v_symbols[(v_j & 3u)] & 1023u)] < self->private_data.f_huff_depth[(v_symbols[(v_i & 3u)] & 1023u)]) {
+        v_tmp = v_symbols[(v_j & 3u)];
+        v_symbols[(v_j & 3u)] = v_symbols[(v_i & 3u)];
+        v_symbols[(v_i & 3u)] = v_tmp;
+      }
+      v_j += 1u;
+    }
+    v_i += 1u;
+  }
+  wuffs_brotli__encoder__write_bits(self, a_max_bits, ((uint64_t)(v_symbols[0u])), a_s);
+  wuffs_brotli__encoder__write_bits(self, a_max_bits, ((uint64_t)(v_symbols[1u])), a_s);
+  if (a_num_symbols >= 3u) {
+    wuffs_brotli__encoder__write_bits(self, a_max_bits, ((uint64_t)(v_symbols[2u])), a_s);
+  }
+  if (a_num_symbols >= 4u) {
+    wuffs_brotli__encoder__write_bits(self, a_max_bits, ((uint64_t)(v_symbols[3u])), a_s);
+    if (self->private_data.f_huff_depth[(v_symbols[0u] & 1023u)] == 1u) {
+      wuffs_brotli__encoder__write_bits(self, 1u, 1u, a_s);
+    } else {
+      wuffs_brotli__encoder__write_bits(self, 1u, 0u, a_s);
+    }
+  }
+  return wuffs_base__make_empty_struct();
+}
+
+// -------- func brotli.encoder.build_and_store_huffman_tree
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__build_and_store_huffman_tree(
+    wuffs_brotli__encoder* self,
+    uint32_t a_histogram_length,
+    uint32_t a_alphabet_size,
+    wuffs_base__slice_u8 a_s) {
+  uint32_t v_count = 0;
+  uint32_t v_s4[4] = {0};
+  uint32_t v_i = 0;
+  uint32_t v_max_bits = 0;
+  uint32_t v_max_bits_counter = 0;
+
+  v_i = 0u;
+  while (v_i < a_histogram_length) {
+    if (self->private_data.f_huff_histo[(v_i & 1023u)] != 0u) {
+      if (v_count < 4u) {
+        v_s4[v_count] = v_i;
+      } else if (v_count > 4u) {
+        break;
+      }
+      v_count += 1u;
+    }
+    v_i += 1u;
+  }
+  v_max_bits_counter = ((uint32_t)(a_alphabet_size - 1u));
+  while (v_max_bits_counter > 0u) {
+    v_max_bits_counter >>= 1u;
+    v_max_bits += 1u;
+  }
+  if (v_count <= 1u) {
+    wuffs_brotli__encoder__write_bits(self, 4u, 1u, a_s);
+    wuffs_brotli__encoder__write_bits(self, v_max_bits, ((uint64_t)(v_s4[0u])), a_s);
+    self->private_data.f_huff_depth[(v_s4[0u] & 1023u)] = 0u;
+    self->private_data.f_huff_bits[(v_s4[0u] & 1023u)] = 0u;
+    return wuffs_base__make_empty_struct();
+  }
+  v_i = 0u;
+  while (v_i < a_histogram_length) {
+    self->private_data.f_huff_depth[(v_i & 1023u)] = 0u;
+    v_i += 1u;
+  }
+  wuffs_brotli__encoder__create_huffman_tree(self,
+      2u,
+      0u,
+      a_histogram_length,
+      15u,
+      wuffs_base__make_slice_u8(self->private_data.f_huff_depth, 1024));
+  wuffs_brotli__encoder__convert_bit_depths_to_symbols(self, wuffs_base__make_slice_u8(self->private_data.f_huff_depth, 1024), a_histogram_length, 4u);
+  if (v_count <= 4u) {
+    wuffs_brotli__encoder__store_simple_huffman_tree(self,
+        v_s4,
+        v_count,
+        v_max_bits,
+        a_s);
+  } else {
+    wuffs_brotli__encoder__store_huffman_tree(self, wuffs_base__make_slice_u8(self->private_data.f_huff_depth, 1024), a_histogram_length, a_s);
+  }
+  return wuffs_base__make_empty_struct();
+}
+
+// -------- func brotli.encoder.build_and_store_huffman_tree_fast_generic
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__build_and_store_huffman_tree_fast_generic(
+    wuffs_brotli__encoder* self,
+    uint64_t a_histogram_total,
+    uint32_t a_max_bits,
+    wuffs_base__slice_u8 a_s) {
+  uint32_t v_count = 0;
+  uint32_t v_symbols[4] = {0};
+  uint32_t v_length = 0;
+  uint64_t v_total = 0;
+  uint32_t v_count_limit = 0;
+  uint32_t v_n = 0;
+  uint32_t v_l = 0;
+  uint32_t v_h = 0;
+  uint32_t v_i = 0;
+  uint32_t v_j = 0;
+  uint32_t v_tmp = 0;
+  bool v_depth_ok = false;
+  uint32_t v_value = 0;
+  uint32_t v_prev_value = 0;
+  uint32_t v_reps = 0;
+  uint32_t v_k = 0;
+
+  v_total = a_histogram_total;
+  while ((v_total != 0u) && (v_length < 1024u)) {
+    v_h = self->private_data.f_huff_histo[v_length];
+    if (v_h != 0u) {
+      if (v_count < 4u) {
+        v_symbols[v_count] = v_length;
+      }
+      v_count += 1u;
+      v_total -= ((uint64_t)(v_h));
+    }
+    v_length += 1u;
+  }
+  if (v_count <= 1u) {
+    wuffs_brotli__encoder__write_bits(self, 4u, 1u, a_s);
+    wuffs_brotli__encoder__write_bits(self, a_max_bits, ((uint64_t)(v_symbols[0u])), a_s);
+    self->private_data.f_huff_depth[(v_symbols[0u] & 1023u)] = 0u;
+    self->private_data.f_huff_bits[(v_symbols[0u] & 1023u)] = 0u;
+    return wuffs_base__make_empty_struct();
+  }
+  v_i = 0u;
+  while (v_i < v_length) {
+    self->private_data.f_huff_depth[(v_i & 1023u)] = 0u;
+    v_i += 1u;
+  }
+  v_count_limit = 1u;
+  while (true) {
+    v_n = 0u;
+    v_l = v_length;
+    while (v_l > 0u) {
+      v_l -= 1u;
+      v_h = self->private_data.f_huff_histo[(v_l & 1023u)];
+      if (v_h != 0u) {
+        if (v_h >= v_count_limit) {
+          self->private_data.f_tree_count[(v_n & 2047u)] = v_h;
+        } else {
+          self->private_data.f_tree_count[(v_n & 2047u)] = v_count_limit;
+        }
+        self->private_data.f_tree_left[(v_n & 2047u)] = 65535u;
+        self->private_data.f_tree_right[(v_n & 2047u)] = ((uint16_t)(v_l));
+        v_n += 1u;
+      }
+    }
+    wuffs_brotli__encoder__sort_huffman_tree_items(self, v_n, false);
+    wuffs_brotli__encoder__merge_huffman_nodes(self, v_n);
+    v_depth_ok = wuffs_brotli__encoder__set_depth(self, ((uint32_t)(((uint32_t)(v_n * 2u)) - 1u)), wuffs_base__make_slice_u8(self->private_data.f_huff_depth, 1024), 14u);
+    if (v_depth_ok) {
+      break;
+    }
+    v_count_limit *= 2u;
+  }
+  wuffs_brotli__encoder__convert_bit_depths_to_symbols(self, wuffs_base__make_slice_u8(self->private_data.f_huff_depth, 1024), v_length, 4u);
+  if (v_count <= 4u) {
+    wuffs_brotli__encoder__write_bits(self, 2u, 1u, a_s);
+    wuffs_brotli__encoder__write_bits(self, 2u, ((uint64_t)(((uint32_t)(v_count - 1u)))), a_s);
+    v_i = 0u;
+    while (v_i < v_count) {
+      v_j = ((uint32_t)(v_i + 1u));
+      while (v_j < v_count) {
+        if (self->private_data.f_huff_depth[(v_symbols[(v_j & 3u)] & 1023u)] < self->private_data.f_huff_depth[(v_symbols[(v_i & 3u)] & 1023u)]) {
+          v_tmp = v_symbols[(v_j & 3u)];
+          v_symbols[(v_j & 3u)] = v_symbols[(v_i & 3u)];
+          v_symbols[(v_i & 3u)] = v_tmp;
+        }
+        v_j += 1u;
+      }
+      v_i += 1u;
+    }
+    wuffs_brotli__encoder__write_bits(self, a_max_bits, ((uint64_t)(v_symbols[0u])), a_s);
+    wuffs_brotli__encoder__write_bits(self, a_max_bits, ((uint64_t)(v_symbols[1u])), a_s);
+    if (v_count >= 3u) {
+      wuffs_brotli__encoder__write_bits(self, a_max_bits, ((uint64_t)(v_symbols[2u])), a_s);
+    }
+    if (v_count >= 4u) {
+      wuffs_brotli__encoder__write_bits(self, a_max_bits, ((uint64_t)(v_symbols[3u])), a_s);
+      if (self->private_data.f_huff_depth[(v_symbols[0u] & 1023u)] == 1u) {
+        wuffs_brotli__encoder__write_bits(self, 1u, 1u, a_s);
+      } else {
+        wuffs_brotli__encoder__write_bits(self, 1u, 0u, a_s);
+      }
+    }
+  } else {
+    wuffs_brotli__encoder__write_bits(self, 40u, 1096648316244u, a_s);
+    v_prev_value = 8u;
+    v_i = 0u;
+    while (v_i < v_length) {
+      v_value = ((uint32_t)(self->private_data.f_huff_depth[(v_i & 1023u)]));
+      v_reps = 1u;
+      v_k = ((uint32_t)(v_i + 1u));
+      while (v_k < v_length) {
+        if (((uint32_t)(self->private_data.f_huff_depth[(v_k & 1023u)])) != v_value) {
+          break;
+        }
+        v_reps += 1u;
+        v_k += 1u;
+      }
+      v_i += v_reps;
+      if (v_value == 0u) {
+        wuffs_brotli__encoder__write_bits(self, WUFFS_BROTLI__ZERO_REPS_DEPTH[(v_reps & 511u)], WUFFS_BROTLI__ZERO_REPS_BITS[(v_reps & 511u)], a_s);
+      } else {
+        if (v_prev_value != v_value) {
+          wuffs_brotli__encoder__write_bits(self, WUFFS_BROTLI__CODE_LENGTH_DEPTH[(v_value & 15u)], WUFFS_BROTLI__CODE_LENGTH_BITS[(v_value & 15u)], a_s);
+          v_reps -= 1u;
+        }
+        if (v_reps < 3u) {
+          while (v_reps != 0u) {
+            v_reps -= 1u;
+            wuffs_brotli__encoder__write_bits(self, WUFFS_BROTLI__CODE_LENGTH_DEPTH[(v_value & 15u)], WUFFS_BROTLI__CODE_LENGTH_BITS[(v_value & 15u)], a_s);
+          }
+        } else {
+          v_reps -= 3u;
+          wuffs_brotli__encoder__write_bits(self, WUFFS_BROTLI__NON_ZERO_REPS_DEPTH[(v_reps & 511u)], WUFFS_BROTLI__NON_ZERO_REPS_BITS[(v_reps & 511u)], a_s);
+        }
+        v_prev_value = v_value;
+      }
+    }
+  }
+  return wuffs_base__make_empty_struct();
+}
+
+// -------- func brotli.encoder.copy_huff_to_mb
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__copy_huff_to_mb(
+    wuffs_brotli__encoder* self,
+    uint32_t a_cat,
+    uint32_t a_n) {
+  uint32_t v_i = 0;
+
+  v_i = 0u;
+  while (v_i < a_n) {
+    if (a_cat == 0u) {
+      self->private_data.f_mb_lit_depth[(v_i & 255u)] = self->private_data.f_huff_depth[(v_i & 1023u)];
+      self->private_data.f_mb_lit_bits[(v_i & 255u)] = self->private_data.f_huff_bits[(v_i & 1023u)];
+    } else if (a_cat == 1u) {
+      self->private_data.f_mb_cmd_depth[(v_i & 1023u)] = self->private_data.f_huff_depth[(v_i & 1023u)];
+      self->private_data.f_mb_cmd_bits[(v_i & 1023u)] = self->private_data.f_huff_bits[(v_i & 1023u)];
+    } else {
+      self->private_data.f_mb_dist_depth[(v_i & 1023u)] = self->private_data.f_huff_depth[(v_i & 1023u)];
+      self->private_data.f_mb_dist_bits[(v_i & 1023u)] = self->private_data.f_huff_bits[(v_i & 1023u)];
+    }
+    v_i += 1u;
+  }
+  return wuffs_base__make_empty_struct();
+}
+
+// -------- func brotli.encoder.load_huff_histo
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__load_huff_histo(
+    wuffs_brotli__encoder* self,
+    uint32_t a_cat,
+    uint32_t a_n) {
+  uint32_t v_i = 0;
+
+  v_i = 0u;
+  while (v_i < a_n) {
+    if (a_cat == 0u) {
+      self->private_data.f_huff_histo[(v_i & 1023u)] = self->private_data.f_hist_lit[(v_i & 255u)];
+    } else if (a_cat == 1u) {
+      self->private_data.f_huff_histo[(v_i & 1023u)] = self->private_data.f_hist_cmd[(v_i & 1023u)];
+    } else {
+      self->private_data.f_huff_histo[(v_i & 1023u)] = self->private_data.f_hist_dist[(v_i & 1023u)];
+    }
+    v_i += 1u;
+  }
+  return wuffs_base__make_empty_struct();
+}
+
+// -------- func brotli.encoder.build_histograms
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__build_histograms(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    uint64_t a_start_pos,
+    uint64_t a_n_commands) {
+  uint64_t v_pos = 0;
+  uint64_t v_i = 0;
+  uint32_t v_j = 0;
+  uint16_t v_cmd_prefix = 0;
+  uint32_t v_copy_len = 0;
+
+  v_i = 0u;
+  while (v_i < 1024u) {
+    self->private_data.f_hist_cmd[v_i] = 0u;
+    self->private_data.f_hist_dist[v_i] = 0u;
+    if (v_i < 256u) {
+      self->private_data.f_hist_lit[v_i] = 0u;
+    }
+    v_i += 1u;
+  }
+  self->private_impl.f_hist_lit_total = 0u;
+  self->private_impl.f_hist_cmd_total = 0u;
+  self->private_impl.f_hist_dist_total = 0u;
+  v_pos = a_start_pos;
+  v_i = 0u;
+  while (v_i < a_n_commands) {
+    v_cmd_prefix = wuffs_brotli__encoder__cmd_cmd_prefix(self, a_wb, v_i);
+    self->private_data.f_hist_cmd[((uint16_t)(v_cmd_prefix & 1023u))] += 1u;
+    self->private_impl.f_hist_cmd_total += 1u;
+    v_j = wuffs_brotli__encoder__cmd_insert_len(self, a_wb, v_i);
+    while (v_j > 0u) {
+      self->private_data.f_hist_lit[wuffs_brotli__encoder__rb_byte(self, a_wb, v_pos)] += 1u;
+      self->private_impl.f_hist_lit_total += 1u;
+      v_pos += 1u;
+      v_j -= 1u;
+    }
+    v_copy_len = wuffs_brotli__encoder__cmd_copy_len(self, a_wb, v_i);
+    v_pos += ((uint64_t)(v_copy_len));
+    if ((v_copy_len != 0u) && (v_cmd_prefix >= 128u)) {
+      self->private_data.f_hist_dist[((uint16_t)(wuffs_brotli__encoder__cmd_dist_prefix(self, a_wb, v_i) & 1023u))] += 1u;
+      self->private_impl.f_hist_dist_total += 1u;
+    }
+    v_i += 1u;
+  }
+  return wuffs_base__make_empty_struct();
+}
+
+// -------- func brotli.encoder.store_data_with_huffman_codes
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__store_data_with_huffman_codes(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    uint64_t a_start_pos,
+    uint64_t a_n_commands,
+    bool a_static_codes,
+    wuffs_base__slice_u8 a_s) {
+  uint64_t v_pos = 0;
+  uint64_t v_i = 0;
+  uint32_t v_j = 0;
+  uint32_t v_cmd_code = 0;
+  uint8_t v_literal = 0;
+  uint32_t v_copy_len = 0;
+  uint32_t v_dist_prefix = 0;
+  uint32_t v_dist_code = 0;
+
+  v_pos = a_start_pos;
+  v_i = 0u;
+  while (v_i < a_n_commands) {
+    v_cmd_code = (((uint32_t)(wuffs_brotli__encoder__cmd_cmd_prefix(self, a_wb, v_i))) & 1023u);
+    if (a_static_codes) {
+      wuffs_brotli__encoder__write_bits(self, ((uint32_t)(WUFFS_BROTLI__STATIC_COMMAND_CODE_DEPTH[wuffs_base__u32__min(v_cmd_code, 703u)])), ((uint64_t)(WUFFS_BROTLI__STATIC_COMMAND_CODE_BITS[wuffs_base__u32__min(v_cmd_code, 703u)])), a_s);
+    } else {
+      wuffs_brotli__encoder__write_bits(self, ((uint32_t)(self->private_data.f_mb_cmd_depth[v_cmd_code])), ((uint64_t)(self->private_data.f_mb_cmd_bits[v_cmd_code])), a_s);
+    }
+    wuffs_brotli__encoder__store_command_extra(self, a_wb, v_i, a_s);
+    v_j = wuffs_brotli__encoder__cmd_insert_len(self, a_wb, v_i);
+    while (v_j > 0u) {
+      v_literal = wuffs_brotli__encoder__rb_byte(self, a_wb, v_pos);
+      wuffs_brotli__encoder__write_bits(self, ((uint32_t)(self->private_data.f_mb_lit_depth[v_literal])), ((uint64_t)(self->private_data.f_mb_lit_bits[v_literal])), a_s);
+      v_pos += 1u;
+      v_j -= 1u;
+    }
+    v_copy_len = wuffs_brotli__encoder__cmd_copy_len(self, a_wb, v_i);
+    v_pos += ((uint64_t)(v_copy_len));
+    if ((v_copy_len != 0u) && (v_cmd_code >= 128u)) {
+      v_dist_prefix = ((uint32_t)(wuffs_brotli__encoder__cmd_dist_prefix(self, a_wb, v_i)));
+      v_dist_code = (v_dist_prefix & 1023u);
+      if (a_static_codes) {
+        wuffs_brotli__encoder__write_bits(self, ((uint32_t)(WUFFS_BROTLI__STATIC_DISTANCE_CODE_DEPTH[(v_dist_code & 63u)])), ((uint64_t)(WUFFS_BROTLI__STATIC_DISTANCE_CODE_BITS[(v_dist_code & 63u)])), a_s);
+      } else {
+        wuffs_brotli__encoder__write_bits(self, ((uint32_t)(self->private_data.f_mb_dist_depth[v_dist_code])), ((uint64_t)(self->private_data.f_mb_dist_bits[v_dist_code])), a_s);
+      }
+      wuffs_brotli__encoder__write_bits(self, (v_dist_prefix >> 10u), ((uint64_t)(wuffs_brotli__encoder__cmd_dist_extra(self, a_wb, v_i))), a_s);
+    }
+    v_i += 1u;
+  }
+  return wuffs_base__make_empty_struct();
+}
+
+// -------- func brotli.encoder.store_meta_block_trivial
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__store_meta_block_trivial(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    uint64_t a_start_pos,
+    uint64_t a_length,
+    bool a_is_last,
+    uint64_t a_n_commands,
+    wuffs_base__slice_u8 a_s) {
+  wuffs_brotli__encoder__store_compressed_meta_block_header(self, a_is_last, a_length, a_s);
+  wuffs_brotli__encoder__build_histograms(self, a_wb, a_start_pos, a_n_commands);
+  wuffs_brotli__encoder__write_bits(self, 13u, 0u, a_s);
+  wuffs_brotli__encoder__load_huff_histo(self, 0u, 256u);
+  wuffs_brotli__encoder__build_and_store_huffman_tree(self, 256u, 256u, a_s);
+  wuffs_brotli__encoder__copy_huff_to_mb(self, 0u, 256u);
+  wuffs_brotli__encoder__load_huff_histo(self, 1u, 704u);
+  wuffs_brotli__encoder__build_and_store_huffman_tree(self, 704u, 704u, a_s);
+  wuffs_brotli__encoder__copy_huff_to_mb(self, 1u, 704u);
+  wuffs_brotli__encoder__load_huff_histo(self, 2u, 140u);
+  wuffs_brotli__encoder__build_and_store_huffman_tree(self, 140u, self->private_impl.f_dist_alphabet_size_max, a_s);
+  wuffs_brotli__encoder__copy_huff_to_mb(self, 2u, 140u);
+  wuffs_brotli__encoder__store_data_with_huffman_codes(self,
+      a_wb,
+      a_start_pos,
+      a_n_commands,
+      false,
+      a_s);
+  if (a_is_last) {
+    wuffs_brotli__encoder__jump_to_byte_boundary(self, a_s);
+  }
+  return wuffs_base__make_empty_struct();
+}
+
+// -------- func brotli.encoder.store_meta_block_fast
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__store_meta_block_fast(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    uint64_t a_start_pos,
+    uint64_t a_length,
+    bool a_is_last,
+    uint64_t a_n_commands,
+    wuffs_base__slice_u8 a_s) {
+  uint32_t v_distance_alphabet_bits = 0;
+  uint64_t v_pos = 0;
+  uint64_t v_num_literals = 0;
+  uint64_t v_i = 0;
+  uint32_t v_j = 0;
+
+  v_distance_alphabet_bits = (wuffs_brotli__encoder__log2_floor_non_zero(self, ((uint64_t)(((uint32_t)(self->private_impl.f_dist_alphabet_size_max - 1u))))) + 1u);
+  wuffs_brotli__encoder__store_compressed_meta_block_header(self, a_is_last, a_length, a_s);
+  wuffs_brotli__encoder__write_bits(self, 13u, 0u, a_s);
+  if (a_n_commands <= 128u) {
+    v_i = 0u;
+    while (v_i < 1024u) {
+      self->private_data.f_huff_histo[v_i] = 0u;
+      v_i += 1u;
+    }
+    v_pos = a_start_pos;
+    v_i = 0u;
+    while (v_i < a_n_commands) {
+      v_j = wuffs_brotli__encoder__cmd_insert_len(self, a_wb, v_i);
+      v_num_literals += ((uint64_t)(v_j));
+      while (v_j > 0u) {
+        self->private_data.f_huff_histo[wuffs_brotli__encoder__rb_byte(self, a_wb, v_pos)] += 1u;
+        v_pos += 1u;
+        v_j -= 1u;
+      }
+      v_pos += ((uint64_t)(wuffs_brotli__encoder__cmd_copy_len(self, a_wb, v_i)));
+      v_i += 1u;
+    }
+    wuffs_brotli__encoder__build_and_store_huffman_tree_fast_generic(self, v_num_literals, 8u, a_s);
+    wuffs_brotli__encoder__copy_huff_to_mb(self, 0u, 256u);
+    wuffs_brotli__encoder__write_bits(self, 56u, 41203391169327107u, a_s);
+    wuffs_brotli__encoder__write_bits(self, 3u, 0u, a_s);
+    wuffs_brotli__encoder__write_bits(self, 28u, 57269251u, a_s);
+    wuffs_brotli__encoder__store_data_with_huffman_codes(self,
+        a_wb,
+        a_start_pos,
+        a_n_commands,
+        true,
+        a_s);
+  } else {
+    wuffs_brotli__encoder__build_histograms(self, a_wb, a_start_pos, a_n_commands);
+    wuffs_brotli__encoder__load_huff_histo(self, 0u, 256u);
+    wuffs_brotli__encoder__build_and_store_huffman_tree_fast_generic(self, self->private_impl.f_hist_lit_total, 8u, a_s);
+    wuffs_brotli__encoder__copy_huff_to_mb(self, 0u, 256u);
+    wuffs_brotli__encoder__load_huff_histo(self, 1u, 704u);
+    wuffs_brotli__encoder__build_and_store_huffman_tree_fast_generic(self, self->private_impl.f_hist_cmd_total, 10u, a_s);
+    wuffs_brotli__encoder__copy_huff_to_mb(self, 1u, 704u);
+    wuffs_brotli__encoder__load_huff_histo(self, 2u, 544u);
+    wuffs_brotli__encoder__build_and_store_huffman_tree_fast_generic(self, self->private_impl.f_hist_dist_total, v_distance_alphabet_bits, a_s);
+    wuffs_brotli__encoder__copy_huff_to_mb(self, 2u, 544u);
+    wuffs_brotli__encoder__store_data_with_huffman_codes(self,
+        a_wb,
+        a_start_pos,
+        a_n_commands,
+        false,
+        a_s);
+  }
+  if (a_is_last) {
+    wuffs_brotli__encoder__jump_to_byte_boundary(self, a_s);
+  }
+  return wuffs_base__make_empty_struct();
+}
+
+// -------- func brotli.encoder.block_length_prefix_code
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint32_t
+wuffs_brotli__encoder__block_length_prefix_code(
+    const wuffs_brotli__encoder* self,
+    uint32_t a_len) {
+  uint32_t v_code = 0;
+
+  v_code = 0u;
+  if (a_len >= 177u) {
+    v_code = 14u;
+    if (a_len >= 753u) {
+      v_code = 20u;
+    }
+  } else if (a_len >= 41u) {
+    v_code = 7u;
+  }
+  while (v_code < 25u) {
+    if (a_len < WUFFS_BROTLI__BLOCK_LENGTH_OFFSETS[(v_code + 1u)]) {
+      break;
+    }
+    v_code += 1u;
+  }
+  return v_code;
+}
+
+// -------- func brotli.encoder.next_block_type_code
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint32_t
+wuffs_brotli__encoder__next_block_type_code(
+    wuffs_brotli__encoder* self,
+    uint32_t a_c,
+    uint32_t a_block_type) {
+  uint32_t v_type_code = 0;
+
+  if (a_block_type == ((uint32_t)(self->private_data.f_be_last_type[a_c] + 1u))) {
+    v_type_code = 1u;
+  } else if (a_block_type == self->private_data.f_be_second_last_type[a_c]) {
+    v_type_code = 0u;
+  } else {
+    v_type_code = ((uint32_t)(a_block_type + 2u));
+  }
+  self->private_data.f_be_second_last_type[a_c] = self->private_data.f_be_last_type[a_c];
+  self->private_data.f_be_last_type[a_c] = a_block_type;
+  return v_type_code;
+}
+
+// -------- func brotli.encoder.store_block_switch
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__store_block_switch(
+    wuffs_brotli__encoder* self,
+    uint32_t a_c,
+    uint32_t a_block_len,
+    uint32_t a_block_type,
+    bool a_is_first_block,
+    wuffs_base__slice_u8 a_s) {
+  uint32_t v_typecode = 0;
+  uint32_t v_lencode = 0;
+
+  v_typecode = wuffs_brotli__encoder__next_block_type_code(self, a_c, a_block_type);
+  if ( ! a_is_first_block) {
+    wuffs_brotli__encoder__write_bits(self, ((uint32_t)(self->private_data.f_be_type_depth[((a_c << 9u) | (v_typecode & 511u))])), ((uint64_t)(self->private_data.f_be_type_bits[((a_c << 9u) | (v_typecode & 511u))])), a_s);
+  }
+  v_lencode = wuffs_brotli__encoder__block_length_prefix_code(self, a_block_len);
+  wuffs_brotli__encoder__write_bits(self, ((uint32_t)(self->private_data.f_be_length_depth[((a_c << 5u) | v_lencode)])), ((uint64_t)(self->private_data.f_be_length_bits[((a_c << 5u) | v_lencode)])), a_s);
+  wuffs_brotli__encoder__write_bits(self, WUFFS_BROTLI__BLOCK_LENGTH_NBITS[v_lencode], ((uint64_t)(((uint32_t)(a_block_len - WUFFS_BROTLI__BLOCK_LENGTH_OFFSETS[v_lencode])))), a_s);
+  return wuffs_base__make_empty_struct();
+}
+
+// -------- func brotli.encoder.build_and_store_block_split_code
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__build_and_store_block_split_code(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    uint32_t a_c,
+    wuffs_base__slice_u8 a_s) {
+  uint32_t v_num_types = 0;
+  uint64_t v_num_blocks = 0;
+  uint64_t v_i = 0;
+  uint32_t v_j = 0;
+  uint32_t v_type_code = 0;
+  uint32_t v_lencode = 0;
+
+  v_num_types = wuffs_base__u32__min(self->private_data.f_be_num_block_types[a_c], 256u);
+  v_num_blocks = self->private_data.f_be_num_blocks[a_c];
+  v_j = 0u;
+  while (v_j < 538u) {
+    self->private_data.f_huff_histo[v_j] = 0u;
+    v_j += 1u;
+  }
+  self->private_data.f_be_last_type[3u] = 1u;
+  self->private_data.f_be_second_last_type[3u] = 0u;
+  v_i = 0u;
+  while (v_i < v_num_blocks) {
+    v_type_code = wuffs_brotli__encoder__next_block_type_code(self, 3u, ((uint32_t)(wuffs_brotli__encoder__byte_at(self, a_wb, ((uint64_t)(self->private_data.f_gbs_types_off[a_c] + v_i))))));
+    if (v_i != 0u) {
+      self->private_data.f_huff_histo[(v_type_code & 511u)] += 1u;
+    }
+    v_lencode = wuffs_brotli__encoder__block_length_prefix_code(self, wuffs_brotli__encoder__load32le(self, a_wb, ((uint64_t)(self->private_data.f_gbs_lengths_off[a_c] + ((uint64_t)(v_i * 4u))))));
+    self->private_data.f_huff_histo[(512u + v_lencode)] += 1u;
+    v_i += 1u;
+  }
+  wuffs_brotli__encoder__store_var_len_uint8(self, ((uint64_t)(((uint32_t)(v_num_types - 1u)))), a_s);
+  if (v_num_types > 1u) {
+    wuffs_brotli__encoder__build_and_store_huffman_tree(self, (v_num_types + 2u), (v_num_types + 2u), a_s);
+    v_j = 0u;
+    while (v_j < (v_num_types + 2u)) {
+      self->private_data.f_be_type_depth[((a_c << 9u) | (v_j & 511u))] = self->private_data.f_huff_depth[(v_j & 1023u)];
+      self->private_data.f_be_type_bits[((a_c << 9u) | (v_j & 511u))] = self->private_data.f_huff_bits[(v_j & 1023u)];
+      v_j += 1u;
+    }
+    v_j = 0u;
+    while (v_j < 26u) {
+      self->private_data.f_huff_histo[v_j] = self->private_data.f_huff_histo[(512u + v_j)];
+      v_j += 1u;
+    }
+    wuffs_brotli__encoder__build_and_store_huffman_tree(self, 26u, 26u, a_s);
+    v_j = 0u;
+    while (v_j < 26u) {
+      self->private_data.f_be_length_depth[((a_c << 5u) | v_j)] = self->private_data.f_huff_depth[v_j];
+      self->private_data.f_be_length_bits[((a_c << 5u) | v_j)] = self->private_data.f_huff_bits[v_j];
+      v_j += 1u;
+    }
+    wuffs_brotli__encoder__store_block_switch(self,
+        a_c,
+        wuffs_brotli__encoder__load32le(self, a_wb, self->private_data.f_gbs_lengths_off[a_c]),
+        ((uint32_t)(wuffs_brotli__encoder__byte_at(self, a_wb, self->private_data.f_gbs_types_off[a_c]))),
+        true,
+        a_s);
+  }
+  return wuffs_base__make_empty_struct();
+}
+
+// -------- func brotli.encoder.store_trivial_context_map
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__store_trivial_context_map(
+    wuffs_brotli__encoder* self,
+    uint64_t a_num_types,
+    uint32_t a_context_bits,
+    wuffs_base__slice_u8 a_s) {
+  uint32_t v_repeat_code = 0;
+  uint64_t v_repeat_bits = 0;
+  uint32_t v_alphabet_size = 0;
+  uint32_t v_i = 0;
+  uint32_t v_code = 0;
+
+  wuffs_brotli__encoder__store_var_len_uint8(self, ((uint64_t)(a_num_types - 1u)), a_s);
+  if (a_num_types > 1u) {
+    v_repeat_code = ((uint32_t)(a_context_bits - 1u));
+    v_repeat_bits = ((uint64_t)((((uint64_t)(1u)) << (v_repeat_code & 31u)) - 1u));
+    v_alphabet_size = ((uint32_t)(((uint32_t)((a_num_types & 1023u))) + v_repeat_code));
+    v_i = 0u;
+    while (v_i < v_alphabet_size) {
+      self->private_data.f_huff_histo[(v_i & 1023u)] = 0u;
+      v_i += 1u;
+    }
+    wuffs_brotli__encoder__write_bits(self, 1u, 1u, a_s);
+    wuffs_brotli__encoder__write_bits(self, 4u, ((uint64_t)(((uint32_t)(v_repeat_code - 1u)))), a_s);
+    self->private_data.f_huff_histo[(v_repeat_code & 1023u)] = ((uint32_t)(a_num_types));
+    self->private_data.f_huff_histo[0u] = 1u;
+    v_i = a_context_bits;
+    while (v_i < v_alphabet_size) {
+      self->private_data.f_huff_histo[(v_i & 1023u)] = 1u;
+      v_i += 1u;
+    }
+    wuffs_brotli__encoder__build_and_store_huffman_tree(self, v_alphabet_size, v_alphabet_size, a_s);
+    v_i = 0u;
+    while (((uint64_t)(v_i)) < a_num_types) {
+      v_code = 0u;
+      if (v_i != 0u) {
+        v_code = ((uint32_t)(((uint32_t)(v_i + a_context_bits)) - 1u));
+      }
+      wuffs_brotli__encoder__write_bits(self, ((uint32_t)(self->private_data.f_huff_depth[(v_code & 1023u)])), ((uint64_t)(self->private_data.f_huff_bits[(v_code & 1023u)])), a_s);
+      wuffs_brotli__encoder__write_bits(self, ((uint32_t)(self->private_data.f_huff_depth[(v_repeat_code & 1023u)])), ((uint64_t)(self->private_data.f_huff_bits[(v_repeat_code & 1023u)])), a_s);
+      wuffs_brotli__encoder__write_bits(self, v_repeat_code, v_repeat_bits, a_s);
+      v_i += 1u;
+    }
+    wuffs_brotli__encoder__write_bits(self, 1u, 1u, a_s);
+  }
+  return wuffs_base__make_empty_struct();
+}
+
+// -------- func brotli.encoder.encode_context_map
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__encode_context_map(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    uint64_t a_num_clusters,
+    wuffs_base__slice_u8 a_s) {
+  uint64_t v_size = 0;
+  uint64_t v_i = 0;
+  uint64_t v_k = 0;
+  uint32_t v_max_value = 0;
+  uint32_t v_v = 0;
+  uint32_t v_vb = 0;
+  uint32_t v_index = 0;
+  uint32_t v_mtf_size = 0;
+  uint32_t v_max_reps = 0;
+  uint32_t v_reps = 0;
+  uint32_t v_max_prefix = 0;
+  uint32_t v_max_run_length_prefix = 0;
+  uint64_t v_out_size = 0;
+  uint32_t v_run_length_prefix = 0;
+  uint32_t v_extra_bits = 0;
+  uint32_t v_rle_symbol = 0;
+  uint32_t v_j = 0;
+
+  wuffs_brotli__encoder__store_var_len_uint8(self, ((uint64_t)(a_num_clusters - 1u)), a_s);
+  if (a_num_clusters == 1u) {
+    return wuffs_base__make_empty_struct();
+  }
+  v_size = self->private_impl.f_mb_cmap_size;
+  if (v_size != 0u) {
+    v_max_value = 0u;
+    v_i = 0u;
+    while (v_i < v_size) {
+      v_vb = ((uint32_t)(wuffs_brotli__encoder__byte_at(self, a_wb, ((uint64_t)(self->private_impl.f_mb_cmap_off + v_i)))));
+      if (v_vb > v_max_value) {
+        v_max_value = v_vb;
+      }
+      v_i += 1u;
+    }
+    v_j = 0u;
+    while (v_j <= v_max_value) {
+      self->private_data.f_mtf[(v_j & 255u)] = ((uint8_t)(v_j));
+      v_j += 1u;
+    }
+    v_mtf_size = (v_max_value + 1u);
+    v_i = 0u;
+    while (v_i < v_size) {
+      v_v = ((uint32_t)(wuffs_brotli__encoder__byte_at(self, a_wb, ((uint64_t)(self->private_impl.f_mb_cmap_off + v_i)))));
+      v_index = 0u;
+      while (v_index < v_mtf_size) {
+        if (((uint32_t)(self->private_data.f_mtf[(v_index & 255u)])) == v_v) {
+          break;
+        }
+        v_index += 1u;
+      }
+      wuffs_brotli__encoder__poke_u32(self, a_wb, ((uint64_t)(self->private_impl.f_mb_rle_off + ((uint64_t)(v_i * 4u)))), v_index);
+      v_j = v_index;
+      while (v_j > 0u) {
+        self->private_data.f_mtf[(v_j & 255u)] = self->private_data.f_mtf[((v_j - 1u) & 255u)];
+        v_j -= 1u;
+      }
+      self->private_data.f_mtf[0u] = ((uint8_t)(v_v));
+      v_i += 1u;
+    }
+  }
+  v_i = 0u;
+  while (v_i < v_size) {
+    v_reps = 0u;
+    while ((v_i < v_size) && (wuffs_brotli__encoder__rle_sym(self, a_wb, v_i) != 0u)) {
+      v_i += 1u;
+    }
+    while ((v_i < v_size) && (wuffs_brotli__encoder__rle_sym(self, a_wb, v_i) == 0u)) {
+      v_reps += 1u;
+      v_i += 1u;
+    }
+    v_max_reps = wuffs_base__u32__max(v_max_reps, v_reps);
+  }
+  v_max_prefix = 0u;
+  if (v_max_reps > 0u) {
+    v_max_prefix = wuffs_brotli__encoder__log2_floor_non_zero(self, ((uint64_t)(v_max_reps)));
+  }
+  v_max_run_length_prefix = wuffs_base__u32__min(v_max_prefix, 6u);
+  v_max_prefix = v_max_run_length_prefix;
+  v_out_size = 0u;
+  v_i = 0u;
+  while (v_i < v_size) {
+    v_v = wuffs_brotli__encoder__rle_sym(self, a_wb, v_i);
+    if (v_v != 0u) {
+      wuffs_brotli__encoder__poke_u32(self, a_wb, ((uint64_t)(self->private_impl.f_mb_rle_off + ((uint64_t)(v_out_size * 4u)))), ((uint32_t)(v_v + v_max_run_length_prefix)));
+      v_i += 1u;
+      v_out_size += 1u;
+    } else {
+      v_reps = 1u;
+      v_k = ((uint64_t)(v_i + 1u));
+      while ((v_k < v_size) && (wuffs_brotli__encoder__rle_sym(self, a_wb, v_k) == 0u)) {
+        v_reps += 1u;
+        v_k += 1u;
+      }
+      v_i += ((uint64_t)(v_reps));
+      while (v_reps != 0u) {
+        if (v_reps < (((uint32_t)(2u)) << (v_max_prefix & 7u))) {
+          v_run_length_prefix = wuffs_brotli__encoder__log2_floor_non_zero(self, ((uint64_t)(v_reps)));
+          v_extra_bits = ((uint32_t)(v_reps - (((uint32_t)(1u)) << v_run_length_prefix)));
+          wuffs_brotli__encoder__poke_u32(self, a_wb, ((uint64_t)(self->private_impl.f_mb_rle_off + ((uint64_t)(v_out_size * 4u)))), ((uint32_t)(v_run_length_prefix + ((uint32_t)(v_extra_bits << 9u)))));
+          v_out_size += 1u;
+          break;
+        } else {
+          v_extra_bits = ((uint32_t)((((uint32_t)(1u)) << (v_max_prefix & 7u)) - 1u));
+          wuffs_brotli__encoder__poke_u32(self, a_wb, ((uint64_t)(self->private_impl.f_mb_rle_off + ((uint64_t)(v_out_size * 4u)))), ((uint32_t)(v_max_prefix + ((uint32_t)(v_extra_bits << 9u)))));
+          v_reps -= ((uint32_t)((((uint32_t)(2u)) << (v_max_prefix & 7u)) - 1u));
+          v_out_size += 1u;
+        }
+      }
+    }
+  }
+  v_j = 0u;
+  while (v_j < 272u) {
+    self->private_data.f_huff_histo[v_j] = 0u;
+    v_j += 1u;
+  }
+  v_i = 0u;
+  while (v_i < v_out_size) {
+    self->private_data.f_huff_histo[(wuffs_brotli__encoder__rle_sym(self, a_wb, v_i) & 511u)] += 1u;
+    v_i += 1u;
+  }
+  if (v_max_run_length_prefix > 0u) {
+    wuffs_brotli__encoder__write_bits(self, 1u, 1u, a_s);
+    wuffs_brotli__encoder__write_bits(self, 4u, ((uint64_t)((v_max_run_length_prefix - 1u))), a_s);
+  } else {
+    wuffs_brotli__encoder__write_bits(self, 1u, 0u, a_s);
+  }
+  wuffs_brotli__encoder__build_and_store_huffman_tree(self, (((uint32_t)((a_num_clusters & 1023u))) + v_max_run_length_prefix), (((uint32_t)((a_num_clusters & 1023u))) + v_max_run_length_prefix), a_s);
+  v_i = 0u;
+  while (v_i < v_out_size) {
+    v_v = wuffs_brotli__encoder__rle_sym(self, a_wb, v_i);
+    v_rle_symbol = (v_v & 511u);
+    wuffs_brotli__encoder__write_bits(self, ((uint32_t)(self->private_data.f_huff_depth[v_rle_symbol])), ((uint64_t)(self->private_data.f_huff_bits[v_rle_symbol])), a_s);
+    if ((v_rle_symbol > 0u) && (v_rle_symbol <= v_max_run_length_prefix)) {
+      wuffs_brotli__encoder__write_bits(self, v_rle_symbol, ((uint64_t)((v_v >> 9u))), a_s);
+    }
+    v_i += 1u;
+  }
+  wuffs_brotli__encoder__write_bits(self, 1u, 1u, a_s);
+  return wuffs_base__make_empty_struct();
+}
+
+// -------- func brotli.encoder.rle_sym
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint32_t
+wuffs_brotli__encoder__rle_sym(
+    const wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    uint64_t a_i) {
+  return wuffs_brotli__encoder__load32le(self, a_wb, ((uint64_t)(self->private_impl.f_mb_rle_off + ((uint64_t)(a_i * 4u)))));
+}
+
+// -------- func brotli.encoder.init_block_encoder
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__init_block_encoder(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    uint32_t a_c,
+    uint32_t a_histogram_length) {
+  self->private_data.f_be_histogram_length[a_c] = a_histogram_length;
+  self->private_data.f_be_num_block_types[a_c] = self->private_data.f_gbs_num_types[a_c];
+  self->private_data.f_be_num_blocks[a_c] = self->private_data.f_gbs_split_num_blocks[a_c];
+  self->private_data.f_be_last_type[a_c] = 1u;
+  self->private_data.f_be_second_last_type[a_c] = 0u;
+  self->private_data.f_be_block_ix[a_c] = 0u;
+  self->private_data.f_be_block_len[a_c] = 0u;
+  if (self->private_data.f_be_num_blocks[a_c] != 0u) {
+    self->private_data.f_be_block_len[a_c] = wuffs_brotli__encoder__load32le(self, a_wb, self->private_data.f_gbs_lengths_off[a_c]);
+  }
+  self->private_data.f_be_entropy_ix[a_c] = 0u;
+  return wuffs_base__make_empty_struct();
+}
+
+// -------- func brotli.encoder.build_and_store_entropy_codes
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__build_and_store_entropy_codes(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    uint32_t a_c,
+    uint32_t a_alphabet_size,
+    wuffs_base__slice_u8 a_s) {
+  uint32_t v_hlen = 0;
+  uint64_t v_i = 0;
+  uint32_t v_j = 0;
+  uint64_t v_ix = 0;
+  uint64_t v_hoff = 0;
+
+  v_hlen = wuffs_base__u32__min(self->private_data.f_be_histogram_length[a_c], 1024u);
+  v_i = 0u;
+  while (v_i < self->private_data.f_gbs_histograms_size[a_c]) {
+    v_hoff = wuffs_brotli__encoder__gbs_histo_off(self, a_c, v_i);
+    v_j = 0u;
+    while (v_j < v_hlen) {
+      self->private_data.f_huff_histo[(v_j & 1023u)] = wuffs_brotli__encoder__load32le(self, a_wb, ((uint64_t)(v_hoff + (((uint64_t)(v_j)) * 4u))));
+      v_j += 1u;
+    }
+    wuffs_brotli__encoder__build_and_store_huffman_tree(self, v_hlen, a_alphabet_size, a_s);
+    v_ix = ((uint64_t)(v_i * ((uint64_t)(v_hlen))));
+    v_j = 0u;
+    while (v_j < v_hlen) {
+      wuffs_brotli__encoder__set_byte(self, a_wb, ((uint64_t)(((uint64_t)(self->private_data.f_be_depth_off[a_c] + v_ix)) + ((uint64_t)(v_j)))), self->private_data.f_huff_depth[(v_j & 1023u)]);
+      wuffs_brotli__encoder__poke_u16(self, a_wb, ((uint64_t)(self->private_data.f_be_bits_off[a_c] + ((uint64_t)(((uint64_t)(v_ix + ((uint64_t)(v_j)))) * 2u)))), self->private_data.f_huff_bits[(v_j & 1023u)]);
+      v_j += 1u;
+    }
+    v_i += 1u;
+  }
+  return wuffs_base__make_empty_struct();
+}
+
+// -------- func brotli.encoder.store_symbol
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__store_symbol(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    uint32_t a_c,
+    uint64_t a_symbol,
+    bool a_with_context,
+    uint64_t a_context,
+    wuffs_base__slice_u8 a_s) {
+  uint64_t v_block_ix = 0;
+  uint32_t v_block_len = 0;
+  uint32_t v_block_type = 0;
+  uint64_t v_histo_ix = 0;
+  uint64_t v_ix = 0;
+
+  if (self->private_data.f_be_block_len[a_c] == 0u) {
+    v_block_ix = ((uint64_t)(self->private_data.f_be_block_ix[a_c] + 1u));
+    self->private_data.f_be_block_ix[a_c] = v_block_ix;
+    v_block_len = wuffs_brotli__encoder__load32le(self, a_wb, ((uint64_t)(self->private_data.f_gbs_lengths_off[a_c] + ((uint64_t)(v_block_ix * 4u)))));
+    v_block_type = ((uint32_t)(wuffs_brotli__encoder__byte_at(self, a_wb, ((uint64_t)(self->private_data.f_gbs_types_off[a_c] + v_block_ix)))));
+    self->private_data.f_be_block_len[a_c] = v_block_len;
+    if (a_with_context) {
+      self->private_data.f_be_entropy_ix[a_c] = (((uint64_t)(v_block_type)) << 6u);
+    } else {
+      self->private_data.f_be_entropy_ix[a_c] = (((uint64_t)(v_block_type)) * ((uint64_t)(self->private_data.f_be_histogram_length[a_c])));
+    }
+    wuffs_brotli__encoder__store_block_switch(self,
+        a_c,
+        v_block_len,
+        v_block_type,
+        false,
+        a_s);
+  }
+  self->private_data.f_be_block_len[a_c] -= 1u;
+  if (a_with_context) {
+    v_histo_ix = ((uint64_t)(wuffs_brotli__encoder__byte_at(self, a_wb, ((uint64_t)(((uint64_t)(self->private_impl.f_mb_cmap_off + self->private_data.f_be_entropy_ix[a_c])) + a_context)))));
+    v_ix = ((uint64_t)((v_histo_ix * ((uint64_t)(self->private_data.f_be_histogram_length[a_c]))) + a_symbol));
+  } else {
+    v_ix = ((uint64_t)(self->private_data.f_be_entropy_ix[a_c] + a_symbol));
+  }
+  wuffs_brotli__encoder__write_bits(self, ((uint32_t)(wuffs_brotli__encoder__byte_at(self, a_wb, ((uint64_t)(self->private_data.f_be_depth_off[a_c] + v_ix))))), ((uint64_t)(wuffs_brotli__encoder__peek_u16(self, a_wb, ((uint64_t)(self->private_data.f_be_bits_off[a_c] + ((uint64_t)(v_ix * 2u))))))), a_s);
+  return wuffs_base__make_empty_struct();
+}
+
+// -------- func brotli.encoder.store_meta_block
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__store_meta_block(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    uint64_t a_start_pos,
+    uint64_t a_length,
+    uint8_t a_prev_byte,
+    uint8_t a_prev_byte2,
+    bool a_is_last,
+    uint64_t a_n_commands,
+    wuffs_base__slice_u8 a_s) {
+  uint64_t v_pos = 0;
+  uint8_t v_prev_byte = 0;
+  uint8_t v_prev_byte2 = 0;
+  uint64_t v_i = 0;
+  uint32_t v_j = 0;
+  uint16_t v_cmd_prefix = 0;
+  uint32_t v_copy_len = 0;
+  uint8_t v_literal = 0;
+  uint32_t v_context = 0;
+  uint32_t v_dist_prefix = 0;
+
+  v_pos = a_start_pos;
+  v_prev_byte = a_prev_byte;
+  v_prev_byte2 = a_prev_byte2;
+  wuffs_brotli__encoder__store_compressed_meta_block_header(self, a_is_last, a_length, a_s);
+  wuffs_brotli__encoder__init_block_encoder(self, a_wb, 0u, 256u);
+  wuffs_brotli__encoder__init_block_encoder(self, a_wb, 1u, 704u);
+  wuffs_brotli__encoder__init_block_encoder(self, a_wb, 2u, self->private_impl.f_dist_alphabet_size_limit);
+  wuffs_brotli__encoder__build_and_store_block_split_code(self, a_wb, 0u, a_s);
+  wuffs_brotli__encoder__build_and_store_block_split_code(self, a_wb, 1u, a_s);
+  wuffs_brotli__encoder__build_and_store_block_split_code(self, a_wb, 2u, a_s);
+  wuffs_brotli__encoder__write_bits(self, 2u, ((uint64_t)(self->private_impl.f_distance_postfix_bits)), a_s);
+  wuffs_brotli__encoder__write_bits(self, 4u, ((uint64_t)((self->private_impl.f_num_direct_distance_codes >> (self->private_impl.f_distance_postfix_bits & 3u)))), a_s);
+  v_j = 0u;
+  while (v_j < self->private_data.f_gbs_num_types[0u]) {
+    wuffs_brotli__encoder__write_bits(self, 2u, 2u, a_s);
+    v_j += 1u;
+  }
+  if (self->private_impl.f_mb_cmap_size == 0u) {
+    wuffs_brotli__encoder__store_trivial_context_map(self, self->private_data.f_gbs_histograms_size[0u], 6u, a_s);
+  } else {
+    wuffs_brotli__encoder__encode_context_map(self, a_wb, self->private_data.f_gbs_histograms_size[0u], a_s);
+  }
+  wuffs_brotli__encoder__store_trivial_context_map(self, self->private_data.f_gbs_histograms_size[2u], 2u, a_s);
+  wuffs_brotli__encoder__build_and_store_entropy_codes(self,
+      a_wb,
+      0u,
+      256u,
+      a_s);
+  wuffs_brotli__encoder__build_and_store_entropy_codes(self,
+      a_wb,
+      1u,
+      704u,
+      a_s);
+  wuffs_brotli__encoder__build_and_store_entropy_codes(self,
+      a_wb,
+      2u,
+      self->private_impl.f_dist_alphabet_size_max,
+      a_s);
+  v_i = 0u;
+  while (v_i < a_n_commands) {
+    v_cmd_prefix = wuffs_brotli__encoder__cmd_cmd_prefix(self, a_wb, v_i);
+    wuffs_brotli__encoder__store_symbol(self,
+        a_wb,
+        1u,
+        ((uint64_t)(v_cmd_prefix)),
+        false,
+        0u,
+        a_s);
+    wuffs_brotli__encoder__store_command_extra(self, a_wb, v_i, a_s);
+    v_j = wuffs_brotli__encoder__cmd_insert_len(self, a_wb, v_i);
+    if (self->private_impl.f_mb_cmap_size == 0u) {
+      while (v_j > 0u) {
+        wuffs_brotli__encoder__store_symbol(self,
+            a_wb,
+            0u,
+            ((uint64_t)(wuffs_brotli__encoder__rb_byte(self, a_wb, v_pos))),
+            false,
+            0u,
+            a_s);
+        v_pos += 1u;
+        v_j -= 1u;
+      }
+    } else {
+      while (v_j > 0u) {
+        v_context = ((uint32_t)(((uint8_t)(WUFFS_BROTLI__CONTEXT_LOOKUP[(1024u + ((uint32_t)(v_prev_byte)))] | WUFFS_BROTLI__CONTEXT_LOOKUP[(1280u + ((uint32_t)(v_prev_byte2)))]))));
+        v_literal = wuffs_brotli__encoder__rb_byte(self, a_wb, v_pos);
+        wuffs_brotli__encoder__store_symbol(self,
+            a_wb,
+            0u,
+            ((uint64_t)(v_literal)),
+            true,
+            ((uint64_t)(v_context)),
+            a_s);
+        v_prev_byte2 = v_prev_byte;
+        v_prev_byte = v_literal;
+        v_pos += 1u;
+        v_j -= 1u;
+      }
+    }
+    v_copy_len = wuffs_brotli__encoder__cmd_copy_len(self, a_wb, v_i);
+    v_pos += ((uint64_t)(v_copy_len));
+    if (v_copy_len != 0u) {
+      v_prev_byte2 = wuffs_brotli__encoder__rb_byte(self, a_wb, ((uint64_t)(v_pos - 2u)));
+      v_prev_byte = wuffs_brotli__encoder__rb_byte(self, a_wb, ((uint64_t)(v_pos - 1u)));
+      if (v_cmd_prefix >= 128u) {
+        v_dist_prefix = ((uint32_t)(wuffs_brotli__encoder__cmd_dist_prefix(self, a_wb, v_i)));
+        wuffs_brotli__encoder__store_symbol(self,
+            a_wb,
+            2u,
+            ((uint64_t)((v_dist_prefix & 1023u))),
+            false,
+            0u,
+            a_s);
+        wuffs_brotli__encoder__write_bits(self, (v_dist_prefix >> 10u), ((uint64_t)(wuffs_brotli__encoder__cmd_dist_extra(self, a_wb, v_i))), a_s);
+      }
+    }
+    v_i += 1u;
+  }
+  if (a_is_last) {
+    wuffs_brotli__encoder__jump_to_byte_boundary(self, a_s);
+  }
+  return wuffs_base__make_empty_struct();
 }
 
 // -------- func brotli.encoder.write_bits
@@ -65605,11 +77077,19 @@ wuffs_brotli__encoder__workbuf_len(
   }
 
   uint32_t v_q = 0;
+  uint32_t v_lgwin = 0;
   uint64_t v_n = 0;
 
   v_q = wuffs_brotli__encoder__sanitized_quality(self);
+  v_lgwin = wuffs_brotli__encoder__sanitized_lgwin(self, v_q);
   if (v_q <= 1u) {
-    v_n = ((((uint64_t)(2u)) << wuffs_brotli__encoder__sanitized_lgwin(self, v_q)) + 503u + 16u);
+    v_n = ((((uint64_t)(2u)) << v_lgwin) + 503u + 16u);
+  } else if ((v_q <= 9u) && ((v_q == 2u) || (self->private_impl.f_p_large_window == 0u))) {
+    v_n = wuffs_brotli__encoder__compute_layout_offset(self,
+        v_q,
+        v_lgwin,
+        wuffs_brotli__encoder__computed_lgblock(self, v_q, v_lgwin),
+        22u);
   }
   return wuffs_base__utility__make_range_ii_u64(v_n, v_n);
 }
@@ -65738,7 +77218,6 @@ WUFFS_BASE__GENERATED_C_CODE
 static wuffs_base__empty_struct
 wuffs_brotli__encoder__ensure_initialized(
     wuffs_brotli__encoder* self) {
-  uint32_t v_lgblock = 0;
   uint32_t v_lgwin = 0;
   uint32_t v_limit = 0;
   uint32_t v_npostfix = 0;
@@ -65760,29 +77239,14 @@ wuffs_brotli__encoder__ensure_initialized(
   self->private_impl.f_stream_state = 0u;
   self->private_impl.f_last_bytes_bits = 0u;
   self->private_impl.f_last_bytes = 0u;
-  self->private_impl.f_flint = 4294967295u;
+  self->private_impl.f_flint = 4294967294u;
   self->private_impl.f_remaining_metadata_bytes = 4294967295u;
   self->private_impl.f_quality = wuffs_brotli__encoder__sanitized_quality(self);
   self->private_impl.f_large_window = ((self->private_impl.f_p_large_window != 0u) && (self->private_impl.f_quality > 2u));
   self->private_impl.f_lgwin = wuffs_brotli__encoder__sanitized_lgwin(self, self->private_impl.f_quality);
   self->private_impl.f_size_hint = self->private_impl.f_p_size_hint;
   self->private_impl.f_stream_offset = self->private_impl.f_p_stream_offset;
-  if (self->private_impl.f_quality <= 1u) {
-    self->private_impl.f_lgblock = self->private_impl.f_lgwin;
-  } else if (self->private_impl.f_quality < 4u) {
-    self->private_impl.f_lgblock = 14u;
-  } else if (self->private_impl.f_p_lgblock == 0u) {
-    self->private_impl.f_lgblock = 16u;
-    if ((self->private_impl.f_quality >= 9u) && (self->private_impl.f_lgwin > 16u)) {
-      self->private_impl.f_lgblock = wuffs_base__u32__min(self->private_impl.f_lgwin, 18u);
-    }
-  } else {
-    v_lgblock = self->private_impl.f_p_lgblock;
-    if (v_lgblock >= 2147483648u) {
-      v_lgblock = 16u;
-    }
-    self->private_impl.f_lgblock = wuffs_base__u32__min(wuffs_base__u32__max(v_lgblock, 16u), 24u);
-  }
+  self->private_impl.f_lgblock = wuffs_brotli__encoder__computed_lgblock(self, self->private_impl.f_quality, self->private_impl.f_lgwin);
   if (self->private_impl.f_quality >= 4u) {
     if (self->private_impl.f_p_mode == 2u) {
       v_npostfix = 1u;
@@ -65804,6 +77268,7 @@ wuffs_brotli__encoder__ensure_initialized(
   }
   self->private_impl.f_distance_postfix_bits = v_npostfix;
   self->private_impl.f_num_direct_distance_codes = v_ndirect;
+  wuffs_brotli__encoder__init_distance_params(self);
   if (self->private_impl.f_stream_offset != 0u) {
     self->private_impl.f_flint = 2u;
     v_i = 0u;
@@ -65825,6 +77290,8 @@ wuffs_brotli__encoder__ensure_initialized(
   }
   if (self->private_impl.f_quality == 0u) {
     wuffs_brotli__encoder__init_command_prefix_codes(self);
+  } else if ((2u <= self->private_impl.f_quality) && (self->private_impl.f_quality <= 9u)) {
+    wuffs_brotli__encoder__compute_layout(self);
   }
   self->private_impl.f_is_initialized = true;
   return wuffs_base__make_empty_struct();
@@ -66097,6 +77564,10 @@ wuffs_brotli__encoder__transform_io(
   uint64_t v_mark = 0;
   uint32_t v_n32 = 0;
   uint64_t v_ix = 0;
+  wuffs_base__status v_status = wuffs_base__make_status(NULL);
+  uint64_t v_remaining = 0;
+  bool v_injected = false;
+  uint64_t v_copy_input_size = 0;
 
   uint8_t* iop_a_dst = NULL;
   uint8_t* io0_a_dst WUFFS_BASE__POTENTIALLY_UNUSED = NULL;
@@ -66130,17 +77601,24 @@ wuffs_brotli__encoder__transform_io(
     v_storage_len = self->private_data.s_transform_io.v_storage_len;
     v_table_bits = self->private_data.s_transform_io.v_table_bits;
     v_mark = self->private_data.s_transform_io.v_mark;
+    v_copy_input_size = self->private_data.s_transform_io.v_copy_input_size;
   }
   switch (coro_susp_point) {
     WUFFS_BASE__COROUTINE_SUSPENSION_POINT_0;
 
     wuffs_brotli__encoder__ensure_initialized(self);
-    if (self->private_impl.f_quality > 1u) {
+    if ((self->private_impl.f_quality > 9u) || (self->private_impl.f_large_window && (self->private_impl.f_quality > 2u))) {
       status = wuffs_base__make_status(wuffs_brotli__error__unsupported_encoder_quality);
+      goto exit;
+    } else if ((self->private_impl.f_quality >= 2u) && (((uint64_t)(a_workbuf.len)) < self->private_impl.f_workbuf_end)) {
+      status = wuffs_base__make_status(wuffs_base__error__bad_workbuf_length);
       goto exit;
     }
     while (true) {
       if (self->private_impl.f_metadata_requested) {
+        if (self->private_impl.f_quality >= 2u) {
+          wuffs_brotli__encoder__update_size_hint(self, 0u);
+        }
         if (self->private_impl.f_stream_state == 0u) {
           self->private_impl.f_remaining_metadata_bytes = self->private_impl.f_metadata_length;
           self->private_impl.f_stream_state = 3u;
@@ -66162,6 +77640,20 @@ wuffs_brotli__encoder__transform_io(
             wuffs_brotli__encoder__push_output(self, a_dst, a_workbuf);
             if (a_dst) {
               iop_a_dst = a_dst->data.ptr + a_dst->meta.wi;
+            }
+            continue;
+          }
+          if ((self->private_impl.f_quality >= 2u) && (self->private_impl.f_input_pos != self->private_impl.f_last_flush_pos)) {
+            v_status = wuffs_brotli__encoder__encode_data(self, a_workbuf, false, true);
+            if ( ! wuffs_base__status__is_ok(&v_status)) {
+              status = v_status;
+              if (wuffs_base__status__is_error(&status)) {
+                goto exit;
+              } else if (wuffs_base__status__is_suspension(&status)) {
+                status = wuffs_base__make_status(wuffs_base__error__cannot_return_a_suspension);
+                goto exit;
+              }
+              goto ok;
             }
             continue;
           }
@@ -66211,7 +77703,84 @@ wuffs_brotli__encoder__transform_io(
         status = wuffs_base__make_status(wuffs_base__error__bad_call_sequence);
         goto exit;
       }
-      while (true) {
+      while (self->private_impl.f_quality >= 2u) {
+        v_remaining = wuffs_brotli__encoder__remaining_input_block_size(self);
+        if ((self->private_impl.f_flint < 2147483648u) && (v_remaining > ((uint64_t)(self->private_impl.f_flint)))) {
+          v_remaining = ((uint64_t)(self->private_impl.f_flint));
+        }
+        if ((v_remaining != 0u) && (((uint64_t)(io2_a_src - iop_a_src)) > 0u)) {
+          v_copy_input_size = wuffs_base__u64__min(v_remaining, ((uint64_t)(io2_a_src - iop_a_src)));
+          v_mark = ((uint64_t)(iop_a_src - io0_a_src));
+          self->private_data.s_transform_io.scratch = v_copy_input_size;
+          WUFFS_BASE__COROUTINE_SUSPENSION_POINT(4);
+          if (self->private_data.s_transform_io.scratch > ((uint64_t)(io2_a_src - iop_a_src))) {
+            self->private_data.s_transform_io.scratch -= ((uint64_t)(io2_a_src - iop_a_src));
+            iop_a_src = io2_a_src;
+            status = wuffs_base__make_status(wuffs_base__suspension__short_read);
+            goto suspend;
+          }
+          iop_a_src += self->private_data.s_transform_io.scratch;
+          wuffs_brotli__encoder__copy_input_to_ring_buffer(self, a_workbuf, wuffs_private_impl__io__since(v_mark, ((uint64_t)(iop_a_src - io0_a_src)), io0_a_src));
+          if ((self->private_impl.f_flint > 0u) && (self->private_impl.f_flint < 2147483648u)) {
+            self->private_impl.f_flint = ((uint32_t)(self->private_impl.f_flint - ((uint32_t)((v_copy_input_size & 255u)))));
+          }
+          continue;
+        }
+        v_injected = false;
+        if ((self->private_impl.f_stream_state == 1u) && (self->private_impl.f_last_bytes_bits != 0u)) {
+          wuffs_brotli__encoder__inject_byte_padding_block(self, a_workbuf);
+          v_injected = true;
+        } else if ((self->private_impl.f_out_len != 0u) && (((uint64_t)(io2_a_dst - iop_a_dst)) > 0u)) {
+          if (a_dst) {
+            a_dst->meta.wi = ((size_t)(iop_a_dst - a_dst->data.ptr));
+          }
+          wuffs_brotli__encoder__push_output(self, a_dst, a_workbuf);
+          if (a_dst) {
+            iop_a_dst = a_dst->data.ptr + a_dst->meta.wi;
+          }
+          v_injected = true;
+        }
+        if (v_injected) {
+          if (self->private_impl.f_flint == 4294967295u) {
+            wuffs_brotli__encoder__check_flush_complete(self);
+            if (self->private_impl.f_stream_state == 0u) {
+              self->private_impl.f_flint = 4294967294u;
+            }
+          }
+          continue;
+        }
+        if ((self->private_impl.f_out_len == 0u) && (self->private_impl.f_stream_state == 0u)) {
+          if ((v_remaining == 0u) || (v_op != 0u)) {
+            v_is_last = ((((uint64_t)(io2_a_src - iop_a_src)) == 0u) && (v_op == 2u));
+            v_force_flush = ((((uint64_t)(io2_a_src - iop_a_src)) == 0u) && (v_op == 1u));
+            if ( ! v_is_last && (self->private_impl.f_flint == 0u)) {
+              self->private_impl.f_flint = 4294967295u;
+              v_force_flush = true;
+            }
+            wuffs_brotli__encoder__update_size_hint(self, ((uint64_t)(io2_a_src - iop_a_src)));
+            v_status = wuffs_brotli__encoder__encode_data(self, a_workbuf, v_is_last, v_force_flush);
+            if ( ! wuffs_base__status__is_ok(&v_status)) {
+              status = v_status;
+              if (wuffs_base__status__is_error(&status)) {
+                goto exit;
+              } else if (wuffs_base__status__is_suspension(&status)) {
+                status = wuffs_base__make_status(wuffs_base__error__cannot_return_a_suspension);
+                goto exit;
+              }
+              goto ok;
+            }
+            if (v_force_flush) {
+              self->private_impl.f_stream_state = 1u;
+            }
+            if (v_is_last) {
+              self->private_impl.f_stream_state = 2u;
+            }
+            continue;
+          }
+        }
+        break;
+      }
+      while (self->private_impl.f_quality <= 1u) {
         if ((self->private_impl.f_stream_state == 1u) && (self->private_impl.f_last_bytes_bits != 0u)) {
           wuffs_brotli__encoder__inject_byte_padding_block(self, a_workbuf);
           continue;
@@ -66246,7 +77815,7 @@ wuffs_brotli__encoder__transform_io(
           v_table_bits = wuffs_brotli__encoder__get_hash_table(self, v_block_size);
           v_mark = ((uint64_t)(iop_a_src - io0_a_src));
           self->private_data.s_transform_io.scratch = v_block_size;
-          WUFFS_BASE__COROUTINE_SUSPENSION_POINT(4);
+          WUFFS_BASE__COROUTINE_SUSPENSION_POINT(5);
           if (self->private_data.s_transform_io.scratch > ((uint64_t)(io2_a_src - iop_a_src))) {
             self->private_data.s_transform_io.scratch -= ((uint64_t)(io2_a_src - iop_a_src));
             iop_a_src = io2_a_src;
@@ -66294,7 +77863,8 @@ wuffs_brotli__encoder__transform_io(
       wuffs_brotli__encoder__check_flush_complete(self);
       if (self->private_impl.f_out_len != 0u) {
         status = wuffs_base__make_status(wuffs_base__suspension__short_write);
-        WUFFS_BASE__COROUTINE_SUSPENSION_POINT_MAYBE_SUSPEND(5);
+        WUFFS_BASE__COROUTINE_SUSPENSION_POINT_MAYBE_SUSPEND(6);
+      } else if ((self->private_impl.f_quality >= 2u) && (((uint64_t)(io2_a_src - iop_a_src)) > 0u)) {
       } else if (v_op == 1u) {
         self->private_impl.f_flush_requested = false;
       } else if (self->private_impl.f_stream_state == 2u) {
@@ -66302,8 +77872,8 @@ wuffs_brotli__encoder__transform_io(
         goto ok;
       } else if (v_op == 0u) {
         status = wuffs_base__make_status(wuffs_base__suspension__short_read);
-        WUFFS_BASE__COROUTINE_SUSPENSION_POINT_MAYBE_SUSPEND(6);
-      } else {
+        WUFFS_BASE__COROUTINE_SUSPENSION_POINT_MAYBE_SUSPEND(7);
+      } else if (self->private_impl.f_quality <= 1u) {
         status = wuffs_base__make_status(wuffs_brotli__error__internal_error_inconsistent_encoder_state);
         goto exit;
       }
@@ -66324,6 +77894,7 @@ wuffs_brotli__encoder__transform_io(
   self->private_data.s_transform_io.v_storage_len = v_storage_len;
   self->private_data.s_transform_io.v_table_bits = v_table_bits;
   self->private_data.s_transform_io.v_mark = v_mark;
+  self->private_data.s_transform_io.v_copy_input_size = v_copy_input_size;
 
   goto exit;
   exit:
@@ -66338,6 +77909,1099 @@ wuffs_brotli__encoder__transform_io(
     self->private_impl.magic = WUFFS_BASE__DISABLED;
   }
   return status;
+}
+
+// -------- func brotli.encoder.computed_lgblock
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint32_t
+wuffs_brotli__encoder__computed_lgblock(
+    const wuffs_brotli__encoder* self,
+    uint32_t a_quality,
+    uint32_t a_lgwin) {
+  uint32_t v_lgblock = 0;
+
+  if (a_quality <= 1u) {
+    return a_lgwin;
+  } else if (a_quality < 4u) {
+    return 14u;
+  } else if (self->private_impl.f_p_lgblock == 0u) {
+    if ((a_quality >= 9u) && (a_lgwin > 16u)) {
+      return wuffs_base__u32__min(a_lgwin, 18u);
+    }
+    return 16u;
+  }
+  v_lgblock = self->private_impl.f_p_lgblock;
+  if (v_lgblock >= 2147483648u) {
+    v_lgblock = 16u;
+  }
+  return wuffs_base__u32__min(wuffs_base__u32__max(v_lgblock, 16u), 24u);
+}
+
+// -------- func brotli.encoder.rb_bits
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint32_t
+wuffs_brotli__encoder__rb_bits(
+    const wuffs_brotli__encoder* self,
+    uint32_t a_lgwin,
+    uint32_t a_lgblock) {
+  return (1u + wuffs_base__u32__max(a_lgwin, a_lgblock));
+}
+
+// -------- func brotli.encoder.max_metablock_size
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint64_t
+wuffs_brotli__encoder__max_metablock_size(
+    const wuffs_brotli__encoder* self,
+    uint32_t a_lgwin,
+    uint32_t a_lgblock) {
+  uint32_t v_b = 0;
+
+  v_b = wuffs_brotli__encoder__rb_bits(self, a_lgwin, a_lgblock);
+  return (((uint64_t)(1u)) << wuffs_base__u32__min(v_b, 24u));
+}
+
+// -------- func brotli.encoder.hasher_total_size
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint64_t
+wuffs_brotli__encoder__hasher_total_size(
+    const wuffs_brotli__encoder* self,
+    uint32_t a_quality,
+    uint32_t a_lgwin,
+    uint32_t a_size_hint) {
+  uint32_t v_htype = 0;
+  uint32_t v_bucket_bits = 0;
+  uint32_t v_block_bits = 0;
+
+  if ((a_quality == 4u) && (a_size_hint >= 1048576u)) {
+    v_htype = 54u;
+  } else if (a_quality < 5u) {
+    v_htype = a_quality;
+  } else if (a_lgwin <= 16u) {
+    v_htype = 40u;
+    if (a_quality >= 9u) {
+      v_htype = 42u;
+    }
+  } else if ((a_size_hint >= 1048576u) && (a_lgwin >= 19u)) {
+    v_htype = 6u;
+    if (a_quality <= 6u) {
+      v_htype = 68u;
+    }
+    v_bucket_bits = 15u;
+    v_block_bits = (a_quality - 1u);
+  } else {
+    v_htype = 5u;
+    if (a_quality <= 6u) {
+      v_htype = 58u;
+    }
+    v_bucket_bits = 15u;
+    if (a_quality < 7u) {
+      v_bucket_bits = 14u;
+    }
+    v_block_bits = (a_quality - 1u);
+  }
+  return ((uint64_t)(((uint64_t)(wuffs_brotli__encoder__hasher_alloc_size(self,
+      v_htype,
+      v_bucket_bits,
+      v_block_bits,
+      0u) + wuffs_brotli__encoder__hasher_alloc_size(self,
+      v_htype,
+      v_bucket_bits,
+      v_block_bits,
+      1u))) + wuffs_brotli__encoder__hasher_alloc_size(self,
+      v_htype,
+      v_bucket_bits,
+      v_block_bits,
+      2u)));
+}
+
+// -------- func brotli.encoder.hash_region_size
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint64_t
+wuffs_brotli__encoder__hash_region_size(
+    const wuffs_brotli__encoder* self,
+    uint32_t a_quality,
+    uint32_t a_lgwin) {
+  uint64_t v_a = 0;
+  uint64_t v_b = 0;
+
+  if (self->private_impl.f_p_size_hint != 0u) {
+    return wuffs_brotli__encoder__hasher_total_size(self, a_quality, a_lgwin, self->private_impl.f_p_size_hint);
+  }
+  v_a = wuffs_brotli__encoder__hasher_total_size(self, a_quality, a_lgwin, 0u);
+  v_b = wuffs_brotli__encoder__hasher_total_size(self, a_quality, a_lgwin, 1048576u);
+  return wuffs_base__u64__max(v_a, v_b);
+}
+
+// -------- func brotli.encoder.commands_capacity
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint64_t
+wuffs_brotli__encoder__commands_capacity(
+    const wuffs_brotli__encoder* self,
+    uint32_t a_quality,
+    uint32_t a_lgwin,
+    uint32_t a_lgblock) {
+  uint64_t v_max_len = 0;
+  uint64_t v_prior = 0;
+
+  v_max_len = wuffs_brotli__encoder__max_metablock_size(self, a_lgwin, a_lgblock);
+  v_prior = ((uint64_t)((v_max_len / 8u) - 1u));
+  if (a_quality < 4u) {
+    v_prior = wuffs_base__u64__min(v_prior, 12286u);
+  }
+  return wuffs_brotli__encoder__min64(self, ((uint64_t)(((uint64_t)(v_prior + ((((uint64_t)(1u)) << a_lgblock) / 2u))) + 1u)), ((v_max_len / 2u) + 1u));
+}
+
+// -------- func brotli.encoder.compute_layout_offset
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint64_t
+wuffs_brotli__encoder__compute_layout_offset(
+    const wuffs_brotli__encoder* self,
+    uint32_t a_quality,
+    uint32_t a_lgwin,
+    uint32_t a_lgblock,
+    uint32_t a_idx) {
+  uint64_t v_max_len = 0;
+  uint64_t v_cmds_cap = 0;
+  uint64_t v_off = 0;
+  uint32_t v_i = 0;
+  uint64_t v_size = 0;
+  uint64_t v_num_histo = 0;
+  uint64_t v_hlen = 0;
+
+  v_max_len = wuffs_brotli__encoder__max_metablock_size(self, a_lgwin, a_lgblock);
+  v_cmds_cap = wuffs_brotli__encoder__commands_capacity(self, a_quality, a_lgwin, a_lgblock);
+  v_off = 0u;
+  v_i = 0u;
+  while (v_i < wuffs_base__u32__min(a_idx, 22u)) {
+    v_size = 0u;
+    if (v_i == 0u) {
+      v_size = ((uint64_t)(((uint64_t)(((uint64_t)(2u * v_max_len)) + 503u)) + 16u));
+    } else if (v_i == 1u) {
+      v_size = ((uint64_t)(((uint64_t)((2u + (((uint64_t)(1u)) << wuffs_brotli__encoder__rb_bits(self, a_lgwin, a_lgblock))) + (((uint64_t)(1u)) << a_lgblock))) + 7u));
+    } else if (v_i == 2u) {
+      v_size = wuffs_brotli__encoder__hash_region_size(self, a_quality, a_lgwin);
+    } else if (v_i == 3u) {
+      v_size = ((uint64_t)(16u * v_cmds_cap));
+    } else if (a_quality >= 4u) {
+      if (v_i == 4u) {
+        v_size = ((v_max_len / 512u) + 1u);
+      } else if (v_i == 5u) {
+        v_size = ((uint64_t)((v_cmds_cap / 1024u) + 1u));
+      } else if (v_i == 6u) {
+        v_size = ((uint64_t)((v_cmds_cap / 512u) + 1u));
+      } else if (v_i == 7u) {
+        v_size = (4u * ((v_max_len / 512u) + 1u));
+      } else if (v_i == 8u) {
+        v_size = ((uint64_t)(4u * ((uint64_t)((v_cmds_cap / 1024u) + 1u))));
+      } else if (v_i == 9u) {
+        v_size = ((uint64_t)(4u * ((uint64_t)((v_cmds_cap / 512u) + 1u))));
+      } else if ((10u <= v_i) && (v_i < 13u)) {
+        if (v_i == 10u) {
+          v_size = 266240u;
+        } else if (v_i == 11u) {
+          v_size = 723712u;
+        } else {
+          v_size = 559232u;
+        }
+      } else if (v_i == 13u) {
+        v_size = 26624u;
+      } else if (v_i == 14u) {
+        v_size = 16384u;
+      } else if (v_i == 15u) {
+        v_size = 65536u;
+      } else if ((16u <= v_i) && (v_i < 22u)) {
+        v_num_histo = 256u;
+        v_hlen = 256u;
+        if ((v_i == 17u) || (v_i == 20u)) {
+          v_hlen = 704u;
+        } else if ((v_i == 18u) || (v_i == 21u)) {
+          v_hlen = 544u;
+        }
+        v_size = ((uint64_t)(v_num_histo * v_hlen));
+        if (v_i >= 19u) {
+          v_size = ((uint64_t)(2u * v_size));
+        }
+      }
+    }
+    v_off += v_size;
+    v_i += 1u;
+  }
+  return v_off;
+}
+
+// -------- func brotli.encoder.compute_layout
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__compute_layout(
+    wuffs_brotli__encoder* self) {
+  uint32_t v_q = 0;
+  uint32_t v_lw = 0;
+  uint32_t v_lb = 0;
+  uint32_t v_c = 0;
+
+  v_q = self->private_impl.f_quality;
+  v_lw = self->private_impl.f_lgwin;
+  v_lb = self->private_impl.f_lgblock;
+  self->private_impl.f_rb_off = wuffs_brotli__encoder__compute_layout_offset(self,
+      v_q,
+      v_lw,
+      v_lb,
+      1u);
+  self->private_impl.f_rb_buf_off = ((uint64_t)(self->private_impl.f_rb_off + 2u));
+  self->private_impl.f_h_off0 = wuffs_brotli__encoder__compute_layout_offset(self,
+      v_q,
+      v_lw,
+      v_lb,
+      2u);
+  self->private_impl.f_cmds_off = wuffs_brotli__encoder__compute_layout_offset(self,
+      v_q,
+      v_lw,
+      v_lb,
+      3u);
+  self->private_impl.f_cmds_cap = wuffs_brotli__encoder__commands_capacity(self, v_q, v_lw, v_lb);
+  v_c = 0u;
+  while (v_c < 3u) {
+    self->private_data.f_gbs_types_off[v_c] = wuffs_brotli__encoder__compute_layout_offset(self,
+        v_q,
+        v_lw,
+        v_lb,
+        (4u + v_c));
+    self->private_data.f_gbs_lengths_off[v_c] = wuffs_brotli__encoder__compute_layout_offset(self,
+        v_q,
+        v_lw,
+        v_lb,
+        (7u + v_c));
+    self->private_data.f_gbs_histo_off_base[v_c] = wuffs_brotli__encoder__compute_layout_offset(self,
+        v_q,
+        v_lw,
+        v_lb,
+        (10u + v_c));
+    self->private_data.f_be_depth_off[v_c] = wuffs_brotli__encoder__compute_layout_offset(self,
+        v_q,
+        v_lw,
+        v_lb,
+        (16u + v_c));
+    self->private_data.f_be_bits_off[v_c] = wuffs_brotli__encoder__compute_layout_offset(self,
+        v_q,
+        v_lw,
+        v_lb,
+        (19u + v_c));
+    v_c += 1u;
+  }
+  self->private_impl.f_mb_comb_off = wuffs_brotli__encoder__compute_layout_offset(self,
+      v_q,
+      v_lw,
+      v_lb,
+      13u);
+  self->private_impl.f_mb_cmap_off = wuffs_brotli__encoder__compute_layout_offset(self,
+      v_q,
+      v_lw,
+      v_lb,
+      14u);
+  self->private_impl.f_mb_rle_off = wuffs_brotli__encoder__compute_layout_offset(self,
+      v_q,
+      v_lw,
+      v_lb,
+      15u);
+  self->private_impl.f_workbuf_end = wuffs_brotli__encoder__compute_layout_offset(self,
+      v_q,
+      v_lw,
+      v_lb,
+      22u);
+  self->private_impl.f_rb_size = (((uint32_t)(1u)) << wuffs_brotli__encoder__rb_bits(self, v_lw, v_lb));
+  self->private_impl.f_rb_mask = ((uint32_t)(self->private_impl.f_rb_size - 1u));
+  self->private_impl.f_rb_tail_size = (((uint32_t)(1u)) << v_lb);
+  self->private_impl.f_rb_total_size = ((uint32_t)(self->private_impl.f_rb_size + self->private_impl.f_rb_tail_size));
+  return wuffs_base__make_empty_struct();
+}
+
+// -------- func brotli.encoder.init_distance_params
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__init_distance_params(
+    wuffs_brotli__encoder* self) {
+  uint32_t v_npostfix = 0;
+  uint32_t v_ndirect = 0;
+
+  v_npostfix = (self->private_impl.f_distance_postfix_bits & 3u);
+  v_ndirect = self->private_impl.f_num_direct_distance_codes;
+  self->private_impl.f_dist_alphabet_size_max = ((uint32_t)(((uint32_t)(16u + v_ndirect)) + (((uint32_t)(24u)) << (v_npostfix + 1u))));
+  self->private_impl.f_dist_alphabet_size_limit = self->private_impl.f_dist_alphabet_size_max;
+  self->private_impl.f_dist_max_distance = ((uint64_t)(((uint32_t)(((uint32_t)(v_ndirect + (((uint32_t)(1u)) << (24u + v_npostfix + 2u)))) - (((uint32_t)(1u)) << (v_npostfix + 2u))))));
+  return wuffs_base__make_empty_struct();
+}
+
+// -------- func brotli.encoder.wrap_position
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint64_t
+wuffs_brotli__encoder__wrap_position(
+    const wuffs_brotli__encoder* self,
+    uint64_t a_position) {
+  uint32_t v_result = 0;
+  uint64_t v_gb = 0;
+
+  v_result = ((uint32_t)(a_position));
+  v_gb = (a_position >> 30u);
+  if (v_gb > 2u) {
+    v_result = ((v_result & 1073741823u) | ((((uint32_t)((((uint64_t)(v_gb - 1u)) & 1u))) + 1u) << 30u));
+  }
+  return ((uint64_t)(v_result));
+}
+
+// -------- func brotli.encoder.rb_init_buffer
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__rb_init_buffer(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    uint32_t a_buflen) {
+  self->private_impl.f_rb_cur_size = a_buflen;
+  wuffs_brotli__encoder__set_byte(self, a_wb, ((uint64_t)(self->private_impl.f_rb_off + 0u)), 0u);
+  wuffs_brotli__encoder__set_byte(self, a_wb, ((uint64_t)(self->private_impl.f_rb_off + 1u)), 0u);
+  wuffs_brotli__encoder__fill_bytes(self,
+      a_wb,
+      ((uint64_t)(self->private_impl.f_rb_buf_off + ((uint64_t)(a_buflen)))),
+      7u,
+      0u);
+  return wuffs_base__make_empty_struct();
+}
+
+// -------- func brotli.encoder.rb_copy
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__rb_copy(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    uint64_t a_dst,
+    wuffs_base__slice_u8 a_src) {
+  uint64_t v_a = 0;
+  wuffs_base__slice_u8 v_q = {0};
+
+  v_a = ((uint64_t)(self->private_impl.f_rb_buf_off + a_dst));
+  if (v_a <= ((uint64_t)(a_wb.len))) {
+    v_q = wuffs_base__slice_u8__subslice_i(a_wb, v_a);
+    if (((uint64_t)(a_src.len)) <= ((uint64_t)(v_q.len))) {
+      wuffs_private_impl__slice_u8__copy_from_slice(v_q, a_src);
+    }
+  }
+  return wuffs_base__make_empty_struct();
+}
+
+// -------- func brotli.encoder.rb_write
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__rb_write(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    wuffs_base__slice_u8 a_bytes) {
+  uint64_t v_n = 0;
+  uint64_t v_masked_pos = 0;
+  uint64_t v_size = 0;
+  uint64_t v_tail_size = 0;
+  uint64_t v_total_size = 0;
+  uint64_t v_k = 0;
+  bool v_not_first_lap = false;
+
+  v_n = ((uint64_t)(a_bytes.len));
+  v_size = ((uint64_t)(self->private_impl.f_rb_size));
+  v_tail_size = ((uint64_t)(self->private_impl.f_rb_tail_size));
+  v_total_size = ((uint64_t)(self->private_impl.f_rb_total_size));
+  if ((self->private_impl.f_rb_pos == 0u) && (v_n < v_tail_size)) {
+    self->private_impl.f_rb_pos = ((uint32_t)(v_n));
+    wuffs_brotli__encoder__rb_init_buffer(self, a_wb, self->private_impl.f_rb_pos);
+    wuffs_brotli__encoder__rb_copy(self, a_wb, 0u, a_bytes);
+    return wuffs_base__make_empty_struct();
+  }
+  if (self->private_impl.f_rb_cur_size < self->private_impl.f_rb_total_size) {
+    wuffs_brotli__encoder__rb_init_buffer(self, a_wb, self->private_impl.f_rb_total_size);
+    wuffs_brotli__encoder__set_byte(self, a_wb, ((uint64_t)(((uint64_t)(self->private_impl.f_rb_buf_off + v_size)) - 2u)), 0u);
+    wuffs_brotli__encoder__set_byte(self, a_wb, ((uint64_t)(((uint64_t)(self->private_impl.f_rb_buf_off + v_size)) - 1u)), 0u);
+    wuffs_brotli__encoder__set_byte(self, a_wb, ((uint64_t)(self->private_impl.f_rb_buf_off + v_size)), 241u);
+  }
+  v_masked_pos = ((uint64_t)((self->private_impl.f_rb_pos & self->private_impl.f_rb_mask)));
+  if (v_masked_pos < v_tail_size) {
+    v_k = wuffs_brotli__encoder__min64(self, v_n, ((uint64_t)(v_tail_size - v_masked_pos)));
+    if (v_k <= ((uint64_t)(a_bytes.len))) {
+      wuffs_brotli__encoder__rb_copy(self, a_wb, ((uint64_t)(v_size + v_masked_pos)), wuffs_base__slice_u8__subslice_j(a_bytes, v_k));
+    }
+  }
+  if (((uint64_t)(v_masked_pos + v_n)) <= v_size) {
+    wuffs_brotli__encoder__rb_copy(self, a_wb, v_masked_pos, a_bytes);
+  } else {
+    v_k = wuffs_brotli__encoder__min64(self, v_n, ((uint64_t)(v_total_size - v_masked_pos)));
+    if (v_k <= ((uint64_t)(a_bytes.len))) {
+      wuffs_brotli__encoder__rb_copy(self, a_wb, v_masked_pos, wuffs_base__slice_u8__subslice_j(a_bytes, v_k));
+    }
+    v_k = ((uint64_t)(v_size - v_masked_pos));
+    if (v_k <= ((uint64_t)(a_bytes.len))) {
+      wuffs_brotli__encoder__rb_copy(self, a_wb, 0u, wuffs_base__slice_u8__subslice_i(a_bytes, v_k));
+    }
+  }
+  v_not_first_lap = ((self->private_impl.f_rb_pos & 2147483648u) != 0u);
+  wuffs_brotli__encoder__set_byte(self, a_wb, ((uint64_t)(self->private_impl.f_rb_off + 0u)), wuffs_brotli__encoder__byte_at(self, a_wb, ((uint64_t)(((uint64_t)(self->private_impl.f_rb_buf_off + v_size)) - 2u))));
+  wuffs_brotli__encoder__set_byte(self, a_wb, ((uint64_t)(self->private_impl.f_rb_off + 1u)), wuffs_brotli__encoder__byte_at(self, a_wb, ((uint64_t)(((uint64_t)(self->private_impl.f_rb_buf_off + v_size)) - 1u))));
+  self->private_impl.f_rb_pos = ((uint32_t)((self->private_impl.f_rb_pos & 2147483647u) + ((uint32_t)((v_n & 2147483647u)))));
+  if (v_not_first_lap) {
+    self->private_impl.f_rb_pos |= 2147483648u;
+  }
+  return wuffs_base__make_empty_struct();
+}
+
+// -------- func brotli.encoder.copy_input_to_ring_buffer
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__copy_input_to_ring_buffer(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    wuffs_base__slice_u8 a_bytes) {
+  wuffs_brotli__encoder__rb_write(self, a_wb, a_bytes);
+  self->private_impl.f_input_pos += ((uint64_t)(a_bytes.len));
+  if (self->private_impl.f_rb_pos <= self->private_impl.f_rb_mask) {
+    wuffs_brotli__encoder__fill_bytes(self,
+        a_wb,
+        ((uint64_t)(self->private_impl.f_rb_buf_off + ((uint64_t)(self->private_impl.f_rb_pos)))),
+        7u,
+        0u);
+  }
+  return wuffs_base__make_empty_struct();
+}
+
+// -------- func brotli.encoder.update_last_processed_pos
+
+WUFFS_BASE__GENERATED_C_CODE
+static bool
+wuffs_brotli__encoder__update_last_processed_pos(
+    wuffs_brotli__encoder* self) {
+  uint64_t v_wrapped_last_processed_pos = 0;
+  uint64_t v_wrapped_input_pos = 0;
+
+  v_wrapped_last_processed_pos = wuffs_brotli__encoder__wrap_position(self, self->private_impl.f_last_processed_pos);
+  v_wrapped_input_pos = wuffs_brotli__encoder__wrap_position(self, self->private_impl.f_input_pos);
+  self->private_impl.f_last_processed_pos = self->private_impl.f_input_pos;
+  return (v_wrapped_input_pos < v_wrapped_last_processed_pos);
+}
+
+// -------- func brotli.encoder.remaining_input_block_size
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint64_t
+wuffs_brotli__encoder__remaining_input_block_size(
+    const wuffs_brotli__encoder* self) {
+  uint64_t v_delta = 0;
+  uint64_t v_block_size = 0;
+
+  v_delta = ((uint64_t)(self->private_impl.f_input_pos - self->private_impl.f_last_processed_pos));
+  v_block_size = (((uint64_t)(1u)) << self->private_impl.f_lgblock);
+  if (v_delta >= v_block_size) {
+    return 0u;
+  }
+  return ((uint64_t)(v_block_size - v_delta));
+}
+
+// -------- func brotli.encoder.update_size_hint
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__update_size_hint(
+    wuffs_brotli__encoder* self,
+    uint64_t a_available_in) {
+  uint64_t v_delta = 0;
+  uint64_t v_tail = 0;
+  uint64_t v_limit = 0;
+
+  if (self->private_impl.f_size_hint == 0u) {
+    v_delta = ((uint64_t)(self->private_impl.f_input_pos - self->private_impl.f_last_processed_pos));
+    v_tail = a_available_in;
+    v_limit = 1073741824u;
+    if ((v_delta >= v_limit) || (v_tail >= v_limit) || (((uint64_t)(v_delta + v_tail)) >= v_limit)) {
+      self->private_impl.f_size_hint = 1073741824u;
+    } else {
+      self->private_impl.f_size_hint = ((uint32_t)(((uint64_t)(v_delta + v_tail))));
+    }
+  }
+  return wuffs_base__make_empty_struct();
+}
+
+// -------- func brotli.encoder.extend_last_command
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint64_t
+wuffs_brotli__encoder__extend_last_command(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    uint64_t a_bytes,
+    uint64_t a_wrapped_last_processed_pos) {
+  uint64_t v_last = 0;
+  uint64_t v_max_backward_distance = 0;
+  uint32_t v_copy_len = 0;
+  uint64_t v_last_copy_len = 0;
+  uint64_t v_last_processed_pos = 0;
+  uint64_t v_max_distance = 0;
+  uint64_t v_cmd_dist = 0;
+  uint32_t v_distance_code = 0;
+  uint64_t v_n = 0;
+  uint64_t v_p = 0;
+
+  v_last = ((uint64_t)(self->private_impl.f_num_cmds - 1u));
+  v_max_backward_distance = ((uint64_t)((((uint64_t)(1u)) << self->private_impl.f_lgwin) - 16u));
+  v_copy_len = wuffs_brotli__encoder__cmd_copy_len_raw(self, a_wb, v_last);
+  v_last_copy_len = ((uint64_t)((v_copy_len & 33554431u)));
+  v_last_processed_pos = ((uint64_t)(self->private_impl.f_last_processed_pos - v_last_copy_len));
+  v_max_distance = wuffs_base__u64__min(v_last_processed_pos, v_max_backward_distance);
+  v_cmd_dist = wuffs_brotli__encoder__dist_cache_u64(self, 0u);
+  v_distance_code = wuffs_brotli__encoder__cmd_restore_distance_code(self, a_wb, v_last);
+  if ((v_distance_code < 16u) || (((uint64_t)(((uint32_t)(v_distance_code - 15u)))) == v_cmd_dist)) {
+    if (v_cmd_dist <= v_max_distance) {
+      v_p = a_wrapped_last_processed_pos;
+      while ((v_n < a_bytes) && (wuffs_brotli__encoder__rb_byte(self, a_wb, v_p) == wuffs_brotli__encoder__rb_byte(self, a_wb, ((uint64_t)(v_p - v_cmd_dist))))) {
+        v_copy_len += 1u;
+        v_n += 1u;
+        v_p = (((uint64_t)(v_p + 1u)) & 4294967295u);
+      }
+    }
+    wuffs_brotli__encoder__set_cmd(self,
+        a_wb,
+        v_last,
+        wuffs_brotli__encoder__cmd_insert_len(self, a_wb, v_last),
+        v_copy_len,
+        wuffs_brotli__encoder__cmd_dist_extra(self, a_wb, v_last),
+        wuffs_brotli__encoder__get_length_code(self, ((uint64_t)(wuffs_brotli__encoder__cmd_insert_len(self, a_wb, v_last))), ((uint64_t)(((uint32_t)((v_copy_len & 33554431u) + (v_copy_len >> 25u))))), (((uint16_t)(wuffs_brotli__encoder__cmd_dist_prefix(self, a_wb, v_last) & 1023u)) == 0u)),
+        wuffs_brotli__encoder__cmd_dist_prefix(self, a_wb, v_last));
+  }
+  return v_n;
+}
+
+// -------- func brotli.encoder.estimate_entropy
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint64_t
+wuffs_brotli__encoder__estimate_entropy(
+    const wuffs_brotli__encoder* self,
+    uint32_t a_off,
+    uint32_t a_size) {
+  uint64_t v_total = 0;
+  uint64_t v_result = 0;
+  uint32_t v_i = 0;
+  uint32_t v_p = 0;
+
+  v_i = 0u;
+  while (v_i < a_size) {
+    v_p = self->private_data.f_ctx_histo[(((uint32_t)(a_off + v_i)) & 511u)];
+    v_total += ((uint64_t)(v_p));
+    v_result = wuffs_softfloat__arith__f64_add(&self->private_data.f_sf, v_result, wuffs_softfloat__arith__f64_mul(&self->private_data.f_sf, wuffs_softfloat__arith__f64_from_u32(&self->private_data.f_sf, v_p), wuffs_brotli__bit_cost__fast_log2(&self->private_data.f_bc, ((uint64_t)(v_p)))));
+    v_i += 1u;
+  }
+  return wuffs_softfloat__arith__f64_sub(&self->private_data.f_sf, wuffs_softfloat__arith__f64_mul(&self->private_data.f_sf, wuffs_softfloat__arith__f64_from_u64(&self->private_data.f_sf, v_total), wuffs_brotli__bit_cost__fast_log2(&self->private_data.f_bc, v_total)), v_result);
+}
+
+// -------- func brotli.encoder.choose_context_map
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint32_t
+wuffs_brotli__encoder__choose_context_map(
+    wuffs_brotli__encoder* self) {
+  uint32_t v_i = 0;
+  uint32_t v_total = 0;
+  uint64_t v_e0 = 0;
+  uint64_t v_e1 = 0;
+  uint64_t v_e2 = 0;
+  uint64_t v_e3 = 0;
+
+  v_i = 16u;
+  while (v_i < 32u) {
+    self->private_data.f_ctx_histo[v_i] = 0u;
+    v_i += 1u;
+  }
+  v_i = 0u;
+  while (v_i < 9u) {
+    self->private_data.f_ctx_histo[(16u + (v_i % 3u))] += self->private_data.f_ctx_histo[v_i];
+    self->private_data.f_ctx_histo[(24u + (v_i % 6u))] += self->private_data.f_ctx_histo[v_i];
+    v_i += 1u;
+  }
+  v_e1 = wuffs_brotli__encoder__estimate_entropy(self, 16u, 3u);
+  v_e2 = wuffs_softfloat__arith__f64_add(&self->private_data.f_sf, wuffs_brotli__encoder__estimate_entropy(self, 24u, 3u), wuffs_brotli__encoder__estimate_entropy(self, 27u, 3u));
+  v_e3 = 0u;
+  v_i = 0u;
+  while (v_i < 3u) {
+    v_e3 = wuffs_softfloat__arith__f64_add(&self->private_data.f_sf, v_e3, wuffs_brotli__encoder__estimate_entropy(self, (3u * v_i), 3u));
+    v_i += 1u;
+  }
+  v_total = ((uint32_t)(((uint32_t)(self->private_data.f_ctx_histo[16u] + self->private_data.f_ctx_histo[17u])) + self->private_data.f_ctx_histo[18u]));
+  v_e0 = wuffs_softfloat__arith__f64_div(&self->private_data.f_sf, 4607182418800017408u, wuffs_softfloat__arith__f64_from_u32(&self->private_data.f_sf, v_total));
+  v_e1 = wuffs_softfloat__arith__f64_mul(&self->private_data.f_sf, v_e1, v_e0);
+  v_e2 = wuffs_softfloat__arith__f64_mul(&self->private_data.f_sf, v_e2, v_e0);
+  v_e3 = wuffs_softfloat__arith__f64_mul(&self->private_data.f_sf, v_e3, v_e0);
+  if (self->private_impl.f_quality < 7u) {
+    v_e3 = wuffs_softfloat__arith__f64_mul(&self->private_data.f_sf, v_e1, 4621819117588971520u);
+  }
+  if ((wuffs_softfloat__arith__f64_lt(&self->private_data.f_sf, wuffs_softfloat__arith__f64_sub(&self->private_data.f_sf, v_e1, v_e2), 4596373779694328218u) != 0u) && (wuffs_softfloat__arith__f64_lt(&self->private_data.f_sf, wuffs_softfloat__arith__f64_sub(&self->private_data.f_sf, v_e1, v_e3), 4596373779694328218u) != 0u)) {
+    return 1u;
+  } else if (wuffs_softfloat__arith__f64_lt(&self->private_data.f_sf, wuffs_softfloat__arith__f64_sub(&self->private_data.f_sf, v_e2, v_e3), 4581421828931458171u) != 0u) {
+    return 2u;
+  }
+  return 3u;
+}
+
+// -------- func brotli.encoder.should_use_complex_static_context_map
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint32_t
+wuffs_brotli__encoder__should_use_complex_static_context_map(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    uint64_t a_start_pos,
+    uint64_t a_length) {
+  uint64_t v_start_pos = 0;
+  uint64_t v_end_pos = 0;
+  uint64_t v_stride_end_pos = 0;
+  uint64_t v_pos = 0;
+  uint32_t v_total = 0;
+  uint8_t v_prev1 = 0;
+  uint8_t v_prev2 = 0;
+  uint8_t v_literal = 0;
+  uint32_t v_context = 0;
+  uint32_t v_i = 0;
+  uint64_t v_e0 = 0;
+  uint64_t v_e1 = 0;
+  uint64_t v_e2 = 0;
+
+  if (self->private_impl.f_size_hint < 1048576u) {
+    return 0u;
+  }
+  v_start_pos = a_start_pos;
+  v_end_pos = ((uint64_t)(v_start_pos + a_length));
+  v_i = 0u;
+  while (v_i < 448u) {
+    self->private_data.f_ctx_histo[v_i] = 0u;
+    v_i += 1u;
+  }
+  while (((uint64_t)(v_start_pos + 64u)) <= v_end_pos) {
+    v_stride_end_pos = ((uint64_t)(v_start_pos + 64u));
+    v_prev2 = wuffs_brotli__encoder__rb_byte(self, a_wb, v_start_pos);
+    v_prev1 = wuffs_brotli__encoder__rb_byte(self, a_wb, ((uint64_t)(v_start_pos + 1u)));
+    v_pos = ((uint64_t)(v_start_pos + 2u));
+    while (v_pos < v_stride_end_pos) {
+      v_literal = wuffs_brotli__encoder__rb_byte(self, a_wb, v_pos);
+      v_context = ((uint32_t)(WUFFS_BROTLI__STATIC_CONTEXT_MAP_COMPLEX_UTF8[((uint8_t)(((uint8_t)(WUFFS_BROTLI__CONTEXT_LOOKUP[(1024u + ((uint32_t)(v_prev1)))] | WUFFS_BROTLI__CONTEXT_LOOKUP[(1280u + ((uint32_t)(v_prev2)))])) & 63u))]));
+      v_total += 1u;
+      self->private_data.f_ctx_histo[((uint8_t)(((uint8_t)(v_literal >> 3u)) & 31u))] += 1u;
+      self->private_data.f_ctx_histo[((32u + (v_context << 5u) + ((uint32_t)(((uint8_t)(v_literal >> 3u))))) & 511u)] += 1u;
+      v_prev2 = v_prev1;
+      v_prev1 = v_literal;
+      v_pos += 1u;
+    }
+    v_start_pos += 4096u;
+  }
+  v_e1 = wuffs_brotli__encoder__estimate_entropy(self, 0u, 32u);
+  v_e2 = 0u;
+  v_i = 0u;
+  while (v_i < 13u) {
+    v_e2 = wuffs_softfloat__arith__f64_add(&self->private_data.f_sf, v_e2, wuffs_brotli__encoder__estimate_entropy(self, (32u + (v_i << 5u)), 32u));
+    v_i += 1u;
+  }
+  v_e0 = wuffs_softfloat__arith__f64_div(&self->private_data.f_sf, 4607182418800017408u, wuffs_softfloat__arith__f64_from_u32(&self->private_data.f_sf, v_total));
+  v_e1 = wuffs_softfloat__arith__f64_mul(&self->private_data.f_sf, v_e1, v_e0);
+  v_e2 = wuffs_softfloat__arith__f64_mul(&self->private_data.f_sf, v_e2, v_e0);
+  if ((wuffs_softfloat__arith__f64_gt(&self->private_data.f_sf, v_e2, 4613937818241073152u) != 0u) || (wuffs_softfloat__arith__f64_lt(&self->private_data.f_sf, wuffs_softfloat__arith__f64_sub(&self->private_data.f_sf, v_e1, v_e2), 4596373779694328218u) != 0u)) {
+    return 0u;
+  }
+  return 13u;
+}
+
+// -------- func brotli.encoder.decide_over_literal_context_modeling
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint32_t
+wuffs_brotli__encoder__decide_over_literal_context_modeling(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    uint64_t a_start_pos,
+    uint64_t a_length) {
+  uint64_t v_start_pos = 0;
+  uint64_t v_end_pos = 0;
+  uint64_t v_stride_end_pos = 0;
+  uint64_t v_pos = 0;
+  uint32_t v_prev = 0;
+  uint32_t v_lit_lut = 0;
+  uint32_t v_i = 0;
+
+  if ((self->private_impl.f_quality < 5u) || (a_length < 64u)) {
+    return 1u;
+  }
+  v_i = wuffs_brotli__encoder__should_use_complex_static_context_map(self, a_wb, a_start_pos, a_length);
+  if (v_i != 0u) {
+    return 13u;
+  }
+  v_start_pos = a_start_pos;
+  v_end_pos = ((uint64_t)(v_start_pos + a_length));
+  v_i = 0u;
+  while (v_i < 9u) {
+    self->private_data.f_ctx_histo[v_i] = 0u;
+    v_i += 1u;
+  }
+  while (((uint64_t)(v_start_pos + 64u)) <= v_end_pos) {
+    v_stride_end_pos = ((uint64_t)(v_start_pos + 64u));
+    v_prev = (wuffs_brotli__encoder__utf8_prefix_lut(self, wuffs_brotli__encoder__rb_byte(self, a_wb, v_start_pos)) * 3u);
+    v_pos = ((uint64_t)(v_start_pos + 1u));
+    while (v_pos < v_stride_end_pos) {
+      v_lit_lut = wuffs_brotli__encoder__utf8_prefix_lut(self, wuffs_brotli__encoder__rb_byte(self, a_wb, v_pos));
+      self->private_data.f_ctx_histo[((v_prev + v_lit_lut) & 511u)] += 1u;
+      v_prev = (v_lit_lut * 3u);
+      v_pos += 1u;
+    }
+    v_start_pos += 4096u;
+  }
+  v_i = wuffs_brotli__encoder__choose_context_map(self);
+  return v_i;
+}
+
+// -------- func brotli.encoder.utf8_prefix_lut
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint32_t
+wuffs_brotli__encoder__utf8_prefix_lut(
+    const wuffs_brotli__encoder* self,
+    uint8_t a_b) {
+  if (a_b < 128u) {
+    return 0u;
+  } else if (a_b < 192u) {
+    return 0u;
+  } else if (a_b < 224u) {
+    return 1u;
+  }
+  return 2u;
+}
+
+// -------- func brotli.encoder.should_compress
+
+WUFFS_BASE__GENERATED_C_CODE
+static bool
+wuffs_brotli__encoder__should_compress(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    uint64_t a_last_flush_pos,
+    uint64_t a_bytes,
+    uint64_t a_num_literals,
+    uint64_t a_num_commands) {
+  uint64_t v_bit_cost_threshold = 0;
+  uint64_t v_t = 0;
+  uint32_t v_pos = 0;
+  uint64_t v_i = 0;
+
+  if (a_bytes <= 2u) {
+    return false;
+  }
+  if (a_num_commands < ((a_bytes >> 8u) + 2u)) {
+    if (wuffs_softfloat__arith__f64_gt(&self->private_data.f_sf, wuffs_softfloat__arith__f64_from_u64(&self->private_data.f_sf, a_num_literals), wuffs_softfloat__arith__f64_mul(&self->private_data.f_sf, 4607092346807469998u, wuffs_softfloat__arith__f64_from_u64(&self->private_data.f_sf, a_bytes))) != 0u) {
+      v_i = 0u;
+      while (v_i < 256u) {
+        self->private_data.f_ctx_histo[v_i] = 0u;
+        v_i += 1u;
+      }
+      v_bit_cost_threshold = wuffs_softfloat__arith__f64_mul(&self->private_data.f_sf, wuffs_softfloat__arith__f64_mul(&self->private_data.f_sf, wuffs_softfloat__arith__f64_from_u64(&self->private_data.f_sf, a_bytes), 4620603145689581486u), 4590207312512236308u);
+      v_t = (((uint64_t)(a_bytes + 12u)) / 13u);
+      v_pos = ((uint32_t)(a_last_flush_pos));
+      v_i = 0u;
+      while (v_i < v_t) {
+        self->private_data.f_ctx_histo[wuffs_brotli__encoder__rb_byte(self, a_wb, ((uint64_t)(v_pos)))] += 1u;
+        v_pos += 13u;
+        v_i += 1u;
+      }
+      if (wuffs_softfloat__arith__f64_gt(&self->private_data.f_sf, wuffs_brotli__encoder__ctx_histo_bits_entropy(self), v_bit_cost_threshold) != 0u) {
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
+// -------- func brotli.encoder.ctx_histo_bits_entropy
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint64_t
+wuffs_brotli__encoder__ctx_histo_bits_entropy(
+    const wuffs_brotli__encoder* self) {
+  uint64_t v_sum = 0;
+  uint64_t v_retval = 0;
+  uint64_t v_p = 0;
+  uint32_t v_i = 0;
+
+  v_i = 0u;
+  while (v_i < 256u) {
+    v_p = ((uint64_t)(self->private_data.f_ctx_histo[v_i]));
+    v_sum += v_p;
+    v_retval = wuffs_softfloat__arith__f64_sub(&self->private_data.f_sf, v_retval, wuffs_softfloat__arith__f64_mul(&self->private_data.f_sf, wuffs_softfloat__arith__f64_from_u64(&self->private_data.f_sf, v_p), wuffs_brotli__bit_cost__fast_log2(&self->private_data.f_bc, v_p)));
+    v_i += 1u;
+  }
+  if (v_sum != 0u) {
+    v_retval = wuffs_softfloat__arith__f64_add(&self->private_data.f_sf, v_retval, wuffs_softfloat__arith__f64_mul(&self->private_data.f_sf, wuffs_softfloat__arith__f64_from_u64(&self->private_data.f_sf, v_sum), wuffs_brotli__bit_cost__fast_log2(&self->private_data.f_bc, v_sum)));
+  }
+  if (wuffs_softfloat__arith__f64_lt(&self->private_data.f_sf, v_retval, wuffs_softfloat__arith__f64_from_u64(&self->private_data.f_sf, v_sum)) != 0u) {
+    v_retval = wuffs_softfloat__arith__f64_from_u64(&self->private_data.f_sf, v_sum);
+  }
+  return v_retval;
+}
+
+// -------- func brotli.encoder.write_meta_block_internal
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__write_meta_block_internal(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    uint64_t a_last_flush_pos,
+    uint64_t a_bytes,
+    bool a_is_last,
+    uint8_t a_prev_byte,
+    uint8_t a_prev_byte2,
+    wuffs_base__slice_u8 a_s) {
+  uint64_t v_wrapped_last_flush_pos = 0;
+  uint16_t v_last_bytes = 0;
+  uint64_t v_last_bytes_bits = 0;
+  uint32_t v_num_literal_contexts = 0;
+  uint32_t v_i = 0;
+  bool v_compress = false;
+
+  v_wrapped_last_flush_pos = wuffs_brotli__encoder__wrap_position(self, a_last_flush_pos);
+  if (a_bytes == 0u) {
+    wuffs_brotli__encoder__write_bits(self, 2u, 3u, a_s);
+    self->private_impl.f_bw_ix = (((uint64_t)(self->private_impl.f_bw_ix + 7u)) & 18446744073709551608u);
+    return wuffs_base__make_empty_struct();
+  }
+  v_compress = wuffs_brotli__encoder__should_compress(self,
+      a_wb,
+      a_last_flush_pos,
+      a_bytes,
+      self->private_impl.f_num_lits,
+      self->private_impl.f_num_cmds);
+  if ( ! v_compress) {
+    v_i = 0u;
+    while (v_i < 4u) {
+      self->private_impl.f_dist_cache[v_i] = self->private_impl.f_saved_dist_cache[v_i];
+      v_i += 1u;
+    }
+    wuffs_brotli__encoder__store_uncompressed_meta_block(self,
+        a_is_last,
+        a_wb,
+        v_wrapped_last_flush_pos,
+        a_bytes,
+        a_s);
+    return wuffs_base__make_empty_struct();
+  }
+  v_last_bytes = wuffs_brotli__encoder__peek_u16(self, a_s, 0u);
+  v_last_bytes_bits = self->private_impl.f_bw_ix;
+  if (self->private_impl.f_quality <= 2u) {
+    wuffs_brotli__encoder__store_meta_block_fast(self,
+        a_wb,
+        v_wrapped_last_flush_pos,
+        a_bytes,
+        a_is_last,
+        self->private_impl.f_num_cmds,
+        a_s);
+  } else if (self->private_impl.f_quality < 4u) {
+    wuffs_brotli__encoder__store_meta_block_trivial(self,
+        a_wb,
+        v_wrapped_last_flush_pos,
+        a_bytes,
+        a_is_last,
+        self->private_impl.f_num_cmds,
+        a_s);
+  } else {
+    v_num_literal_contexts = 1u;
+    if (self->private_impl.f_p_disable_lcm == 0u) {
+      v_num_literal_contexts = wuffs_brotli__encoder__decide_over_literal_context_modeling(self, a_wb, v_wrapped_last_flush_pos, a_bytes);
+    }
+    wuffs_brotli__encoder__build_meta_block_greedy(self,
+        a_wb,
+        v_wrapped_last_flush_pos,
+        a_prev_byte,
+        a_prev_byte2,
+        v_num_literal_contexts,
+        self->private_impl.f_num_cmds);
+    wuffs_brotli__encoder__optimize_histograms(self, a_wb, self->private_impl.f_dist_alphabet_size_limit);
+    wuffs_brotli__encoder__store_meta_block(self,
+        a_wb,
+        v_wrapped_last_flush_pos,
+        a_bytes,
+        a_prev_byte,
+        a_prev_byte2,
+        a_is_last,
+        self->private_impl.f_num_cmds,
+        a_s);
+  }
+  if (((uint64_t)(a_bytes + 4u)) < (self->private_impl.f_bw_ix >> 3u)) {
+    v_i = 0u;
+    while (v_i < 4u) {
+      self->private_impl.f_dist_cache[v_i] = self->private_impl.f_saved_dist_cache[v_i];
+      v_i += 1u;
+    }
+    wuffs_brotli__encoder__poke_u16(self, a_s, 0u, v_last_bytes);
+    self->private_impl.f_bw_ix = v_last_bytes_bits;
+    wuffs_brotli__encoder__store_uncompressed_meta_block(self,
+        a_is_last,
+        a_wb,
+        v_wrapped_last_flush_pos,
+        a_bytes,
+        a_s);
+  }
+  return wuffs_base__make_empty_struct();
+}
+
+// -------- func brotli.encoder.encode_data
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__status
+wuffs_brotli__encoder__encode_data(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    bool a_is_last,
+    bool a_force_flush) {
+  wuffs_base__status v_status = wuffs_base__make_status(NULL);
+  uint64_t v_delta = 0;
+  uint64_t v_bytes = 0;
+  uint64_t v_wrapped_last_processed_pos = 0;
+  uint64_t v_n = 0;
+  uint64_t v_max_length = 0;
+  uint64_t v_processed_bytes = 0;
+  bool v_next_input_fits_metablock = false;
+  bool v_should_flush = false;
+  uint64_t v_metablock_size = 0;
+  uint64_t v_storage_len = 0;
+  uint64_t v_ix = 0;
+  uint32_t v_i = 0;
+  bool v_wrapped = false;
+
+  v_delta = ((uint64_t)(self->private_impl.f_input_pos - self->private_impl.f_last_processed_pos));
+  v_bytes = (v_delta & 4294967295u);
+  v_wrapped_last_processed_pos = wuffs_brotli__encoder__wrap_position(self, self->private_impl.f_last_processed_pos);
+  if (v_delta == 0u) {
+    if (self->private_impl.f_rb_cur_size == 0u) {
+      if (a_is_last) {
+        self->private_impl.f_last_bytes |= ((((uint32_t)(3u)) << self->private_impl.f_last_bytes_bits) & 65535u);
+        if (self->private_impl.f_last_bytes_bits <= 13u) {
+          self->private_impl.f_last_bytes_bits += 2u;
+        }
+        self->private_data.f_tiny_buf[0u] = ((uint8_t)(self->private_impl.f_last_bytes));
+        self->private_data.f_tiny_buf[1u] = ((uint8_t)((self->private_impl.f_last_bytes >> 8u)));
+        self->private_impl.f_out_in_tiny_buf = true;
+        self->private_impl.f_out_pos = 0u;
+        self->private_impl.f_out_len = ((uint64_t)(((self->private_impl.f_last_bytes_bits + 7u) >> 3u)));
+      }
+      return wuffs_base__make_status(NULL);
+    } else if ( ! a_is_last &&  ! a_force_flush) {
+      return wuffs_base__make_status(NULL);
+    }
+  }
+  if (self->private_impl.f_is_last_block_emitted) {
+    return wuffs_base__make_status(wuffs_brotli__error__internal_error_inconsistent_encoder_state);
+  }
+  if (a_is_last) {
+    self->private_impl.f_is_last_block_emitted = true;
+  }
+  if (v_delta > (((uint64_t)(1u)) << self->private_impl.f_lgblock)) {
+    return wuffs_base__make_status(wuffs_brotli__error__internal_error_inconsistent_encoder_state);
+  }
+  wuffs_brotli__encoder__hasher_setup(self,
+      a_wb,
+      v_wrapped_last_processed_pos,
+      v_bytes,
+      a_is_last);
+  wuffs_brotli__encoder__hasher_stitch_to_previous_block(self, a_wb, v_bytes, v_wrapped_last_processed_pos);
+  if ((self->private_impl.f_num_cmds > 0u) && (self->private_impl.f_last_insert_len == 0u)) {
+    v_n = wuffs_brotli__encoder__extend_last_command(self, a_wb, v_bytes, v_wrapped_last_processed_pos);
+    v_bytes -= v_n;
+    v_wrapped_last_processed_pos = (((uint64_t)(v_wrapped_last_processed_pos + v_n)) & 4294967295u);
+  }
+  v_status = wuffs_brotli__encoder__create_backward_references(self, a_wb, v_bytes, v_wrapped_last_processed_pos);
+  if ( ! wuffs_base__status__is_ok(&v_status)) {
+    return wuffs_private_impl__status__ensure_not_a_suspension(v_status);
+  }
+  v_max_length = wuffs_brotli__encoder__max_metablock_size(self, self->private_impl.f_lgwin, self->private_impl.f_lgblock);
+  v_processed_bytes = ((uint64_t)(self->private_impl.f_input_pos - self->private_impl.f_last_flush_pos));
+  v_next_input_fits_metablock = (((uint64_t)(v_processed_bytes + (((uint64_t)(1u)) << self->private_impl.f_lgblock))) <= v_max_length);
+  v_should_flush = ((self->private_impl.f_quality < 4u) && (((uint64_t)(self->private_impl.f_num_lits + self->private_impl.f_num_cmds)) >= 12287u));
+  if ( ! a_is_last &&
+      ! a_force_flush &&
+      ! v_should_flush &&
+      v_next_input_fits_metablock &&
+      (self->private_impl.f_num_lits < (v_max_length / 8u)) &&
+      (self->private_impl.f_num_cmds < (v_max_length / 8u))) {
+    v_wrapped = wuffs_brotli__encoder__update_last_processed_pos(self);
+    if (v_wrapped) {
+      self->private_impl.f_h_is_prepared = false;
+    }
+    return wuffs_base__make_status(NULL);
+  }
+  if (self->private_impl.f_last_insert_len > 0u) {
+    if (self->private_impl.f_num_cmds >= self->private_impl.f_cmds_cap) {
+      return wuffs_base__make_status(wuffs_brotli__error__internal_error_inconsistent_encoder_state);
+    }
+    wuffs_brotli__encoder__init_insert_command(self, a_wb, self->private_impl.f_num_cmds, self->private_impl.f_last_insert_len);
+    self->private_impl.f_num_cmds += 1u;
+    self->private_impl.f_num_lits += self->private_impl.f_last_insert_len;
+    self->private_impl.f_last_insert_len = 0u;
+  }
+  if ( ! a_is_last && (self->private_impl.f_input_pos == self->private_impl.f_last_flush_pos)) {
+    return wuffs_base__make_status(NULL);
+  }
+  v_metablock_size = (((uint64_t)(self->private_impl.f_input_pos - self->private_impl.f_last_flush_pos)) & 4294967295u);
+  v_storage_len = ((2u * v_metablock_size) + 503u + 16u);
+  if ((v_storage_len > self->private_impl.f_rb_off) || (self->private_impl.f_rb_off > ((uint64_t)(a_wb.len)))) {
+    return wuffs_base__make_status(wuffs_brotli__error__internal_error_inconsistent_encoder_state);
+  }
+  wuffs_brotli__encoder__set_byte(self, a_wb, 0u, ((uint8_t)(self->private_impl.f_last_bytes)));
+  wuffs_brotli__encoder__set_byte(self, a_wb, 1u, ((uint8_t)((self->private_impl.f_last_bytes >> 8u))));
+  self->private_impl.f_bw_ix = ((uint64_t)(self->private_impl.f_last_bytes_bits));
+  if (v_storage_len > ((uint64_t)(a_wb.len))) {
+    return wuffs_base__make_status(wuffs_brotli__error__internal_error_inconsistent_encoder_state);
+  }
+  wuffs_brotli__encoder__write_meta_block_internal(self,
+      a_wb,
+      self->private_impl.f_last_flush_pos,
+      v_metablock_size,
+      a_is_last,
+      self->private_impl.f_prev_byte,
+      self->private_impl.f_prev_byte2,
+      wuffs_base__slice_u8__subslice_j(a_wb, v_storage_len));
+  v_ix = (self->private_impl.f_bw_ix >> 3u);
+  self->private_impl.f_last_bytes = ((uint32_t)(wuffs_brotli__encoder__byte_at(self, a_wb, v_ix)));
+  self->private_impl.f_last_bytes_bits = ((uint32_t)((self->private_impl.f_bw_ix & 7u)));
+  self->private_impl.f_last_flush_pos = self->private_impl.f_input_pos;
+  v_wrapped = wuffs_brotli__encoder__update_last_processed_pos(self);
+  if (v_wrapped) {
+    self->private_impl.f_h_is_prepared = false;
+  }
+  if (self->private_impl.f_last_flush_pos > 0u) {
+    self->private_impl.f_prev_byte = wuffs_brotli__encoder__rb_byte(self, a_wb, (((uint64_t)((self->private_impl.f_last_flush_pos & 4294967295u) - 1u)) & 4294967295u));
+  }
+  if (self->private_impl.f_last_flush_pos > 1u) {
+    self->private_impl.f_prev_byte2 = wuffs_brotli__encoder__rb_byte(self, a_wb, (((uint64_t)(self->private_impl.f_last_flush_pos - 2u)) & 4294967295u));
+  }
+  self->private_impl.f_num_cmds = 0u;
+  self->private_impl.f_num_lits = 0u;
+  v_i = 0u;
+  while (v_i < 4u) {
+    self->private_impl.f_saved_dist_cache[v_i] = self->private_impl.f_dist_cache[v_i];
+    v_i += 1u;
+  }
+  self->private_impl.f_out_in_tiny_buf = false;
+  self->private_impl.f_out_pos = 0u;
+  self->private_impl.f_out_len = v_ix;
+  return wuffs_base__make_status(NULL);
 }
 
 // -------- func brotli.encoder.set_depth
@@ -66357,16 +79021,16 @@ wuffs_brotli__encoder__set_depth(
   v_stack[0u] = 4294967295u;
   v_p = a_p0;
   while (true) {
-    if (self->private_data.f_tree_left[(v_p & 1023u)] != 65535u) {
+    if (self->private_data.f_tree_left[(v_p & 2047u)] != 65535u) {
       if ((v_level >= a_max_depth) || (v_level >= 15u)) {
         return false;
       }
       v_level += 1u;
-      v_stack[v_level] = ((uint32_t)(self->private_data.f_tree_right[(v_p & 1023u)]));
-      v_p = ((uint32_t)(self->private_data.f_tree_left[(v_p & 1023u)]));
+      v_stack[v_level] = ((uint32_t)(self->private_data.f_tree_right[(v_p & 2047u)]));
+      v_p = ((uint32_t)(self->private_data.f_tree_left[(v_p & 2047u)]));
       continue;
     }
-    v_v = ((uint64_t)(self->private_data.f_tree_right[(v_p & 1023u)]));
+    v_v = ((uint64_t)(self->private_data.f_tree_right[(v_p & 2047u)]));
     if (v_v < ((uint64_t)(a_depth.len))) {
       a_depth.ptr[v_v] = ((uint8_t)(v_level));
     }
@@ -66418,29 +79082,29 @@ wuffs_brotli__encoder__sort_huffman_tree_items(
   if (a_n < 13u) {
     v_i = 1u;
     while (v_i < a_n) {
-      v_tc = self->private_data.f_tree_count[(v_i & 1023u)];
-      v_tl = self->private_data.f_tree_left[(v_i & 1023u)];
-      v_tr = self->private_data.f_tree_right[(v_i & 1023u)];
+      v_tc = self->private_data.f_tree_count[(v_i & 2047u)];
+      v_tl = self->private_data.f_tree_left[(v_i & 2047u)];
+      v_tr = self->private_data.f_tree_right[(v_i & 2047u)];
       v_k = v_i;
       v_j = ((uint32_t)(v_i - 1u));
       while (wuffs_brotli__encoder__huffman_tree_less(self,
           v_tc,
           v_tr,
-          self->private_data.f_tree_count[(v_j & 1023u)],
-          self->private_data.f_tree_right[(v_j & 1023u)],
+          self->private_data.f_tree_count[(v_j & 2047u)],
+          self->private_data.f_tree_right[(v_j & 2047u)],
           a_tie_break)) {
-        self->private_data.f_tree_count[(v_k & 1023u)] = self->private_data.f_tree_count[(v_j & 1023u)];
-        self->private_data.f_tree_left[(v_k & 1023u)] = self->private_data.f_tree_left[(v_j & 1023u)];
-        self->private_data.f_tree_right[(v_k & 1023u)] = self->private_data.f_tree_right[(v_j & 1023u)];
+        self->private_data.f_tree_count[(v_k & 2047u)] = self->private_data.f_tree_count[(v_j & 2047u)];
+        self->private_data.f_tree_left[(v_k & 2047u)] = self->private_data.f_tree_left[(v_j & 2047u)];
+        self->private_data.f_tree_right[(v_k & 2047u)] = self->private_data.f_tree_right[(v_j & 2047u)];
         v_k = v_j;
         if (v_j == 0u) {
           break;
         }
         v_j -= 1u;
       }
-      self->private_data.f_tree_count[(v_k & 1023u)] = v_tc;
-      self->private_data.f_tree_left[(v_k & 1023u)] = v_tl;
-      self->private_data.f_tree_right[(v_k & 1023u)] = v_tr;
+      self->private_data.f_tree_count[(v_k & 2047u)] = v_tc;
+      self->private_data.f_tree_left[(v_k & 2047u)] = v_tl;
+      self->private_data.f_tree_right[(v_k & 2047u)] = v_tr;
       v_i += 1u;
     }
     return wuffs_base__make_empty_struct();
@@ -66454,26 +79118,26 @@ wuffs_brotli__encoder__sort_huffman_tree_items(
     v_i = v_gap;
     while (v_i < a_n) {
       v_j = v_i;
-      v_tc = self->private_data.f_tree_count[(v_i & 1023u)];
-      v_tl = self->private_data.f_tree_left[(v_i & 1023u)];
-      v_tr = self->private_data.f_tree_right[(v_i & 1023u)];
+      v_tc = self->private_data.f_tree_count[(v_i & 2047u)];
+      v_tl = self->private_data.f_tree_left[(v_i & 2047u)];
+      v_tr = self->private_data.f_tree_right[(v_i & 2047u)];
       while (v_j >= v_gap) {
         if ( ! wuffs_brotli__encoder__huffman_tree_less(self,
             v_tc,
             v_tr,
-            self->private_data.f_tree_count[(((uint32_t)(v_j - v_gap)) & 1023u)],
-            self->private_data.f_tree_right[(((uint32_t)(v_j - v_gap)) & 1023u)],
+            self->private_data.f_tree_count[(((uint32_t)(v_j - v_gap)) & 2047u)],
+            self->private_data.f_tree_right[(((uint32_t)(v_j - v_gap)) & 2047u)],
             a_tie_break)) {
           break;
         }
-        self->private_data.f_tree_count[(v_j & 1023u)] = self->private_data.f_tree_count[(((uint32_t)(v_j - v_gap)) & 1023u)];
-        self->private_data.f_tree_left[(v_j & 1023u)] = self->private_data.f_tree_left[(((uint32_t)(v_j - v_gap)) & 1023u)];
-        self->private_data.f_tree_right[(v_j & 1023u)] = self->private_data.f_tree_right[(((uint32_t)(v_j - v_gap)) & 1023u)];
+        self->private_data.f_tree_count[(v_j & 2047u)] = self->private_data.f_tree_count[(((uint32_t)(v_j - v_gap)) & 2047u)];
+        self->private_data.f_tree_left[(v_j & 2047u)] = self->private_data.f_tree_left[(((uint32_t)(v_j - v_gap)) & 2047u)];
+        self->private_data.f_tree_right[(v_j & 2047u)] = self->private_data.f_tree_right[(((uint32_t)(v_j - v_gap)) & 2047u)];
         v_j -= v_gap;
       }
-      self->private_data.f_tree_count[(v_j & 1023u)] = v_tc;
-      self->private_data.f_tree_left[(v_j & 1023u)] = v_tl;
-      self->private_data.f_tree_right[(v_j & 1023u)] = v_tr;
+      self->private_data.f_tree_count[(v_j & 2047u)] = v_tc;
+      self->private_data.f_tree_left[(v_j & 2047u)] = v_tl;
+      self->private_data.f_tree_right[(v_j & 2047u)] = v_tr;
       v_i += 1u;
     }
     v_g += 1u;
@@ -66488,9 +79152,9 @@ static wuffs_base__empty_struct
 wuffs_brotli__encoder__set_sentinel(
     wuffs_brotli__encoder* self,
     uint32_t a_i) {
-  self->private_data.f_tree_count[(a_i & 1023u)] = 4294967295u;
-  self->private_data.f_tree_left[(a_i & 1023u)] = 65535u;
-  self->private_data.f_tree_right[(a_i & 1023u)] = 65535u;
+  self->private_data.f_tree_count[(a_i & 2047u)] = 4294967295u;
+  self->private_data.f_tree_left[(a_i & 2047u)] = 65535u;
+  self->private_data.f_tree_right[(a_i & 2047u)] = 65535u;
   return wuffs_base__make_empty_struct();
 }
 
@@ -66514,14 +79178,14 @@ wuffs_brotli__encoder__merge_huffman_nodes(
   v_j = ((uint32_t)(a_n + 1u));
   v_k = ((uint32_t)(a_n - 1u));
   while (v_k != 0u) {
-    if (self->private_data.f_tree_count[(v_i & 1023u)] <= self->private_data.f_tree_count[(v_j & 1023u)]) {
+    if (self->private_data.f_tree_count[(v_i & 2047u)] <= self->private_data.f_tree_count[(v_j & 2047u)]) {
       v_left = v_i;
       v_i += 1u;
     } else {
       v_left = v_j;
       v_j += 1u;
     }
-    if (self->private_data.f_tree_count[(v_i & 1023u)] <= self->private_data.f_tree_count[(v_j & 1023u)]) {
+    if (self->private_data.f_tree_count[(v_i & 2047u)] <= self->private_data.f_tree_count[(v_j & 2047u)]) {
       v_right = v_i;
       v_i += 1u;
     } else {
@@ -66529,9 +79193,9 @@ wuffs_brotli__encoder__merge_huffman_nodes(
       v_j += 1u;
     }
     v_j_end = ((uint32_t)(((uint32_t)(a_n * 2u)) - v_k));
-    self->private_data.f_tree_count[(v_j_end & 1023u)] = ((uint32_t)(self->private_data.f_tree_count[(v_left & 1023u)] + self->private_data.f_tree_count[(v_right & 1023u)]));
-    self->private_data.f_tree_left[(v_j_end & 1023u)] = ((uint16_t)(v_left));
-    self->private_data.f_tree_right[(v_j_end & 1023u)] = ((uint16_t)(v_right));
+    self->private_data.f_tree_count[(v_j_end & 2047u)] = ((uint32_t)(self->private_data.f_tree_count[(v_left & 2047u)] + self->private_data.f_tree_count[(v_right & 2047u)]));
+    self->private_data.f_tree_left[(v_j_end & 2047u)] = ((uint16_t)(v_left));
+    self->private_data.f_tree_right[(v_j_end & 2047u)] = ((uint16_t)(v_right));
     wuffs_brotli__encoder__set_sentinel(self, ((uint32_t)(v_j_end + 1u)));
     v_k -= 1u;
   }
@@ -66564,13 +79228,15 @@ wuffs_brotli__encoder__create_huffman_tree(
       v_i -= 1u;
       if (a_src == 0u) {
         v_count = self->private_data.f_cmd_histo[(((uint64_t)(((uint64_t)(a_off)) + v_i)) & 127u)];
-      } else {
+      } else if (a_src == 1u) {
         v_count = self->private_data.f_cl_histo[(((uint64_t)(((uint64_t)(a_off)) + v_i)) & 31u)];
+      } else {
+        v_count = self->private_data.f_huff_histo[(((uint64_t)(((uint64_t)(a_off)) + v_i)) & 1023u)];
       }
       if (v_count != 0u) {
-        self->private_data.f_tree_count[(v_n & 1023u)] = wuffs_base__u32__max(v_count, v_count_limit);
-        self->private_data.f_tree_left[(v_n & 1023u)] = 65535u;
-        self->private_data.f_tree_right[(v_n & 1023u)] = ((uint16_t)(v_i));
+        self->private_data.f_tree_count[(v_n & 2047u)] = wuffs_base__u32__max(v_count, v_count_limit);
+        self->private_data.f_tree_left[(v_n & 2047u)] = 65535u;
+        self->private_data.f_tree_right[(v_n & 2047u)] = ((uint16_t)(v_i));
         v_n += 1u;
       }
     }
@@ -66669,6 +79335,8 @@ wuffs_brotli__encoder__convert_bit_depths_to_symbols(
           self->private_data.f_cmd_bits[(((uint64_t)(v_i + 64u)) & 127u)] = v_r;
         } else if (a_dst == 2u) {
           self->private_data.f_cl_bits[(v_i & 31u)] = v_r;
+        } else if (a_dst == 4u) {
+          self->private_data.f_huff_bits[(v_i & 1023u)] = v_r;
         } else {
           self->private_data.f_lit_bits[(v_i & 255u)] = v_r;
         }
@@ -67103,12 +79771,12 @@ wuffs_brotli__encoder__build_and_store_huffman_tree_fast(
       v_h = self->private_data.f_histogram[(v_l & 255u)];
       if (v_h != 0u) {
         if (v_h >= v_count_limit) {
-          self->private_data.f_tree_count[(v_n & 1023u)] = v_h;
+          self->private_data.f_tree_count[(v_n & 2047u)] = v_h;
         } else {
-          self->private_data.f_tree_count[(v_n & 1023u)] = v_count_limit;
+          self->private_data.f_tree_count[(v_n & 2047u)] = v_count_limit;
         }
-        self->private_data.f_tree_left[(v_n & 1023u)] = 65535u;
-        self->private_data.f_tree_right[(v_n & 1023u)] = ((uint16_t)(v_l));
+        self->private_data.f_tree_left[(v_n & 2047u)] = 65535u;
+        self->private_data.f_tree_right[(v_n & 2047u)] = ((uint16_t)(v_l));
         v_n += 1u;
       }
     }
@@ -68705,6 +81373,1366 @@ wuffs_brotli__encoder__compress_fragment_two_pass(
   return wuffs_base__make_empty_struct();
 }
 
+// -------- func brotli.encoder.hasher_quickly_bucket_bits
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint32_t
+wuffs_brotli__encoder__hasher_quickly_bucket_bits(
+    const wuffs_brotli__encoder* self) {
+  if (self->private_impl.f_hasher_type == 4u) {
+    return 17u;
+  } else if (self->private_impl.f_hasher_type == 54u) {
+    return 20u;
+  }
+  return 16u;
+}
+
+// -------- func brotli.encoder.hasher_quickly_sweep
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint32_t
+wuffs_brotli__encoder__hasher_quickly_sweep(
+    const wuffs_brotli__encoder* self) {
+  if (self->private_impl.f_hasher_type == 2u) {
+    return 1u;
+  } else if (self->private_impl.f_hasher_type == 3u) {
+    return 2u;
+  }
+  return 4u;
+}
+
+// -------- func brotli.encoder.hasher_type_length
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint64_t
+wuffs_brotli__encoder__hasher_type_length(
+    const wuffs_brotli__encoder* self) {
+  if ((self->private_impl.f_hasher_type == 5u) ||
+      (self->private_impl.f_hasher_type == 58u) ||
+      (self->private_impl.f_hasher_type == 40u) ||
+      (self->private_impl.f_hasher_type == 41u) ||
+      (self->private_impl.f_hasher_type == 42u)) {
+    return 4u;
+  }
+  return 8u;
+}
+
+// -------- func brotli.encoder.fc_num_last_distances
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint32_t
+wuffs_brotli__encoder__fc_num_last_distances(
+    const wuffs_brotli__encoder* self) {
+  if (self->private_impl.f_hasher_type == 40u) {
+    return 4u;
+  } else if (self->private_impl.f_hasher_type == 41u) {
+    return 10u;
+  }
+  return 16u;
+}
+
+// -------- func brotli.encoder.fc_num_banks_minus_1
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint64_t
+wuffs_brotli__encoder__fc_num_banks_minus_1(
+    const wuffs_brotli__encoder* self) {
+  if (self->private_impl.f_hasher_type == 42u) {
+    return 511u;
+  }
+  return 0u;
+}
+
+// -------- func brotli.encoder.fc_bank_bits
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint32_t
+wuffs_brotli__encoder__fc_bank_bits(
+    const wuffs_brotli__encoder* self) {
+  if (self->private_impl.f_hasher_type == 42u) {
+    return 9u;
+  }
+  return 16u;
+}
+
+// -------- func brotli.encoder.choose_hasher
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__choose_hasher(
+    wuffs_brotli__encoder* self) {
+  uint32_t v_q = 0;
+
+  v_q = self->private_impl.f_quality;
+  self->private_impl.f_h_bucket_bits = 0u;
+  self->private_impl.f_h_block_bits = 0u;
+  self->private_impl.f_h_num_last_distances = 0u;
+  if ((v_q == 4u) && (self->private_impl.f_size_hint >= 1048576u)) {
+    self->private_impl.f_hasher_type = 54u;
+  } else if (v_q < 5u) {
+    self->private_impl.f_hasher_type = v_q;
+  } else if (self->private_impl.f_lgwin <= 16u) {
+    if (v_q < 7u) {
+      self->private_impl.f_hasher_type = 40u;
+    } else if (v_q < 9u) {
+      self->private_impl.f_hasher_type = 41u;
+    } else {
+      self->private_impl.f_hasher_type = 42u;
+    }
+  } else {
+    if ((self->private_impl.f_size_hint >= 1048576u) && (self->private_impl.f_lgwin >= 19u)) {
+      self->private_impl.f_hasher_type = 6u;
+      if (v_q <= 6u) {
+        self->private_impl.f_hasher_type = 68u;
+      }
+      self->private_impl.f_h_bucket_bits = 15u;
+    } else {
+      self->private_impl.f_hasher_type = 5u;
+      if (v_q <= 6u) {
+        self->private_impl.f_hasher_type = 58u;
+      }
+      self->private_impl.f_h_bucket_bits = 15u;
+      if (v_q < 7u) {
+        self->private_impl.f_h_bucket_bits = 14u;
+      }
+    }
+    self->private_impl.f_h_block_bits = (v_q - 1u);
+    self->private_impl.f_h_num_last_distances = 16u;
+    if (v_q < 7u) {
+      self->private_impl.f_h_num_last_distances = 4u;
+    } else if (v_q < 9u) {
+      self->private_impl.f_h_num_last_distances = 10u;
+    }
+  }
+  return wuffs_base__make_empty_struct();
+}
+
+// -------- func brotli.encoder.hasher_alloc_size
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint64_t
+wuffs_brotli__encoder__hasher_alloc_size(
+    const wuffs_brotli__encoder* self,
+    uint32_t a_htype,
+    uint32_t a_bucket_bits,
+    uint32_t a_block_bits,
+    uint32_t a_i) {
+  uint64_t v_bb = 0;
+
+  if ((a_htype == 2u) || (a_htype == 3u)) {
+    if (a_i == 0u) {
+      return 262144u;
+    }
+  } else if (a_htype == 4u) {
+    if (a_i == 0u) {
+      return 524288u;
+    }
+  } else if (a_htype == 54u) {
+    if (a_i == 0u) {
+      return 4194304u;
+    }
+  } else if ((a_htype == 5u) || (a_htype == 6u)) {
+    v_bb = (((uint64_t)(1u)) << a_bucket_bits);
+    if (a_i == 0u) {
+      return (2u * v_bb);
+    } else if (a_i == 1u) {
+      return (4u * (v_bb << a_block_bits));
+    }
+  } else if ((a_htype == 58u) || (a_htype == 68u)) {
+    v_bb = (((uint64_t)(1u)) << a_bucket_bits);
+    if (a_i == 0u) {
+      return (2u * v_bb);
+    } else if (a_i == 1u) {
+      return (v_bb << a_block_bits);
+    } else if (a_i == 2u) {
+      return (4u * (v_bb << a_block_bits));
+    }
+  } else if ((a_htype == 40u) || (a_htype == 41u)) {
+    if (a_i == 0u) {
+      return 262144u;
+    } else if (a_i == 1u) {
+      return 262144u;
+    }
+  } else if (a_htype == 42u) {
+    if (a_i == 0u) {
+      return 262144u;
+    } else if (a_i == 1u) {
+      return 1048576u;
+    }
+  }
+  return 0u;
+}
+
+// -------- func brotli.encoder.hasher_setup
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__hasher_setup(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    uint64_t a_position,
+    uint64_t a_input_size,
+    bool a_is_last) {
+  bool v_one_shot = false;
+
+  v_one_shot = ((a_position == 0u) && a_is_last);
+  if ( ! self->private_impl.f_h_is_setup) {
+    wuffs_brotli__encoder__choose_hasher(self);
+    self->private_impl.f_dict_num_lookups = 0u;
+    self->private_impl.f_dict_num_matches = 0u;
+    if ((self->private_impl.f_hasher_type == 40u) || (self->private_impl.f_hasher_type == 41u) || (self->private_impl.f_hasher_type == 42u)) {
+      if (self->private_impl.f_quality > 6u) {
+        self->private_impl.f_fc_max_hops = (((uint64_t)(7u)) << (self->private_impl.f_quality - 4u));
+      } else if (self->private_impl.f_quality >= 4u) {
+        self->private_impl.f_fc_max_hops = (((uint64_t)(8u)) << (self->private_impl.f_quality - 4u));
+      }
+    }
+    self->private_impl.f_h_off1 = ((uint64_t)(self->private_impl.f_h_off0 + wuffs_brotli__encoder__hasher_alloc_size(self,
+        self->private_impl.f_hasher_type,
+        self->private_impl.f_h_bucket_bits,
+        self->private_impl.f_h_block_bits,
+        0u)));
+    self->private_impl.f_h_off2 = ((uint64_t)(self->private_impl.f_h_off1 + wuffs_brotli__encoder__hasher_alloc_size(self,
+        self->private_impl.f_hasher_type,
+        self->private_impl.f_h_bucket_bits,
+        self->private_impl.f_h_block_bits,
+        1u)));
+    self->private_impl.f_h_is_prepared = false;
+    self->private_impl.f_h_is_setup = true;
+  }
+  if ( ! self->private_impl.f_h_is_prepared) {
+    wuffs_brotli__encoder__hasher_prepare(self, a_wb, v_one_shot, a_input_size);
+    self->private_impl.f_h_is_prepared = true;
+  }
+  return wuffs_base__make_empty_struct();
+}
+
+// -------- func brotli.encoder.hasher_prepare
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__hasher_prepare(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    bool a_one_shot,
+    uint64_t a_input_size) {
+  wuffs_base__slice_u8 v_data = {0};
+  uint64_t v_i = 0;
+  uint32_t v_j = 0;
+  uint32_t v_key = 0;
+  uint32_t v_sweep = 0;
+  uint64_t v_bsize = 0;
+  uint32_t v_htype = 0;
+  bool v_partial = false;
+
+  v_htype = self->private_impl.f_hasher_type;
+  if (self->private_impl.f_rb_buf_off > ((uint64_t)(a_wb.len))) {
+    return wuffs_base__make_empty_struct();
+  }
+  v_data = wuffs_base__slice_u8__subslice_i(a_wb, self->private_impl.f_rb_buf_off);
+  if ((v_htype == 2u) ||
+      (v_htype == 3u) ||
+      (v_htype == 4u) ||
+      (v_htype == 54u)) {
+    v_bsize = (((uint64_t)(1u)) << wuffs_brotli__encoder__hasher_quickly_bucket_bits(self));
+    v_sweep = wuffs_brotli__encoder__hasher_quickly_sweep(self);
+    if (a_one_shot && (a_input_size <= (v_bsize >> 5u))) {
+      v_i = 0u;
+      while (v_i < a_input_size) {
+        v_key = wuffs_brotli__encoder__hash_quickly(self, v_data, v_i);
+        v_j = 0u;
+        while (v_j < v_sweep) {
+          wuffs_brotli__encoder__poke_u32(self, a_wb, ((uint64_t)(self->private_impl.f_h_off0 + ((uint64_t)(4u * (((uint64_t)(((uint32_t)(v_key + ((uint32_t)(v_j << 3u)))))) & ((uint64_t)(v_bsize - 1u))))))), 0u);
+          v_j += 1u;
+        }
+        v_i += 1u;
+      }
+    } else {
+      wuffs_brotli__encoder__fill_bytes(self,
+          a_wb,
+          self->private_impl.f_h_off0,
+          (4u * v_bsize),
+          0u);
+    }
+  } else if ((v_htype == 5u) ||
+      (v_htype == 6u) ||
+      (v_htype == 58u) ||
+      (v_htype == 68u)) {
+    v_bsize = (((uint64_t)(1u)) << self->private_impl.f_h_bucket_bits);
+    v_partial = (a_one_shot && (a_input_size <= (v_bsize >> 6u)));
+    if (v_partial) {
+      v_i = 0u;
+      while (v_i < a_input_size) {
+        v_key = wuffs_brotli__encoder__hash_longest(self, v_data, v_i);
+        if ((v_htype == 58u) || (v_htype == 68u)) {
+          wuffs_brotli__encoder__poke_u16(self, a_wb, ((uint64_t)(self->private_impl.f_h_off0 + ((uint64_t)(2u * ((uint64_t)((v_key >> 8u))))))), 65535u);
+        } else {
+          wuffs_brotli__encoder__poke_u16(self, a_wb, ((uint64_t)(self->private_impl.f_h_off0 + ((uint64_t)(2u * ((uint64_t)(v_key)))))), 0u);
+        }
+        v_i += 1u;
+      }
+    } else if ((v_htype == 58u) || (v_htype == 68u)) {
+      wuffs_brotli__encoder__fill_bytes(self,
+          a_wb,
+          self->private_impl.f_h_off0,
+          (2u * v_bsize),
+          255u);
+    } else {
+      wuffs_brotli__encoder__fill_bytes(self,
+          a_wb,
+          self->private_impl.f_h_off0,
+          (2u * v_bsize),
+          0u);
+    }
+  } else if ((v_htype == 40u) || (v_htype == 41u) || (v_htype == 42u)) {
+    if (a_one_shot && (a_input_size <= 512u)) {
+      v_i = 0u;
+      while (v_i < a_input_size) {
+        v_key = wuffs_brotli__encoder__hash_forgetful(self, v_data, v_i);
+        wuffs_brotli__encoder__poke_u32(self, a_wb, ((uint64_t)(self->private_impl.f_h_off0 + ((uint64_t)(4u * ((uint64_t)(v_key)))))), 3435973836u);
+        wuffs_brotli__encoder__poke_u16(self, a_wb, ((uint64_t)(((uint64_t)(self->private_impl.f_h_off0 + 131072u)) + ((uint64_t)(2u * ((uint64_t)(v_key)))))), 52428u);
+        v_i += 1u;
+      }
+    } else {
+      wuffs_brotli__encoder__fill_bytes(self,
+          a_wb,
+          self->private_impl.f_h_off0,
+          131072u,
+          204u);
+      wuffs_brotli__encoder__fill_bytes(self,
+          a_wb,
+          ((uint64_t)(self->private_impl.f_h_off0 + 131072u)),
+          65536u,
+          0u);
+    }
+    wuffs_brotli__encoder__fill_bytes(self,
+        a_wb,
+        ((uint64_t)(self->private_impl.f_h_off0 + 196608u)),
+        65536u,
+        0u);
+    v_j = 0u;
+    while (v_j < 512u) {
+      self->private_data.f_fc_free_slot_idx[v_j] = 0u;
+      v_j += 1u;
+    }
+  }
+  return wuffs_base__make_empty_struct();
+}
+
+// -------- func brotli.encoder.hash_quickly
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint32_t
+wuffs_brotli__encoder__hash_quickly(
+    const wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_data,
+    uint64_t a_i) {
+  uint64_t v_h = 0;
+
+  if (self->private_impl.f_hasher_type == 54u) {
+    v_h = ((uint64_t)(((uint64_t)(wuffs_brotli__encoder__load64le(self, a_data, a_i) << 8u)) * 2297779722762296275u));
+  } else {
+    v_h = ((uint64_t)(((uint64_t)(wuffs_brotli__encoder__load64le(self, a_data, a_i) << 24u)) * 2297779722762296275u));
+  }
+  return ((uint32_t)((v_h >> (64u - wuffs_brotli__encoder__hasher_quickly_bucket_bits(self)))));
+}
+
+// -------- func brotli.encoder.hash_longest
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint32_t
+wuffs_brotli__encoder__hash_longest(
+    const wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_data,
+    uint64_t a_i) {
+  uint32_t v_h32 = 0;
+  uint64_t v_h64 = 0;
+
+  if (self->private_impl.f_hasher_type == 5u) {
+    v_h32 = ((uint32_t)(wuffs_brotli__encoder__load32le(self, a_data, a_i) * 506832829u));
+    return (v_h32 >> ((32u - self->private_impl.f_h_bucket_bits) & 31u));
+  } else if (self->private_impl.f_hasher_type == 58u) {
+    v_h32 = ((uint32_t)(wuffs_brotli__encoder__load32le(self, a_data, a_i) * 506832829u));
+    return (v_h32 >> ((24u - self->private_impl.f_h_bucket_bits) & 31u));
+  }
+  v_h64 = ((uint64_t)(wuffs_brotli__encoder__load64le(self, a_data, a_i) * 8922571613522624512u));
+  if (self->private_impl.f_hasher_type == 6u) {
+    return ((uint32_t)((v_h64 >> 49u)));
+  }
+  return ((uint32_t)((v_h64 >> 41u)));
+}
+
+// -------- func brotli.encoder.hash_forgetful
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint32_t
+wuffs_brotli__encoder__hash_forgetful(
+    const wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_data,
+    uint64_t a_i) {
+  uint32_t v_h32 = 0;
+
+  v_h32 = ((uint32_t)(wuffs_brotli__encoder__load32le(self, a_data, a_i) * 506832829u));
+  return (v_h32 >> 17u);
+}
+
+// -------- func brotli.encoder.hasher_store
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__hasher_store(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    uint64_t a_ix) {
+  wuffs_base__slice_u8 v_data = {0};
+  uint32_t v_htype = 0;
+  uint32_t v_key = 0;
+  uint64_t v_bsize = 0;
+  uint64_t v_off = 0;
+  uint16_t v_num = 0;
+  uint32_t v_hash = 0;
+  uint64_t v_bank = 0;
+  uint64_t v_idx = 0;
+  uint64_t v_delta = 0;
+  uint16_t v_head_v = 0;
+  uint32_t v_fc_bits = 0;
+
+  v_htype = self->private_impl.f_hasher_type;
+  if (self->private_impl.f_rb_buf_off > ((uint64_t)(a_wb.len))) {
+    return wuffs_base__make_empty_struct();
+  }
+  v_data = wuffs_base__slice_u8__subslice_i(a_wb, self->private_impl.f_rb_buf_off);
+  if ((v_htype == 2u) ||
+      (v_htype == 3u) ||
+      (v_htype == 4u) ||
+      (v_htype == 54u)) {
+    v_key = wuffs_brotli__encoder__hash_quickly(self, v_data, (a_ix & ((uint64_t)(self->private_impl.f_rb_mask))));
+    v_bsize = (((uint64_t)(1u)) << wuffs_brotli__encoder__hasher_quickly_bucket_bits(self));
+    v_off = ((((uint64_t)(v_key)) + (a_ix & ((((uint64_t)(wuffs_brotli__encoder__hasher_quickly_sweep(self))) - 1u) << 3u))) & ((uint64_t)(v_bsize - 1u)));
+    wuffs_brotli__encoder__poke_u32(self, a_wb, ((uint64_t)(self->private_impl.f_h_off0 + ((uint64_t)(4u * v_off)))), ((uint32_t)(a_ix)));
+  } else if ((v_htype == 5u) || (v_htype == 6u)) {
+    v_key = wuffs_brotli__encoder__hash_longest(self, v_data, (a_ix & ((uint64_t)(self->private_impl.f_rb_mask))));
+    v_num = wuffs_brotli__encoder__peek_u16(self, a_wb, ((uint64_t)(self->private_impl.f_h_off0 + ((uint64_t)(2u * ((uint64_t)(v_key)))))));
+    v_off = ((uint64_t)((((uint64_t)(v_num)) & ((((uint64_t)(1u)) << self->private_impl.f_h_block_bits) - 1u)) + (((uint64_t)(v_key)) << self->private_impl.f_h_block_bits)));
+    wuffs_brotli__encoder__poke_u16(self, a_wb, ((uint64_t)(self->private_impl.f_h_off0 + ((uint64_t)(2u * ((uint64_t)(v_key)))))), ((uint16_t)(v_num + 1u)));
+    wuffs_brotli__encoder__poke_u32(self, a_wb, ((uint64_t)(self->private_impl.f_h_off1 + ((uint64_t)(4u * v_off)))), ((uint32_t)(a_ix)));
+  } else if ((v_htype == 58u) || (v_htype == 68u)) {
+    v_hash = wuffs_brotli__encoder__hash_longest(self, v_data, (a_ix & ((uint64_t)(self->private_impl.f_rb_mask))));
+    v_key = (v_hash >> 8u);
+    v_num = wuffs_brotli__encoder__peek_u16(self, a_wb, ((uint64_t)(self->private_impl.f_h_off0 + ((uint64_t)(2u * ((uint64_t)(v_key)))))));
+    v_off = ((uint64_t)((((uint64_t)(v_num)) & ((((uint64_t)(1u)) << self->private_impl.f_h_block_bits) - 1u)) + (((uint64_t)(v_key)) << self->private_impl.f_h_block_bits)));
+    wuffs_brotli__encoder__poke_u16(self, a_wb, ((uint64_t)(self->private_impl.f_h_off0 + ((uint64_t)(2u * ((uint64_t)(v_key)))))), ((uint16_t)(v_num - 1u)));
+    wuffs_brotli__encoder__poke_u32(self, a_wb, ((uint64_t)(self->private_impl.f_h_off2 + ((uint64_t)(4u * v_off)))), ((uint32_t)(a_ix)));
+    wuffs_brotli__encoder__set_byte(self, a_wb, ((uint64_t)(self->private_impl.f_h_off1 + v_off)), ((uint8_t)(v_hash)));
+  } else if ((v_htype == 40u) || (v_htype == 41u) || (v_htype == 42u)) {
+    v_key = wuffs_brotli__encoder__hash_forgetful(self, v_data, (a_ix & ((uint64_t)(self->private_impl.f_rb_mask))));
+    v_fc_bits = wuffs_brotli__encoder__fc_bank_bits(self);
+    v_bank = (((uint64_t)(v_key)) & wuffs_brotli__encoder__fc_num_banks_minus_1(self));
+    v_idx = (((uint64_t)(self->private_data.f_fc_free_slot_idx[v_bank])) & ((((uint64_t)(1u)) << v_fc_bits) - 1u));
+#if defined(__GNUC__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+#endif
+    self->private_data.f_fc_free_slot_idx[v_bank] += 1u;
+#if defined(__GNUC__)
+#pragma GCC diagnostic pop
+#endif
+    v_delta = ((uint64_t)(a_ix - ((uint64_t)(wuffs_brotli__encoder__load32le(self, a_wb, ((uint64_t)(self->private_impl.f_h_off0 + ((uint64_t)(4u * ((uint64_t)(v_key)))))))))));
+    wuffs_brotli__encoder__set_byte(self, a_wb, ((uint64_t)(((uint64_t)(self->private_impl.f_h_off0 + 196608u)) + (a_ix & 65535u))), ((uint8_t)(v_key)));
+    if (v_delta > 65535u) {
+      v_delta = 65535u;
+    }
+    v_head_v = wuffs_brotli__encoder__peek_u16(self, a_wb, ((uint64_t)(((uint64_t)(self->private_impl.f_h_off0 + 131072u)) + ((uint64_t)(2u * ((uint64_t)(v_key)))))));
+    v_off = ((uint64_t)(self->private_impl.f_h_off1 + ((uint64_t)(4u * ((uint64_t)(((uint64_t)(v_bank << v_fc_bits)) + v_idx))))));
+    wuffs_brotli__encoder__poke_u16(self, a_wb, v_off, ((uint16_t)(v_delta)));
+    wuffs_brotli__encoder__poke_u16(self, a_wb, ((uint64_t)(v_off + 2u)), v_head_v);
+    wuffs_brotli__encoder__poke_u32(self, a_wb, ((uint64_t)(self->private_impl.f_h_off0 + ((uint64_t)(4u * ((uint64_t)(v_key)))))), ((uint32_t)(a_ix)));
+    wuffs_brotli__encoder__poke_u16(self, a_wb, ((uint64_t)(((uint64_t)(self->private_impl.f_h_off0 + 131072u)) + ((uint64_t)(2u * ((uint64_t)(v_key)))))), ((uint16_t)(v_idx)));
+  }
+  return wuffs_base__make_empty_struct();
+}
+
+// -------- func brotli.encoder.hasher_store_range
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__hasher_store_range(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    uint64_t a_ix_start,
+    uint64_t a_ix_end) {
+  uint64_t v_i = 0;
+
+  v_i = a_ix_start;
+  while (v_i < a_ix_end) {
+    wuffs_brotli__encoder__hasher_store(self, a_wb, v_i);
+    v_i += 1u;
+  }
+  return wuffs_base__make_empty_struct();
+}
+
+// -------- func brotli.encoder.hasher_stitch_to_previous_block
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__hasher_stitch_to_previous_block(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    uint64_t a_num_bytes,
+    uint64_t a_position) {
+  if ((a_num_bytes >= ((uint64_t)(wuffs_brotli__encoder__hasher_type_length(self) - 1u))) && (a_position >= 3u)) {
+    wuffs_brotli__encoder__hasher_store(self, a_wb, ((uint64_t)(a_position - 3u)));
+    wuffs_brotli__encoder__hasher_store(self, a_wb, ((uint64_t)(a_position - 2u)));
+    wuffs_brotli__encoder__hasher_store(self, a_wb, ((uint64_t)(a_position - 1u)));
+  }
+  return wuffs_base__make_empty_struct();
+}
+
+// -------- func brotli.encoder.prepare_distance_cache
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__prepare_distance_cache(
+    wuffs_brotli__encoder* self) {
+  uint32_t v_n = 0;
+  uint32_t v_last = 0;
+
+  if ((self->private_impl.f_hasher_type == 2u) ||
+      (self->private_impl.f_hasher_type == 3u) ||
+      (self->private_impl.f_hasher_type == 4u) ||
+      (self->private_impl.f_hasher_type == 54u)) {
+    return wuffs_base__make_empty_struct();
+  } else if ((self->private_impl.f_hasher_type == 40u) || (self->private_impl.f_hasher_type == 41u) || (self->private_impl.f_hasher_type == 42u)) {
+    v_n = wuffs_brotli__encoder__fc_num_last_distances(self);
+  } else {
+    v_n = self->private_impl.f_h_num_last_distances;
+  }
+  if (v_n > 4u) {
+    v_last = self->private_impl.f_dist_cache[0u];
+    self->private_impl.f_dist_cache[4u] = ((uint32_t)(v_last - 1u));
+    self->private_impl.f_dist_cache[5u] = ((uint32_t)(v_last + 1u));
+    self->private_impl.f_dist_cache[6u] = ((uint32_t)(v_last - 2u));
+    self->private_impl.f_dist_cache[7u] = ((uint32_t)(v_last + 2u));
+    self->private_impl.f_dist_cache[8u] = ((uint32_t)(v_last - 3u));
+    self->private_impl.f_dist_cache[9u] = ((uint32_t)(v_last + 3u));
+    if (v_n > 10u) {
+      v_last = self->private_impl.f_dist_cache[1u];
+      self->private_impl.f_dist_cache[10u] = ((uint32_t)(v_last - 1u));
+      self->private_impl.f_dist_cache[11u] = ((uint32_t)(v_last + 1u));
+      self->private_impl.f_dist_cache[12u] = ((uint32_t)(v_last - 2u));
+      self->private_impl.f_dist_cache[13u] = ((uint32_t)(v_last + 2u));
+      self->private_impl.f_dist_cache[14u] = ((uint32_t)(v_last - 3u));
+      self->private_impl.f_dist_cache[15u] = ((uint32_t)(v_last + 3u));
+    }
+  }
+  return wuffs_base__make_empty_struct();
+}
+
+// -------- func brotli.encoder.backward_reference_score
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint64_t
+wuffs_brotli__encoder__backward_reference_score(
+    const wuffs_brotli__encoder* self,
+    uint64_t a_copy_length,
+    uint64_t a_backward_reference_offset) {
+  return ((uint64_t)(((uint64_t)(1920u + ((uint64_t)(135u * a_copy_length)))) - (30u * ((uint64_t)(wuffs_brotli__encoder__log2_floor_non_zero(self, a_backward_reference_offset))))));
+}
+
+// -------- func brotli.encoder.backward_reference_score_using_last_distance
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint64_t
+wuffs_brotli__encoder__backward_reference_score_using_last_distance(
+    const wuffs_brotli__encoder* self,
+    uint64_t a_copy_length) {
+  return ((uint64_t)(((uint64_t)(((uint64_t)(135u * a_copy_length)) + 1920u)) + 15u));
+}
+
+// -------- func brotli.encoder.backward_reference_penalty_using_last_distance
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint64_t
+wuffs_brotli__encoder__backward_reference_penalty_using_last_distance(
+    const wuffs_brotli__encoder* self,
+    uint64_t a_distance_short_code) {
+  return (39u + ((((uint64_t)(117264u)) >> (a_distance_short_code & 14u)) & 14u));
+}
+
+// -------- func brotli.encoder.find_match_length_dict
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint64_t
+wuffs_brotli__encoder__find_match_length_dict(
+    const wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_data,
+    uint64_t a_i,
+    uint64_t a_d,
+    uint64_t a_limit) {
+  uint64_t v_matched = 0;
+  wuffs_base__slice_u8 v_a = {0};
+
+  if (a_i > ((uint64_t)(a_data.len))) {
+    return 0u;
+  }
+  v_a = wuffs_base__slice_u8__subslice_i(a_data, a_i);
+  while ((v_matched < a_limit) && (v_matched < ((uint64_t)(v_a.len)))) {
+    if (((uint64_t)(a_d + v_matched)) >= 122784u) {
+      break;
+    }
+    if (v_a.ptr[v_matched] != WUFFS_BROTLI__DICTIONARY[(((uint64_t)(a_d + v_matched)) & 131071u)]) {
+      break;
+    }
+    v_matched += 1u;
+  }
+  return v_matched;
+}
+
+// -------- func brotli.encoder.test_static_dictionary_item
+
+WUFFS_BASE__GENERATED_C_CODE
+static bool
+wuffs_brotli__encoder__test_static_dictionary_item(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_data,
+    uint64_t a_i,
+    uint32_t a_len,
+    uint64_t a_word_idx,
+    uint64_t a_max_length,
+    uint64_t a_max_backward,
+    uint64_t a_max_distance) {
+  uint64_t v_offset = 0;
+  uint64_t v_matchlen = 0;
+  uint64_t v_backward = 0;
+  uint64_t v_score = 0;
+  uint64_t v_cut = 0;
+  uint64_t v_transform_id = 0;
+
+  v_offset = ((uint64_t)(((uint64_t)(WUFFS_BROTLI__DICTIONARY_OFFSETS_BY_LENGTH[a_len])) + ((uint64_t)(((uint64_t)(a_len)) * a_word_idx))));
+  if (((uint64_t)(a_len)) > a_max_length) {
+    return false;
+  }
+  v_matchlen = wuffs_brotli__encoder__find_match_length_dict(self,
+      a_data,
+      a_i,
+      v_offset,
+      ((uint64_t)(a_len)));
+  if ((((uint64_t)(v_matchlen + 10u)) <= ((uint64_t)(a_len))) || (v_matchlen == 0u)) {
+    return false;
+  }
+  v_cut = ((uint64_t)(((uint64_t)(a_len)) - v_matchlen));
+  v_transform_id = ((uint64_t)(((uint64_t)(v_cut << 2u)) + ((((uint64_t)(512093189200228864u)) >> (((uint64_t)(v_cut * 6u)) & 63u)) & 63u)));
+  v_backward = ((uint64_t)(((uint64_t)(((uint64_t)(a_max_backward + 1u)) + a_word_idx)) + ((uint64_t)(v_transform_id << WUFFS_BROTLI__DICTIONARY_SIZE_BITS_BY_LENGTH[a_len]))));
+  if (v_backward > a_max_distance) {
+    return false;
+  }
+  v_score = wuffs_brotli__encoder__backward_reference_score(self, v_matchlen, v_backward);
+  if (v_score < self->private_impl.f_sr_score) {
+    return false;
+  }
+  self->private_impl.f_sr_len = v_matchlen;
+  self->private_impl.f_sr_len_code_delta = ((uint64_t)(((uint64_t)(a_len)) - v_matchlen));
+  self->private_impl.f_sr_distance = v_backward;
+  self->private_impl.f_sr_score = v_score;
+  return true;
+}
+
+// -------- func brotli.encoder.search_in_static_dictionary
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__search_in_static_dictionary(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_data,
+    uint64_t a_i,
+    uint64_t a_max_length,
+    uint64_t a_max_backward,
+    uint64_t a_max_distance,
+    bool a_shallow) {
+  uint32_t v_key = 0;
+  uint32_t v_n = 0;
+  uint32_t v_j = 0;
+  uint32_t v_len = 0;
+  bool v_found = false;
+
+  if (self->private_impl.f_dict_num_matches < (self->private_impl.f_dict_num_lookups >> 7u)) {
+    return wuffs_base__make_empty_struct();
+  }
+  v_key = ((((uint32_t)(wuffs_brotli__encoder__load32le(self, a_data, a_i) * 506832829u)) >> 18u) << 1u);
+  v_n = 2u;
+  if (a_shallow) {
+    v_n = 1u;
+  }
+  v_j = 0u;
+  while (v_j < v_n) {
+    self->private_impl.f_dict_num_lookups += 1u;
+    v_len = ((uint32_t)(WUFFS_BROTLI__STATIC_DICTIONARY_HASH_LENGTHS[(v_key & 32767u)]));
+    if (v_len != 0u) {
+      v_found = wuffs_brotli__encoder__test_static_dictionary_item(self,
+          a_data,
+          a_i,
+          v_len,
+          ((uint64_t)(WUFFS_BROTLI__STATIC_DICTIONARY_HASH_WORDS[(v_key & 32767u)])),
+          a_max_length,
+          a_max_backward,
+          a_max_distance);
+      if (v_found) {
+        self->private_impl.f_dict_num_matches += 1u;
+      }
+    }
+    v_j += 1u;
+    v_key += 1u;
+  }
+  return wuffs_base__make_empty_struct();
+}
+
+// -------- func brotli.encoder.find_longest_match
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__find_longest_match(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    uint64_t a_cur_ix,
+    uint64_t a_max_length,
+    uint64_t a_max_backward,
+    uint64_t a_dictionary_distance,
+    uint64_t a_max_distance) {
+  uint32_t v_htype = 0;
+
+  v_htype = self->private_impl.f_hasher_type;
+  if ((v_htype == 2u) ||
+      (v_htype == 3u) ||
+      (v_htype == 4u) ||
+      (v_htype == 54u)) {
+    wuffs_brotli__encoder__find_longest_match_quickly(self,
+        a_wb,
+        a_cur_ix,
+        a_max_length,
+        a_max_backward,
+        a_dictionary_distance,
+        a_max_distance);
+  } else if ((v_htype == 5u) || (v_htype == 6u)) {
+    wuffs_brotli__encoder__find_longest_match_h5(self,
+        a_wb,
+        a_cur_ix,
+        a_max_length,
+        a_max_backward,
+        a_dictionary_distance,
+        a_max_distance);
+  } else if ((v_htype == 58u) || (v_htype == 68u)) {
+    wuffs_brotli__encoder__find_longest_match_h58(self,
+        a_wb,
+        a_cur_ix,
+        a_max_length,
+        a_max_backward,
+        a_dictionary_distance,
+        a_max_distance);
+  } else {
+    wuffs_brotli__encoder__find_longest_match_forgetful(self,
+        a_wb,
+        a_cur_ix,
+        a_max_length,
+        a_max_backward,
+        a_dictionary_distance,
+        a_max_distance);
+  }
+  return wuffs_base__make_empty_struct();
+}
+
+// -------- func brotli.encoder.find_longest_match_quickly
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__find_longest_match_quickly(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    uint64_t a_cur_ix,
+    uint64_t a_max_length,
+    uint64_t a_max_backward,
+    uint64_t a_dictionary_distance,
+    uint64_t a_max_distance) {
+  wuffs_base__slice_u8 v_data = {0};
+  uint64_t v_mask = 0;
+  uint64_t v_best_len_in = 0;
+  uint64_t v_cur_ix_masked = 0;
+  uint8_t v_compare_char = 0;
+  uint64_t v_key = 0;
+  uint64_t v_key_out = 0;
+  uint64_t v_min_score = 0;
+  uint64_t v_best_score = 0;
+  uint64_t v_best_len = 0;
+  uint64_t v_cached_backward = 0;
+  uint64_t v_prev_ix = 0;
+  uint64_t v_len = 0;
+  uint64_t v_score = 0;
+  uint64_t v_backward = 0;
+  uint64_t v_sweep = 0;
+  uint64_t v_bucket_mask = 0;
+  uint64_t v_i = 0;
+  uint64_t v_keys[4] = {0};
+  bool v_use_dictionary = false;
+
+  if (self->private_impl.f_rb_buf_off > ((uint64_t)(a_wb.len))) {
+    return wuffs_base__make_empty_struct();
+  }
+  v_data = wuffs_base__slice_u8__subslice_i(a_wb, self->private_impl.f_rb_buf_off);
+  v_mask = ((uint64_t)(self->private_impl.f_rb_mask));
+  v_sweep = ((uint64_t)(wuffs_brotli__encoder__hasher_quickly_sweep(self)));
+  v_bucket_mask = ((uint64_t)((((uint64_t)(1u)) << wuffs_brotli__encoder__hasher_quickly_bucket_bits(self)) - 1u));
+  v_use_dictionary = ((self->private_impl.f_hasher_type == 2u) || (self->private_impl.f_hasher_type == 4u));
+  v_best_len_in = self->private_impl.f_sr_len;
+  v_cur_ix_masked = (a_cur_ix & v_mask);
+  v_compare_char = wuffs_brotli__encoder__byte_at(self, v_data, ((uint64_t)(v_cur_ix_masked + v_best_len_in)));
+  v_key = ((uint64_t)(wuffs_brotli__encoder__hash_quickly(self, v_data, v_cur_ix_masked)));
+  v_min_score = self->private_impl.f_sr_score;
+  v_best_score = self->private_impl.f_sr_score;
+  v_best_len = v_best_len_in;
+  v_cached_backward = wuffs_brotli__encoder__dist_cache_u64(self, 0u);
+  v_prev_ix = ((uint64_t)(a_cur_ix - v_cached_backward));
+  self->private_impl.f_sr_len_code_delta = 0u;
+  if (v_prev_ix < a_cur_ix) {
+    v_prev_ix &= (v_mask & 4294967295u);
+    if (v_compare_char == wuffs_brotli__encoder__byte_at(self, v_data, ((uint64_t)(v_prev_ix + v_best_len)))) {
+      v_len = wuffs_brotli__encoder__find_match_length_with_limit(self,
+          v_data,
+          v_prev_ix,
+          v_cur_ix_masked,
+          a_max_length);
+      if (v_len >= 4u) {
+        v_score = wuffs_brotli__encoder__backward_reference_score_using_last_distance(self, v_len);
+        if (v_best_score < v_score) {
+          self->private_impl.f_sr_len = v_len;
+          self->private_impl.f_sr_distance = v_cached_backward;
+          self->private_impl.f_sr_score = v_score;
+          if (v_sweep == 1u) {
+            wuffs_brotli__encoder__poke_u32(self, a_wb, ((uint64_t)(self->private_impl.f_h_off0 + ((uint64_t)(4u * v_key)))), ((uint32_t)(a_cur_ix)));
+            return wuffs_base__make_empty_struct();
+          }
+          v_best_len = v_len;
+          v_best_score = v_score;
+          v_compare_char = wuffs_brotli__encoder__byte_at(self, v_data, ((uint64_t)(v_cur_ix_masked + v_len)));
+        }
+      }
+    }
+  }
+  if (v_sweep == 1u) {
+    v_prev_ix = ((uint64_t)(wuffs_brotli__encoder__load32le(self, a_wb, ((uint64_t)(self->private_impl.f_h_off0 + ((uint64_t)(4u * v_key)))))));
+    wuffs_brotli__encoder__poke_u32(self, a_wb, ((uint64_t)(self->private_impl.f_h_off0 + ((uint64_t)(4u * v_key)))), ((uint32_t)(a_cur_ix)));
+    v_backward = ((uint64_t)(a_cur_ix - v_prev_ix));
+    v_prev_ix &= (v_mask & 4294967295u);
+    if (v_compare_char != wuffs_brotli__encoder__byte_at(self, v_data, ((uint64_t)(v_prev_ix + v_best_len_in)))) {
+      return wuffs_base__make_empty_struct();
+    }
+    if ((v_backward == 0u) || (v_backward > a_max_backward)) {
+      return wuffs_base__make_empty_struct();
+    }
+    v_len = wuffs_brotli__encoder__find_match_length_with_limit(self,
+        v_data,
+        v_prev_ix,
+        v_cur_ix_masked,
+        a_max_length);
+    if (v_len >= 4u) {
+      v_score = wuffs_brotli__encoder__backward_reference_score(self, v_len, v_backward);
+      if (v_best_score < v_score) {
+        self->private_impl.f_sr_len = v_len;
+        self->private_impl.f_sr_distance = v_backward;
+        self->private_impl.f_sr_score = v_score;
+        return wuffs_base__make_empty_struct();
+      }
+    }
+  } else {
+    v_i = 0u;
+    while (v_i < v_sweep) {
+      v_keys[v_i] = (((uint64_t)(v_key + ((uint64_t)(v_i << 3u)))) & v_bucket_mask);
+      v_i += 1u;
+    }
+    v_key_out = v_keys[(((a_cur_ix & ((((uint64_t)(wuffs_brotli__encoder__hasher_quickly_sweep(self))) - 1u) << 3u)) >> 3u) & 3u)];
+    v_i = 0u;
+    while (v_i < v_sweep) {
+      v_prev_ix = ((uint64_t)(wuffs_brotli__encoder__load32le(self, a_wb, ((uint64_t)(self->private_impl.f_h_off0 + ((uint64_t)(4u * v_keys[v_i])))))));
+      v_backward = ((uint64_t)(a_cur_ix - v_prev_ix));
+      v_prev_ix &= (v_mask & 4294967295u);
+      if (v_compare_char != wuffs_brotli__encoder__byte_at(self, v_data, ((uint64_t)(v_prev_ix + v_best_len)))) {
+        v_i += 1u;
+        continue;
+      }
+      if ((v_backward == 0u) || (v_backward > a_max_backward)) {
+        v_i += 1u;
+        continue;
+      }
+      v_len = wuffs_brotli__encoder__find_match_length_with_limit(self,
+          v_data,
+          v_prev_ix,
+          v_cur_ix_masked,
+          a_max_length);
+      if (v_len >= 4u) {
+        v_score = wuffs_brotli__encoder__backward_reference_score(self, v_len, v_backward);
+        if (v_best_score < v_score) {
+          v_best_len = v_len;
+          self->private_impl.f_sr_len = v_len;
+          v_compare_char = wuffs_brotli__encoder__byte_at(self, v_data, ((uint64_t)(v_cur_ix_masked + v_len)));
+          v_best_score = v_score;
+          self->private_impl.f_sr_score = v_score;
+          self->private_impl.f_sr_distance = v_backward;
+        }
+      }
+      v_i += 1u;
+    }
+  }
+  if (v_use_dictionary && (v_min_score == self->private_impl.f_sr_score)) {
+    wuffs_brotli__encoder__search_in_static_dictionary(self,
+        v_data,
+        v_cur_ix_masked,
+        a_max_length,
+        a_dictionary_distance,
+        a_max_distance,
+        true);
+  }
+  if (v_sweep != 1u) {
+    wuffs_brotli__encoder__poke_u32(self, a_wb, ((uint64_t)(self->private_impl.f_h_off0 + ((uint64_t)(4u * v_key_out)))), ((uint32_t)(a_cur_ix)));
+  }
+  return wuffs_base__make_empty_struct();
+}
+
+// -------- func brotli.encoder.find_last_distances
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint64_t
+wuffs_brotli__encoder__find_last_distances(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_data,
+    uint64_t a_cur_ix,
+    uint64_t a_max_length,
+    uint64_t a_max_backward) {
+  uint64_t v_mask = 0;
+  uint64_t v_cur_ix_masked = 0;
+  uint64_t v_best_score = 0;
+  uint64_t v_best_len = 0;
+  uint32_t v_i = 0;
+  uint64_t v_backward = 0;
+  uint64_t v_prev_ix = 0;
+  uint64_t v_len = 0;
+  uint64_t v_score = 0;
+
+  v_mask = ((uint64_t)(self->private_impl.f_rb_mask));
+  v_cur_ix_masked = (a_cur_ix & v_mask);
+  v_best_score = self->private_impl.f_sr_score;
+  v_best_len = self->private_impl.f_sr_len;
+  self->private_impl.f_sr_len = 0u;
+  self->private_impl.f_sr_len_code_delta = 0u;
+  v_i = 0u;
+  while (v_i < self->private_impl.f_h_num_last_distances) {
+    v_backward = wuffs_brotli__encoder__dist_cache_u64(self, v_i);
+    v_prev_ix = ((uint64_t)(a_cur_ix - v_backward));
+    if (v_prev_ix >= a_cur_ix) {
+      v_i += 1u;
+      continue;
+    }
+    if (v_backward > a_max_backward) {
+      v_i += 1u;
+      continue;
+    }
+    v_prev_ix &= v_mask;
+    if (((uint64_t)(v_cur_ix_masked + v_best_len)) > v_mask) {
+      break;
+    }
+    if ((((uint64_t)(v_prev_ix + v_best_len)) > v_mask) || (wuffs_brotli__encoder__byte_at(self, a_data, ((uint64_t)(v_cur_ix_masked + v_best_len))) != wuffs_brotli__encoder__byte_at(self, a_data, ((uint64_t)(v_prev_ix + v_best_len))))) {
+      v_i += 1u;
+      continue;
+    }
+    v_len = wuffs_brotli__encoder__find_match_length_with_limit(self,
+        a_data,
+        v_prev_ix,
+        v_cur_ix_masked,
+        a_max_length);
+    if ((v_len >= 3u) || ((v_len == 2u) && (v_i < 2u))) {
+      v_score = wuffs_brotli__encoder__backward_reference_score_using_last_distance(self, v_len);
+      if (v_best_score < v_score) {
+        if (v_i != 0u) {
+          v_score -= wuffs_brotli__encoder__backward_reference_penalty_using_last_distance(self, ((uint64_t)(v_i)));
+        }
+        if (v_best_score < v_score) {
+          v_best_score = v_score;
+          v_best_len = v_len;
+          self->private_impl.f_sr_len = v_best_len;
+          self->private_impl.f_sr_distance = v_backward;
+          self->private_impl.f_sr_score = v_best_score;
+        }
+      }
+    }
+    v_i += 1u;
+  }
+  return v_best_len;
+}
+
+// -------- func brotli.encoder.try_bucket_entry
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint64_t
+wuffs_brotli__encoder__try_bucket_entry(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_data,
+    uint64_t a_cur_ix,
+    uint64_t a_prev_ix_in,
+    uint64_t a_best_len,
+    uint64_t a_max_length,
+    uint64_t a_max_backward) {
+  uint64_t v_mask = 0;
+  uint64_t v_cur_ix_masked = 0;
+  uint64_t v_prev_ix = 0;
+  uint64_t v_backward = 0;
+  uint64_t v_len = 0;
+  uint64_t v_score = 0;
+
+  v_mask = ((uint64_t)(self->private_impl.f_rb_mask));
+  v_cur_ix_masked = (a_cur_ix & v_mask);
+  v_backward = ((uint64_t)(a_cur_ix - a_prev_ix_in));
+  if (v_backward > a_max_backward) {
+    return 1u;
+  }
+  v_prev_ix = (a_prev_ix_in & v_mask);
+  if (((uint64_t)(v_cur_ix_masked + a_best_len)) > v_mask) {
+    return 1u;
+  }
+  if ((((uint64_t)(v_prev_ix + a_best_len)) > v_mask) || (wuffs_brotli__encoder__load32le(self, a_data, ((uint64_t)(((uint64_t)(v_cur_ix_masked + a_best_len)) - 3u))) != wuffs_brotli__encoder__load32le(self, a_data, ((uint64_t)(((uint64_t)(v_prev_ix + a_best_len)) - 3u))))) {
+    return 0u;
+  }
+  if ((self->private_impl.f_hasher_type == 6u) || (self->private_impl.f_hasher_type == 68u)) {
+    if (wuffs_brotli__encoder__load32le(self, a_data, v_cur_ix_masked) != wuffs_brotli__encoder__load32le(self, a_data, v_prev_ix)) {
+      return 0u;
+    }
+    v_len = ((uint64_t)(wuffs_brotli__encoder__find_match_length_with_limit(self,
+        a_data,
+        ((uint64_t)(v_prev_ix + 4u)),
+        ((uint64_t)(v_cur_ix_masked + 4u)),
+        ((uint64_t)(a_max_length - 4u))) + 4u));
+  } else {
+    v_len = wuffs_brotli__encoder__find_match_length_with_limit(self,
+        a_data,
+        v_prev_ix,
+        v_cur_ix_masked,
+        a_max_length);
+    if (v_len < 4u) {
+      return 0u;
+    }
+  }
+  v_score = wuffs_brotli__encoder__backward_reference_score(self, v_len, v_backward);
+  if (self->private_impl.f_sr_score < v_score) {
+    self->private_impl.f_sr_len = v_len;
+    self->private_impl.f_sr_distance = v_backward;
+    self->private_impl.f_sr_score = v_score;
+    return ((uint64_t)(2u + v_len));
+  }
+  return 0u;
+}
+
+// -------- func brotli.encoder.find_longest_match_h5
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__find_longest_match_h5(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    uint64_t a_cur_ix,
+    uint64_t a_max_length,
+    uint64_t a_max_backward,
+    uint64_t a_dictionary_distance,
+    uint64_t a_max_distance) {
+  wuffs_base__slice_u8 v_data = {0};
+  uint64_t v_cur_ix_masked = 0;
+  uint64_t v_min_score = 0;
+  uint64_t v_best_len = 0;
+  uint64_t v_key = 0;
+  uint16_t v_num = 0;
+  uint64_t v_block_size = 0;
+  uint64_t v_block_mask = 0;
+  uint64_t v_bucket = 0;
+  uint64_t v_down = 0;
+  uint64_t v_i = 0;
+  uint64_t v_r = 0;
+
+  if (self->private_impl.f_rb_buf_off > ((uint64_t)(a_wb.len))) {
+    return wuffs_base__make_empty_struct();
+  }
+  v_data = wuffs_base__slice_u8__subslice_i(a_wb, self->private_impl.f_rb_buf_off);
+  v_cur_ix_masked = (a_cur_ix & ((uint64_t)(self->private_impl.f_rb_mask)));
+  v_min_score = self->private_impl.f_sr_score;
+  v_key = ((uint64_t)(wuffs_brotli__encoder__hash_longest(self, v_data, v_cur_ix_masked)));
+  v_block_size = (((uint64_t)(1u)) << self->private_impl.f_h_block_bits);
+  v_block_mask = ((uint64_t)(v_block_size - 1u));
+  v_bucket = ((uint64_t)(self->private_impl.f_h_off1 + ((uint64_t)(4u * (v_key << self->private_impl.f_h_block_bits)))));
+  v_best_len = wuffs_brotli__encoder__find_last_distances(self,
+      v_data,
+      a_cur_ix,
+      a_max_length,
+      a_max_backward);
+  if (v_best_len < 3u) {
+    v_best_len = 3u;
+  }
+  v_num = wuffs_brotli__encoder__peek_u16(self, a_wb, ((uint64_t)(self->private_impl.f_h_off0 + ((uint64_t)(2u * v_key)))));
+  v_down = 0u;
+  if (((uint64_t)(v_num)) > v_block_size) {
+    v_down = ((uint64_t)(((uint64_t)(v_num)) - v_block_size));
+  }
+  v_i = ((uint64_t)(v_num));
+  while (v_i > v_down) {
+    v_i -= 1u;
+    v_r = wuffs_brotli__encoder__try_bucket_entry(self,
+        v_data,
+        a_cur_ix,
+        ((uint64_t)(wuffs_brotli__encoder__load32le(self, a_wb, ((uint64_t)(v_bucket + ((uint64_t)(4u * (v_i & v_block_mask)))))))),
+        v_best_len,
+        a_max_length,
+        a_max_backward);
+    if (v_r == 1u) {
+      break;
+    } else if (v_r >= 2u) {
+      v_best_len = ((uint64_t)(v_r - 2u));
+    }
+  }
+  wuffs_brotli__encoder__poke_u32(self, a_wb, ((uint64_t)(v_bucket + ((uint64_t)(4u * (((uint64_t)(v_num)) & v_block_mask))))), ((uint32_t)(a_cur_ix)));
+  wuffs_brotli__encoder__poke_u16(self, a_wb, ((uint64_t)(self->private_impl.f_h_off0 + ((uint64_t)(2u * v_key)))), ((uint16_t)(v_num + 1u)));
+  if (v_min_score == self->private_impl.f_sr_score) {
+    wuffs_brotli__encoder__search_in_static_dictionary(self,
+        v_data,
+        v_cur_ix_masked,
+        a_max_length,
+        a_dictionary_distance,
+        a_max_distance,
+        false);
+  }
+  return wuffs_base__make_empty_struct();
+}
+
+// -------- func brotli.encoder.find_longest_match_h58
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__find_longest_match_h58(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    uint64_t a_cur_ix,
+    uint64_t a_max_length,
+    uint64_t a_max_backward,
+    uint64_t a_dictionary_distance,
+    uint64_t a_max_distance) {
+  wuffs_base__slice_u8 v_data = {0};
+  uint64_t v_cur_ix_masked = 0;
+  uint64_t v_min_score = 0;
+  uint64_t v_best_len = 0;
+  uint32_t v_hash = 0;
+  uint64_t v_key = 0;
+  uint8_t v_tag = 0;
+  uint16_t v_num = 0;
+  uint16_t v_n = 0;
+  uint64_t v_block_size = 0;
+  uint64_t v_block_mask = 0;
+  uint64_t v_bucket = 0;
+  uint64_t v_tag_bucket = 0;
+  uint64_t v_head = 0;
+  uint64_t v_limit = 0;
+  uint64_t v_k = 0;
+  uint64_t v_rb_index = 0;
+  uint64_t v_r = 0;
+
+  if (self->private_impl.f_rb_buf_off > ((uint64_t)(a_wb.len))) {
+    return wuffs_base__make_empty_struct();
+  }
+  v_data = wuffs_base__slice_u8__subslice_i(a_wb, self->private_impl.f_rb_buf_off);
+  v_cur_ix_masked = (a_cur_ix & ((uint64_t)(self->private_impl.f_rb_mask)));
+  v_min_score = self->private_impl.f_sr_score;
+  v_hash = wuffs_brotli__encoder__hash_longest(self, v_data, v_cur_ix_masked);
+  v_key = ((uint64_t)((v_hash >> 8u)));
+  v_block_size = (((uint64_t)(1u)) << self->private_impl.f_h_block_bits);
+  v_block_mask = ((uint64_t)(v_block_size - 1u));
+  v_bucket = ((uint64_t)(self->private_impl.f_h_off2 + ((uint64_t)(4u * (v_key << self->private_impl.f_h_block_bits)))));
+  v_tag_bucket = ((uint64_t)(self->private_impl.f_h_off1 + (v_key << self->private_impl.f_h_block_bits)));
+  v_best_len = wuffs_brotli__encoder__find_last_distances(self,
+      v_data,
+      a_cur_ix,
+      a_max_length,
+      a_max_backward);
+  if (v_best_len < 3u) {
+    v_best_len = 3u;
+  }
+  v_tag = ((uint8_t)(v_hash));
+  v_num = wuffs_brotli__encoder__peek_u16(self, a_wb, ((uint64_t)(self->private_impl.f_h_off0 + ((uint64_t)(2u * v_key)))));
+  v_head = (((uint64_t)(((uint16_t)(v_num + 1u)))) & v_block_mask);
+  v_n = ((uint16_t)(65535u - v_num));
+  v_limit = v_block_size;
+  if (v_block_size > ((uint64_t)(v_n))) {
+    v_limit = ((uint64_t)(v_n));
+  }
+  v_k = 0u;
+  while (v_k < v_limit) {
+    v_rb_index = (((uint64_t)(v_head + v_k)) & v_block_mask);
+    if (wuffs_brotli__encoder__byte_at(self, a_wb, ((uint64_t)(v_tag_bucket + v_rb_index))) == v_tag) {
+      v_r = wuffs_brotli__encoder__try_bucket_entry(self,
+          v_data,
+          a_cur_ix,
+          ((uint64_t)(wuffs_brotli__encoder__load32le(self, a_wb, ((uint64_t)(v_bucket + ((uint64_t)(4u * v_rb_index))))))),
+          v_best_len,
+          a_max_length,
+          a_max_backward);
+      if (v_r == 1u) {
+        break;
+      } else if (v_r >= 2u) {
+        v_best_len = ((uint64_t)(v_r - 2u));
+      }
+    }
+    v_k += 1u;
+  }
+  wuffs_brotli__encoder__poke_u32(self, a_wb, ((uint64_t)(v_bucket + ((uint64_t)(4u * (((uint64_t)(v_num)) & v_block_mask))))), ((uint32_t)(a_cur_ix)));
+  wuffs_brotli__encoder__set_byte(self, a_wb, ((uint64_t)(v_tag_bucket + (((uint64_t)(v_num)) & v_block_mask))), v_tag);
+  wuffs_brotli__encoder__poke_u16(self, a_wb, ((uint64_t)(self->private_impl.f_h_off0 + ((uint64_t)(2u * v_key)))), ((uint16_t)(v_num - 1u)));
+  if (v_min_score == self->private_impl.f_sr_score) {
+    wuffs_brotli__encoder__search_in_static_dictionary(self,
+        v_data,
+        v_cur_ix_masked,
+        a_max_length,
+        a_dictionary_distance,
+        a_max_distance,
+        false);
+  }
+  return wuffs_base__make_empty_struct();
+}
+
+// -------- func brotli.encoder.find_longest_match_forgetful
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__find_longest_match_forgetful(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    uint64_t a_cur_ix,
+    uint64_t a_max_length,
+    uint64_t a_max_backward,
+    uint64_t a_dictionary_distance,
+    uint64_t a_max_distance) {
+  wuffs_base__slice_u8 v_data = {0};
+  uint64_t v_mask = 0;
+  uint64_t v_cur_ix_masked = 0;
+  uint64_t v_min_score = 0;
+  uint64_t v_best_score = 0;
+  uint64_t v_best_len = 0;
+  uint64_t v_key = 0;
+  uint8_t v_tiny_hash = 0;
+  uint32_t v_i = 0;
+  uint32_t v_n_last = 0;
+  uint64_t v_backward = 0;
+  uint64_t v_prev_ix = 0;
+  uint64_t v_len = 0;
+  uint64_t v_score = 0;
+  uint64_t v_bank = 0;
+  uint64_t v_hops = 0;
+  uint64_t v_delta = 0;
+  uint64_t v_slot = 0;
+  uint64_t v_last = 0;
+  uint64_t v_slot_off = 0;
+  uint32_t v_fc_bits = 0;
+
+  if (self->private_impl.f_rb_buf_off > ((uint64_t)(a_wb.len))) {
+    return wuffs_base__make_empty_struct();
+  }
+  v_data = wuffs_base__slice_u8__subslice_i(a_wb, self->private_impl.f_rb_buf_off);
+  v_mask = ((uint64_t)(self->private_impl.f_rb_mask));
+  v_cur_ix_masked = (a_cur_ix & v_mask);
+  v_min_score = self->private_impl.f_sr_score;
+  v_best_score = self->private_impl.f_sr_score;
+  v_best_len = self->private_impl.f_sr_len;
+  v_key = ((uint64_t)(wuffs_brotli__encoder__hash_forgetful(self, v_data, v_cur_ix_masked)));
+  v_tiny_hash = ((uint8_t)(v_key));
+  self->private_impl.f_sr_len = 0u;
+  self->private_impl.f_sr_len_code_delta = 0u;
+  v_n_last = wuffs_brotli__encoder__fc_num_last_distances(self);
+  v_i = 0u;
+  while (v_i < v_n_last) {
+    v_backward = wuffs_brotli__encoder__dist_cache_u64(self, v_i);
+    v_prev_ix = ((uint64_t)(a_cur_ix - v_backward));
+    if ((v_i > 0u) && (wuffs_brotli__encoder__byte_at(self, a_wb, ((uint64_t)(((uint64_t)(self->private_impl.f_h_off0 + 196608u)) + (v_prev_ix & 65535u)))) != v_tiny_hash)) {
+      v_i += 1u;
+      continue;
+    }
+    if ((v_prev_ix >= a_cur_ix) || (v_backward > a_max_backward)) {
+      v_i += 1u;
+      continue;
+    }
+    v_prev_ix &= v_mask;
+    v_len = wuffs_brotli__encoder__find_match_length_with_limit(self,
+        v_data,
+        v_prev_ix,
+        v_cur_ix_masked,
+        a_max_length);
+    if (v_len >= 2u) {
+      v_score = wuffs_brotli__encoder__backward_reference_score_using_last_distance(self, v_len);
+      if (v_best_score < v_score) {
+        if (v_i != 0u) {
+          v_score -= wuffs_brotli__encoder__backward_reference_penalty_using_last_distance(self, ((uint64_t)(v_i)));
+        }
+        if (v_best_score < v_score) {
+          v_best_score = v_score;
+          v_best_len = v_len;
+          self->private_impl.f_sr_len = v_best_len;
+          self->private_impl.f_sr_distance = v_backward;
+          self->private_impl.f_sr_score = v_best_score;
+        }
+      }
+    }
+    v_i += 1u;
+  }
+  if (v_best_len < 3u) {
+    v_best_len = 3u;
+  }
+  v_fc_bits = wuffs_brotli__encoder__fc_bank_bits(self);
+  v_bank = (v_key & wuffs_brotli__encoder__fc_num_banks_minus_1(self));
+  v_backward = 0u;
+  v_hops = self->private_impl.f_fc_max_hops;
+  v_delta = ((uint64_t)(a_cur_ix - ((uint64_t)(wuffs_brotli__encoder__load32le(self, a_wb, ((uint64_t)(self->private_impl.f_h_off0 + ((uint64_t)(4u * v_key)))))))));
+  v_slot = ((uint64_t)(wuffs_brotli__encoder__peek_u16(self, a_wb, ((uint64_t)(((uint64_t)(self->private_impl.f_h_off0 + 131072u)) + ((uint64_t)(2u * v_key)))))));
+  while (v_hops > 0u) {
+    v_hops -= 1u;
+    v_last = v_slot;
+    v_backward += v_delta;
+    if (v_backward > a_max_backward) {
+      break;
+    }
+    v_prev_ix = (((uint64_t)(a_cur_ix - v_backward)) & v_mask);
+    v_slot_off = ((uint64_t)(self->private_impl.f_h_off1 + ((uint64_t)(4u * ((uint64_t)(((uint64_t)(v_bank << v_fc_bits)) + v_last))))));
+    v_slot = ((uint64_t)(wuffs_brotli__encoder__peek_u16(self, a_wb, ((uint64_t)(v_slot_off + 2u)))));
+    v_delta = ((uint64_t)(wuffs_brotli__encoder__peek_u16(self, a_wb, v_slot_off)));
+    if ((((uint64_t)(v_cur_ix_masked + v_best_len)) > v_mask) || (((uint64_t)(v_prev_ix + v_best_len)) > v_mask) || (wuffs_brotli__encoder__load32le(self, v_data, ((uint64_t)(((uint64_t)(v_cur_ix_masked + v_best_len)) - 3u))) != wuffs_brotli__encoder__load32le(self, v_data, ((uint64_t)(((uint64_t)(v_prev_ix + v_best_len)) - 3u))))) {
+      continue;
+    }
+    v_len = wuffs_brotli__encoder__find_match_length_with_limit(self,
+        v_data,
+        v_prev_ix,
+        v_cur_ix_masked,
+        a_max_length);
+    if (v_len >= 4u) {
+      v_score = wuffs_brotli__encoder__backward_reference_score(self, v_len, v_backward);
+      if (v_best_score < v_score) {
+        v_best_score = v_score;
+        v_best_len = v_len;
+        self->private_impl.f_sr_len = v_best_len;
+        self->private_impl.f_sr_distance = v_backward;
+        self->private_impl.f_sr_score = v_best_score;
+      }
+    }
+  }
+  wuffs_brotli__encoder__hasher_store(self, a_wb, a_cur_ix);
+  if (self->private_impl.f_sr_score == v_min_score) {
+    wuffs_brotli__encoder__search_in_static_dictionary(self,
+        v_data,
+        v_cur_ix_masked,
+        a_max_length,
+        a_dictionary_distance,
+        a_max_distance,
+        false);
+  }
+  return wuffs_base__make_empty_struct();
+}
+
 // -------- func brotli.bit_cost.histogram_clear
 
 WUFFS_BASE__GENERATED_C_CODE
@@ -69002,6 +83030,686 @@ wuffs_brotli__bit_cost__command_distance_context(
   return 3u;
 }
 
+// -------- func brotli.encoder.gbs_histo_off
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint64_t
+wuffs_brotli__encoder__gbs_histo_off(
+    const wuffs_brotli__encoder* self,
+    uint32_t a_c,
+    uint64_t a_ix) {
+  return ((uint64_t)(self->private_data.f_gbs_histo_off_base[a_c] + ((uint64_t)(a_ix * (((uint64_t)(self->private_data.f_gbs_data_size[a_c])) * 4u)))));
+}
+
+// -------- func brotli.encoder.gbs_entropy
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint64_t
+wuffs_brotli__encoder__gbs_entropy(
+    const wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    uint64_t a_off,
+    uint64_t a_size) {
+  if (a_off <= ((uint64_t)(a_wb.len))) {
+    return wuffs_brotli__bit_cost__bits_entropy(&self->private_data.f_bc, wuffs_base__slice_u8__subslice_i(a_wb, a_off), a_size);
+  }
+  return 0u;
+}
+
+// -------- func brotli.encoder.gbs_clear
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__gbs_clear(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    uint64_t a_off,
+    uint64_t a_n) {
+  wuffs_brotli__encoder__fill_bytes(self,
+      a_wb,
+      a_off,
+      ((uint64_t)(a_n * 4u)),
+      0u);
+  return wuffs_base__make_empty_struct();
+}
+
+// -------- func brotli.encoder.gbs_copy
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__gbs_copy(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    uint64_t a_dst,
+    uint64_t a_src,
+    uint64_t a_n) {
+  uint64_t v_i = 0;
+
+  v_i = 0u;
+  while (v_i < a_n) {
+    wuffs_brotli__encoder__poke_u32(self, a_wb, ((uint64_t)(a_dst + ((uint64_t)(v_i * 4u)))), wuffs_brotli__encoder__load32le(self, a_wb, ((uint64_t)(a_src + ((uint64_t)(v_i * 4u))))));
+    v_i += 1u;
+  }
+  return wuffs_base__make_empty_struct();
+}
+
+// -------- func brotli.encoder.gbs_add_histogram
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__gbs_add_histogram(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    uint64_t a_dst,
+    uint64_t a_src,
+    uint64_t a_n) {
+  uint64_t v_i = 0;
+
+  v_i = 0u;
+  while (v_i < a_n) {
+    wuffs_brotli__encoder__poke_u32(self, a_wb, ((uint64_t)(a_dst + ((uint64_t)(v_i * 4u)))), ((uint32_t)(wuffs_brotli__encoder__load32le(self, a_wb, ((uint64_t)(a_dst + ((uint64_t)(v_i * 4u))))) + wuffs_brotli__encoder__load32le(self, a_wb, ((uint64_t)(a_src + ((uint64_t)(v_i * 4u))))))));
+    v_i += 1u;
+  }
+  return wuffs_base__make_empty_struct();
+}
+
+// -------- func brotli.encoder.gbs_init
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__gbs_init(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    uint32_t a_c,
+    uint32_t a_alphabet_size,
+    uint32_t a_data_size,
+    uint32_t a_num_contexts,
+    uint32_t a_min_block_size,
+    uint64_t a_split_threshold,
+    uint64_t a_num_symbols) {
+  uint64_t v_max_num_blocks = 0;
+  uint64_t v_max_num_types = 0;
+  uint32_t v_nc = 0;
+
+  v_nc = wuffs_base__u32__max(a_num_contexts, 1u);
+  self->private_data.f_gbs_alphabet_size[a_c] = a_alphabet_size;
+  self->private_data.f_gbs_data_size[a_c] = a_data_size;
+  self->private_data.f_gbs_num_contexts[a_c] = v_nc;
+  self->private_data.f_gbs_max_block_types[a_c] = (256u / v_nc);
+  self->private_data.f_gbs_min_block_size[a_c] = wuffs_base__u32__max(a_min_block_size, 1u);
+  self->private_data.f_gbs_split_threshold[a_c] = a_split_threshold;
+  self->private_data.f_gbs_num_blocks[a_c] = 0u;
+  self->private_data.f_gbs_num_types[a_c] = 0u;
+  self->private_data.f_gbs_target_block_size[a_c] = ((uint64_t)(self->private_data.f_gbs_min_block_size[a_c]));
+  self->private_data.f_gbs_block_size[a_c] = 0u;
+  self->private_data.f_gbs_curr_histogram_ix[a_c] = 0u;
+  self->private_data.f_gbs_merge_last_count[a_c] = 0u;
+  v_max_num_blocks = ((uint64_t)((a_num_symbols / ((uint64_t)(self->private_data.f_gbs_min_block_size[a_c]))) + 1u));
+  v_max_num_types = wuffs_base__u64__min(v_max_num_blocks, (((uint64_t)(self->private_data.f_gbs_max_block_types[a_c])) + 1u));
+  self->private_data.f_gbs_split_num_blocks[a_c] = v_max_num_blocks;
+  self->private_data.f_gbs_histograms_size[a_c] = ((uint64_t)(v_max_num_types * ((uint64_t)(v_nc))));
+  wuffs_brotli__encoder__gbs_clear(self, a_wb, wuffs_brotli__encoder__gbs_histo_off(self, a_c, 0u), ((uint64_t)(((uint64_t)(v_nc)) * ((uint64_t)(a_data_size)))));
+  self->private_data.f_gbs_last_histogram_ix[(a_c * 2u)] = 0u;
+  self->private_data.f_gbs_last_histogram_ix[((a_c * 2u) + 1u)] = 0u;
+  return wuffs_base__make_empty_struct();
+}
+
+// -------- func brotli.encoder.gbs_finish_block
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__gbs_finish_block(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    uint32_t a_c,
+    bool a_is_final) {
+  uint64_t v_nc = 0;
+  uint64_t v_i = 0;
+  uint64_t v_j = 0;
+  uint64_t v_jx = 0;
+  uint64_t v_alphabet_size = 0;
+  uint64_t v_data_size = 0;
+  uint64_t v_num_blocks = 0;
+  uint64_t v_curr = 0;
+  uint64_t v_tmp = 0;
+  uint64_t v_e = 0;
+  uint64_t v_d = 0;
+  uint64_t v_diff0 = 0;
+  uint64_t v_diff1 = 0;
+  uint64_t v_threshold = 0;
+  uint64_t v_types_off = 0;
+  uint64_t v_lengths_off = 0;
+  uint32_t v_le_base = 0;
+  uint64_t v_last0 = 0;
+  uint64_t v_last1 = 0;
+
+  v_nc = ((uint64_t)(self->private_data.f_gbs_num_contexts[a_c]));
+  v_alphabet_size = ((uint64_t)(self->private_data.f_gbs_alphabet_size[a_c]));
+  v_data_size = ((uint64_t)(self->private_data.f_gbs_data_size[a_c]));
+  v_num_blocks = self->private_data.f_gbs_num_blocks[a_c];
+  v_curr = self->private_data.f_gbs_curr_histogram_ix[a_c];
+  v_threshold = self->private_data.f_gbs_split_threshold[a_c];
+  v_types_off = self->private_data.f_gbs_types_off[a_c];
+  v_lengths_off = self->private_data.f_gbs_lengths_off[a_c];
+  v_le_base = (a_c * 32u);
+  if (self->private_data.f_gbs_block_size[a_c] < ((uint64_t)(self->private_data.f_gbs_min_block_size[a_c]))) {
+    self->private_data.f_gbs_block_size[a_c] = ((uint64_t)(self->private_data.f_gbs_min_block_size[a_c]));
+  }
+  if (v_num_blocks == 0u) {
+    wuffs_brotli__encoder__poke_u32(self, a_wb, v_lengths_off, ((uint32_t)(self->private_data.f_gbs_block_size[a_c])));
+    wuffs_brotli__encoder__set_byte(self, a_wb, v_types_off, 0u);
+    v_i = 0u;
+    while (v_i < v_nc) {
+      v_e = wuffs_brotli__encoder__gbs_entropy(self, a_wb, wuffs_brotli__encoder__gbs_histo_off(self, a_c, v_i), v_alphabet_size);
+      self->private_data.f_gbs_last_entropy[(((uint64_t)(((uint64_t)(v_le_base)) + v_i)) & 127u)] = v_e;
+      self->private_data.f_gbs_last_entropy[(((uint64_t)(((uint64_t)(((uint64_t)(v_le_base)) + v_nc)) + v_i)) & 127u)] = v_e;
+      v_i += 1u;
+    }
+    self->private_data.f_gbs_num_blocks[a_c] = ((uint64_t)(v_num_blocks + 1u));
+    self->private_data.f_gbs_num_types[a_c] += 1u;
+    v_curr += v_nc;
+    self->private_data.f_gbs_curr_histogram_ix[a_c] = v_curr;
+    if (v_curr < self->private_data.f_gbs_histograms_size[a_c]) {
+      wuffs_brotli__encoder__gbs_clear(self, a_wb, wuffs_brotli__encoder__gbs_histo_off(self, a_c, v_curr), ((uint64_t)(v_nc * v_data_size)));
+    }
+    self->private_data.f_gbs_block_size[a_c] = 0u;
+  } else if (self->private_data.f_gbs_block_size[a_c] > 0u) {
+    v_last0 = self->private_data.f_gbs_last_histogram_ix[(a_c * 2u)];
+    v_last1 = self->private_data.f_gbs_last_histogram_ix[((a_c * 2u) + 1u)];
+    v_i = 0u;
+    while (v_i < v_nc) {
+      v_e = wuffs_brotli__encoder__gbs_entropy(self, a_wb, wuffs_brotli__encoder__gbs_histo_off(self, a_c, ((uint64_t)(v_curr + v_i))), v_alphabet_size);
+      self->private_data.f_gbs_entropy_tmp[(v_i & 15u)] = v_e;
+      v_j = 0u;
+      while (v_j < 2u) {
+        v_jx = ((uint64_t)(((uint64_t)(v_j * v_nc)) + v_i));
+        v_tmp = ((uint64_t)(self->private_impl.f_mb_comb_off + ((uint64_t)(((uint64_t)(v_jx * v_data_size)) * 4u))));
+        wuffs_brotli__encoder__gbs_copy(self,
+            a_wb,
+            v_tmp,
+            wuffs_brotli__encoder__gbs_histo_off(self, a_c, ((uint64_t)(v_curr + v_i))),
+            v_data_size);
+        if (v_j == 0u) {
+          wuffs_brotli__encoder__gbs_add_histogram(self,
+              a_wb,
+              v_tmp,
+              wuffs_brotli__encoder__gbs_histo_off(self, a_c, ((uint64_t)(v_last0 + v_i))),
+              v_data_size);
+        } else {
+          wuffs_brotli__encoder__gbs_add_histogram(self,
+              a_wb,
+              v_tmp,
+              wuffs_brotli__encoder__gbs_histo_off(self, a_c, ((uint64_t)(v_last1 + v_i))),
+              v_data_size);
+        }
+        self->private_data.f_gbs_comb_entropy[(v_jx & 31u)] = wuffs_brotli__encoder__gbs_entropy(self, a_wb, v_tmp, v_alphabet_size);
+        v_d = wuffs_softfloat__arith__f64_sub(&self->private_data.f_sf, wuffs_softfloat__arith__f64_sub(&self->private_data.f_sf, self->private_data.f_gbs_comb_entropy[(v_jx & 31u)], v_e), self->private_data.f_gbs_last_entropy[(((uint64_t)(((uint64_t)(v_le_base)) + v_jx)) & 127u)]);
+        if (v_j == 0u) {
+          if (v_nc == 1u) {
+            v_diff0 = v_d;
+          } else {
+            v_diff0 = wuffs_softfloat__arith__f64_add(&self->private_data.f_sf, v_diff0, v_d);
+          }
+        } else {
+          if (v_nc == 1u) {
+            v_diff1 = v_d;
+          } else {
+            v_diff1 = wuffs_softfloat__arith__f64_add(&self->private_data.f_sf, v_diff1, v_d);
+          }
+        }
+        v_j += 1u;
+      }
+      v_i += 1u;
+    }
+    if ((self->private_data.f_gbs_num_types[a_c] < self->private_data.f_gbs_max_block_types[a_c]) && (wuffs_softfloat__arith__f64_gt(&self->private_data.f_sf, v_diff0, v_threshold) != 0u) && (wuffs_softfloat__arith__f64_gt(&self->private_data.f_sf, v_diff1, v_threshold) != 0u)) {
+      wuffs_brotli__encoder__poke_u32(self, a_wb, ((uint64_t)(v_lengths_off + ((uint64_t)(v_num_blocks * 4u)))), ((uint32_t)(self->private_data.f_gbs_block_size[a_c])));
+      wuffs_brotli__encoder__set_byte(self, a_wb, ((uint64_t)(v_types_off + v_num_blocks)), ((uint8_t)(self->private_data.f_gbs_num_types[a_c])));
+      self->private_data.f_gbs_last_histogram_ix[((a_c * 2u) + 1u)] = v_last0;
+      self->private_data.f_gbs_last_histogram_ix[(a_c * 2u)] = ((uint64_t)(((uint64_t)(self->private_data.f_gbs_num_types[a_c])) * v_nc));
+      v_i = 0u;
+      while (v_i < v_nc) {
+        self->private_data.f_gbs_last_entropy[(((uint64_t)(((uint64_t)(((uint64_t)(v_le_base)) + v_nc)) + v_i)) & 127u)] = self->private_data.f_gbs_last_entropy[(((uint64_t)(((uint64_t)(v_le_base)) + v_i)) & 127u)];
+        self->private_data.f_gbs_last_entropy[(((uint64_t)(((uint64_t)(v_le_base)) + v_i)) & 127u)] = self->private_data.f_gbs_entropy_tmp[(v_i & 15u)];
+        v_i += 1u;
+      }
+      self->private_data.f_gbs_num_blocks[a_c] = ((uint64_t)(v_num_blocks + 1u));
+      self->private_data.f_gbs_num_types[a_c] += 1u;
+      v_curr += v_nc;
+      self->private_data.f_gbs_curr_histogram_ix[a_c] = v_curr;
+      if (v_curr < self->private_data.f_gbs_histograms_size[a_c]) {
+        wuffs_brotli__encoder__gbs_clear(self, a_wb, wuffs_brotli__encoder__gbs_histo_off(self, a_c, v_curr), ((uint64_t)(v_nc * v_data_size)));
+      }
+      self->private_data.f_gbs_block_size[a_c] = 0u;
+      self->private_data.f_gbs_merge_last_count[a_c] = 0u;
+      self->private_data.f_gbs_target_block_size[a_c] = ((uint64_t)(self->private_data.f_gbs_min_block_size[a_c]));
+    } else if (wuffs_softfloat__arith__f64_lt(&self->private_data.f_sf, v_diff1, wuffs_softfloat__arith__f64_sub(&self->private_data.f_sf, v_diff0, 4626322717216342016u)) != 0u) {
+      wuffs_brotli__encoder__poke_u32(self, a_wb, ((uint64_t)(v_lengths_off + ((uint64_t)(v_num_blocks * 4u)))), ((uint32_t)(self->private_data.f_gbs_block_size[a_c])));
+      wuffs_brotli__encoder__set_byte(self, a_wb, ((uint64_t)(v_types_off + v_num_blocks)), wuffs_brotli__encoder__byte_at(self, a_wb, ((uint64_t)(v_types_off + ((uint64_t)(v_num_blocks - 2u))))));
+      self->private_data.f_gbs_last_histogram_ix[(a_c * 2u)] = v_last1;
+      self->private_data.f_gbs_last_histogram_ix[((a_c * 2u) + 1u)] = v_last0;
+      v_i = 0u;
+      while (v_i < v_nc) {
+        wuffs_brotli__encoder__gbs_copy(self,
+            a_wb,
+            wuffs_brotli__encoder__gbs_histo_off(self, a_c, ((uint64_t)(v_last1 + v_i))),
+            ((uint64_t)(self->private_impl.f_mb_comb_off + ((uint64_t)(((uint64_t)(((uint64_t)(v_nc + v_i)) * v_data_size)) * 4u)))),
+            v_data_size);
+        self->private_data.f_gbs_last_entropy[(((uint64_t)(((uint64_t)(((uint64_t)(v_le_base)) + v_nc)) + v_i)) & 127u)] = self->private_data.f_gbs_last_entropy[(((uint64_t)(((uint64_t)(v_le_base)) + v_i)) & 127u)];
+        self->private_data.f_gbs_last_entropy[(((uint64_t)(((uint64_t)(v_le_base)) + v_i)) & 127u)] = self->private_data.f_gbs_comb_entropy[(((uint64_t)(v_nc + v_i)) & 31u)];
+        wuffs_brotli__encoder__gbs_clear(self, a_wb, wuffs_brotli__encoder__gbs_histo_off(self, a_c, ((uint64_t)(v_curr + v_i))), v_data_size);
+        v_i += 1u;
+      }
+      self->private_data.f_gbs_num_blocks[a_c] = ((uint64_t)(v_num_blocks + 1u));
+      self->private_data.f_gbs_block_size[a_c] = 0u;
+      self->private_data.f_gbs_merge_last_count[a_c] = 0u;
+      self->private_data.f_gbs_target_block_size[a_c] = ((uint64_t)(self->private_data.f_gbs_min_block_size[a_c]));
+    } else {
+      v_tmp = ((uint64_t)(v_lengths_off + ((uint64_t)(((uint64_t)(v_num_blocks - 1u)) * 4u))));
+      wuffs_brotli__encoder__poke_u32(self, a_wb, v_tmp, ((uint32_t)(wuffs_brotli__encoder__load32le(self, a_wb, v_tmp) + ((uint32_t)(self->private_data.f_gbs_block_size[a_c])))));
+      v_i = 0u;
+      while (v_i < v_nc) {
+        wuffs_brotli__encoder__gbs_copy(self,
+            a_wb,
+            wuffs_brotli__encoder__gbs_histo_off(self, a_c, ((uint64_t)(v_last0 + v_i))),
+            ((uint64_t)(self->private_impl.f_mb_comb_off + ((uint64_t)(((uint64_t)(v_i * v_data_size)) * 4u)))),
+            v_data_size);
+        self->private_data.f_gbs_last_entropy[(((uint64_t)(((uint64_t)(v_le_base)) + v_i)) & 127u)] = self->private_data.f_gbs_comb_entropy[(v_i & 31u)];
+        if (self->private_data.f_gbs_num_types[a_c] == 1u) {
+          self->private_data.f_gbs_last_entropy[(((uint64_t)(((uint64_t)(((uint64_t)(v_le_base)) + v_nc)) + v_i)) & 127u)] = self->private_data.f_gbs_last_entropy[(((uint64_t)(((uint64_t)(v_le_base)) + v_i)) & 127u)];
+        }
+        wuffs_brotli__encoder__gbs_clear(self, a_wb, wuffs_brotli__encoder__gbs_histo_off(self, a_c, ((uint64_t)(v_curr + v_i))), v_data_size);
+        v_i += 1u;
+      }
+      self->private_data.f_gbs_block_size[a_c] = 0u;
+      self->private_data.f_gbs_merge_last_count[a_c] += 1u;
+      if (self->private_data.f_gbs_merge_last_count[a_c] > 1u) {
+        self->private_data.f_gbs_target_block_size[a_c] += ((uint64_t)(self->private_data.f_gbs_min_block_size[a_c]));
+      }
+    }
+  }
+  if (a_is_final) {
+    self->private_data.f_gbs_histograms_size[a_c] = ((uint64_t)(((uint64_t)(self->private_data.f_gbs_num_types[a_c])) * v_nc));
+    self->private_data.f_gbs_split_num_blocks[a_c] = self->private_data.f_gbs_num_blocks[a_c];
+  }
+  return wuffs_base__make_empty_struct();
+}
+
+// -------- func brotli.encoder.gbs_add_symbol
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__gbs_add_symbol(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    uint32_t a_c,
+    uint64_t a_symbol,
+    uint64_t a_context) {
+  uint64_t v_off = 0;
+
+  v_off = ((uint64_t)(wuffs_brotli__encoder__gbs_histo_off(self, a_c, ((uint64_t)(self->private_data.f_gbs_curr_histogram_ix[a_c] + a_context))) + ((uint64_t)(a_symbol * 4u))));
+  wuffs_brotli__encoder__poke_u32(self, a_wb, v_off, ((uint32_t)(wuffs_brotli__encoder__load32le(self, a_wb, v_off) + 1u)));
+  self->private_data.f_gbs_block_size[a_c] += 1u;
+  if (self->private_data.f_gbs_block_size[a_c] == self->private_data.f_gbs_target_block_size[a_c]) {
+    wuffs_brotli__encoder__gbs_finish_block(self, a_wb, a_c, false);
+  }
+  return wuffs_base__make_empty_struct();
+}
+
+// -------- func brotli.encoder.static_context_map
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint32_t
+wuffs_brotli__encoder__static_context_map(
+    const wuffs_brotli__encoder* self,
+    uint32_t a_num_contexts,
+    uint32_t a_j) {
+  if (a_num_contexts == 2u) {
+    return ((uint32_t)(WUFFS_BROTLI__STATIC_CONTEXT_MAP_SIMPLE_UTF8[(a_j & 63u)]));
+  } else if (a_num_contexts == 3u) {
+    return ((uint32_t)(WUFFS_BROTLI__STATIC_CONTEXT_MAP_CONTINUATION[(a_j & 63u)]));
+  } else if (a_num_contexts == 13u) {
+    return ((uint32_t)(WUFFS_BROTLI__STATIC_CONTEXT_MAP_COMPLEX_UTF8[(a_j & 63u)]));
+  }
+  return 0u;
+}
+
+// -------- func brotli.encoder.build_meta_block_greedy
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__build_meta_block_greedy(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    uint64_t a_pos,
+    uint8_t a_prev_byte,
+    uint8_t a_prev_byte2,
+    uint32_t a_num_contexts,
+    uint64_t a_n_commands) {
+  uint64_t v_pos = 0;
+  uint8_t v_prev_byte = 0;
+  uint8_t v_prev_byte2 = 0;
+  uint64_t v_num_literals = 0;
+  uint64_t v_i = 0;
+  uint32_t v_j = 0;
+  uint32_t v_k = 0;
+  uint8_t v_literal = 0;
+  uint32_t v_context = 0;
+  uint16_t v_cmd_prefix = 0;
+  uint32_t v_copy_len = 0;
+  uint32_t v_num_types = 0;
+  uint32_t v_offset = 0;
+
+  v_pos = a_pos;
+  v_prev_byte = a_prev_byte;
+  v_prev_byte2 = a_prev_byte2;
+  v_i = 0u;
+  while (v_i < a_n_commands) {
+    v_num_literals += ((uint64_t)(wuffs_brotli__encoder__cmd_insert_len(self, a_wb, v_i)));
+    v_i += 1u;
+  }
+  wuffs_brotli__encoder__gbs_init(self,
+      a_wb,
+      0u,
+      256u,
+      256u,
+      a_num_contexts,
+      512u,
+      4645744490609377280u,
+      v_num_literals);
+  wuffs_brotli__encoder__gbs_init(self,
+      a_wb,
+      1u,
+      704u,
+      704u,
+      1u,
+      1024u,
+      4647503709213818880u,
+      a_n_commands);
+  wuffs_brotli__encoder__gbs_init(self,
+      a_wb,
+      2u,
+      64u,
+      544u,
+      1u,
+      512u,
+      4636737291354636288u,
+      a_n_commands);
+  v_i = 0u;
+  while (v_i < a_n_commands) {
+    v_cmd_prefix = wuffs_brotli__encoder__cmd_cmd_prefix(self, a_wb, v_i);
+    wuffs_brotli__encoder__gbs_add_symbol(self,
+        a_wb,
+        1u,
+        ((uint64_t)(v_cmd_prefix)),
+        0u);
+    v_j = wuffs_brotli__encoder__cmd_insert_len(self, a_wb, v_i);
+    while (v_j > 0u) {
+      v_literal = wuffs_brotli__encoder__rb_byte(self, a_wb, v_pos);
+      if (a_num_contexts <= 1u) {
+        wuffs_brotli__encoder__gbs_add_symbol(self,
+            a_wb,
+            0u,
+            ((uint64_t)(v_literal)),
+            0u);
+      } else {
+        v_context = ((uint32_t)(((uint8_t)(WUFFS_BROTLI__CONTEXT_LOOKUP[(1024u + ((uint32_t)(v_prev_byte)))] | WUFFS_BROTLI__CONTEXT_LOOKUP[(1280u + ((uint32_t)(v_prev_byte2)))]))));
+        wuffs_brotli__encoder__gbs_add_symbol(self,
+            a_wb,
+            0u,
+            ((uint64_t)(v_literal)),
+            ((uint64_t)(wuffs_brotli__encoder__static_context_map(self, a_num_contexts, v_context))));
+      }
+      v_prev_byte2 = v_prev_byte;
+      v_prev_byte = v_literal;
+      v_pos += 1u;
+      v_j -= 1u;
+    }
+    v_copy_len = wuffs_brotli__encoder__cmd_copy_len(self, a_wb, v_i);
+    v_pos += ((uint64_t)(v_copy_len));
+    if (v_copy_len != 0u) {
+      v_prev_byte2 = wuffs_brotli__encoder__rb_byte(self, a_wb, ((uint64_t)(v_pos - 2u)));
+      v_prev_byte = wuffs_brotli__encoder__rb_byte(self, a_wb, ((uint64_t)(v_pos - 1u)));
+      if (v_cmd_prefix >= 128u) {
+        wuffs_brotli__encoder__gbs_add_symbol(self,
+            a_wb,
+            2u,
+            ((uint64_t)(((uint16_t)(wuffs_brotli__encoder__cmd_dist_prefix(self, a_wb, v_i) & 1023u)))),
+            0u);
+      }
+    }
+    v_i += 1u;
+  }
+  wuffs_brotli__encoder__gbs_finish_block(self, a_wb, 0u, true);
+  wuffs_brotli__encoder__gbs_finish_block(self, a_wb, 1u, true);
+  wuffs_brotli__encoder__gbs_finish_block(self, a_wb, 2u, true);
+  self->private_impl.f_mb_cmap_size = 0u;
+  if (a_num_contexts > 1u) {
+    v_num_types = self->private_data.f_gbs_num_types[0u];
+    self->private_impl.f_mb_cmap_size = (((uint64_t)(v_num_types)) << 6u);
+    v_k = 0u;
+    while (v_k < v_num_types) {
+      v_offset = ((uint32_t)(v_k * a_num_contexts));
+      v_j = 0u;
+      while (v_j < 64u) {
+        wuffs_brotli__encoder__set_byte(self, a_wb, ((uint64_t)(self->private_impl.f_mb_cmap_off + ((((uint64_t)(v_k)) << 6u) | ((uint64_t)(v_j))))), ((uint8_t)(((uint32_t)(v_offset + wuffs_brotli__encoder__static_context_map(self, a_num_contexts, v_j))))));
+        v_j += 1u;
+      }
+      v_k += 1u;
+    }
+  }
+  return wuffs_base__make_empty_struct();
+}
+
+// -------- func brotli.encoder.optimize_histograms
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__optimize_histograms(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    uint32_t a_num_distance_codes) {
+  uint64_t v_i = 0;
+
+  v_i = 0u;
+  while (v_i < self->private_data.f_gbs_histograms_size[0u]) {
+    wuffs_brotli__encoder__optimize_huffman_counts_for_rle(self, a_wb, wuffs_brotli__encoder__gbs_histo_off(self, 0u, v_i), 256u);
+    v_i += 1u;
+  }
+  v_i = 0u;
+  while (v_i < self->private_data.f_gbs_histograms_size[1u]) {
+    wuffs_brotli__encoder__optimize_huffman_counts_for_rle(self, a_wb, wuffs_brotli__encoder__gbs_histo_off(self, 1u, v_i), 704u);
+    v_i += 1u;
+  }
+  v_i = 0u;
+  while (v_i < self->private_data.f_gbs_histograms_size[2u]) {
+    wuffs_brotli__encoder__optimize_huffman_counts_for_rle(self, a_wb, wuffs_brotli__encoder__gbs_histo_off(self, 2u, v_i), ((uint64_t)(a_num_distance_codes)));
+    v_i += 1u;
+  }
+  return wuffs_base__make_empty_struct();
+}
+
+// -------- func brotli.encoder.optimize_huffman_counts_for_rle
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__optimize_huffman_counts_for_rle(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    uint64_t a_off,
+    uint64_t a_length) {
+  uint64_t v_length = 0;
+  uint64_t v_nonzero_count = 0;
+  uint64_t v_stride = 0;
+  uint64_t v_limit = 0;
+  uint64_t v_sum = 0;
+  uint64_t v_i = 0;
+  uint64_t v_k = 0;
+  uint64_t v_nonzeros = 0;
+  uint32_t v_smallest_nonzero = 0;
+  uint64_t v_zeros = 0;
+  uint32_t v_symbol = 0;
+  uint64_t v_step = 0;
+  uint64_t v_count = 0;
+  uint32_t v_c = 0;
+  bool v_cond = false;
+
+  v_length = wuffs_base__u64__min(a_length, 704u);
+  v_i = 0u;
+  while (v_i < v_length) {
+    if (wuffs_brotli__encoder__ctr(self, a_wb, a_off, v_i) != 0u) {
+      v_nonzero_count += 1u;
+    }
+    v_i += 1u;
+  }
+  if (v_nonzero_count < 16u) {
+    return wuffs_base__make_empty_struct();
+  }
+  while ((v_length != 0u) && (wuffs_brotli__encoder__ctr(self, a_wb, a_off, ((uint64_t)(v_length - 1u))) == 0u)) {
+    v_length -= 1u;
+  }
+  if (v_length == 0u) {
+    return wuffs_base__make_empty_struct();
+  }
+  v_smallest_nonzero = 1073741824u;
+  v_i = 0u;
+  while (v_i < v_length) {
+    v_c = wuffs_brotli__encoder__ctr(self, a_wb, a_off, v_i);
+    if (v_c != 0u) {
+      v_nonzeros += 1u;
+      if (v_smallest_nonzero > v_c) {
+        v_smallest_nonzero = v_c;
+      }
+    }
+    v_i += 1u;
+  }
+  if (v_nonzeros < 5u) {
+    return wuffs_base__make_empty_struct();
+  }
+  if (v_smallest_nonzero < 4u) {
+    v_zeros = ((uint64_t)(v_length - v_nonzeros));
+    if (v_zeros < 6u) {
+      v_i = 1u;
+      while (((uint64_t)(v_i + 1u)) < v_length) {
+        if ((wuffs_brotli__encoder__ctr(self, a_wb, a_off, ((uint64_t)(v_i - 1u))) != 0u) && (wuffs_brotli__encoder__ctr(self, a_wb, a_off, v_i) == 0u) && (wuffs_brotli__encoder__ctr(self, a_wb, a_off, ((uint64_t)(v_i + 1u))) != 0u)) {
+          wuffs_brotli__encoder__poke_u32(self, a_wb, ((uint64_t)(a_off + ((uint64_t)(v_i * 4u)))), 1u);
+        }
+        v_i += 1u;
+      }
+    }
+  }
+  if (v_nonzeros < 28u) {
+    return wuffs_base__make_empty_struct();
+  }
+  v_i = 0u;
+  while (v_i < v_length) {
+    self->private_data.f_good_for_rle[(v_i & 1023u)] = 0u;
+    v_i += 1u;
+  }
+  v_symbol = wuffs_brotli__encoder__ctr(self, a_wb, a_off, 0u);
+  v_step = 0u;
+  v_i = 0u;
+  while (v_i <= v_length) {
+    if ((v_i == v_length) || (wuffs_brotli__encoder__ctr(self, a_wb, a_off, v_i) != v_symbol)) {
+      if (((v_symbol == 0u) && (v_step >= 5u)) || ((v_symbol != 0u) && (v_step >= 7u))) {
+        v_k = 0u;
+        while (v_k < v_step) {
+          self->private_data.f_good_for_rle[(((uint64_t)(((uint64_t)(v_i - v_k)) - 1u)) & 1023u)] = 1u;
+          v_k += 1u;
+        }
+      }
+      v_step = 1u;
+      if (v_i != v_length) {
+        v_symbol = wuffs_brotli__encoder__ctr(self, a_wb, a_off, v_i);
+      }
+    } else {
+      v_step += 1u;
+    }
+    v_i += 1u;
+  }
+  v_stride = 0u;
+  v_limit = wuffs_brotli__encoder__rle_limit3(self, a_wb, a_off, 0u);
+  v_sum = 0u;
+  v_i = 0u;
+  while (v_i <= v_length) {
+    v_cond = (v_i == v_length);
+    if ( ! v_cond) {
+      v_cond = (self->private_data.f_good_for_rle[(v_i & 1023u)] != 0u);
+    }
+    if ( ! v_cond && (v_i != 0u)) {
+      v_cond = (self->private_data.f_good_for_rle[((v_i - 1u) & 1023u)] != 0u);
+    }
+    if ( ! v_cond) {
+      v_cond = (((uint64_t)(((uint64_t)(((uint64_t)(((uint32_t)(wuffs_brotli__encoder__ctr(self, a_wb, a_off, v_i) * 256u)))) - v_limit)) + 1240u)) >= 2480u);
+    }
+    if (v_cond) {
+      if ((v_stride >= 4u) || ((v_stride >= 3u) && (v_sum == 0u))) {
+        v_count = (((uint64_t)(v_sum + (v_stride / 2u))) / wuffs_base__u64__max(v_stride, 1u));
+        if (v_count == 0u) {
+          v_count = 1u;
+        }
+        if (v_sum == 0u) {
+          v_count = 0u;
+        }
+        v_k = 0u;
+        while (v_k < v_stride) {
+          wuffs_brotli__encoder__poke_u32(self, a_wb, ((uint64_t)(a_off + ((uint64_t)(((uint64_t)(((uint64_t)(v_i - v_k)) - 1u)) * 4u)))), ((uint32_t)(v_count)));
+          v_k += 1u;
+        }
+      }
+      v_stride = 0u;
+      v_sum = 0u;
+      if (((uint64_t)(v_i + 2u)) < v_length) {
+        v_limit = wuffs_brotli__encoder__rle_limit3(self, a_wb, a_off, v_i);
+      } else if (v_i < v_length) {
+        v_limit = ((uint64_t)(((uint32_t)(wuffs_brotli__encoder__ctr(self, a_wb, a_off, v_i) * 256u))));
+      } else {
+        v_limit = 0u;
+      }
+    }
+    v_stride += 1u;
+    if (v_i != v_length) {
+      v_sum += ((uint64_t)(wuffs_brotli__encoder__ctr(self, a_wb, a_off, v_i)));
+      if (v_stride >= 4u) {
+        v_limit = (((uint64_t)(((uint64_t)(v_sum * 256u)) + (v_stride / 2u))) / wuffs_base__u64__max(v_stride, 1u));
+      }
+      if (v_stride == 4u) {
+        v_limit += 120u;
+      }
+    }
+    v_i += 1u;
+  }
+  return wuffs_base__make_empty_struct();
+}
+
+// -------- func brotli.encoder.ctr
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint32_t
+wuffs_brotli__encoder__ctr(
+    const wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    uint64_t a_off,
+    uint64_t a_i) {
+  return wuffs_brotli__encoder__load32le(self, a_wb, ((uint64_t)(a_off + ((uint64_t)(a_i * 4u)))));
+}
+
+// -------- func brotli.encoder.rle_limit3
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint64_t
+wuffs_brotli__encoder__rle_limit3(
+    const wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_wb,
+    uint64_t a_off,
+    uint64_t a_i) {
+  uint32_t v_s = 0;
+
+  v_s = wuffs_brotli__encoder__ctr(self, a_wb, a_off, a_i);
+  v_s += wuffs_brotli__encoder__ctr(self, a_wb, a_off, ((uint64_t)(a_i + 1u)));
+  v_s += wuffs_brotli__encoder__ctr(self, a_wb, a_off, ((uint64_t)(a_i + 2u)));
+  return ((uint64_t)(((uint32_t)((((uint32_t)(v_s * 256u)) / 3u) + 420u))));
+}
+
 // -------- func brotli.metablock_tester.bits_entropy
 
 WUFFS_BASE__GENERATED_C_CODE
@@ -69045,6 +83753,163 @@ wuffs_brotli__metablock_tester__population_cost(
     return wuffs_brotli__bit_cost__population_cost(&self->private_data.f_bc, a_histogram, 544u);
   }
   return 0u;
+}
+
+// -------- func brotli.encoder.byte_at
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint8_t
+wuffs_brotli__encoder__byte_at(
+    const wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_s,
+    uint64_t a_i) {
+  if (a_i < ((uint64_t)(a_s.len))) {
+    return a_s.ptr[a_i];
+  }
+  return 0u;
+}
+
+// -------- func brotli.encoder.peek_u16
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint16_t
+wuffs_brotli__encoder__peek_u16(
+    const wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_s,
+    uint64_t a_i) {
+  wuffs_base__slice_u8 v_q = {0};
+
+  if (a_i < ((uint64_t)(a_s.len))) {
+    v_q = wuffs_base__slice_u8__subslice_i(a_s, a_i);
+    if (((uint64_t)(v_q.len)) >= 2u) {
+      return wuffs_base__peek_u16le__no_bounds_check(v_q.ptr);
+    }
+  }
+  return 0u;
+}
+
+// -------- func brotli.encoder.poke_u16
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__poke_u16(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_s,
+    uint64_t a_i,
+    uint16_t a_v) {
+  wuffs_base__slice_u8 v_q = {0};
+
+  if (a_i < ((uint64_t)(a_s.len))) {
+    v_q = wuffs_base__slice_u8__subslice_i(a_s, a_i);
+    if (((uint64_t)(v_q.len)) >= 2u) {
+      wuffs_base__poke_u16le__no_bounds_check(v_q.ptr, a_v);
+    }
+  }
+  return wuffs_base__make_empty_struct();
+}
+
+// -------- func brotli.encoder.poke_u32
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__poke_u32(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_s,
+    uint64_t a_i,
+    uint32_t a_v) {
+  wuffs_base__slice_u8 v_q = {0};
+
+  if (a_i < ((uint64_t)(a_s.len))) {
+    v_q = wuffs_base__slice_u8__subslice_i(a_s, a_i);
+    if (((uint64_t)(v_q.len)) >= 4u) {
+      wuffs_base__poke_u32le__no_bounds_check(v_q.ptr, a_v);
+    }
+  }
+  return wuffs_base__make_empty_struct();
+}
+
+// -------- func brotli.encoder.set_byte
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__set_byte(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_s,
+    uint64_t a_i,
+    uint8_t a_v) {
+  if (a_i < ((uint64_t)(a_s.len))) {
+    a_s.ptr[a_i] = a_v;
+  }
+  return wuffs_base__make_empty_struct();
+}
+
+// -------- func brotli.encoder.fill_bytes
+
+WUFFS_BASE__GENERATED_C_CODE
+static wuffs_base__empty_struct
+wuffs_brotli__encoder__fill_bytes(
+    wuffs_brotli__encoder* self,
+    wuffs_base__slice_u8 a_s,
+    uint64_t a_i,
+    uint64_t a_n,
+    uint8_t a_v) {
+  wuffs_base__slice_u8 v_q = {0};
+  uint64_t v_n = 0;
+
+  if (a_i <= ((uint64_t)(a_s.len))) {
+    v_q = wuffs_base__slice_u8__subslice_i(a_s, a_i);
+    if (a_n <= ((uint64_t)(v_q.len))) {
+      wuffs_private_impl__bulk_memset(v_q.ptr, a_n, a_v);
+    } else {
+      v_n = ((uint64_t)(v_q.len));
+      wuffs_private_impl__bulk_memset(v_q.ptr, v_n, a_v);
+    }
+  }
+  return wuffs_base__make_empty_struct();
+}
+
+// -------- func brotli.encoder.dist_cache_u64
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint64_t
+wuffs_brotli__encoder__dist_cache_u64(
+    const wuffs_brotli__encoder* self,
+    uint32_t a_i) {
+  uint32_t v_v = 0;
+
+  v_v = self->private_impl.f_dist_cache[(a_i & 15u)];
+  if (v_v >= 2147483648u) {
+    return (((uint64_t)(v_v)) | 18446744069414584320u);
+  }
+  return ((uint64_t)(v_v));
+}
+
+// -------- func brotli.encoder.min64
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint64_t
+wuffs_brotli__encoder__min64(
+    const wuffs_brotli__encoder* self,
+    uint64_t a_a,
+    uint64_t a_b) {
+  if (a_a < a_b) {
+    return a_a;
+  }
+  return a_b;
+}
+
+// -------- func brotli.encoder.max64
+
+WUFFS_BASE__GENERATED_C_CODE
+static uint64_t
+wuffs_brotli__encoder__max64(
+    const wuffs_brotli__encoder* self,
+    uint64_t a_a,
+    uint64_t a_b) {
+  if (a_a > a_b) {
+    return a_a;
+  }
+  return a_b;
 }
 
 #endif  // !defined(WUFFS_CONFIG__MODULES) || defined(WUFFS_CONFIG__MODULE__BROTLI)
