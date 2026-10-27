@@ -103,6 +103,10 @@ pri struct metablock_builder?(
         cost        : array[256] base.u64,
         insert_cost : array[35200] base.u64,
 
+        // FindBlocks' memoized (block_switch_bitcost + insert_cost[i]) sums
+        // (see find_blocks).
+        capped_plus : array[35200] base.u64,
+
         // RemapBlockIds' new_id array.
         new_id : array[256] base.u16,
 
@@ -481,12 +485,12 @@ pri func metablock_builder.compute_distance_cost!(wb: slice base.u8, cmds: rosli
                         postfix_bits: args.new_npostfix) & 0xFFFF) as base.u32
             }
             this.h_add!(wb: args.wb, h: args.tmp, ds: HISTOGRAM_DISTANCE_DATA_SIZE, val: (dist_prefix & 0x3FF) as base.u64)
-            extra_bits = this.sf.f64_add(a: extra_bits, b: this.sf.f64_from_u32(a: dist_prefix >> 10))
+            extra_bits = this.bc.f64_add(a: extra_bits, b: this.bc.f64_from_u32(a: dist_prefix >> 10))
         }
         i ~mod+= 1
     }
     this.dist_cost = this.h_population_cost!(wb: args.wb, h: args.tmp, ds: HISTOGRAM_DISTANCE_DATA_SIZE)
-    this.dist_cost = this.sf.f64_add(a: this.dist_cost, b: extra_bits)
+    this.dist_cost = this.bc.f64_add(a: this.dist_cost, b: extra_bits)
     return true
 }
 
@@ -624,7 +628,7 @@ pri func metablock_builder.build_meta_block!(wb: slice base.u8, ringbuffer: rosl
             success = this.compute_distance_cost!(wb: args.wb, cmds: args.cmds, num_commands: args.num_commands,
                     orig_npostfix: orig_npostfix, orig_ndirect: orig_ndirect,
                     new_npostfix: npostfix, new_ndirect: ndirect, new_max_distance: this.dist_max_distance, tmp: tmp)
-            if (not success) or (this.sf.f64_gt(a: this.dist_cost, b: best_dist_cost) <> 0) {
+            if (not success) or (this.bc.f64_gt(a: this.dist_cost, b: best_dist_cost) <> 0) {
                 break
             }
             best_dist_cost = this.dist_cost
@@ -645,7 +649,7 @@ pri func metablock_builder.build_meta_block!(wb: slice base.u8, ringbuffer: rosl
         success = this.compute_distance_cost!(wb: args.wb, cmds: args.cmds, num_commands: args.num_commands,
                 orig_npostfix: orig_npostfix, orig_ndirect: orig_ndirect,
                 new_npostfix: orig_npostfix, new_ndirect: orig_ndirect, new_max_distance: orig_md, tmp: tmp)
-        if this.sf.f64_lt(a: this.dist_cost, b: best_dist_cost) <> 0 {
+        if this.bc.f64_lt(a: this.dist_cost, b: best_dist_cost) <> 0 {
             best_npostfix = orig_npostfix
             best_ndirect = orig_ndirect
             best_asm = orig_asm

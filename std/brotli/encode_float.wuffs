@@ -1,0 +1,742 @@
+// Copyright 2026 The Wuffs Authors.
+//
+// Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
+// https://www.apache.org/licenses/LICENSE-2.0> or the MIT license
+// <LICENSE-MIT or https://opensource.org/licenses/MIT>, at your
+// option. This file may not be copied, modified, or distributed
+// except according to those terms.
+//
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+
+// --------
+
+// This file holds package-private fast paths for the std/softfloat
+// operations that the encoder's hot loops use (the Zopfli cost model, the
+// block splitter and histogram clustering).
+//
+// Each softfloat.arith method is another package's public function: every
+// call checks its receiver and, being an exported function, is not inlined
+// by the C compiler. These bit_cost methods instead handle the common cases
+// (finite, normal and, for addition and subtraction, mostly non-negative
+// operands with normal results) directly, so that they can be inlined, and
+// otherwise call the softfloat.arith method of the same name. Either way,
+// they return exactly the same bits as that method (the IEEE 754 result,
+// rounding to nearest, ties to even), so they are only a speed optimization.
+//
+// Operands are IEEE 754 binary32 (base.u32) or binary64 (base.u64) bit
+// patterns. The fast paths' conditions on positive normal values use that
+// such bit patterns are in [0x0080_0000, 0x7F80_0000) (or, for f64, in
+// [0x0010_0000_0000_0000, 0x7FF0_0000_0000_0000)) and that, there, the bit
+// patterns sort like the values.
+
+// -------- Helpers.
+
+// clz64 returns the number of leading zero bits of a, which must be non-zero
+// (if a is zero, it returns 63).
+pri func bit_cost.clz64(a: base.u64) base.u32[..= 63] {
+    var x : base.u64
+    var n : base.u32[..= 63]
+
+    x = args.a
+    if (x >> 32) == 0 {
+        x = x ~mod<< 32
+        n = 32
+    }
+    if (x >> 48) == 0 {
+        x = x ~mod<< 16
+        n = (n + 16) & 63
+    }
+    if (x >> 56) == 0 {
+        x = x ~mod<< 8
+        n = (n + 8) & 63
+    }
+    if (x >> 60) == 0 {
+        x = x ~mod<< 4
+        n = (n + 4) & 63
+    }
+    if (x >> 62) == 0 {
+        x = x ~mod<< 2
+        n = (n + 2) & 63
+    }
+    if (x >> 63) == 0 {
+        n = (n + 1) & 63
+    }
+    return n
+}
+
+// -------- f32.
+
+// f32_add returns (a + b), like softfloat.arith.f32_add. Its fast path is
+// for the most common case (both are positive and normal) and the others
+// take f32_add_any.
+pri func bit_cost.f32_add(a: base.u32, b: base.u32) base.u32 {
+    var x  : base.u32
+    var y  : base.u32
+    var ex : base.u32[..= 0xFF]
+    var d  : base.u32
+    var s  : base.u64
+    var z  : base.u32
+
+    if ((args.a ~mod- 0x80_0000) < 0x7F00_0000) and ((args.b ~mod- 0x80_0000) < 0x7F00_0000) {
+        // Both are positive and normal. Order them so that x >= y.
+        x = args.a
+        y = args.b
+        if y > x {
+            x = args.b
+            y = args.a
+        }
+        ex = (x >> 23) & 0xFF
+        d = ex ~mod- ((y >> 23) & 0xFF)
+        if d >= 25 {
+            // y is less than half an ULP of x, so the sum rounds to x.
+            return x
+        }
+        // The significands, with their implicit bit at bit 62. Shifting y's
+        // right by at most 24 is exact, and the sum is less than (1 << 64).
+        s = ((((x & 0x7F_FFFF) | 0x80_0000) as base.u64) << 39) ~mod+
+                (((((y & 0x7F_FFFF) | 0x80_0000) as base.u64) << 39) >> (d & 31))
+        // Round to nearest, ties to even: add just under half an ULP, plus
+        // one if the truncated result is odd. The rounded significand is in
+        // [1 << 23 ..= 1 << 24] and adding it (whose bit 23 is the implicit
+        // bit) to the shifted exponent carries any rounding overflow into the
+        // exponent field.
+        if s >= 0x8000_0000_0000_0000 {
+            s = (s ~mod+ (0x7F_FFFF_FFFF ~mod+ ((s >> 40) & 1))) >> 40
+            z = (ex ~mod<< 23) ~mod+ ((s & 0x1FF_FFFF) as base.u32)
+            if z >= 0x7F80_0000 {
+                return 0x7F80_0000
+            }
+            return z
+        }
+        s = (s ~mod+ (0x3F_FFFF_FFFF ~mod+ ((s >> 39) & 1))) >> 39
+        return ((ex ~mod- 1) ~mod<< 23) ~mod+ ((s & 0x1FF_FFFF) as base.u32)
+    } else if (args.a == 0) and ((args.b & 0x7FFF_FFFF) <= 0x7F80_0000) and (args.b <> 0x8000_0000) {
+        // (+0 + b) is b, for any b other than a NaN or -0.
+        return args.b
+    } else if (args.b == 0) and ((args.a & 0x7FFF_FFFF) <= 0x7F80_0000) and (args.a <> 0x8000_0000) {
+        return args.a
+    }
+    return this.f32_add_any(a: args.a, b: args.b)
+}
+
+// f32_sub returns (a - b), like softfloat.arith.f32_sub. Its fast path is
+// for the most common case (both are positive and normal, a > b and there is
+// little cancellation) and the others take f32_sub_any.
+pri func bit_cost.f32_sub(a: base.u32, b: base.u32) base.u32 {
+    var ex : base.u32[..= 0xFF]
+    var d  : base.u32
+    var s  : base.u64
+
+    if ((args.b ~mod- 0x80_0000) < 0x7F00_0000) and (args.a > args.b) and (args.a < 0x7F80_0000) {
+        // Both are positive and normal, and a > b.
+        ex = (args.a >> 23) & 0xFF
+        d = ex ~mod- ((args.b >> 23) & 0xFF)
+        if d >= 26 {
+            // b is less than half of the spacing of the f32 values just
+            // below a, so the difference rounds to a.
+            return args.a
+        } else if d >= 2 {
+            // The significands, with their implicit bit at bit 62. Shifting
+            // b's right by at most 25 is exact. As (d >= 2), the difference
+            // is at least (1 << 61), so it needs at most a 1 bit shift to
+            // normalize (which is exact too).
+            s = ((((args.a & 0x7F_FFFF) | 0x80_0000) as base.u64) << 39) ~mod-
+                    (((((args.b & 0x7F_FFFF) | 0x80_0000) as base.u64) << 39) >> (d & 31))
+            if s < 0x4000_0000_0000_0000 {
+                s ~mod<<= 1
+                ex = (ex ~mod- 1) & 0xFF
+            }
+            // Round to nearest, ties to even (see f32_add). The result is
+            // normal, as ex is at least 2 after the shift (a's biased
+            // exponent is at least (d + 1)).
+            s = (s ~mod+ (0x3F_FFFF_FFFF ~mod+ ((s >> 39) & 1))) >> 39
+            return ((ex ~mod- 1) ~mod<< 23) ~mod+ ((s & 0x1FF_FFFF) as base.u32)
+        }
+    } else if (args.b == 0) and ((args.a & 0x7FFF_FFFF) <= 0x7F80_0000) {
+        // (a - +0) is a, for any non-NaN a.
+        return args.a
+    } else if (args.a == args.b) and (args.a < 0x7F80_0000) {
+        // (a - a) is +0, for finite non-negative a.
+        return 0
+    }
+    return this.f32_sub_any(a: args.a, b: args.b)
+}
+
+// f32_add_any returns (a + b), like softfloat.arith.f32_add. It is the
+// general (but slower) fast path, for operands of any sign.
+pri func bit_cost.f32_add_any(a: base.u32, b: base.u32) base.u32 {
+    var x  : base.u32
+    var y  : base.u32
+    var ex : base.u32[..= 0xFF]
+    var d  : base.u32
+    var mx : base.u64
+    var my : base.u64
+    var s  : base.u64
+    var lz : base.u32[..= 63]
+    var z  : base.u32
+
+    if ((((args.a >> 23) & 0xFF) ~mod- 1) < 0xFE) and ((((args.b >> 23) & 0xFF) ~mod- 1) < 0xFE) {
+        // Both are normal. Order them so that |x| >= |y|. The result has x's
+        // sign (or is +0).
+        x = args.a
+        y = args.b
+        if (y & 0x7FFF_FFFF) > (x & 0x7FFF_FFFF) {
+            x = args.b
+            y = args.a
+        }
+        ex = (x >> 23) & 0xFF
+        d = ex ~mod- ((y >> 23) & 0xFF)
+        if d >= 26 {
+            // |y| is less than half an ULP of |x| (and less than half of the
+            // spacing of the f32 values just below |x|), so the result
+            // rounds to x.
+            return x
+        }
+        // The significands, with their implicit bit at bit 62. Shifting y's
+        // right by at most 25 is exact, so the sum or difference is exact
+        // (and less than (1 << 64)).
+        mx = (((x & 0x7F_FFFF) | 0x80_0000) as base.u64) << 39
+        my = ((((y & 0x7F_FFFF) | 0x80_0000) as base.u64) << 39) >> (d & 31)
+        if ((x ^ y) >> 31) == 0 {
+            s = mx ~mod+ my
+            if s >= 0x8000_0000_0000_0000 {
+                // Round to nearest, ties to even: add just under half an ULP,
+                // plus one if the truncated result is odd. The rounded
+                // significand is in [1 << 23 ..= 1 << 24] and adding it
+                // (whose bit 23 is the implicit bit) to the shifted exponent
+                // carries any rounding overflow into the exponent field.
+                s = (s ~mod+ (0x7F_FFFF_FFFF ~mod+ ((s >> 40) & 1))) >> 40
+                z = (ex ~mod<< 23) ~mod+ ((s & 0x1FF_FFFF) as base.u32)
+                if z >= 0x7F80_0000 {
+                    z = 0x7F80_0000
+                }
+                return (x & 0x8000_0000) | z
+            }
+        } else {
+            s = mx ~mod- my
+            if s == 0 {
+                // Exact cancellation gives +0 when rounding to nearest.
+                return 0
+            } else if s < 0x4000_0000_0000_0000 {
+                lz = (this.clz64(a: s) ~mod- 1) & 63
+                if lz >= ex {
+                    // The result is subnormal.
+                    return this.sf.f32_add(a: args.a, b: args.b)
+                }
+                ex = (ex ~mod- lz) & 0xFF
+                s = s ~mod<< lz
+            }
+        }
+        // s is in [1 << 62, 1 << 63) and ex in [1 ..= 254].
+        s = (s ~mod+ (0x3F_FFFF_FFFF ~mod+ ((s >> 39) & 1))) >> 39
+        return (x & 0x8000_0000) | (((ex ~mod- 1) ~mod<< 23) ~mod+ ((s & 0x1FF_FFFF) as base.u32))
+    }
+    return this.sf.f32_add(a: args.a, b: args.b)
+}
+
+// f32_sub_any returns (a - b), like softfloat.arith.f32_sub.
+pri func bit_cost.f32_sub_any(a: base.u32, b: base.u32) base.u32 {
+    if (((args.b >> 23) & 0xFF) ~mod- 1) < 0xFE {
+        // b is normal (not a NaN), so (a - b) is exactly (a + -b), including
+        // the sign of a zero result.
+        return this.f32_add_any(a: args.a, b: args.b ^ 0x8000_0000)
+    }
+    return this.sf.f32_sub(a: args.a, b: args.b)
+}
+
+// f32_key maps a non-NaN f32 to a u32 that sorts in the same order as the
+// f32 values (except that -0 sorts just below +0).
+pri func bit_cost.f32_key(a: base.u32) base.u32 {
+    if (args.a >> 31) <> 0 {
+        return 0xFFFF_FFFF ^ args.a
+    }
+    return args.a | 0x8000_0000
+}
+
+// f32_lt returns (a < b), like softfloat.arith.f32_lt.
+pri func bit_cost.f32_lt(a: base.u32, b: base.u32) base.u32 {
+    if (args.a | args.b) <= 0x7F80_0000 {
+        // Neither is negative or a NaN, so the bit patterns sort like the
+        // values.
+        if args.a < args.b {
+            return 1
+        }
+        return 0
+    }
+    return this.f32_lt_any(a: args.a, b: args.b)
+}
+
+// f32_lt_any returns (a < b), like softfloat.arith.f32_lt.
+pri func bit_cost.f32_lt_any(a: base.u32, b: base.u32) base.u32 {
+    if ((args.a & 0x7FFF_FFFF) <= 0x7F80_0000) and ((args.b & 0x7FFF_FFFF) <= 0x7F80_0000) {
+        // Neither is a NaN.
+        if (this.f32_key(a: args.a) < this.f32_key(a: args.b)) and
+                (((args.a | args.b) & 0x7FFF_FFFF) <> 0) {
+            return 1
+        }
+        return 0
+    }
+    return this.sf.f32_lt(a: args.a, b: args.b)
+}
+
+// f32_le returns (a <= b), like softfloat.arith.f32_le.
+pri func bit_cost.f32_le(a: base.u32, b: base.u32) base.u32 {
+    if (args.a | args.b) <= 0x7F80_0000 {
+        // Neither is negative or a NaN, so the bit patterns sort like the
+        // values.
+        if args.a <= args.b {
+            return 1
+        }
+        return 0
+    }
+    return this.f32_le_any(a: args.a, b: args.b)
+}
+
+// f32_le_any returns (a <= b), like softfloat.arith.f32_le.
+pri func bit_cost.f32_le_any(a: base.u32, b: base.u32) base.u32 {
+    if ((args.a & 0x7FFF_FFFF) <= 0x7F80_0000) and ((args.b & 0x7FFF_FFFF) <= 0x7F80_0000) {
+        if (this.f32_key(a: args.a) <= this.f32_key(a: args.b)) or
+                (((args.a | args.b) & 0x7FFF_FFFF) == 0) {
+            return 1
+        }
+        return 0
+    }
+    return this.sf.f32_le(a: args.a, b: args.b)
+}
+
+// f32_gt returns (a > b), like softfloat.arith.f32_gt.
+pri func bit_cost.f32_gt(a: base.u32, b: base.u32) base.u32 {
+    if (args.a | args.b) <= 0x7F80_0000 {
+        // Neither is negative or a NaN, so the bit patterns sort like the
+        // values.
+        if args.a > args.b {
+            return 1
+        }
+        return 0
+    }
+    return this.f32_gt_any(a: args.a, b: args.b)
+}
+
+// f32_gt_any returns (a > b), like softfloat.arith.f32_gt.
+pri func bit_cost.f32_gt_any(a: base.u32, b: base.u32) base.u32 {
+    return this.f32_lt_any(a: args.b, b: args.a)
+}
+
+// -------- f64.
+
+// f64_add returns (a + b), like softfloat.arith.f64_add. Its fast path is
+// for the most common case (both are positive and normal) and the others
+// take f64_add_any.
+pri func bit_cost.f64_add(a: base.u64, b: base.u64) base.u64 {
+    var x  : base.u64
+    var y  : base.u64
+    var ex : base.u64[..= 0x7FF]
+    var d  : base.u64
+    var my : base.u64
+    var s  : base.u64
+
+    if ((args.a ~mod- 0x0010_0000_0000_0000) < 0x7FE0_0000_0000_0000) and
+            ((args.b ~mod- 0x0010_0000_0000_0000) < 0x7FE0_0000_0000_0000) {
+        // Both are positive and normal. Order them so that x >= y.
+        x = args.a
+        y = args.b
+        if y > x {
+            x = args.b
+            y = args.a
+        }
+        ex = (x >> 52) & 0x7FF
+        d = ex ~mod- ((y >> 52) & 0x7FF)
+        if d >= 54 {
+            // y is less than half an ULP of x, so the sum rounds to x.
+            return x
+        }
+        // The significands, with their implicit bit at bit 62 and 10 extra
+        // bits of precision at the bottom. Align y's with x's, keeping a
+        // sticky bit.
+        my = ((y & 0x000F_FFFF_FFFF_FFFF) | 0x0010_0000_0000_0000) << 10
+        if (my & (((1 as base.u64) << (d & 63)) ~mod- 1)) <> 0 {
+            my = (my >> (d & 63)) | 1
+        } else {
+            my = my >> (d & 63)
+        }
+        s = (((x & 0x000F_FFFF_FFFF_FFFF) | 0x0010_0000_0000_0000) << 10) ~mod+ my
+        if s >= 0x8000_0000_0000_0000 {
+            ex = (ex ~mod+ 1) & 0x7FF
+            s = (s >> 1) | (s & 1)
+        }
+        // Round to nearest, ties to even (see f32_add). The rounded
+        // significand is in [1 << 52 ..= 1 << 53].
+        s = (s ~mod+ (0x1FF ~mod+ ((s >> 10) & 1))) >> 10
+        s = ((ex ~mod- 1) ~mod<< 52) ~mod+ s
+        if s >= 0x7FF0_0000_0000_0000 {
+            return 0x7FF0_0000_0000_0000
+        }
+        return s
+    } else if (args.a == 0) and ((args.b & 0x7FFF_FFFF_FFFF_FFFF) <= 0x7FF0_0000_0000_0000) and
+            (args.b <> 0x8000_0000_0000_0000) {
+        // (+0 + b) is b, for any b other than a NaN or -0.
+        return args.b
+    } else if (args.b == 0) and ((args.a & 0x7FFF_FFFF_FFFF_FFFF) <= 0x7FF0_0000_0000_0000) and
+            (args.a <> 0x8000_0000_0000_0000) {
+        return args.a
+    }
+    return this.f64_add_any(a: args.a, b: args.b)
+}
+
+// f64_sub returns (a - b), like softfloat.arith.f64_sub. Its fast path is
+// for the most common case (both are positive and normal, a > b and there is
+// little cancellation) and the others take f64_sub_any.
+pri func bit_cost.f64_sub(a: base.u64, b: base.u64) base.u64 {
+    var ex : base.u64[..= 0x7FF]
+    var d  : base.u64
+    var my : base.u64
+    var s  : base.u64
+    var lz : base.u64
+
+    if ((args.b ~mod- 0x0010_0000_0000_0000) < 0x7FE0_0000_0000_0000) and
+            (args.a > args.b) and (args.a < 0x7FF0_0000_0000_0000) {
+        // Both are positive and normal, and a > b.
+        ex = (args.a >> 52) & 0x7FF
+        d = ex ~mod- ((args.b >> 52) & 0x7FF)
+        if d >= 55 {
+            // b is less than half of the spacing of the f64 values just
+            // below a, so the difference rounds to a.
+            return args.a
+        } else if d >= 2 {
+            // The significands, with their implicit bit at bit 62 and 10
+            // extra bits of precision at the bottom. Align b's with a's,
+            // keeping a sticky bit. As (d >= 2), the difference is at least
+            // (1 << 61), so it needs at most a 1 bit shift to normalize.
+            my = ((args.b & 0x000F_FFFF_FFFF_FFFF) | 0x0010_0000_0000_0000) << 10
+            if (my & (((1 as base.u64) << (d & 63)) ~mod- 1)) <> 0 {
+                my = (my >> (d & 63)) | 1
+            } else {
+                my = my >> (d & 63)
+            }
+            s = (((args.a & 0x000F_FFFF_FFFF_FFFF) | 0x0010_0000_0000_0000) << 10) ~mod- my
+            if s < 0x4000_0000_0000_0000 {
+                s ~mod<<= 1
+                ex = (ex ~mod- 1) & 0x7FF
+            }
+            // Round to nearest, ties to even (see f32_add). The result is
+            // normal, as ex is at least 2 after the shift.
+            s = (s ~mod+ (0x1FF ~mod+ ((s >> 10) & 1))) >> 10
+            return ((ex ~mod- 1) ~mod<< 52) ~mod+ s
+        }
+        // d is 0 or 1, so shifting b's significand right by d (with 10
+        // extra bits) is exact, and so is the difference (which is non-zero,
+        // as a > b) and normalizing it.
+        s = (((args.a & 0x000F_FFFF_FFFF_FFFF) | 0x0010_0000_0000_0000) << 10) ~mod-
+                ((((args.b & 0x000F_FFFF_FFFF_FFFF) | 0x0010_0000_0000_0000) << 10) >> (d & 1))
+        lz = (this.clz64(a: s) as base.u64) ~mod- 1
+        if lz < ex {
+            ex = (ex ~mod- lz) & 0x7FF
+            s = s ~mod<< (lz & 63)
+            s = (s ~mod+ (0x1FF ~mod+ ((s >> 10) & 1))) >> 10
+            return ((ex ~mod- 1) ~mod<< 52) ~mod+ s
+        }
+    } else if (args.b == 0) and ((args.a & 0x7FFF_FFFF_FFFF_FFFF) <= 0x7FF0_0000_0000_0000) {
+        // (a - +0) is a, for any non-NaN a.
+        return args.a
+    } else if (args.a == args.b) and (args.a < 0x7FF0_0000_0000_0000) {
+        // (a - a) is +0, for finite non-negative a.
+        return 0
+    }
+    return this.f64_sub_any(a: args.a, b: args.b)
+}
+
+// f64_add_any returns (a + b), like softfloat.arith.f64_add. It is the
+// general (but slower) fast path, for operands of any sign.
+pri func bit_cost.f64_add_any(a: base.u64, b: base.u64) base.u64 {
+    var x  : base.u64
+    var y  : base.u64
+    var ex : base.u64[..= 0x7FF]
+    var d  : base.u64
+    var mx : base.u64
+    var my : base.u64
+    var s  : base.u64
+    var lz : base.u64[..= 63]
+
+    if ((((args.a >> 52) & 0x7FF) ~mod- 1) < 0x7FE) and ((((args.b >> 52) & 0x7FF) ~mod- 1) < 0x7FE) {
+        // Both are normal. Order them so that |x| >= |y|. The result has x's
+        // sign (or is +0).
+        x = args.a
+        y = args.b
+        if (y & 0x7FFF_FFFF_FFFF_FFFF) > (x & 0x7FFF_FFFF_FFFF_FFFF) {
+            x = args.b
+            y = args.a
+        }
+        ex = (x >> 52) & 0x7FF
+        d = ex ~mod- ((y >> 52) & 0x7FF)
+        if d >= 55 {
+            // |y| is less than half an ULP of |x| (and less than half of the
+            // spacing of the f64 values just below |x|), so the result
+            // rounds to x.
+            return x
+        }
+        // The significands, with their implicit bit at bit 62 and 10 extra
+        // bits of precision at the bottom. Align my with mx, keeping a
+        // sticky bit (which only happens if (d > 10)).
+        mx = ((x & 0x000F_FFFF_FFFF_FFFF) | 0x0010_0000_0000_0000) << 10
+        my = ((y & 0x000F_FFFF_FFFF_FFFF) | 0x0010_0000_0000_0000) << 10
+        if (my & (((1 as base.u64) << (d & 63)) ~mod- 1)) <> 0 {
+            my = (my >> (d & 63)) | 1
+        } else {
+            my = my >> (d & 63)
+        }
+        if ((x ^ y) >> 63) == 0 {
+            s = mx ~mod+ my
+            if s >= 0x8000_0000_0000_0000 {
+                ex = (ex ~mod+ 1) & 0x7FF
+                s = (s >> 1) | (s & 1)
+            }
+        } else {
+            s = mx ~mod- my
+            if s == 0 {
+                // Exact cancellation gives +0 when rounding to nearest.
+                return 0
+            } else if s < 0x4000_0000_0000_0000 {
+                // If (d >= 2) then s >= (1 << 61) and the normalization shift
+                // is 1. Otherwise, no bits were shifted out of my.
+                lz = ((this.clz64(a: s) as base.u64) ~mod- 1) & 63
+                if lz >= ex {
+                    // The result is subnormal.
+                    return this.sf.f64_add(a: args.a, b: args.b)
+                }
+                ex = (ex ~mod- lz) & 0x7FF
+                s = s ~mod<< lz
+            }
+        }
+        // Round to nearest, ties to even (see f32_add). s is in
+        // [1 << 62, 1 << 63) and ex in [1 ..= 0x7FF]. The rounded
+        // significand is in [1 << 52 ..= 1 << 53].
+        s = (s ~mod+ (0x1FF ~mod+ ((s >> 10) & 1))) >> 10
+        s = ((ex ~mod- 1) ~mod<< 52) ~mod+ s
+        if s >= 0x7FF0_0000_0000_0000 {
+            s = 0x7FF0_0000_0000_0000
+        }
+        return (x & 0x8000_0000_0000_0000) | s
+    }
+    return this.sf.f64_add(a: args.a, b: args.b)
+}
+
+// f64_sub_any returns (a - b), like softfloat.arith.f64_sub.
+pri func bit_cost.f64_sub_any(a: base.u64, b: base.u64) base.u64 {
+    if (((args.b >> 52) & 0x7FF) ~mod- 1) < 0x7FE {
+        // b is normal (not a NaN), so (a - b) is exactly (a + -b), including
+        // the sign of a zero result.
+        return this.f64_add_any(a: args.a, b: args.b ^ 0x8000_0000_0000_0000)
+    }
+    return this.sf.f64_sub(a: args.a, b: args.b)
+}
+
+// f64_key maps a non-NaN f64 to a u64 that sorts in the same order as the
+// f64 values (except that -0 sorts just below +0).
+pri func bit_cost.f64_key(a: base.u64) base.u64 {
+    if (args.a >> 63) <> 0 {
+        return 0xFFFF_FFFF_FFFF_FFFF ^ args.a
+    }
+    return args.a | 0x8000_0000_0000_0000
+}
+
+// f64_lt returns (a < b), like softfloat.arith.f64_lt.
+pri func bit_cost.f64_lt(a: base.u64, b: base.u64) base.u32 {
+    if (args.a | args.b) <= 0x7FF0_0000_0000_0000 {
+        // Neither is negative or a NaN, so the bit patterns sort like the
+        // values.
+        if args.a < args.b {
+            return 1
+        }
+        return 0
+    }
+    return this.f64_lt_any(a: args.a, b: args.b)
+}
+
+// f64_lt_any returns (a < b), like softfloat.arith.f64_lt.
+pri func bit_cost.f64_lt_any(a: base.u64, b: base.u64) base.u32 {
+    if ((args.a & 0x7FFF_FFFF_FFFF_FFFF) <= 0x7FF0_0000_0000_0000) and
+            ((args.b & 0x7FFF_FFFF_FFFF_FFFF) <= 0x7FF0_0000_0000_0000) {
+        // Neither is a NaN.
+        if (this.f64_key(a: args.a) < this.f64_key(a: args.b)) and
+                (((args.a | args.b) & 0x7FFF_FFFF_FFFF_FFFF) <> 0) {
+            return 1
+        }
+        return 0
+    }
+    return this.sf.f64_lt(a: args.a, b: args.b)
+}
+
+// f64_gt returns (a > b), like softfloat.arith.f64_gt.
+pri func bit_cost.f64_gt(a: base.u64, b: base.u64) base.u32 {
+    if (args.a | args.b) <= 0x7FF0_0000_0000_0000 {
+        // Neither is negative or a NaN, so the bit patterns sort like the
+        // values.
+        if args.a > args.b {
+            return 1
+        }
+        return 0
+    }
+    return this.f64_gt_any(a: args.a, b: args.b)
+}
+
+// f64_gt_any returns (a > b), like softfloat.arith.f64_gt.
+pri func bit_cost.f64_gt_any(a: base.u64, b: base.u64) base.u32 {
+    return this.f64_lt_any(a: args.b, b: args.a)
+}
+
+// f64_ge returns (a >= b), like softfloat.arith.f64_ge.
+pri func bit_cost.f64_ge(a: base.u64, b: base.u64) base.u32 {
+    if (args.a | args.b) <= 0x7FF0_0000_0000_0000 {
+        // Neither is negative or a NaN, so the bit patterns sort like the
+        // values.
+        if args.a >= args.b {
+            return 1
+        }
+        return 0
+    }
+    return this.f64_ge_any(a: args.a, b: args.b)
+}
+
+// f64_ge_any returns (a >= b), like softfloat.arith.f64_ge.
+pri func bit_cost.f64_ge_any(a: base.u64, b: base.u64) base.u32 {
+    if ((args.a & 0x7FFF_FFFF_FFFF_FFFF) <= 0x7FF0_0000_0000_0000) and
+            ((args.b & 0x7FFF_FFFF_FFFF_FFFF) <= 0x7FF0_0000_0000_0000) {
+        if (this.f64_key(a: args.a) >= this.f64_key(a: args.b)) or
+                (((args.a | args.b) & 0x7FFF_FFFF_FFFF_FFFF) == 0) {
+            return 1
+        }
+        return 0
+    }
+    return this.sf.f64_ge(a: args.a, b: args.b)
+}
+
+// f64_mul returns (a * b), like softfloat.arith.f64_mul. Its fast path is
+// for normal operands with a normal (and finite) result.
+pri func bit_cost.f64_mul(a: base.u64, b: base.u64) base.u64 {
+    var ea  : base.u64
+    var eb  : base.u64
+    var e   : base.u64
+    var ma  : base.u64
+    var mb  : base.u64
+    var a0  : base.u64[..= 0xFFFF_FFFF]
+    var a1  : base.u64[..= 0xFFFF_FFFF]
+    var b0  : base.u64[..= 0xFFFF_FFFF]
+    var b1  : base.u64[..= 0xFFFF_FFFF]
+    var p00 : base.u64
+    var p01 : base.u64
+    var p10 : base.u64
+    var mid : base.u64
+    var s   : base.u64
+    var rb  : base.u64
+
+    ea = (args.a >> 52) & 0x7FF
+    eb = (args.b >> 52) & 0x7FF
+    if ((ea ~mod- 1) < 0x7FE) and ((eb ~mod- 1) < 0x7FE) {
+        // Both are normal. e is one less than the result's biased exponent
+        // (before normalization), as a two's complement integer. The
+        // significands have their implicit bit at bit 62 and bit 63, so that
+        // the high 64 bits of their 128-bit product have the implicit bit at
+        // bit 61 or 62.
+        e = (ea ~mod+ eb) ~mod- 0x3FF
+        ma = ((args.a & 0x000F_FFFF_FFFF_FFFF) | 0x0010_0000_0000_0000) << 10
+        mb = ((args.b & 0x000F_FFFF_FFFF_FFFF) | 0x0010_0000_0000_0000) << 11
+        a0 = ma & 0xFFFF_FFFF
+        a1 = ma >> 32
+        b0 = mb & 0xFFFF_FFFF
+        b1 = mb >> 32
+        p00 = a0 * b0
+        p01 = a0 * b1
+        p10 = a1 * b0
+        mid = (p00 >> 32) + (p01 & 0xFFFF_FFFF) + (p10 & 0xFFFF_FFFF)
+        s = (((a1 * b1) ~mod+ (p01 >> 32)) ~mod+ (p10 >> 32)) ~mod+ (mid >> 32)
+        // The low 64 bits of the product, (ma * mb), give the sticky bit.
+        if (ma ~mod* mb) <> 0 {
+            s |= 1
+        }
+        if s < 0x4000_0000_0000_0000 {
+            e ~mod-= 1
+            s ~mod<<= 1
+        }
+        if e < 0x7FD {
+            // The result is normal and finite (if e is 0x7FC and the
+            // significand rounds up to (1 << 53), the exponent field is 0x7FE).
+            // Round to nearest, ties to even.
+            rb = s & 0x3FF
+            s = (s ~mod+ 0x200) >> 10
+            if rb == 0x200 {
+                s &= 0xFFFF_FFFF_FFFF_FFFE
+            }
+            return ((args.a ^ args.b) & 0x8000_0000_0000_0000) | ((e ~mod<< 52) ~mod+ s)
+        }
+    }
+    return this.sf.f64_mul(a: args.a, b: args.b)
+}
+
+// f64_from_u64 returns the f64 nearest to a (C's (double)a), like
+// softfloat.arith.f64_from_u64. Its fast path is for a < (1 << 53), whose
+// conversion is exact.
+pri func bit_cost.f64_from_u64(a: base.u64) base.u64 {
+    var lz : base.u32[..= 63]
+
+    if args.a == 0 {
+        return 0
+    } else if args.a < 0x0020_0000_0000_0000 {
+        // Shift a's top bit to bit 52 (the implicit bit, which is then added
+        // to the exponent field).
+        lz = this.clz64(a: args.a)
+        if lz >= 11 {
+            return (((0x43D ~mod- (lz as base.u64)) & 0x7FF) ~mod<< 52) ~mod+ (args.a ~mod<< (lz - 11))
+        }
+    }
+    return this.sf.f64_from_u64(a: args.a)
+}
+
+// f64_from_u32 returns the f64 equal to a (C's (double)a), like
+// softfloat.arith.f64_from_u32.
+pri func bit_cost.f64_from_u32(a: base.u32) base.u64 {
+    return this.f64_from_u64(a: args.a as base.u64)
+}
+
+// f64_to_u64_trunc returns a, truncated towards zero, like
+// softfloat.arith.f64_to_u64_trunc. Its fast path is for 0 <= a < 2**63.
+pri func bit_cost.f64_to_u64_trunc(a: base.u64) base.u64 {
+    var exp : base.u64
+
+    exp = args.a >> 52
+    if exp < 0x3FF {
+        // a is in [+0 .. 1), so the result is 0.
+        return 0
+    } else if exp <= 0x433 {
+        return ((args.a & 0x000F_FFFF_FFFF_FFFF) | 0x0010_0000_0000_0000) >> ((0x433 - exp) & 63)
+    }
+    return this.sf.f64_to_u64_trunc(a: args.a)
+}
+
+// f32_from_u32 returns the f32 nearest to a (C's (float)a), like
+// softfloat.arith.f32_from_u32. Its fast path is for a < (1 << 24), whose
+// conversion is exact.
+pri func bit_cost.f32_from_u32(a: base.u32) base.u32 {
+    var lz : base.u32[..= 63]
+
+    if args.a == 0 {
+        return 0
+    } else if args.a < 0x100_0000 {
+        // Shift a's top bit to bit 23 (the implicit bit, which is then added
+        // to the exponent field).
+        lz = this.clz64(a: args.a as base.u64)
+        if lz >= 40 {
+            return ((189 ~mod- lz) ~mod<< 23) ~mod+ (args.a ~mod<< (lz - 40))
+        }
+    }
+    return this.sf.f32_from_u32(a: args.a)
+}
+
+// F32_OF_SMALL_INT[i] is the f32 equal to i (C's (float)i).
+pri const F32_OF_SMALL_INT : roarray[32] base.u32 = [
+        0x0000_0000, 0x3F80_0000, 0x4000_0000, 0x4040_0000, 0x4080_0000, 0x40A0_0000,
+        0x40C0_0000, 0x40E0_0000, 0x4100_0000, 0x4110_0000, 0x4120_0000, 0x4130_0000,
+        0x4140_0000, 0x4150_0000, 0x4160_0000, 0x4170_0000, 0x4180_0000, 0x4188_0000,
+        0x4190_0000, 0x4198_0000, 0x41A0_0000, 0x41A8_0000, 0x41B0_0000, 0x41B8_0000,
+        0x41C0_0000, 0x41C8_0000, 0x41D0_0000, 0x41D8_0000, 0x41E0_0000, 0x41E8_0000,
+        0x41F0_0000, 0x41F8_0000,
+]

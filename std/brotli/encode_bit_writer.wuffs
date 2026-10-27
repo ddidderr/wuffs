@@ -175,16 +175,16 @@ pri func encoder.bits_entropy_of_histogram() base.u64 {
     while i < 256 {
         p = this.histogram[i] as base.u64
         sum ~mod+= p
-        retval = this.sf.f64_sub(a: retval, b: this.sf.f64_mul(
-                a: this.sf.f64_from_u64(a: p), b: this.fast_log2(v: p)))
+        retval = this.bc.f64_sub(a: retval, b: this.bc.f64_mul(
+                a: this.bc.f64_from_u64(a: p), b: this.fast_log2(v: p)))
         i += 1
     }
     if sum <> 0 {
-        retval = this.sf.f64_add(a: retval, b: this.sf.f64_mul(
-                a: this.sf.f64_from_u64(a: sum), b: this.fast_log2(v: sum)))
+        retval = this.bc.f64_add(a: retval, b: this.bc.f64_mul(
+                a: this.bc.f64_from_u64(a: sum), b: this.fast_log2(v: sum)))
     }
-    if this.sf.f64_lt(a: retval, b: this.sf.f64_from_u64(a: sum)) <> 0 {
-        retval = this.sf.f64_from_u64(a: sum)
+    if this.bc.f64_lt(a: retval, b: this.bc.f64_from_u64(a: sum)) <> 0 {
+        retval = this.bc.f64_from_u64(a: sum)
     }
     return retval
 }

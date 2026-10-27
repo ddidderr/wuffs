@@ -232,7 +232,7 @@ pri func encoder.z_set_cost_from_histogram!(which: base.u32, histogram_size: bas
             i ~mod+= 1
         }
     }
-    missing_symbol_cost = this.sf.f32_add(a: this.sf.f64_to_f32(a: this.bc.fast_log2(v: missing_symbol_sum)), b: Z_F32_2)
+    missing_symbol_cost = this.bc.f32_add(a: this.sf.f64_to_f32(a: this.bc.fast_log2(v: missing_symbol_sum)), b: Z_F32_2)
     i = 0
     while i < args.histogram_size {
         h = this.z_hist(which: args.which, i: i)
@@ -240,9 +240,9 @@ pri func encoder.z_set_cost_from_histogram!(which: base.u32, histogram_size: bas
             this.z_set_cost!(which: args.which, i: i, v: missing_symbol_cost)
         } else {
             // Shannon bits for this symbol.
-            cost = this.sf.f32_sub(a: log2sum, b: this.sf.f64_to_f32(a: this.bc.fast_log2(v: h as base.u64)))
+            cost = this.bc.f32_sub(a: log2sum, b: this.sf.f64_to_f32(a: this.bc.fast_log2(v: h as base.u64)))
             // Cannot be coded with less than 1 bit.
-            if this.sf.f32_lt(a: cost, b: Z_F32_1) <> 0 {
+            if this.bc.f32_lt(a: cost, b: Z_F32_1) <> 0 {
                 cost = Z_F32_1
             }
             this.z_set_cost!(which: args.which, i: i, v: cost)
@@ -322,10 +322,10 @@ pri func encoder.zopfli_cost_model_set_from_commands!(wb: slice base.u8, positio
     i = 0
     while i < this.z_num_bytes {
         b = this.rb_byte(wb: args.wb, pos: args.position ~mod+ i)
-        literal_carry = this.sf.f32_add(a: literal_carry, b: this.z_cost_literal[b])
-        lc_i1 = this.sf.f32_add(a: lc_i, b: literal_carry)
+        literal_carry = this.bc.f32_add(a: literal_carry, b: this.z_cost_literal[b])
+        lc_i1 = this.bc.f32_add(a: lc_i, b: literal_carry)
         this.poke_u32!(s: args.wb, i: this.z_lit_off ~mod+ ((i ~mod+ 1) ~mod* 4), v: lc_i1)
-        literal_carry = this.sf.f32_sub(a: literal_carry, b: this.sf.f32_sub(a: lc_i1, b: lc_i))
+        literal_carry = this.bc.f32_sub(a: literal_carry, b: this.bc.f32_sub(a: lc_i1, b: lc_i))
         lc_i = lc_i1
         i ~mod+= 1
     }
@@ -346,10 +346,10 @@ pri func encoder.zopfli_cost_model_set_from_literal_costs!(wb: slice base.u8, po
     lc_i = 0
     i = 0
     while i < this.z_num_bytes {
-        literal_carry = this.sf.f32_add(a: literal_carry, b: this.lit_cost_at(wb: args.wb, i: i ~mod+ 1))
-        lc_i1 = this.sf.f32_add(a: lc_i, b: literal_carry)
+        literal_carry = this.bc.f32_add(a: literal_carry, b: this.lit_cost_at(wb: args.wb, i: i ~mod+ 1))
+        lc_i1 = this.bc.f32_add(a: lc_i, b: literal_carry)
         this.poke_u32!(s: args.wb, i: this.z_lit_off ~mod+ ((i ~mod+ 1) ~mod* 4), v: lc_i1)
-        literal_carry = this.sf.f32_sub(a: literal_carry, b: this.sf.f32_sub(a: lc_i1, b: lc_i))
+        literal_carry = this.bc.f32_sub(a: literal_carry, b: this.bc.f32_sub(a: lc_i1, b: lc_i))
         lc_i = lc_i1
         i ~mod+= 1
     }
@@ -368,7 +368,7 @@ pri func encoder.zopfli_cost_model_set_from_literal_costs!(wb: slice base.u8, po
 
 // Mirrors ZopfliCostModelGetLiteralCosts in backward_references_hq.c.
 pri func encoder.z_literal_costs(wb: roslice base.u8, from: base.u64, to: base.u64) base.u32 {
-    return this.sf.f32_sub(a: this.lit_cost_at(wb: args.wb, i: args.to), b: this.lit_cost_at(wb: args.wb, i: args.from))
+    return this.bc.f32_sub(a: this.lit_cost_at(wb: args.wb, i: args.to), b: this.lit_cost_at(wb: args.wb, i: args.from))
 }
 
 // Mirrors UpdateZopfliNode in backward_references_hq.c.
@@ -420,7 +420,7 @@ pri func encoder.start_pos_queue_push!() {
     while i < len {
         a = (offset & 7) as base.u32
         b = ((offset ~mod+ 1) & 7) as base.u32
-        if this.sf.f32_gt(a: this.zq_costdiff[a], b: this.zq_costdiff[b]) <> 0 {
+        if this.bc.f32_gt(a: this.zq_costdiff[a], b: this.zq_costdiff[b]) <> 0 {
             this.start_pos_queue_swap!(a: a, b: b)
         }
         offset ~mod+= 1
@@ -473,7 +473,7 @@ pri func encoder.compute_minimum_copy_length(wb: roslice base.u8, start_cost: ba
     next_len_bucket = 4
     next_len_offset = 10
     while ((args.pos ~mod+ len) <= args.num_bytes) and
-            (this.sf.f32_le(a: this.zn_u(wb: args.wb, i: args.pos ~mod+ len), b: min_cost) <> 0) {
+            (this.bc.f32_le(a: this.zn_u(wb: args.wb, i: args.pos ~mod+ len), b: min_cost) <> 0) {
         // We already reached (pos + len) with no more cost than the minimum
         // possible cost of reaching anything from this pos, so there is no
         // point in looking for lengths <= len.
@@ -481,7 +481,7 @@ pri func encoder.compute_minimum_copy_length(wb: roslice base.u8, start_cost: ba
         if len == next_len_offset {
             // We reached the next copy length code bucket, so we add one
             // more extra bit to the minimum cost.
-            min_cost = this.sf.f32_add(a: min_cost, b: Z_F32_1)
+            min_cost = this.bc.f32_add(a: min_cost, b: Z_F32_1)
             next_len_offset ~mod+= next_len_bucket
             next_len_bucket ~mod*= 2
         }
@@ -553,10 +553,10 @@ pri func encoder.evaluate_node!(wb: slice base.u8, block_start: base.u64, pos: b
     this.zn_set_u!(wb: args.wb, i: args.pos, v: this.compute_distance_shortcut(
             wb: args.wb, block_start: args.block_start, pos: args.pos, max_backward_limit: args.max_backward_limit))
     lc = this.z_literal_costs(wb: args.wb, from: 0, to: args.pos)
-    if this.sf.f32_le(a: node_cost, b: lc) <> 0 {
+    if this.bc.f32_le(a: node_cost, b: lc) <> 0 {
         this.zp_pos = args.pos
         this.zp_cost = node_cost
-        this.zp_costdiff = this.sf.f32_sub(a: node_cost, b: lc)
+        this.zp_costdiff = this.bc.f32_sub(a: node_cost, b: lc)
         this.compute_distance_cache!(wb: args.wb, pos: args.pos)
         this.start_pos_queue_push!()
     }
@@ -586,7 +586,6 @@ pri func encoder.update_nodes!(wb: slice base.u8, dwb: roslice base.u8, num_byte
     var base_cost           : base.u32
     var best_len            : base.u64
     var j                   : base.u64
-    var idx                 : base.u32[..= 3]
     var backward            : base.u64
     var bw32                : base.u32
     var prev_ix             : base.u64
@@ -607,6 +606,8 @@ pri func encoder.update_nodes!(wb: slice base.u8, dwb: roslice base.u8, num_byte
     var max_match_len       : base.u64
     var len_code            : base.u64
     var gap                 : base.u64
+    var dcs                 : array[4] base.u32
+    var prev_copycode       : base.u32
 
     mask = this.rb_mask as base.u64
     gap = this.dict_total_size
@@ -626,8 +627,8 @@ pri func encoder.update_nodes!(wb: slice base.u8, dwb: roslice base.u8, num_byte
             pos: args.pos, max_backward_limit: args.max_backward_limit)
 
     q = this.start_pos_queue_at(k: 0)
-    min_cost = this.sf.f32_add(
-            a: this.sf.f32_add(a: this.zq_cost[q], b: this.z_min_cost_cmd),
+    min_cost = this.bc.f32_add(
+            a: this.bc.f32_add(a: this.zq_cost[q], b: this.z_min_cost_cmd),
             b: this.z_literal_costs(wb: args.wb, from: this.zq_pos[q], to: args.pos))
     min_len = this.compute_minimum_copy_length(wb: args.wb, start_cost: min_cost, num_bytes: args.num_bytes, pos: args.pos)
 
@@ -639,27 +640,32 @@ pri func encoder.update_nodes!(wb: slice base.u8, dwb: roslice base.u8, num_byte
         start = this.zq_pos[q]
         inscode = this.get_insert_length_code(insertlen: args.pos ~mod- start)
         start_costdiff = this.zq_costdiff[q]
-        base_cost = this.sf.f32_add(
-                a: this.sf.f32_add(a: start_costdiff, b: this.sf.f32_from_u32(a: INS_EXTRA[inscode.min(no_more_than: 23)])),
+        base_cost = this.bc.f32_add(
+                a: this.bc.f32_add(a: start_costdiff, b: F32_OF_SMALL_INT[INS_EXTRA[inscode.min(no_more_than: 23)]]),
                 b: this.z_literal_costs(wb: args.wb, from: 0, to: args.pos))
 
         // Look for last distance matches using the distance cache from this
         // starting position.
         best_len = min_len ~mod- 1
+        dcs[0] = this.zq_dc[((q as base.u32) << 2) | 0]
+        dcs[1] = this.zq_dc[((q as base.u32) << 2) | 1]
+        dcs[2] = this.zq_dc[((q as base.u32) << 2) | 2]
+        dcs[3] = this.zq_dc[((q as base.u32) << 2) | 3]
+        // continuation and the break condition only depend on best_len, so
+        // they are computed again only when best_len changes.
+        continuation = this.rb_raw(wb: args.wb, mpos: cur_ix_masked ~mod+ best_len, k: 0)
         j = 0
         while (j < 16) and (best_len < max_len) {
-            idx = Z_DISTANCE_CACHE_INDEX[j]
-            bw32 = this.zq_dc[((q as base.u32) << 2) | idx] ~mod+ Z_DISTANCE_CACHE_OFFSET[j]
+            if (cur_ix_masked ~mod+ best_len) > mask {
+                break
+            }
+            bw32 = dcs[Z_DISTANCE_CACHE_INDEX[j]] ~mod+ Z_DISTANCE_CACHE_OFFSET[j]
             backward = bw32 as base.u64
             if bw32 >= 0x8000_0000 {
                 backward |= 0xFFFF_FFFF_0000_0000
             }
             prev_ix = cur_ix ~mod- backward
             len = 0
-            continuation = this.rb_raw(wb: args.wb, mpos: cur_ix_masked ~mod+ best_len, k: 0)
-            if (cur_ix_masked ~mod+ best_len) > mask {
-                break
-            }
             if backward > (dictionary_start ~mod+ gap) {
                 // Word dictionary -> ignore.
                 j ~mod+= 1
@@ -691,20 +697,26 @@ pri func encoder.update_nodes!(wb: slice base.u8, dwb: roslice base.u8, num_byte
                 j ~mod+= 1
                 continue
             }
-            dist_cost = this.sf.f32_add(a: base_cost, b: this.z_cost_dist[j])
+            dist_cost = this.bc.f32_add(a: base_cost, b: this.z_cost_dist[j])
             l = best_len ~mod+ 1
+            // The cost only depends on copycode (inscode and j are fixed), so
+            // it is computed again only when copycode changes.
+            prev_copycode = 0xFFFF_FFFF
             while l <= len {
                 copycode = this.get_copy_length_code(copylen: l)
-                cmdcode = this.combine_length_codes(inscode: inscode, copycode: copycode, use_last_distance: j == 0)
-                if cmdcode < 128 {
-                    cost = base_cost
-                } else {
-                    cost = dist_cost
+                if copycode <> prev_copycode {
+                    prev_copycode = copycode
+                    cmdcode = this.combine_length_codes(inscode: inscode, copycode: copycode, use_last_distance: j == 0)
+                    if cmdcode < 128 {
+                        cost = base_cost
+                    } else {
+                        cost = dist_cost
+                    }
+                    cost = this.bc.f32_add(
+                            a: this.bc.f32_add(a: cost, b: F32_OF_SMALL_INT[COPY_EXTRA[copycode.min(no_more_than: 23)]]),
+                            b: this.z_cost_cmd[cmdcode.min(no_more_than: 703)])
                 }
-                cost = this.sf.f32_add(
-                        a: this.sf.f32_add(a: cost, b: this.sf.f32_from_u32(a: COPY_EXTRA[copycode.min(no_more_than: 23)])),
-                        b: this.z_cost_cmd[cmdcode.min(no_more_than: 703)])
-                if this.sf.f32_lt(a: cost, b: this.zn_u(wb: args.wb, i: args.pos ~mod+ l)) <> 0 {
+                if this.bc.f32_lt(a: cost, b: this.zn_u(wb: args.wb, i: args.pos ~mod+ l)) <> 0 {
                     this.update_zopfli_node!(wb: args.wb, pos: args.pos, start_pos: start, len: l,
                             len_code: l, dist: backward, short_code: j ~mod+ 1, cost: cost)
                     result = result.max(no_less_than: l)
@@ -712,6 +724,7 @@ pri func encoder.update_nodes!(wb: slice base.u8, dwb: roslice base.u8, num_byte
                 best_len = l
                 l ~mod+= 1
             }
+            continuation = this.rb_raw(wb: args.wb, mpos: cur_ix_masked ~mod+ best_len, k: 0)
             j ~mod+= 1
         }
 
@@ -739,8 +752,8 @@ pri func encoder.update_nodes!(wb: slice base.u8, dwb: roslice base.u8, num_byte
                     postfix_bits: this.distance_postfix_bits)
             dist_symbol = (pe & 0xFFFF) as base.u32
             distnumextra = dist_symbol >> 10
-            dist_cost = this.sf.f32_add(
-                    a: this.sf.f32_add(a: base_cost, b: this.sf.f32_from_u32(a: distnumextra)),
+            dist_cost = this.bc.f32_add(
+                    a: this.bc.f32_add(a: base_cost, b: this.bc.f32_from_u32(a: distnumextra)),
                     b: this.z_cost_dist[this.min32_543(a: dist_symbol & 0x3FF)])
 
             // Try all copy lengths up until the maximum copy length
@@ -751,17 +764,22 @@ pri func encoder.update_nodes!(wb: slice base.u8, dwb: roslice base.u8, num_byte
             if (len < max_match_len) and (is_dictionary_match or (max_match_len > max_zopfli_len)) {
                 len = max_match_len
             }
+            // As above, the cost only depends on copycode.
+            prev_copycode = 0xFFFF_FFFF
             while len <= max_match_len {
                 len_code = len
                 if is_dictionary_match {
                     len_code = this.bm_length_code(wb: args.wb, off: moff)
                 }
                 copycode = this.get_copy_length_code(copylen: len_code)
-                cmdcode = this.combine_length_codes(inscode: inscode, copycode: copycode, use_last_distance: false)
-                cost = this.sf.f32_add(
-                        a: this.sf.f32_add(a: dist_cost, b: this.sf.f32_from_u32(a: COPY_EXTRA[copycode.min(no_more_than: 23)])),
-                        b: this.z_cost_cmd[cmdcode.min(no_more_than: 703)])
-                if this.sf.f32_lt(a: cost, b: this.zn_u(wb: args.wb, i: args.pos ~mod+ len)) <> 0 {
+                if copycode <> prev_copycode {
+                    prev_copycode = copycode
+                    cmdcode = this.combine_length_codes(inscode: inscode, copycode: copycode, use_last_distance: false)
+                    cost = this.bc.f32_add(
+                            a: this.bc.f32_add(a: dist_cost, b: F32_OF_SMALL_INT[COPY_EXTRA[copycode.min(no_more_than: 23)]]),
+                            b: this.z_cost_cmd[cmdcode.min(no_more_than: 703)])
+                }
+                if this.bc.f32_lt(a: cost, b: this.zn_u(wb: args.wb, i: args.pos ~mod+ len)) <> 0 {
                     this.update_zopfli_node!(wb: args.wb, pos: args.pos, start_pos: start, len: len,
                             len_code: len_code, dist: dist, short_code: 0, cost: cost)
                     result = result.max(no_less_than: len)
