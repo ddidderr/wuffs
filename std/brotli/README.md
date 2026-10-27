@@ -623,6 +623,15 @@ encoder makes the same `EncodeData` calls, at the same points. One
 (the C code's "flint"), a C call can return early, with input left, after
 emitting the flint, and its callers then call it again.
 
+The C code emits the flint with a forced flush. If `dst` fills up before that
+flush's output is all written, the C call returns with the stream still in
+the flush-requested state, and the next `BrotliEncoderCompressStream` call
+that has input fails (it requires `stream_state_ == BROTLI_STREAM_PROCESSING`
+when `*available_in != 0`). The Wuffs encoder mirrors this: `transform_io`
+returns `"#bad call sequence"` there, after writing the same bytes as the C
+code. The differential fuzzer (`script/manual-test-brotli-fuzz.c -enc`)
+checks that both encoders fail at the same point with equal output.
+
 
 ### Encoder Large Window
 
