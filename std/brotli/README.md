@@ -883,7 +883,9 @@ by both this package's decoder and libbrotlidec.
 `script/manual-test-brotli-float.c` checks the encoder's package-private
 float fast paths (`encode_float.wuffs`, which spare the hot loops the
 cross-package `std/softfloat` calls) against the C compiler's hardware float
-and double arithmetic, for operands biased towards their edge cases.
+and double arithmetic, for operands biased towards their edge cases, and
+checks the integer bit helpers (`log2_floor_non_zero` for every 32-bit value,
+and `ctz64`).
 `script/manual-test-brotli-encoder-parity.c` runs a larger grid over every
 file in `test/data/brotli`, some larger files in `test/data` (up to about
 400 KiB) and some synthetic inputs (up to 1 MiB). Its `-q=LO-HI` and
@@ -1131,13 +1133,19 @@ metablock) for as long as it needs the results.
 - `workbuf_len` is a worst case (or, at qualities 10 and 11, a practical
   bound). A future option could take the input length (like the C code's
   size hint) to give a tighter bound.
-- Speed. Compressing the 3 MiB `test/data/harvesters.bmp` in one call (on
-  x86-64, lgwin 22), the Wuffs encoder takes about 1.2 times libbrotlienc's
-  time at quality 5, 1.7 times at quality 9, 4 times at quality 10 and 3.5
-  times at quality 11 (on text, 2 to 3 times at qualities 10 and 11), mostly
-  because of the soft float arithmetic in the Zopfli cost model, the block
-  splitter and histogram clustering. Decoding takes about 1.2 times
-  libbrotlidec's time.
+- Speed. On a mix of text, JSON, map data, an image and an ISO image (on
+  x86-64, lgwin 22, one call each, reusing the workbuf), the Wuffs encoder
+  takes about 1.2 to 1.8 times libbrotlienc's time at qualities 0 to 8 (about
+  1.8 times at the qualities 4 to 6 that web servers use for on-the-fly
+  compression) and about the same time at quality 9. At qualities 10 and 11
+  it takes about 2 times libbrotlienc's time on text and 3.5 to 4 times on
+  images (such as the 3 MiB `test/data/harvesters.bmp`), mostly because of
+  the soft float arithmetic in the Zopfli cost model, the block splitter and
+  histogram clustering. Decoding takes about 1.2 to 1.6 times libbrotlidec's
+  time. The workbuf is sized for the window (about 48 to 62 MiB at lgwin 22
+  and qualities 5 to 9), so callers that compress many small inputs should
+  reuse it: allocating and first touching a fresh one for each call costs
+  more than the compression of a small input.
 - Serialized (shared) dictionaries, which only an experimental
   (`BROTLI_EXPERIMENTAL`) libbrotlienc build supports.
 - Changing parameters mid-stream.

@@ -18,6 +18,21 @@
 // out of bounds branches here (which do nothing, or return 0) should never be
 // taken.
 
+// CTZ64_DEBRUIJN maps ((x & -x) * 0x03F7_9D71_B4CB_0A89) >> 58 to the
+// number of trailing zero bits of the non-zero x.
+pri const CTZ64_DEBRUIJN : roarray[64] base.u8[..= 63] = [
+    0, 1, 48, 2, 57, 49, 28, 3, 61, 58, 50, 42, 38, 29, 17, 4,
+    62, 55, 59, 36, 53, 51, 43, 22, 45, 39, 33, 30, 24, 18, 12, 5,
+    63, 47, 56, 27, 60, 41, 37, 16, 54, 35, 52, 21, 44, 32, 23, 11,
+    46, 26, 40, 15, 34, 20, 31, 10, 25, 14, 19, 9, 13, 8, 7, 6,
+]
+
+// ctz64 returns the number of trailing zero bits of x, which must be
+// non-zero (for x == 0 it returns 0).
+pri func encoder.ctz64(x: base.u64) base.u64[..= 63] {
+    return CTZ64_DEBRUIJN[((args.x & (0 ~mod- args.x)) ~mod* 0x03F7_9D71_B4CB_0A89) >> 58] as base.u64
+}
+
 // byte_at returns s[i], or 0 if i is out of bounds.
 pri func encoder.byte_at(s: roslice base.u8, i: base.u64) base.u8 {
     if args.i < args.s.length() {
@@ -28,12 +43,10 @@ pri func encoder.byte_at(s: roslice base.u8, i: base.u64) base.u8 {
 
 // peek_u16 returns the 2 bytes (little-endian) of s starting at i.
 pri func encoder.peek_u16(s: roslice base.u8, i: base.u64) base.u16 {
-    var q : roslice base.u8
-
-    if args.i < args.s.length() {
-        q = args.s[args.i ..]
-        if q.length() >= 2 {
-            return q.peek_u16le()
+    if args.i < 0xFFFF_FFFF_FFFF_0000 {
+        if (args.i + 2) <= args.s.length() {
+            assert args.i <= (args.i + 2) via "a <= (a + b): 0 <= b"(b: 2)
+            return args.s[args.i .. args.i + 2].peek_u16le()
         }
     }
     return 0
@@ -41,24 +54,20 @@ pri func encoder.peek_u16(s: roslice base.u8, i: base.u64) base.u16 {
 
 // poke_u16 sets the 2 bytes (little-endian) of s starting at i.
 pri func encoder.poke_u16!(s: slice base.u8, i: base.u64, v: base.u16) {
-    var q : slice base.u8
-
-    if args.i < args.s.length() {
-        q = args.s[args.i ..]
-        if q.length() >= 2 {
-            q.poke_u16le!(a: args.v)
+    if args.i < 0xFFFF_FFFF_FFFF_0000 {
+        if (args.i + 2) <= args.s.length() {
+            assert args.i <= (args.i + 2) via "a <= (a + b): 0 <= b"(b: 2)
+            args.s[args.i .. args.i + 2].poke_u16le!(a: args.v)
         }
     }
 }
 
 // poke_u32 sets the 4 bytes (little-endian) of s starting at i.
 pri func encoder.poke_u32!(s: slice base.u8, i: base.u64, v: base.u32) {
-    var q : slice base.u8
-
-    if args.i < args.s.length() {
-        q = args.s[args.i ..]
-        if q.length() >= 4 {
-            q.poke_u32le!(a: args.v)
+    if args.i < 0xFFFF_FFFF_FFFF_0000 {
+        if (args.i + 4) <= args.s.length() {
+            assert args.i <= (args.i + 4) via "a <= (a + b): 0 <= b"(b: 4)
+            args.s[args.i .. args.i + 4].poke_u32le!(a: args.v)
         }
     }
 }

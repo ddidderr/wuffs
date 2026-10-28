@@ -23,6 +23,9 @@
 //   gcc -O2 -std=c99 manual-test-brotli-float.c -o /tmp/brfloat
 //   /tmp/brfloat            # Default: 100 million operations per op.
 //   /tmp/brfloat 1000000    # Or pass the number of operations per op.
+// It also checks the integer bit helpers (log2_floor_non_zero, for every u32,
+// and ctz64) against the compiler's __builtin_clz and __builtin_ctzll.
+//
 // It prints one line per op and the first few mismatches (if any), and exits
 // with a non-zero status if there were any mismatches. NaN results only need
 // to be NaN (on both sides).
@@ -46,6 +49,7 @@
 #error "Build without -ffast-math and without -mfma / -march=native"
 #endif
 
+static wuffs_brotli__encoder* g_enc;
 static wuffs_brotli__bit_cost* g_bc;
 
 static uint64_t g_rng = 0x123456789ABCDEF1ull;
@@ -334,6 +338,41 @@ check_conversions(uint64_t n) {
   g_total_mismatches += mismatches;
 }
 
+static void  //
+check_bit_helpers(uint64_t n) {
+  uint64_t mismatches = 0;
+  wuffs_brotli__encoder* enc = g_enc;
+  // log2_floor_non_zero truncates its argument to 32 bits (and returns 0 for
+  // 0), so check every u32 value, with random high bits.
+  uint32_t v = 0;
+  do {
+    uint64_t x = ((uint64_t)(rnd() & 0xFFFFFFFF00000000ull)) | v;
+    uint32_t want = v ? (31 - (uint32_t)__builtin_clz(v)) : 0;
+    uint32_t have0 = wuffs_brotli__encoder__log2_floor_non_zero(enc, x);
+    uint32_t have1 = wuffs_brotli__metablock_builder__log2_floor_non_zero(
+        &enc->private_data.f_mb, x);
+    if (((have0 != want) || (have1 != want)) && (mismatches++ < 5)) {
+      printf("log2_floor_non_zero(0x%016" PRIX64 "): have %" PRIu32
+             " and %" PRIu32 ", want %" PRIu32 "\n", x, have0, have1, want);
+    }
+  } while (++v != 0);
+  for (uint64_t i = 0; i < n; i++) {
+    uint64_t x = (i < 64) ? (1ull << i) : rnd_int();
+    if (x == 0) {
+      continue;
+    }
+    uint64_t want = (uint64_t)__builtin_ctzll(x);
+    uint64_t have = wuffs_brotli__encoder__ctz64(enc, x);
+    if ((have != want) && (mismatches++ < 5)) {
+      printf("ctz64(0x%016" PRIX64 "): have %" PRIu64 ", want %" PRIu64 "\n",
+             x, have, want);
+    }
+  }
+  printf("%-8s %12" PRIu64 " iterations, %8" PRIu64 " mismatches\n", "bits",
+         n + (uint64_t)0x100000000ull, mismatches);
+  g_total_mismatches += mismatches;
+}
+
 int  //
 main(int argc, char** argv) {
   uint64_t n = 100000000;
@@ -345,6 +384,7 @@ main(int argc, char** argv) {
     printf("alloc failed\n");
     return 1;
   }
+  g_enc = enc;
   g_bc = &enc->private_data.f_bc;
 
   check_f32_add(n);
@@ -359,6 +399,7 @@ main(int argc, char** argv) {
   check_f64_gt(n);
   check_f64_ge(n);
   check_conversions(n);
+  check_bit_helpers(n);
 
   free(enc);
   if (g_total_mismatches) {

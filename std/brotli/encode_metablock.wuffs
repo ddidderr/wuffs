@@ -283,16 +283,16 @@ pri func metablock_builder.h_population_cost!(wb: roslice base.u8, h: base.u64, 
 // Mirrors Log2FloorNonZero in fast_log.h (which truncates n to 32 bits).
 pri func metablock_builder.log2_floor_non_zero(n: base.u64) base.u32[..= 31] {
     var x : base.u32
-    var r : base.u32[..= 31]
 
+    // Smear the highest set bit of the low 32 bits of n rightwards, then
+    // look up its position.
     x = (args.n & 0xFFFF_FFFF) as base.u32
-    while x > 1 {
-        x >>= 1
-        if r < 31 {
-            r += 1
-        }
-    }
-    return r
+    x |= x >> 1
+    x |= x >> 2
+    x |= x >> 4
+    x |= x >> 8
+    x |= x >> 16
+    return LOG2_DEBRUIJN32[(x ~mod* 0x07C4_ACDD) >> 27]
 }
 
 // Mirrors PrefixEncodeCopyDistance in prefix.h. It returns the code (the

@@ -400,7 +400,6 @@ pri func encoder.hasher_store!(wb: slice base.u8, ix: base.u64) {
     var bsize   : base.u64
     var off     : base.u64
     var num     : base.u16
-    var hash    : base.u32
     var bank    : base.u64
     var idx     : base.u64
     var delta   : base.u64
@@ -408,6 +407,10 @@ pri func encoder.hasher_store!(wb: slice base.u8, ix: base.u64) {
     var fc_bits : base.u32[..= 16]
 
     htype = this.hasher_type
+    if (htype == 58) or (htype == 68) {
+        this.hasher_store_h58!(wb: args.wb, ix: args.ix)
+        return nothing
+    }
     if this.rb_buf_off > args.wb.length() {
         return nothing
     }
@@ -427,16 +430,6 @@ pri func encoder.hasher_store!(wb: slice base.u8, ix: base.u64) {
         this.poke_u16!(s: args.wb, i: this.h_off0 ~mod+ (2 ~mod* (key as base.u64)), v: num ~mod+ 1)
         this.poke_u32!(s: args.wb, i: this.h_off1 ~mod+ (4 ~mod* off), v: (args.ix & 0xFFFF_FFFF) as base.u32)
 
-    } else if (htype == 58) or (htype == 68) {
-        hash = this.hash_longest(data: data, i: args.ix & (this.rb_mask as base.u64))
-        key = hash >> 8
-        num = this.peek_u16(s: args.wb, i: this.h_off0 ~mod+ (2 ~mod* (key as base.u64)))
-        off = ((num as base.u64) & (((1 as base.u64) << this.h_block_bits) - 1)) ~mod+
-                ((key as base.u64) << this.h_block_bits)
-        this.poke_u16!(s: args.wb, i: this.h_off0 ~mod+ (2 ~mod* (key as base.u64)), v: num ~mod- 1)
-        this.poke_u32!(s: args.wb, i: this.h_off2 ~mod+ (4 ~mod* off), v: (args.ix & 0xFFFF_FFFF) as base.u32)
-        this.set_byte!(s: args.wb, i: this.h_off1 ~mod+ off, v: (hash & 0xFF) as base.u8)
-
     } else if (htype == 40) or (htype == 41) or (htype == 42) {
         key = this.hash_forgetful(data: data, i: args.ix & (this.rb_mask as base.u64))
         fc_bits = this.fc_bank_bits()
@@ -455,6 +448,36 @@ pri func encoder.hasher_store!(wb: slice base.u8, ix: base.u64) {
         this.poke_u32!(s: args.wb, i: this.h_off0 ~mod+ (4 ~mod* (key as base.u64)), v: (args.ix & 0xFFFF_FFFF) as base.u32)
         this.poke_u16!(s: args.wb, i: (this.h_off0 ~mod+ 0x2_0000) ~mod+ (2 ~mod* (key as base.u64)), v: (idx & 0xFFFF) as base.u16)
     }
+}
+
+// hasher_store_h58 is FN(Store) for H58 and H68.
+pri func encoder.hasher_store_h58!(wb: slice base.u8, ix: base.u64) {
+    var hash : base.u32
+    var key  : base.u64
+    var koff : base.u64
+    var num  : base.u16
+    var off  : base.u64
+
+    hash = this.hash_h58(wb: args.wb, ix: args.ix)
+    key = (hash >> 8) as base.u64
+    koff = this.h_off0 ~mod+ (2 ~mod* key)
+    num = this.peek_u16(s: args.wb, i: koff)
+    off = ((num as base.u64) & (((1 as base.u64) << this.h_block_bits) - 1)) ~mod+ (key << this.h_block_bits)
+    this.poke_u16!(s: args.wb, i: koff, v: num ~mod- 1)
+    this.poke_u32!(s: args.wb, i: this.h_off2 ~mod+ (4 ~mod* off), v: (args.ix & 0xFFFF_FFFF) as base.u32)
+    this.set_byte!(s: args.wb, i: this.h_off1 ~mod+ off, v: (hash & 0xFF) as base.u8)
+}
+
+// hash_h58 is hash_longest for H58 and H68, of the ring buffer bytes at
+// position ix (masked).
+pri func encoder.hash_h58(wb: roslice base.u8, ix: base.u64) base.u32 {
+    var i : base.u64
+
+    i = this.rb_buf_off ~mod+ (args.ix & (this.rb_mask as base.u64))
+    if this.hasher_type == 58 {
+        return (this.load32le(s: args.wb, i: i) ~mod* HASH_MUL_32) >> ((24 - this.h_bucket_bits) & 31)
+    }
+    return ((this.load64le(s: args.wb, i: i) ~mod* ((HASH_MUL_64 << 24) & 0xFFFF_FFFF_FFFF_FFFF)) >> 41) as base.u32
 }
 
 // Mirrors FN(StoreRange) of every hasher.
@@ -803,6 +826,8 @@ pri func encoder.find_last_distances!(data: roslice base.u8, cur_ix: base.u64, m
     var prev_ix       : base.u64
     var len           : base.u64
     var score         : base.u64
+    var cur_byte      : base.u8
+    var n             : base.u32
 
     mask = this.rb_mask as base.u64
     cur_ix_masked = args.cur_ix & mask
@@ -811,15 +836,14 @@ pri func encoder.find_last_distances!(data: roslice base.u8, cur_ix: base.u64, m
     this.sr_len = 0
     this.sr_len_code_delta = 0
 
+    // cur_byte is data[cur_ix_masked + best_len], updated with best_len.
+    cur_byte = this.byte_at(s: args.data, i: cur_ix_masked ~mod+ best_len)
+    n = this.h_num_last_distances
     i = 0
-    while i < this.h_num_last_distances {
+    while i < n {
         backward = this.dist_cache_u64(i: i)
         prev_ix = args.cur_ix ~mod- backward
-        if prev_ix >= args.cur_ix {
-            i ~mod+= 1
-            continue
-        }
-        if backward > args.max_backward {
+        if (prev_ix >= args.cur_ix) or (backward > args.max_backward) {
             i ~mod+= 1
             continue
         }
@@ -828,7 +852,7 @@ pri func encoder.find_last_distances!(data: roslice base.u8, cur_ix: base.u64, m
             break
         }
         if ((prev_ix ~mod+ best_len) > mask) or
-                (this.byte_at(s: args.data, i: cur_ix_masked ~mod+ best_len) <> this.byte_at(s: args.data, i: prev_ix ~mod+ best_len)) {
+                (cur_byte <> this.byte_at(s: args.data, i: prev_ix ~mod+ best_len)) {
             i ~mod+= 1
             continue
         }
@@ -845,61 +869,13 @@ pri func encoder.find_last_distances!(data: roslice base.u8, cur_ix: base.u64, m
                     this.sr_len = best_len
                     this.sr_distance = backward
                     this.sr_score = best_score
+                    cur_byte = this.byte_at(s: args.data, i: cur_ix_masked ~mod+ best_len)
                 }
             }
         }
         i ~mod+= 1
     }
     return best_len
-}
-
-// try_bucket_entry is the body of the bucket loop shared by the H5, H6, H58
-// and H68 FN(FindLongestMatch) functions, for one prev_ix candidate. It
-// returns 0 to continue, 1 to break, or 2 + the new best_len.
-pri func encoder.try_bucket_entry!(data: roslice base.u8, cur_ix: base.u64, prev_ix_in: base.u64, best_len: base.u64, max_length: base.u64, max_backward: base.u64) base.u64 {
-    var mask          : base.u64
-    var cur_ix_masked : base.u64
-    var prev_ix       : base.u64
-    var backward      : base.u64
-    var len           : base.u64
-    var score         : base.u64
-
-    mask = this.rb_mask as base.u64
-    cur_ix_masked = args.cur_ix & mask
-    backward = args.cur_ix ~mod- args.prev_ix_in
-    if backward > args.max_backward {
-        return 1
-    }
-    prev_ix = args.prev_ix_in & mask
-    if (cur_ix_masked ~mod+ args.best_len) > mask {
-        return 1
-    }
-    if ((prev_ix ~mod+ args.best_len) > mask) or
-            (this.load32le(s: args.data, i: (cur_ix_masked ~mod+ args.best_len) ~mod- 3) <>
-            this.load32le(s: args.data, i: (prev_ix ~mod+ args.best_len) ~mod- 3)) {
-        return 0
-    }
-    if (this.hasher_type == 6) or (this.hasher_type == 68) {
-        if this.load32le(s: args.data, i: cur_ix_masked) <> this.load32le(s: args.data, i: prev_ix) {
-            return 0
-        }
-        len = this.find_match_length_with_limit(s: args.data, i1: prev_ix ~mod+ 4, i2: cur_ix_masked ~mod+ 4,
-                limit: args.max_length ~mod- 4) ~mod+ 4
-    } else {
-        len = this.find_match_length_with_limit(s: args.data, i1: prev_ix, i2: cur_ix_masked, limit: args.max_length)
-        if len < 4 {
-            return 0
-        }
-    }
-    score = this.backward_reference_score(copy_length: len, backward_reference_offset: backward)
-    if this.sr_score < score {
-        // The C code's best_score is always equal to out->score here.
-        this.sr_len = len
-        this.sr_distance = backward
-        this.sr_score = score
-        return 2 ~mod+ len
-    }
-    return 0
 }
 
 // Mirrors FN(FindLongestMatch) in hash_longest_match_inc.h (H5) and
@@ -916,7 +892,13 @@ pri func encoder.find_longest_match_h5!(wb: slice base.u8, cur_ix: base.u64, max
     var bucket        : base.u64
     var down          : base.u64
     var i             : base.u64
-    var r             : base.u64
+    var mask          : base.u64
+    var is64          : base.bool
+    var cur4          : base.u32
+    var prev_ix       : base.u64
+    var backward      : base.u64
+    var len           : base.u64
+    var score         : base.u64
 
     if this.rb_buf_off > args.wb.length() {
         return nothing
@@ -938,20 +920,46 @@ pri func encoder.find_longest_match_h5!(wb: slice base.u8, cur_ix: base.u64, max
     if (num as base.u64) > block_size {
         down = (num as base.u64) ~mod- block_size
     }
+    // Try the bucket's entries, newest first. Like the C code, this
+    // compares 4 bytes ending at best_len + 1 before the full match.
+    mask = this.rb_mask as base.u64
+    is64 = this.hasher_type == 6
+    cur4 = this.load32le(s: data, i: (cur_ix_masked ~mod+ best_len) ~mod- 3)
     i = num as base.u64
     while i > down {
         i ~mod-= 1
-        r = this.try_bucket_entry!(
-                data: data,
-                cur_ix: args.cur_ix,
-                prev_ix_in: this.load32le(s: args.wb, i: bucket ~mod+ (4 ~mod* (i & block_mask))) as base.u64,
-                best_len: best_len,
-                max_length: args.max_length,
-                max_backward: args.max_backward)
-        if r == 1 {
+        prev_ix = this.load32le(s: args.wb, i: bucket ~mod+ (4 ~mod* (i & block_mask))) as base.u64
+        backward = args.cur_ix ~mod- prev_ix
+        if backward > args.max_backward {
             break
-        } else if r >= 2 {
-            best_len = r ~mod- 2
+        }
+        prev_ix &= mask
+        if (cur_ix_masked ~mod+ best_len) > mask {
+            break
+        }
+        if ((prev_ix ~mod+ best_len) > mask) or
+                (cur4 <> this.load32le(s: data, i: (prev_ix ~mod+ best_len) ~mod- 3)) {
+            continue
+        }
+        if is64 {
+            if this.load32le(s: data, i: cur_ix_masked) <> this.load32le(s: data, i: prev_ix) {
+                continue
+            }
+            len = this.find_match_length_with_limit(s: data, i1: prev_ix ~mod+ 4, i2: cur_ix_masked ~mod+ 4,
+                    limit: args.max_length ~mod- 4) ~mod+ 4
+        } else {
+            len = this.find_match_length_with_limit(s: data, i1: prev_ix, i2: cur_ix_masked, limit: args.max_length)
+            if len < 4 {
+                continue
+            }
+        }
+        score = this.backward_reference_score(copy_length: len, backward_reference_offset: backward)
+        if this.sr_score < score {
+            this.sr_len = len
+            this.sr_distance = backward
+            this.sr_score = score
+            best_len = len
+            cur4 = this.load32le(s: data, i: (cur_ix_masked ~mod+ best_len) ~mod- 3)
         }
     }
     this.poke_u32!(s: args.wb, i: bucket ~mod+ (4 ~mod* ((num as base.u64) & block_mask)), v: (args.cur_ix & 0xFFFF_FFFF) as base.u32)
@@ -984,7 +992,17 @@ pri func encoder.find_longest_match_h58!(wb: slice base.u8, cur_ix: base.u64, ma
     var limit         : base.u64
     var k             : base.u64
     var rb_index      : base.u64
-    var r             : base.u64
+    var splat         : base.u64
+    var matches       : base.u64
+    var chunk         : base.u64
+    var j             : base.u64
+    var mask          : base.u64
+    var is64          : base.bool
+    var cur4          : base.u32
+    var prev_ix       : base.u64
+    var backward      : base.u64
+    var len           : base.u64
+    var score         : base.u64
 
     if this.rb_buf_off > args.wb.length() {
         return nothing
@@ -992,7 +1010,7 @@ pri func encoder.find_longest_match_h58!(wb: slice base.u8, cur_ix: base.u64, ma
     data = args.wb[this.rb_buf_off ..]
     cur_ix_masked = args.cur_ix & (this.rb_mask as base.u64)
     min_score = this.sr_score
-    hash = this.hash_longest(data: data, i: cur_ix_masked)
+    hash = this.hash_h58(wb: args.wb, ix: args.cur_ix)
     key = (hash >> 8) as base.u64
     block_size = (1 as base.u64) << this.h_block_bits
     block_mask = block_size ~mod- 1
@@ -1014,24 +1032,70 @@ pri func encoder.find_longest_match_h58!(wb: slice base.u8, cur_ix: base.u64, ma
     if block_size > (n as base.u64) {
         limit = n as base.u64
     }
-    k = 0
-    while k < limit {
+    // Like GetMatchingTagMask's non-SSE2 code: bit j of matches is whether
+    // the tag of entry j matches, 8 entries at a time.
+    splat = (tag as base.u64) ~mod* 0x0101_0101_0101_0101
+    matches = 0
+    j = 0
+    while j < block_size {
+        chunk = this.load64le(s: args.wb, i: tag_bucket ~mod+ j) ^ splat
+        // The 0x80 bit of each byte is set when that byte is non-zero.
+        chunk = (((chunk | 0x8080_8080_8080_8080) ~mod- 0x0101_0101_0101_0101) | chunk) & 0x8080_8080_8080_8080
+        chunk = (chunk ^ 0x8080_8080_8080_8080) >> 7
+        matches |= ((chunk ~mod* 0x0102_0408_1020_4080) >> 56) ~mod<< (j & 63)
+        j ~mod+= 8
+    }
+    // Rotate so that bit k is entry (head + k) & block_mask.
+    if head > 0 {
+        matches = ((matches >> (head & 63)) | (matches ~mod<< ((block_size ~mod- head) & 63))) &
+                ((0xFFFF_FFFF_FFFF_FFFF as base.u64) >> ((64 ~mod- block_size) & 63))
+    }
+    if limit < 64 {
+        matches &= ((1 as base.u64) << (limit & 63)) ~mod- 1
+    }
+    // Try the entries whose tags match, in the C code's order (from head).
+    // Like the C code, this compares 4 bytes ending at best_len + 1 before
+    // the full match.
+    mask = this.rb_mask as base.u64
+    is64 = this.hasher_type == 68
+    cur4 = this.load32le(s: data, i: (cur_ix_masked ~mod+ best_len) ~mod- 3)
+    while matches <> 0 {
+        k = this.ctz64(x: matches)
+        matches &= matches ~mod- 1
         rb_index = (head ~mod+ k) & block_mask
-        if this.byte_at(s: args.wb, i: tag_bucket ~mod+ rb_index) == tag {
-            r = this.try_bucket_entry!(
-                    data: data,
-                    cur_ix: args.cur_ix,
-                    prev_ix_in: this.load32le(s: args.wb, i: bucket ~mod+ (4 ~mod* rb_index)) as base.u64,
-                    best_len: best_len,
-                    max_length: args.max_length,
-                    max_backward: args.max_backward)
-            if r == 1 {
-                break
-            } else if r >= 2 {
-                best_len = r ~mod- 2
+        prev_ix = this.load32le(s: args.wb, i: bucket ~mod+ (4 ~mod* rb_index)) as base.u64
+        backward = args.cur_ix ~mod- prev_ix
+        if backward > args.max_backward {
+            break
+        }
+        prev_ix &= mask
+        if (cur_ix_masked ~mod+ best_len) > mask {
+            break
+        }
+        if ((prev_ix ~mod+ best_len) > mask) or
+                (cur4 <> this.load32le(s: data, i: (prev_ix ~mod+ best_len) ~mod- 3)) {
+            continue
+        }
+        if is64 {
+            if this.load32le(s: data, i: cur_ix_masked) <> this.load32le(s: data, i: prev_ix) {
+                continue
+            }
+            len = this.find_match_length_with_limit(s: data, i1: prev_ix ~mod+ 4, i2: cur_ix_masked ~mod+ 4,
+                    limit: args.max_length ~mod- 4) ~mod+ 4
+        } else {
+            len = this.find_match_length_with_limit(s: data, i1: prev_ix, i2: cur_ix_masked, limit: args.max_length)
+            if len < 4 {
+                continue
             }
         }
-        k ~mod+= 1
+        score = this.backward_reference_score(copy_length: len, backward_reference_offset: backward)
+        if this.sr_score < score {
+            this.sr_len = len
+            this.sr_distance = backward
+            this.sr_score = score
+            best_len = len
+            cur4 = this.load32le(s: data, i: (cur_ix_masked ~mod+ best_len) ~mod- 3)
+        }
     }
     this.poke_u32!(s: args.wb, i: bucket ~mod+ (4 ~mod* ((num as base.u64) & block_mask)), v: (args.cur_ix & 0xFFFF_FFFF) as base.u32)
     this.set_byte!(s: args.wb, i: tag_bucket ~mod+ ((num as base.u64) & block_mask), v: tag)
