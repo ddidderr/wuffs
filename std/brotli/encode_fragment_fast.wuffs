@@ -332,25 +332,25 @@ pri func encoder.should_merge_block!(input: roslice base.u8, from: base.u64, len
 
     total = (args.len ~mod+ 42) / 43
     // r = (FastLog2(total) + 0.5) * (double)total + 200.
-    r = this.sf.f64_add(
-            a: this.sf.f64_mul(
-            a: this.sf.f64_add(a: this.fast_log2(v: total), b: 0x3FE0_0000_0000_0000),
-            b: this.sf.f64_from_u64(a: total)),
+    r = this.bc.f64_add(
+            a: this.bc.f64_mul(
+            a: this.bc.f64_add(a: this.fast_log2(v: total), b: 0x3FE0_0000_0000_0000),
+            b: this.bc.f64_from_u64(a: total)),
             b: 0x4069_0000_0000_0000)
     j = 0
     while j < 256 {
         // r -= (double)histo[i] * (depths[i] + FastLog2(histo[i])).
         h = this.histogram[j] as base.u64
-        r = this.sf.f64_sub(
+        r = this.bc.f64_sub(
                 a: r,
-                b: this.sf.f64_mul(
-                a: this.sf.f64_from_u64(a: h),
-                b: this.sf.f64_add(
-                a: this.sf.f64_from_u32(a: this.lit_depth[j] as base.u32),
+                b: this.bc.f64_mul(
+                a: this.bc.f64_from_u64(a: h),
+                b: this.bc.f64_add(
+                a: this.bc.f64_from_u32(a: this.lit_depth[j] as base.u32),
                 b: this.fast_log2(v: h))))
         j ~mod+= 1
     }
-    return this.sf.f64_ge(a: r, b: 0) <> 0
+    return this.bc.f64_ge(a: r, b: 0) <> 0
 }
 
 // Mirrors ShouldUseUncompressedMode in compress_fragment.c.

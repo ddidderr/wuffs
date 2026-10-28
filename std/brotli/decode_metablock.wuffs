@@ -738,6 +738,13 @@ pri func decoder.process_commands_fast!(src: base.io_reader, workbuf: slice base
     var dhi          : base.u64
     var slo          : base.u64
     var shi          : base.u64
+    var cm_slice     : base.u32[..= 16320]
+    var wmask        : base.u32
+    var pos          : base.u32
+    var lit_n        : base.u32
+    var lit_i        : base.u32
+    var wi           : base.u64
+    var copied16     : base.bool
 
     if this.n_bits >= 8 {
         return ok
@@ -829,26 +836,38 @@ pri func decoder.process_commands_fast!(src: base.io_reader, workbuf: slice base
             }
             p1 = this.get_byte(workbuf: args.workbuf, distance: 1) as base.u32
             p2 = this.get_byte(workbuf: args.workbuf, distance: 2) as base.u32
-            while this.insert_length > 0 {
-                if (this.block_length[0] == 0) or ((this.pos ~mod+ 1) >= this.rb_size) {
-                    break.outer
-                }
+            mode_offset = this.context_mode << 9
+            cm_slice = this.context_map_slice
+            wmask = this.window_size ~mod- 1
+            pos = this.pos
+            // lit_n is how many literals the loop below decodes before this
+            // command's literals, this block's literals or the ring buffer
+            // (before the next ring_event) run out. The loop keeps pos, the
+            // counts and the symbol in local variables, and writes them back
+            // to this.etc fields before every break.
+            lit_n = this.insert_length.min(no_more_than: this.block_length[0])
+            if (pos ~mod+ 1) >= this.rb_size {
+                lit_n = 0
+            } else {
+                lit_n = lit_n.min(no_more_than: (this.rb_size ~mod- pos) ~mod- 1)
+            }
+            lit_i = 0
+            while lit_i < lit_n {
                 if n_bits < 24 {
                     if args.src.length() < 8 {
-                        break.outer
+                        break
                     }
                     bits |= args.src.peek_u64le() ~mod<< n_bits
                     args.src.skip_u32_fast!(actual: (63 - n_bits) >> 3, worst_case: 8)
                     n_bits |= 56
                 }
-                mode_offset = this.context_mode << 9
                 ctx = (CONTEXT_LOOKUP[mode_offset | p1] |
                         CONTEXT_LOOKUP[mode_offset | 0x100 | p2]) as base.u32
-                tree = this.context_maps[this.context_map_slice + ctx] as base.u32
+                tree = this.context_maps[cm_slice + ctx] as base.u32
                 i = (LIT_HUFFS_BASE + (tree * LIT_HUFFS_STRIDE)) ~mod+ ((bits & 0xFF) as base.u32)
                 if i >= HUFFS_LEN {
                     ret = "#internal error: inconsistent Huffman table"
-                    break.outer
+                    break
                 }
                 e = this.huffs[i] as base.u32
                 e_bits = e & 15
@@ -856,23 +875,34 @@ pri func decoder.process_commands_fast!(src: base.io_reader, workbuf: slice base
                     i = ((LIT_HUFFS_BASE + (tree * LIT_HUFFS_STRIDE)) ~mod+ (e >> 4)) ~mod+ ((((bits >> 8) & 0x7FFF) as base.u32) & (((1 as base.u32) << (e_bits - 8)) - 1))
                     if i >= HUFFS_LEN {
                         ret = "#internal error: inconsistent Huffman table"
-                        break.outer
+                        break
                     }
                     e = this.huffs[i] as base.u32
                     e_bits = (e & 15) + 8
                 }
                 if n_bits < e_bits {
                     ret = "#internal error: inconsistent bit reader"
-                    break.outer
+                    break
                 }
                 bits >>= e_bits
                 n_bits -= e_bits
-                this.symbol = e >> 4
-                this.put_byte!(workbuf: args.workbuf, b: (this.symbol & 0xFF) as base.u8)
                 p2 = p1
-                p1 = this.symbol & 0xFF
-                this.block_length[0] ~mod-= 1
-                this.insert_length ~mod-= 1
+                p1 = (e >> 4) & 0xFF
+                wi = (pos & wmask) as base.u64
+                if wi < args.workbuf.length() {
+                    args.workbuf[wi] = p1 as base.u8
+                }
+                pos ~mod+= 1
+                lit_i ~mod+= 1
+            }
+            if lit_i > 0 {
+                this.symbol = p1
+                this.pos = pos
+                this.block_length[0] ~mod-= lit_i
+                this.insert_length ~mod-= lit_i
+            }
+            if (ret.is_error()) or (this.insert_length > 0) {
+                break.outer
             }
             this.cmd_state = 2
             if (this.mb_remaining == 0) or (this.mb_remaining >= 0x8000_0000) {
@@ -971,6 +1001,18 @@ pri func decoder.process_commands_fast!(src: base.io_reader, workbuf: slice base
         this.mb_remaining ~mod-= n
         // Copy in chunks of at most distance bytes, like process_commands.
         k64 = 0
+        if (n <= 16) and (distance >= 16) and
+                ((dst_i ~mod+ 16) <= (this.rb_size as base.u64)) and
+                ((src_i ~mod+ 16) <= (this.window_size as base.u64)) {
+            // Like the C code, copy 16 bytes, overwriting up to 16 - n bytes
+            // after the copy's end. Those bytes are more than the maximum
+            // backward distance (BROTLI_WINDOW_GAP is 16) away from any later
+            // position, so they are never read before being rewritten.
+            copied16 = this.copy16!(workbuf: args.workbuf, d: dst_i, s: src_i)
+            if copied16 {
+                k64 = n as base.u64
+            }
+        }
         while k64 < (n as base.u64) {
             n64 = (n as base.u64) ~mod- k64
             n64 = n64.min(no_more_than: distance as base.u64)
@@ -1097,4 +1139,35 @@ pri func decoder.take_distance_from_ring_buffer!(code: base.u32[..= 15]) {
     } else {
         this.distance_code = v - 3
     }
+}
+
+// copy16 copies the 16 bytes at workbuf[s ..] to workbuf[d ..], if both are
+// in bounds (and returns whether it did). The two ranges must not overlap.
+pri func decoder.copy16!(workbuf: slice base.u8, d: base.u64, s: base.u64) base.bool {
+    var lo : base.u64
+    var hi : base.u64
+    var q  : slice base.u8
+    var r  : slice base.u8
+
+    if (args.s > args.workbuf.length()) or (args.d > args.workbuf.length()) {
+        return false
+    }
+    q = args.workbuf[args.s ..]
+    if q.length() >= 16 {
+        lo = q.peek_u64le()
+        q = q[8 ..]
+        if q.length() >= 8 {
+            hi = q.peek_u64le()
+            q = args.workbuf[args.d ..]
+            if q.length() >= 16 {
+                r = q[8 ..]
+                q.poke_u64le!(a: lo)
+                if r.length() >= 8 {
+                    r.poke_u64le!(a: hi)
+                    return true
+                }
+            }
+        }
+    }
+    return false
 }

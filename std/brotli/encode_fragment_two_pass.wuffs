@@ -472,18 +472,18 @@ pri func encoder.should_compress_two_pass!(input: roslice base.u8, from: base.u6
     var max_total_bit_cost : base.u64
     var i                  : base.u64
 
-    corpus_size = this.sf.f64_from_u64(a: args.input_size)
+    corpus_size = this.bc.f64_from_u64(a: args.input_size)
     // MIN_RATIO is 0.98 (0x3FEF_5C28_F5C2_8F5C).
-    if this.sf.f64_lt(
-            a: this.sf.f64_from_u64(a: args.num_literals),
-            b: this.sf.f64_mul(a: 0x3FEF_5C28_F5C2_8F5C, b: corpus_size)) <> 0 {
+    if this.bc.f64_lt(
+            a: this.bc.f64_from_u64(a: args.num_literals),
+            b: this.bc.f64_mul(a: 0x3FEF_5C28_F5C2_8F5C, b: corpus_size)) <> 0 {
         return true
     }
     // max_total_bit_cost = corpus_size * 8 * MIN_RATIO / SAMPLE_RATE, where
     // SAMPLE_RATE is 43 and 8.0 is 0x4020_0000_0000_0000.
     max_total_bit_cost = this.sf.f64_div(
-            a: this.sf.f64_mul(
-            a: this.sf.f64_mul(a: corpus_size, b: 0x4020_0000_0000_0000),
+            a: this.bc.f64_mul(
+            a: this.bc.f64_mul(a: corpus_size, b: 0x4020_0000_0000_0000),
             b: 0x3FEF_5C28_F5C2_8F5C),
             b: 0x4045_8000_0000_0000)
     this.histogram[.. 256].bulk_memset!(byte_value: 0)
@@ -494,7 +494,7 @@ pri func encoder.should_compress_two_pass!(input: roslice base.u8, from: base.u6
         }
         i ~mod+= 43
     }
-    return this.sf.f64_lt(a: this.bits_entropy_of_histogram(), b: max_total_bit_cost) <> 0
+    return this.bc.f64_lt(a: this.bits_entropy_of_histogram(), b: max_total_bit_cost) <> 0
 }
 
 // Mirrors EmitUncompressedMetaBlock in compress_fragment_two_pass.c (which,

@@ -201,20 +201,20 @@ pri func encoder.gbs_finish_block!(wb: slice base.u8, c: base.u32[..= 3], is_fin
                     this.gbs_add_histogram!(wb: args.wb, dst: tmp, src: this.gbs_histo_off(c: args.c, ix: last1 ~mod+ i), n: data_size)
                 }
                 this.gbs_comb_entropy[jx & 31] = this.gbs_entropy!(wb: args.wb, off: tmp, size: alphabet_size)
-                d = this.sf.f64_sub(
-                        a: this.sf.f64_sub(a: this.gbs_comb_entropy[jx & 31], b: e),
+                d = this.bc.f64_sub(
+                        a: this.bc.f64_sub(a: this.gbs_comb_entropy[jx & 31], b: e),
                         b: this.gbs_last_entropy[((le_base as base.u64) ~mod+ jx) & 127])
                 if j == 0 {
                     if nc == 1 {
                         diff0 = d
                     } else {
-                        diff0 = this.sf.f64_add(a: diff0, b: d)
+                        diff0 = this.bc.f64_add(a: diff0, b: d)
                     }
                 } else {
                     if nc == 1 {
                         diff1 = d
                     } else {
-                        diff1 = this.sf.f64_add(a: diff1, b: d)
+                        diff1 = this.bc.f64_add(a: diff1, b: d)
                     }
                 }
                 j ~mod+= 1
@@ -223,8 +223,8 @@ pri func encoder.gbs_finish_block!(wb: slice base.u8, c: base.u32[..= 3], is_fin
         }
 
         if (this.gbs_num_types[args.c] < this.gbs_max_block_types[args.c]) and
-                (this.sf.f64_gt(a: diff0, b: threshold) <> 0) and
-                (this.sf.f64_gt(a: diff1, b: threshold) <> 0) {
+                (this.bc.f64_gt(a: diff0, b: threshold) <> 0) and
+                (this.bc.f64_gt(a: diff1, b: threshold) <> 0) {
             // Create new block.
             this.poke_u32!(s: args.wb, i: lengths_off ~mod+ (num_blocks ~mod* 4),
                     v: (this.gbs_block_size[args.c] & 0xFFFF_FFFF) as base.u32)
@@ -250,7 +250,7 @@ pri func encoder.gbs_finish_block!(wb: slice base.u8, c: base.u32[..= 3], is_fin
             this.gbs_merge_last_count[args.c] = 0
             this.gbs_target_block_size[args.c] = this.gbs_min_block_size[args.c] as base.u64
 
-        } else if this.sf.f64_lt(a: diff1, b: this.sf.f64_sub(a: diff0, b: GBS_F64_20)) <> 0 {
+        } else if this.bc.f64_lt(a: diff1, b: this.bc.f64_sub(a: diff0, b: GBS_F64_20)) <> 0 {
             // Combine this block with second last block.
             this.poke_u32!(s: args.wb, i: lengths_off ~mod+ (num_blocks ~mod* 4),
                     v: (this.gbs_block_size[args.c] & 0xFFFF_FFFF) as base.u32)

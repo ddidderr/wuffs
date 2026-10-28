@@ -54,8 +54,18 @@ pri struct bit_cost?(
         // (but log2_cache need not be), so the cache starts empty.
         log2_valid : array[1024] base.u64,
 
+        // population_cost's per-call memo of its per-symbol values, for
+        // symbol counts less than 256: pc_term[c] and pc_depth[c] are valid
+        // during the call numbered pc_call if pc_valid[c] == pc_call. Call
+        // numbers start at 1, so the zeroed pc_valid starts empty.
+        pc_call  : base.u32,
+        pc_valid : array[256] base.u32,
+
         sf : softfloat.arith,
 ) + (
+        pc_term  : array[256] base.u64,
+        pc_depth : array[256] base.u8,
+
         // log2_cache[v] is FastLog2(v), for 256 <= v < 65536, filled lazily
         // (see fast_log2_memo). It is only a speed optimization (glibc's log2
         // is expensive to emulate): the values are computed by the same
@@ -166,17 +176,22 @@ pri func bit_cost.bits_entropy!(population: roslice base.u8, size: base.u64) bas
             q = q[4 ..]
         }
         sum ~mod+= p
+        if p <= 1 {
+            // FastLog2(p) is +0, so (p * FastLog2(p)) is +0 and subtracting
+            // it leaves retval (which is never a NaN) unchanged.
+            continue
+        }
         lp = this.fast_log2_memo!(v: p)
-        retval = this.sf.f64_sub(a: retval, b: this.sf.f64_mul(
-                a: this.sf.f64_from_u64(a: p), b: lp))
+        retval = this.f64_sub(a: retval, b: this.f64_mul(
+                a: this.f64_from_u64(a: p), b: lp))
     }
     if sum <> 0 {
         lp = this.fast_log2_memo!(v: sum)
-        retval = this.sf.f64_add(a: retval, b: this.sf.f64_mul(
-                a: this.sf.f64_from_u64(a: sum), b: lp))
+        retval = this.f64_add(a: retval, b: this.f64_mul(
+                a: this.f64_from_u64(a: sum), b: lp))
     }
-    if this.sf.f64_lt(a: retval, b: this.sf.f64_from_u64(a: sum)) <> 0 {
-        retval = this.sf.f64_from_u64(a: sum)
+    if this.f64_lt(a: retval, b: this.f64_from_u64(a: sum)) <> 0 {
+        retval = this.f64_from_u64(a: sum)
     }
     return retval
 }
@@ -184,6 +199,7 @@ pri func bit_cost.bits_entropy!(population: roslice base.u8, size: base.u64) bas
 // Mirrors BrotliPopulationCostLiteral, BrotliPopulationCostCommand and
 // BrotliPopulationCostDistance (FN(BrotliPopulationCost) in bit_cost_inc.h).
 // histogram is a histogram of data_size symbols (see the layout above).
+
 pri func bit_cost.population_cost!(histogram: roslice base.u8, data_size: base.u32[..= 704]) base.u64 {
     var total       : base.u64
     var count       : base.u32
@@ -209,6 +225,7 @@ pri func bit_cost.population_cost!(histogram: roslice base.u8, data_size: base.u
     var sum         : base.u64
     var retval      : base.u64
     var p           : base.u64
+    var term        : base.u64
 
     total = this.ld64(s: args.histogram, i: (args.data_size as base.u64) * 4)
     if total == 0 {
@@ -234,7 +251,7 @@ pri func bit_cost.population_cost!(histogram: roslice base.u8, data_size: base.u
     }
     if count == 2 {
         // kTwoSymbolHistogramCost + (double)total_count_.
-        return this.sf.f64_add(a: 0x4034_0000_0000_0000, b: this.sf.f64_from_u64(a: total))
+        return this.f64_add(a: 0x4034_0000_0000_0000, b: this.f64_from_u64(a: total))
     }
     if count == 3 {
         h0 = this.ld32(s: args.histogram, i: (s[0] as base.u64) * 4)
@@ -243,11 +260,11 @@ pri func bit_cost.population_cost!(histogram: roslice base.u8, data_size: base.u
         histomax = h0.max(no_less_than: h1.max(no_less_than: h2))
         // kThreeSymbolHistogramCost + 2 * (histo0 + histo1 + histo2) -
         // histomax, where the integer expression is uint32_t arithmetic.
-        return this.sf.f64_sub(
-                a: this.sf.f64_add(
+        return this.f64_sub(
+                a: this.f64_add(
                 a: 0x403C_0000_0000_0000,
-                b: this.sf.f64_from_u32(a: 2 ~mod* ((h0 ~mod+ h1) ~mod+ h2))),
-                b: this.sf.f64_from_u32(a: histomax))
+                b: this.f64_from_u32(a: 2 ~mod* ((h0 ~mod+ h1) ~mod+ h2))),
+                b: this.f64_from_u32(a: histomax))
     }
     if count == 4 {
         i = 0
@@ -273,28 +290,48 @@ pri func bit_cost.population_cost!(histogram: roslice base.u8, data_size: base.u
         histomax = h23.max(no_less_than: histo[0])
         // kFourSymbolHistogramCost + 3 * h23 + 2 * (histo[0] + histo[1]) -
         // histomax, evaluated left to right.
-        return this.sf.f64_sub(
-                a: this.sf.f64_add(
-                a: this.sf.f64_add(
+        return this.f64_sub(
+                a: this.f64_add(
+                a: this.f64_add(
                 a: 0x4042_8000_0000_0000,
-                b: this.sf.f64_from_u32(a: 3 ~mod* h23)),
-                b: this.sf.f64_from_u32(a: 2 ~mod* (histo[0] ~mod+ histo[1]))),
-                b: this.sf.f64_from_u32(a: histomax))
+                b: this.f64_from_u32(a: 3 ~mod* h23)),
+                b: this.f64_from_u32(a: 2 ~mod* (histo[0] ~mod+ histo[1]))),
+                b: this.f64_from_u32(a: histomax))
     }
 
     // Compute the entropy of the histogram and simultaneously build a
     // simplified histogram of the code length codes.
     max_depth = 1
     log2total = this.fast_log2_memo!(v: total)
+    this.pc_call ~mod+= 1
+    if this.pc_call == 0 {
+        this.pc_valid[.. 256].bulk_memset!(byte_value: 0)
+        this.pc_call = 1
+    }
     i = 0
     while i < args.data_size {
         c = this.ld32(s: args.histogram, i: (i as base.u64) * 4)
         if c > 0 {
-            lp = this.fast_log2_memo!(v: c as base.u64)
-            log2p = this.sf.f64_sub(a: log2total, b: lp)
-            depth = this.sf.f64_to_u64_trunc(a: this.sf.f64_add(a: log2p, b: 0x3FE0_0000_0000_0000))
-            bits = this.sf.f64_add(a: bits, b: this.sf.f64_mul(
-                    a: this.sf.f64_from_u32(a: c), b: log2p))
+            // term is (c * log2p) and depth is (size_t)(log2p + 0.5) (capped
+            // at 15), which only depend on c (and the fixed total).
+            if (c < 256) and (this.pc_valid[c & 255] == this.pc_call) {
+                term = this.pc_term[c & 255]
+                depth = this.pc_depth[c & 255] as base.u64
+            } else {
+                lp = this.fast_log2_memo!(v: c as base.u64)
+                log2p = this.f64_sub(a: log2total, b: lp)
+                depth = this.f64_to_u64_trunc(a: this.f64_add(a: log2p, b: 0x3FE0_0000_0000_0000))
+                term = this.f64_mul(a: this.f64_from_u32(a: c), b: log2p)
+                if depth > 15 {
+                    depth = 15
+                }
+                if c < 256 {
+                    this.pc_valid[c & 255] = this.pc_call
+                    this.pc_term[c & 255] = term
+                    this.pc_depth[c & 255] = (depth & 15) as base.u8
+                }
+            }
+            bits = this.f64_add(a: bits, b: term)
             if depth > 15 {
                 depth = 15
             }
@@ -326,14 +363,14 @@ pri func bit_cost.population_cost!(histogram: roslice base.u8, data_size: base.u
                 while reps > 0 {
                     depth_histo[17] ~mod+= 1
                     // Add the 3 extra bits for the 17 code length code.
-                    bits = this.sf.f64_add(a: bits, b: 0x4008_0000_0000_0000)
+                    bits = this.f64_add(a: bits, b: 0x4008_0000_0000_0000)
                     reps >>= 3
                 }
             }
         }
     }
     // Add the estimated encoding cost of the code length code histogram.
-    bits = this.sf.f64_add(a: bits, b: this.sf.f64_from_u64(a: 18 + (2 * max_depth)))
+    bits = this.f64_add(a: bits, b: this.f64_from_u64(a: 18 + (2 * max_depth)))
 
     // Add the entropy of the code length code histogram. This is
     // BrotliBitsEntropy(depth_histo, BROTLI_CODE_LENGTH_CODES), inlined
@@ -342,18 +379,22 @@ pri func bit_cost.population_cost!(histogram: roslice base.u8, data_size: base.u
     while i < 18 {
         p = depth_histo[i] as base.u64
         sum ~mod+= p
-        lp = this.fast_log2_memo!(v: p)
-        retval = this.sf.f64_sub(a: retval, b: this.sf.f64_mul(
-                a: this.sf.f64_from_u64(a: p), b: lp))
         i ~mod+= 1
+        if p <= 1 {
+            // As in bits_entropy, this would leave retval unchanged.
+            continue
+        }
+        lp = this.fast_log2_memo!(v: p)
+        retval = this.f64_sub(a: retval, b: this.f64_mul(
+                a: this.f64_from_u64(a: p), b: lp))
     }
     if sum <> 0 {
         lp = this.fast_log2_memo!(v: sum)
-        retval = this.sf.f64_add(a: retval, b: this.sf.f64_mul(
-                a: this.sf.f64_from_u64(a: sum), b: lp))
+        retval = this.f64_add(a: retval, b: this.f64_mul(
+                a: this.f64_from_u64(a: sum), b: lp))
     }
-    if this.sf.f64_lt(a: retval, b: this.sf.f64_from_u64(a: sum)) <> 0 {
-        retval = this.sf.f64_from_u64(a: sum)
+    if this.f64_lt(a: retval, b: this.f64_from_u64(a: sum)) <> 0 {
+        retval = this.f64_from_u64(a: sum)
     }
-    return this.sf.f64_add(a: bits, b: retval)
+    return this.f64_add(a: bits, b: retval)
 }

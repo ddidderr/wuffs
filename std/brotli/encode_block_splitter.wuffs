@@ -295,6 +295,13 @@ pri func metablock_builder.find_blocks!(wb: slice base.u8, data: base.u64, lengt
     var c                 : base.u64
     var cur_id            : base.u8
     var b                 : base.u8
+    var nh                : base.u64[..= 256]
+    var icn               : base.u64
+    var best_k            : base.u64
+    var use_capped        : base.bool
+    var skip_t            : base.u64
+    var t                 : base.u64
+    var n                 : base.u32
 
     alphabet_size = args.ds as base.u64
     bitmap_len = (args.num_histograms ~mod+ 7) >> 3
@@ -330,7 +337,7 @@ pri func metablock_builder.find_blocks!(wb: slice base.u8, data: base.u64, lengt
             k = (i ~mod* args.num_histograms) ~mod+ j
             if k < 35200 {
                 c = this.bit_cost!(count: this.ld32(wb: args.wb, i: (args.histograms ~mod+ (j ~mod* hs)) ~mod+ (i ~mod* 4)) as base.u64)
-                this.insert_cost[k] = this.sf.f64_sub(a: this.insert_cost[j & 255], b: c)
+                this.insert_cost[k] = this.bc.f64_sub(a: this.insert_cost[j & 255], b: c)
             }
             j ~mod+= 1
         }
@@ -344,48 +351,121 @@ pri func metablock_builder.find_blocks!(wb: slice base.u8, data: base.u64, lengt
     // last position, we need to switch here.
     this.cost[.. 256].bulk_memset!(byte_value: 0)
     this.zero!(wb: args.wb, i: args.switch_signal, n: args.length ~mod* bitmap_len)
+    nh = args.num_histograms.min(no_more_than: 256)
     byte_ix = 0
     while byte_ix < args.length {
         ix = byte_ix ~mod* bitmap_len
-        insert_cost_ix = this.sym(wb: args.wb, base: args.data, i: byte_ix, width: args.width) ~mod* args.num_histograms
+        insert_cost_ix = this.sym(wb: args.wb, base: args.data, i: byte_ix, width: args.width) ~mod* nh
         min_cost = F64_1E99
         block_switch_cost = args.block_switch_bitcost
-        k = 0
-        while k < args.num_histograms {
-            // We are coding the symbol with entropy code k.
-            c = 0
-            if (insert_cost_ix ~mod+ k) < 35200 {
-                c = this.insert_cost[(insert_cost_ix ~mod+ k) % 35200]
+        // insert_cost_ix is (symbol * nh) for a symbol less than
+        // alphabet_size, so (insert_cost_ix + nh) is at most 35200.
+        // Otherwise (which never happens), like the C code, the symbol's
+        // insert costs would be out of bounds (and here, they are zero).
+        icn = 0
+        if insert_cost_ix <= 35200 {
+            icn = nh.min(no_more_than: 35200 - insert_cost_ix)
+        }
+        // From byte 2000 on, block_switch_cost is block_switch_bitcost, so
+        // the many cost[k] values that the previous byte capped at it all add
+        // the same (block_switch_bitcost + insert_cost[i]) values. Memoize
+        // those sums (the same f64_add, on the same operands) in
+        // capped_plus, if there are enough remaining bytes to pay for it.
+        if (byte_ix == 2000) and ((args.length ~mod- 2000) > alphabet_size) and (nh >= 4) {
+            t = alphabet_size ~mod* nh
+            t = t.min(no_more_than: 35200)
+            i = 0
+            while i < t {
+                this.capped_plus[i.min(no_more_than: 35199)] = this.bc.f64_add(
+                        a: args.block_switch_bitcost, b: this.insert_cost[i.min(no_more_than: 35199)])
+                i ~mod+= 1
             }
-            c = this.sf.f64_add(a: this.cost[k & 255], b: c)
+            use_capped = true
+        }
+        best_k = 0xFFFF_FFFF_FFFF_FFFF
+        k = 0
+        while k < nh {
+            // We are coding the symbol with entropy code k.
+            if k < icn {
+                j = insert_cost_ix ~mod+ k
+                j = j.min(no_more_than: 35199)
+                if use_capped and (this.cost[k & 255] == args.block_switch_bitcost) {
+                    c = this.capped_plus[j]
+                } else {
+                    c = this.bc.f64_add(a: this.cost[k & 255], b: this.insert_cost[j])
+                }
+            } else {
+                c = this.bc.f64_add(a: this.cost[k & 255], b: 0)
+            }
             this.cost[k & 255] = c
-            if this.sf.f64_lt(a: c, b: min_cost) <> 0 {
+            if this.bc.f64_lt(a: c, b: min_cost) <> 0 {
                 min_cost = c
-                this.st8!(wb: args.wb, i: args.block_id ~mod+ byte_ix, v: (k & 0xFF) as base.u8)
+                best_k = k
             }
             k ~mod+= 1
+        }
+        if best_k <= 0xFF {
+            this.st8!(wb: args.wb, i: args.block_id ~mod+ byte_ix, v: (best_k & 0xFF) as base.u8)
         }
         // More blocks for the beginning.
         if byte_ix < 2000 {
             // block_switch_cost *= 0.77 + multiplier * (double)byte_ix, with
             // multiplier = 0.07 / 2000.
-            block_switch_cost = this.sf.f64_mul(
+            block_switch_cost = this.bc.f64_mul(
                     a: block_switch_cost,
-                    b: this.sf.f64_add(
+                    b: this.bc.f64_add(
                     a: 0x3FE8_A3D7_0A3D_70A4,
-                    b: this.sf.f64_mul(a: 0x3F02_599E_D7C6_FBD3, b: this.sf.f64_from_u64(a: byte_ix))))
+                    b: this.bc.f64_mul(a: 0x3F02_599E_D7C6_FBD3, b: this.bc.f64_from_u64(a: byte_ix))))
+        }
+        // S(c) = (c - min_cost), rounded, is monotone non-decreasing in c, so
+        // the c values whose S(c) is at least block_switch_cost (the cost[k]
+        // values that the loop below caps) are those at least some threshold
+        // T. Find T by stepping (by one ULP) from (block_switch_cost +
+        // min_cost) and, if that takes only a few steps, skip the
+        // subtraction for every c >= T. skip_t holds T, or 0xFFFF_FFFF_FFFF_FFFF
+        // (which no non-negative, non-NaN c is at least) to skip nothing.
+        skip_t = 0xFFFF_FFFF_FFFF_FFFF
+        if (nh >= 8) and (min_cost < 0x7FF0_0000_0000_0000) and
+                ((block_switch_cost ~mod- 1) < 0x7FEF_FFFF_FFFF_FFFF) {
+            // min_cost is non-negative and finite, and block_switch_cost is
+            // positive and finite.
+            t = this.bc.f64_add(a: block_switch_cost, b: min_cost)
+            n = 0
+            while (n < 3) and (t < 0x7FF0_0000_0000_0000) and
+                    (this.bc.f64_ge(a: this.bc.f64_sub(a: t, b: min_cost), b: block_switch_cost) == 0) {
+                t ~mod+= 1
+                n += 1
+            }
+            if (t < 0x7FF0_0000_0000_0000) and
+                    (this.bc.f64_ge(a: this.bc.f64_sub(a: t, b: min_cost), b: block_switch_cost) <> 0) {
+                // S(t) >= block_switch_cost. Step down while S(t - 1) is too.
+                n = 0
+                while (n < 3) and (t > 0) and
+                        (this.bc.f64_ge(a: this.bc.f64_sub(a: t ~mod- 1, b: min_cost), b: block_switch_cost) <> 0) {
+                    t ~mod-= 1
+                    n += 1
+                }
+                if (t == 0) or
+                        (this.bc.f64_ge(a: this.bc.f64_sub(a: t ~mod- 1, b: min_cost), b: block_switch_cost) == 0) {
+                    skip_t = t
+                }
+            }
         }
         k = 0
-        while k < args.num_histograms {
-            c = this.sf.f64_sub(a: this.cost[k & 255], b: min_cost)
+        while k < nh {
+            c = this.cost[k & 255]
+            if (c <= 0x7FF0_0000_0000_0000) and (c >= skip_t) {
+                // S(c) >= S(T) >= block_switch_cost.
+                c = block_switch_cost
+            } else {
+                c = this.bc.f64_sub(a: c, b: min_cost)
+            }
             this.cost[k & 255] = c
-            if this.sf.f64_ge(a: c, b: block_switch_cost) <> 0 {
+            if this.bc.f64_ge(a: c, b: block_switch_cost) <> 0 {
                 this.cost[k & 255] = block_switch_cost
                 j = ix ~mod+ (k >> 3)
-                if true {
-                    b = this.ld8(wb: args.wb, i: args.switch_signal ~mod+ j)
-                    this.st8!(wb: args.wb, i: args.switch_signal ~mod+ j, v: b | ((1 as base.u8) << (k & 7)))
-                }
+                b = this.ld8(wb: args.wb, i: args.switch_signal ~mod+ j)
+                this.st8!(wb: args.wb, i: args.switch_signal ~mod+ j, v: b | ((1 as base.u8) << (k & 7)))
             }
             k ~mod+= 1
         }
@@ -648,7 +728,7 @@ pri func metablock_builder.cluster_blocks!(wb: slice base.u8, cat: base.u32[..= 
             s = this.ld32(wb: args.wb, i: clusters ~mod+ (j ~mod* 4))
             cur_bits = this.histogram_bit_cost_distance!(wb: args.wb, ds: args.ds, histogram: tmp,
                     candidate: all_histograms ~mod+ ((s as base.u64) ~mod* hs), tmp: tmp ~mod+ hs)
-            if this.sf.f64_lt(a: cur_bits, b: best_bits) <> 0 {
+            if this.bc.f64_lt(a: cur_bits, b: best_bits) <> 0 {
                 best_bits = cur_bits
                 best_out = s
             }

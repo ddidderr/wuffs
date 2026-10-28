@@ -93,9 +93,9 @@ pri func encoder.is_mostly_utf8!(wb: roslice base.u8, pos: base.u64, length: bas
             size_utf8 ~mod+= bytes_read
         }
     }
-    return this.sf.f64_gt(
-            a: this.sf.f64_from_u64(a: size_utf8),
-            b: this.sf.f64_mul(a: LC_F64_UTF8_FRAC, b: this.sf.f64_from_u64(a: args.length))) <> 0
+    return this.bc.f64_gt(
+            a: this.bc.f64_from_u64(a: size_utf8),
+            b: this.bc.f64_mul(a: LC_F64_UTF8_FRAC, b: this.bc.f64_from_u64(a: args.length))) <> 0
 }
 
 // Mirrors UTF8Position in literal_cost.c.
@@ -154,17 +154,17 @@ pri func encoder.lc_finish_cost!(wb: slice base.u8, cost_off: base.u64, i: base.
     var lit_cost : base.u64
 
     lit_cost = args.lit_cost
-    if this.sf.f64_lt(a: lit_cost, b: LC_F64_1) <> 0 {
-        lit_cost = this.sf.f64_mul(a: lit_cost, b: LC_F64_0_5)
-        lit_cost = this.sf.f64_add(a: lit_cost, b: LC_F64_0_5)
+    if this.bc.f64_lt(a: lit_cost, b: LC_F64_1) <> 0 {
+        lit_cost = this.bc.f64_mul(a: lit_cost, b: LC_F64_0_5)
+        lit_cost = this.bc.f64_add(a: lit_cost, b: LC_F64_0_5)
     }
     // Make the first bytes more expensive -- seems to help, not sure why.
     // Perhaps because the entropy source is changing its properties rapidly
     // in the beginning of the file, perhaps because the beginning of the data
     // is a statistical "anomaly".
     if args.utf8 and (args.i < 2000) {
-        lit_cost = this.sf.f64_add(a: lit_cost, b: this.sf.f64_add(a: LC_F64_0_35,
-                b: this.sf.f64_mul(a: LC_F64_MULT, b: this.sf.f64_from_u64(a: args.i))))
+        lit_cost = this.bc.f64_add(a: lit_cost, b: this.bc.f64_add(a: LC_F64_0_35,
+                b: this.bc.f64_mul(a: LC_F64_MULT, b: this.bc.f64_from_u64(a: args.i))))
     }
     this.poke_u32!(s: args.wb, i: args.cost_off ~mod+ (args.i ~mod* 4), v: this.sf.f64_to_f32(a: lit_cost))
 }
@@ -278,8 +278,8 @@ pri func encoder.estimate_bit_costs_for_literals_utf8!(wb: slice base.u8, pos: b
             iw = iwu2
         }
         lit_cost = this.bc.fast_log2_memo!(v: iw)
-        lit_cost = this.sf.f64_sub(a: lit_cost, b: this.bc.fast_log2(v: histo))
-        lit_cost = this.sf.f64_add(a: lit_cost, b: LC_F64_0_02905)
+        lit_cost = this.bc.f64_sub(a: lit_cost, b: this.bc.fast_log2(v: histo))
+        lit_cost = this.bc.f64_add(a: lit_cost, b: LC_F64_0_02905)
         this.lc_finish_cost!(wb: args.wb, cost_off: args.cost_off, i: i, lit_cost: lit_cost, utf8: true)
         i ~mod+= 1
     }
@@ -339,8 +339,8 @@ pri func encoder.estimate_bit_costs_for_literals!(wb: slice base.u8, pos: base.u
             histo = 1
         }
         lit_cost = this.bc.fast_log2_memo!(v: in_window)
-        lit_cost = this.sf.f64_sub(a: lit_cost, b: this.bc.fast_log2(v: histo))
-        lit_cost = this.sf.f64_add(a: lit_cost, b: LC_F64_0_029)
+        lit_cost = this.bc.f64_sub(a: lit_cost, b: this.bc.fast_log2(v: histo))
+        lit_cost = this.bc.f64_add(a: lit_cost, b: LC_F64_0_029)
         this.lc_finish_cost!(wb: args.wb, cost_off: args.cost_off, i: i, lit_cost: lit_cost, utf8: false)
         i ~mod+= 1
     }

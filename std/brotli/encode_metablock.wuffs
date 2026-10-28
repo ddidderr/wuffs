@@ -103,6 +103,10 @@ pri struct metablock_builder?(
         cost        : array[256] base.u64,
         insert_cost : array[35200] base.u64,
 
+        // FindBlocks' memoized (block_switch_bitcost + insert_cost[i]) sums
+        // (see find_blocks).
+        capped_plus : array[35200] base.u64,
+
         // RemapBlockIds' new_id array.
         new_id : array[256] base.u16,
 
@@ -279,16 +283,16 @@ pri func metablock_builder.h_population_cost!(wb: roslice base.u8, h: base.u64, 
 // Mirrors Log2FloorNonZero in fast_log.h (which truncates n to 32 bits).
 pri func metablock_builder.log2_floor_non_zero(n: base.u64) base.u32[..= 31] {
     var x : base.u32
-    var r : base.u32[..= 31]
 
+    // Smear the highest set bit of the low 32 bits of n rightwards, then
+    // look up its position.
     x = (args.n & 0xFFFF_FFFF) as base.u32
-    while x > 1 {
-        x >>= 1
-        if r < 31 {
-            r += 1
-        }
-    }
-    return r
+    x |= x >> 1
+    x |= x >> 2
+    x |= x >> 4
+    x |= x >> 8
+    x |= x >> 16
+    return LOG2_DEBRUIJN32[(x ~mod* 0x07C4_ACDD) >> 27]
 }
 
 // Mirrors PrefixEncodeCopyDistance in prefix.h. It returns the code (the
@@ -481,12 +485,12 @@ pri func metablock_builder.compute_distance_cost!(wb: slice base.u8, cmds: rosli
                         postfix_bits: args.new_npostfix) & 0xFFFF) as base.u32
             }
             this.h_add!(wb: args.wb, h: args.tmp, ds: HISTOGRAM_DISTANCE_DATA_SIZE, val: (dist_prefix & 0x3FF) as base.u64)
-            extra_bits = this.sf.f64_add(a: extra_bits, b: this.sf.f64_from_u32(a: dist_prefix >> 10))
+            extra_bits = this.bc.f64_add(a: extra_bits, b: this.bc.f64_from_u32(a: dist_prefix >> 10))
         }
         i ~mod+= 1
     }
     this.dist_cost = this.h_population_cost!(wb: args.wb, h: args.tmp, ds: HISTOGRAM_DISTANCE_DATA_SIZE)
-    this.dist_cost = this.sf.f64_add(a: this.dist_cost, b: extra_bits)
+    this.dist_cost = this.bc.f64_add(a: this.dist_cost, b: extra_bits)
     return true
 }
 
@@ -624,7 +628,7 @@ pri func metablock_builder.build_meta_block!(wb: slice base.u8, ringbuffer: rosl
             success = this.compute_distance_cost!(wb: args.wb, cmds: args.cmds, num_commands: args.num_commands,
                     orig_npostfix: orig_npostfix, orig_ndirect: orig_ndirect,
                     new_npostfix: npostfix, new_ndirect: ndirect, new_max_distance: this.dist_max_distance, tmp: tmp)
-            if (not success) or (this.sf.f64_gt(a: this.dist_cost, b: best_dist_cost) <> 0) {
+            if (not success) or (this.bc.f64_gt(a: this.dist_cost, b: best_dist_cost) <> 0) {
                 break
             }
             best_dist_cost = this.dist_cost
@@ -645,7 +649,7 @@ pri func metablock_builder.build_meta_block!(wb: slice base.u8, ringbuffer: rosl
         success = this.compute_distance_cost!(wb: args.wb, cmds: args.cmds, num_commands: args.num_commands,
                 orig_npostfix: orig_npostfix, orig_ndirect: orig_ndirect,
                 new_npostfix: orig_npostfix, new_ndirect: orig_ndirect, new_max_distance: orig_md, tmp: tmp)
-        if this.sf.f64_lt(a: this.dist_cost, b: best_dist_cost) <> 0 {
+        if this.bc.f64_lt(a: this.dist_cost, b: best_dist_cost) <> 0 {
             best_npostfix = orig_npostfix
             best_ndirect = orig_ndirect
             best_asm = orig_asm
